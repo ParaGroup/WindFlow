@@ -1,0 +1,203 @@
+/******************************************************************************
+ *  This program is free software; you can redistribute it and/or modify it
+ *  under the terms of the GNU Lesser General Public License version 3 as
+ *  published by the Free Software Foundation.
+ *  
+ *  This program is distributed in the hope that it will be useful, but WITHOUT
+ *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+ *  License for more details.
+ *  
+ *  You should have received a copy of the GNU Lesser General Public License
+ *  along with this program; if not, write to the Free Software Foundation,
+ *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ ******************************************************************************
+ */
+
+/** 
+ *  @file    window.hpp
+ *  @author  Gabriele Mencagli
+ *  @date    28/06/2017
+ *  @version 1.0
+ *  
+ *  @brief Streaming windows
+ *  
+ *  @section DESCRIPTION
+ *  
+ *  This file implements the classes used by the WindFlow library to support
+ *  streaming windows. The library natively supports count-based and time-
+ *  based (tumbling, sliding or hopping) window models.
+ */ 
+
+#ifndef WINDOW_H
+#define WINDOW_H
+
+// includes
+#if __cplusplus < 201703L //not C++17
+    #include <experimental/optional>
+    using namespace std::experimental;
+#else
+    #include <optional>
+#endif
+#include <functional>
+#include <windflow.hpp>
+
+// window events
+enum win_event_t { CONTINUE, FIRED, BATCHED };
+
+// class Triggerer_CB
+class Triggerer_CB
+{
+private:
+    uint64_t win_len; // window length in number of tuples
+    uint64_t slide_len; // slide length in number of tuples
+    size_t wid; // window identifier (starting from zero)
+    size_t initial_id; // identifier of the first tuple
+
+public:
+    // constructor
+    Triggerer_CB(uint64_t _win_len, uint64_t _slide_len, size_t _wid, size_t _initial_id=0):
+                 win_len(_win_len), slide_len(_slide_len), wid(_wid), initial_id(_initial_id) {}
+
+    // destructor
+    ~Triggerer_CB() {}
+
+    // method to trigger a new event from a tuple's identifier
+    win_event_t operator()(uint64_t _id) const
+    {
+        return (_id > (win_len + wid * slide_len - 1) + initial_id) ? FIRED : CONTINUE;
+    }
+};
+
+// class Triggerer_TB
+class Triggerer_TB
+{
+private:
+    uint64_t win_len; // window length in time units
+    uint64_t slide_len; // slide length in time units
+    size_t wid; // window identifier (starting from zero)
+    size_t starting_ts; // starting timestamp
+
+public:
+    // constructor 
+    Triggerer_TB(uint64_t _win_len, uint64_t _slide_len, size_t _wid, size_t _starting_ts=0):
+                 win_len(_win_len), slide_len(_slide_len), wid(_wid), starting_ts(_starting_ts) {}
+
+    // destructor
+    ~Triggerer_TB() {}
+
+    // method to trigger a new event from a tuple's identifier
+    win_event_t operator()(uint64_t _ts) const
+    {
+        return (_ts >= (win_len + wid * slide_len) + starting_ts) ? FIRED : CONTINUE;
+    }
+};
+
+// class Window
+template<typename tuple_t, typename result_t>
+class Window
+{
+private:
+    // triggerer type of the window
+    using triggerer_t = function<win_event_t(uint64_t)>;
+    triggerer_t triggerer; // triggerer used by the window
+    result_t *result; // pointer to the result of the window processing
+    optional<tuple_t> firstTuple; // optional object containing the first tuple raising a CONTINUE event
+    optional<tuple_t> firingTuple; // optional object containing the first tuple raising a FIRED event
+    size_t key; // identifier of the key (starting from zero)
+    size_t lwid; // local identifier of the window (starting from zero)
+    size_t gwid; // global identifier of the window (starting from zero)
+    size_t no_tuples; // number of tuples that raised a CONTINUE event on the window
+    bool batched; // flag stating whether the window is batched or not
+
+public:
+    // constructor 
+    Window(size_t _key, size_t _lwid, size_t _gwid, triggerer_t _triggerer):
+           triggerer(_triggerer),
+           result(new result_t()),
+           key(_key),
+           lwid(_lwid),
+           gwid(_gwid),
+           no_tuples(0),
+           batched(false)
+    {
+        result->setInfo(key, _gwid); // set the key and window global identifier in the result
+    }
+
+    // destructor
+    ~Window() {}
+
+    // method to evaluate the status of the window
+    win_event_t onTuple(const tuple_t &_t)
+    {
+        // extract the tuple identifier/timestamp field
+        uint64_t id = (_t.getInfo()).second;
+        // evaluate the triggerer
+        win_event_t event = triggerer(id);
+        if (event == CONTINUE) {
+            no_tuples++;
+            if (!firstTuple) firstTuple = make_optional(_t);
+        }
+        if (event == FIRED) {
+            if(!firingTuple) firingTuple = make_optional(_t);
+        }
+        if (batched) return BATCHED;
+        else return event;
+    }
+
+    // set the window as batched
+    void setBatched()
+    {
+        batched = true;
+    }
+
+    // method to return the pointer to the result
+    result_t *getResult() const
+    {
+        return result;
+    }
+
+    // method to get an optional object to the first tuple raising a CONTINUE event on the window
+    optional<tuple_t> getFirstTuple() const
+    {
+        return firstTuple;
+    }
+
+    // method to get an optional object to the first tuple raising a FIRED event on the window
+    optional<tuple_t> getFiringTuple() const
+    {
+        return firingTuple;
+    }
+
+    // method to get the key identifier
+    size_t getKEY() const
+    {
+        return key;
+    }
+
+    // method to get the local window identifier
+    size_t getLWID() const
+    {
+        return lwid;
+    }
+
+    // method to get the global window identifier
+    size_t getGWID() const
+    {
+        return gwid;
+    }
+
+    // method to get the number of tuples that raised a CONTINUE event on the window
+    size_t getSize() const
+    {
+        return no_tuples;
+    }
+
+    // the method returns true if the window was batched
+    bool isBatched() const
+    {
+        return batched;
+    }
+};
+
+#endif
