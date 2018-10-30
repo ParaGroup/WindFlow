@@ -342,7 +342,8 @@ public:
         else
             last_w = floor((double) (id-initial_id) / ((double) slide_len));
         // copy the tuple into the archive of the corresponding key
-        if (role != MAP || (role == MAP && !isEOSMarker<tuple_t, input_t>(*wt)))
+        //if (role != MAP || (role == MAP && !isEOSMarker<tuple_t, input_t>(*wt)))
+        if (!isEOSMarker<tuple_t, input_t>(*wt))
             (key_d.archive).insert(*t);
         auto &wins = key_d.wins;
         // create all the new windows that need to be opened by the arrival of t
@@ -381,7 +382,9 @@ public:
                         key_d.start_tuple = t_s;
                     size_t start_pos = (key_d.archive).getDistance(*(key_d.start_tuple), *t_s);
                     (key_d.start).push_back(start_pos);
-                    size_t end_pos = (key_d.archive).getDistance(*(key_d.start_tuple), *t_e);
+                    size_t end_pos = (key_d.archive).getDistance(*(key_d.start_tuple))-1;
+                    if(isEOSMarker<tuple_t, input_t>(*wt))
+                        end_pos++;
                     (key_d.end).push_back(end_pos);
                 }
                 // the fired window is batched
@@ -402,6 +405,8 @@ public:
                     else { // the batch is not empty
                         dataBatch = (const tuple_t *) &(*((key_d.archive).getIterator(*(key_d.start_tuple))));
                         size_copy = (key_d.archive).getDistance(*(key_d.start_tuple)) - 1;
+                        if(isEOSMarker<tuple_t, input_t>(*wt))
+                            size_copy++;
                     }
                     // copy of the arrays on the GPU
                     gpuErrChk(cudaMemcpyAsync(gpu_start, (key_d.start).data(), batch_len * sizeof(size_t), cudaMemcpyHostToDevice, cudaStream));
@@ -409,7 +414,7 @@ public:
                     gpuErrChk(cudaMemcpyAsync(gpu_gwids, (key_d.gwids).data(), batch_len * sizeof(size_t), cudaMemcpyHostToDevice, cudaStream));
                     // count-based windows
                     if (winType == CB) {
-                        gpuErrChk(cudaMemcpyAsync(Bin, dataBatch, size_copy * sizeof(tuple_t), cudaMemcpyHostToDevice, cudaStream));
+                        gpuErrChk(cudaMemcpyAsync(Bin, dataBatch, size_copy * sizeof(tuple_t), cudaMemcpyHostToDevice, cudaStream));   
                     }
                     // time-based windows
                     else {

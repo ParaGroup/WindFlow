@@ -268,9 +268,9 @@ public:
             last_w = ceil(((double) id + 1 - initial_id)/((double) slide_len)) - 1;
         // hopping windows
         else
-            last_w = floor((double) (id-initial_id) / ((double) slide_len));
+            last_w = floor((double) (id-initial_id) / slide_len);
         // copy the tuple into the archive of the corresponding key
-        if (role != MAP || (role == MAP && !isEOSMarker<tuple_t, input_t>(*wt)))
+        if (!isEOSMarker<tuple_t, input_t>(*wt))
             (key_d.archive).insert(*t);
         auto &wins = key_d.wins;
         // create all the new windows that need to be opened by the arrival of t

@@ -131,6 +131,7 @@ private:
         // hopping windows
         else {
             size_t n = floor((double) (id-initial_id) / slide_len);
+            // if the tuple belongs to at least one window of this Win_Farm instance
             if (id-initial_id >= n*(slide_len) && id-initial_id < (n*slide_len)+win_len) {
                 first_w = last_w = n;
             }
