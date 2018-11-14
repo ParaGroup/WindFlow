@@ -186,19 +186,39 @@ private:
 #endif
 
     // private constructor
-    Win_Seq_GPU(win_F_t _winFunction, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _batch_len, size_t _n_thread_block, string _name, size_t _scratchpad_size, PatternConfig _config, role_t _role):
-            winFunction(_winFunction),
-            compare([&] (const tuple_t &t1, const tuple_t &t2) { return (t1.getInfo()).second < (t2.getInfo()).second; }),
-            win_len(_win_len),
-            slide_len(_slide_len),
-            winType(_winType),
-            batch_len(_batch_len),
-            n_thread_block(_n_thread_block),
-            name(_name),
-            scratchpad_size(_scratchpad_size),
-            config(_config),
-            role(_role)
+    Win_Seq_GPU(win_F_t _winFunction,
+                uint64_t _win_len,
+                uint64_t _slide_len,
+                win_type_t _winType,
+                size_t _batch_len,
+                size_t _n_thread_block,
+                string _name,
+                size_t _scratchpad_size,
+                PatternConfig _config,
+                role_t _role)
+                :
+                winFunction(_winFunction),
+                compare([&] (const tuple_t &t1, const tuple_t &t2) { return (t1.getInfo()).second < (t2.getInfo()).second; }),
+                win_len(_win_len),
+                slide_len(_slide_len),
+                winType(_winType),
+                batch_len(_batch_len),
+                n_thread_block(_n_thread_block),
+                name(_name),
+                scratchpad_size(_scratchpad_size),
+                config(_config),
+                role(_role)
     {
+        // check the validity of the windowing parameters
+        if (_win_len == 0 || _slide_len == 0) {
+            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the batch length
+        if (_batch_len == 0) {
+            cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
         // create the CUDA stream
         if (cudaStreamCreate(&cudaStream) != cudaSuccess) {
             cerr << RED << "WindFlow Error: cudaStreamCreate() returns error code" << DEFAULT << endl;
@@ -251,7 +271,15 @@ public:
      *  \param _name string with the unique name of the pattern
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      */ 
-    Win_Seq_GPU(win_F_t _winFunction, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _batch_len, size_t _n_thread_block, string _name, size_t _scratchpad_size=0):
+    Win_Seq_GPU(win_F_t _winFunction,
+                uint64_t _win_len,
+                uint64_t _slide_len,
+                win_type_t _winType,
+                size_t _batch_len,
+                size_t _n_thread_block,
+                string _name,
+                size_t _scratchpad_size=0)
+                :
                 Win_Seq_GPU(_winFunction, _win_len, _slide_len, _winType, _batch_len, _n_thread_block, _name, _scratchpad_size, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ) {}
 
     /// Destructor
@@ -513,13 +541,13 @@ public:
                     // call the winFunction on the CPU
                     decltype(get_tuple_t(winFunction)) *my_input_data = (decltype(get_tuple_t(winFunction)) *) &(*(its.first));
                     if (winFunction(key, win.getGWID(), my_input_data, out, distance(its.first, its.second), scratchpad_memory_cpu) != 0) {
-                        cerr << RED << "Error: winFunction() call returns non-zero on CPU" << DEFAULT << endl;
+                        cerr << RED << "WindFlow Error: winFunction() call returns non-zero on CPU" << DEFAULT << endl;
                         exit(EXIT_FAILURE);
                     }
                 }
                 else {// empty window
                     if (winFunction(key, win.getGWID(), nullptr, out, 0, scratchpad_memory_cpu) != 0) {
-                        cerr << RED << "Error: winFunction() call returns non-zero on CPU" << DEFAULT << endl;
+                        cerr << RED << "WindFlow Error: winFunction() call returns non-zero on CPU" << DEFAULT << endl;
                         exit(EXIT_FAILURE);
                     }
                 }

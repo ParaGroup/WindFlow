@@ -100,7 +100,18 @@ private:
     PatternConfig config;
 
     // private constructor I (non-incremental MAP phase and non-incremental REDUCE phase)
-    Win_MapReduce(f_mapfunction_t _mapFunction, f_reducefunction_t _reduceFunction, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _map_degree, size_t _reduce_degree, string _name, bool _ordered, opt_level_t _opt_level, PatternConfig _config):
+    Win_MapReduce(f_mapfunction_t _mapFunction,
+                  f_reducefunction_t _reduceFunction,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType,
+                  size_t _map_degree,
+                  size_t _reduce_degree,
+                  string _name,
+                  bool _ordered,
+                  opt_level_t _opt_level,
+                  PatternConfig _config)
+                  :
                   mapFunction(_mapFunction),
                   reduceFunction(_reduceFunction),
                   isNICMAP(true),
@@ -115,9 +126,19 @@ private:
                   opt_level(_opt_level),
                   config(_config)    
     {
+        // check the validity of the windowing parameters
+        if (_win_len == 0 || _slide_len == 0) {
+            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
         // the Win_MapReduce must have a parallel MAP stage
         if(_map_degree < 2) {
             cerr << RED << "WindFlow Error: Win_MapReduce must have a parallel MAP stage" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the reduce parallelism degree
+        if (_reduce_degree == 0) {
+            cerr << RED << "WindFlow Error: reduce parallelism degree cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // general fastflow pointers to the MAP and REDUCE stages
@@ -152,7 +173,7 @@ private:
         if (_reduce_degree > 1) {
             // configuration structure of the Win_Farm instance (REDUCE)
             PatternConfig configWFREDUCE(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceFunction, _map_degree, _map_degree, CB, _reduce_degree, _name + "_reduce", _ordered, configWFREDUCE, REDUCE);
+            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceFunction, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", _ordered, configWFREDUCE, REDUCE);
             reduce_stage = farm_reduce;
         }
         else {
@@ -168,7 +189,18 @@ private:
     }
 
     // private constructor II (incremental MAP phase and incremental REDUCE phase)
-    Win_MapReduce(f_mapupdate_t _mapUpdate, f_reduceupdate_t _reduceUpdate, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _map_degree, size_t _reduce_degree, string _name, bool _ordered, opt_level_t _opt_level, PatternConfig _config):
+    Win_MapReduce(f_mapupdate_t _mapUpdate,
+                  f_reduceupdate_t _reduceUpdate,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType,
+                  size_t _map_degree,
+                  size_t _reduce_degree,
+                  string _name,
+                  bool _ordered,
+                  opt_level_t _opt_level,
+                  PatternConfig _config)
+                  :
                   mapUpdate(_mapUpdate),
                   reduceUpdate(_reduceUpdate),
                   isNICMAP(false),
@@ -183,9 +215,19 @@ private:
                   opt_level(_opt_level),
                   config(_config)   
     {
+        // check the validity of the windowing parameters
+        if (_win_len == 0 || _slide_len == 0) {
+            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
         // the Win_MapReduce must have a parallel MAP stage
         if(_map_degree < 2) {
             cerr << RED << "WindFlow Error: Win_MapReduce must have a parallel MAP stage" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the reduce parallelism degree
+        if (_reduce_degree == 0) {
+            cerr << RED << "WindFlow Error: reduce parallelism degree cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // general fastflow pointers to the MAP and REDUCE stages
@@ -220,7 +262,7 @@ private:
         if (_reduce_degree > 1) {
             // configuration structure of the Win_Farm instance (REDUCE)
             PatternConfig configWFREDUCE(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceUpdate, _map_degree, _map_degree, CB, _reduce_degree, _name + "_reduce", _ordered, configWFREDUCE, REDUCE);
+            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceUpdate, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", _ordered, configWFREDUCE, REDUCE);
             reduce_stage = farm_reduce;
         }
         else {
@@ -236,7 +278,18 @@ private:
     }
 
     // private constructor III (non-incremental MAP phase and incremental REDUCE phase)
-    Win_MapReduce(f_mapfunction_t _mapFunction, f_reduceupdate_t _reduceUpdate, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _map_degree, size_t _reduce_degree, string _name, bool _ordered, opt_level_t _opt_level, PatternConfig _config):
+    Win_MapReduce(f_mapfunction_t _mapFunction,
+                  f_reduceupdate_t _reduceUpdate,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType,
+                  size_t _map_degree,
+                  size_t _reduce_degree,
+                  string _name,
+                  bool _ordered,
+                  opt_level_t _opt_level,
+                  PatternConfig _config)
+                  :
                   mapFunction(_mapFunction),
                   reduceUpdate(_reduceUpdate),
                   isNICMAP(true),
@@ -251,9 +304,19 @@ private:
                   opt_level(_opt_level),
                   config(_config) 
     {
+        // check the validity of the windowing parameters
+        if (_win_len == 0 || _slide_len == 0) {
+            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
         // the Win_MapReduce must have a parallel MAP stage
         if(_map_degree < 2) {
             cerr << RED << "WindFlow Error: Win_MapReduce must have a parallel MAP stage" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the reduce parallelism degree
+        if (_reduce_degree == 0) {
+            cerr << RED << "WindFlow Error: reduce parallelism degree cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // general fastflow pointers to the MAP and REDUCE stages
@@ -288,7 +351,7 @@ private:
         if (_reduce_degree > 1) {
             // configuration structure of the Win_Farm instance (REDUCE)
             PatternConfig configWFREDUCE(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceUpdate, _map_degree, _map_degree, CB, _reduce_degree, _name + "_reduce", _ordered, configWFREDUCE, REDUCE);
+            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceUpdate, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", _ordered, configWFREDUCE, REDUCE);
             reduce_stage = farm_reduce;
         }
         else {
@@ -304,7 +367,18 @@ private:
     }
 
     // private constructor IV (incremental MAP phase and non-incremental REDUCE phase)
-    Win_MapReduce(f_mapupdate_t _mapUpdate, f_reducefunction_t _reduceFunction, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _map_degree, size_t _reduce_degree, string _name, bool _ordered, opt_level_t _opt_level, PatternConfig _config):
+    Win_MapReduce(f_mapupdate_t _mapUpdate,
+                  f_reducefunction_t _reduceFunction,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType,
+                  size_t _map_degree,
+                  size_t _reduce_degree,
+                  string _name,
+                  bool _ordered,
+                  opt_level_t _opt_level,
+                  PatternConfig _config)
+                  :
                   mapUpdate(_mapUpdate),
                   reduceFunction(_reduceFunction),
                   isNICMAP(false),
@@ -319,9 +393,19 @@ private:
                   opt_level(_opt_level),
                   config(_config) 
     {
+        // check the validity of the windowing parameters
+        if (_win_len == 0 || _slide_len == 0) {
+            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
         // the Win_MapReduce must have a parallel MAP stage
         if(_map_degree < 2) {
             cerr << RED << "WindFlow Error: Win_MapReduce must have a parallel MAP stage" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the reduce parallelism degree
+        if (_reduce_degree == 0) {
+            cerr << RED << "WindFlow Error: reduce parallelism degree cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // general fastflow pointers to the MAP and REDUCE stages
@@ -356,7 +440,7 @@ private:
         if (_reduce_degree > 1) {
             // configuration structure of the Win_Farm instance (REDUCE)
             PatternConfig configWFREDUCE(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceFunction, _map_degree, _map_degree, CB, _reduce_degree, _name + "_reduce", _ordered, configWFREDUCE, REDUCE);
+            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceFunction, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", _ordered, configWFREDUCE, REDUCE);
             reduce_stage = farm_reduce;
         }
         else {
@@ -417,7 +501,17 @@ public:
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Win_MapReduce(f_mapfunction_t _mapFunction, f_reducefunction_t _reduceFunction, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _map_degree, size_t _reduce_degree, string _name, bool _ordered=true, opt_level_t _opt_level=LEVEL0):
+    Win_MapReduce(f_mapfunction_t _mapFunction,
+                  f_reducefunction_t _reduceFunction,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType,
+                  size_t _map_degree,
+                  size_t _reduce_degree,
+                  string _name,
+                  bool _ordered=true,
+                  opt_level_t _opt_level=LEVEL0)
+                  :
                   Win_MapReduce(_mapFunction, _reduceFunction, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _name, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
 
     /** 
@@ -434,7 +528,17 @@ public:
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Win_MapReduce(f_mapupdate_t _mapUpdate, f_reduceupdate_t _reduceUpdate, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _map_degree, size_t _reduce_degree, string _name, bool _ordered=true, opt_level_t _opt_level=LEVEL0):
+    Win_MapReduce(f_mapupdate_t _mapUpdate,
+                  f_reduceupdate_t _reduceUpdate,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType,
+                  size_t _map_degree,
+                  size_t _reduce_degree,
+                  string _name,
+                  bool _ordered=true,
+                  opt_level_t _opt_level=LEVEL0)
+                  :
                   Win_MapReduce(_mapUpdate, _reduceUpdate, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _name, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
 
     /** 
@@ -451,7 +555,17 @@ public:
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Win_MapReduce(f_mapfunction_t _mapFunction, f_reduceupdate_t _reduceUpdate, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _map_degree, size_t _reduce_degree, string _name, bool _ordered=true, opt_level_t _opt_level=LEVEL0):
+    Win_MapReduce(f_mapfunction_t _mapFunction,
+                  f_reduceupdate_t _reduceUpdate,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType,
+                  size_t _map_degree,
+                  size_t _reduce_degree,
+                  string _name,
+                  bool _ordered=true,
+                  opt_level_t _opt_level=LEVEL0)
+                  :
                   Win_MapReduce(_mapFunction, _reduceUpdate, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _name, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
 
     /** 
@@ -468,7 +582,17 @@ public:
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Win_MapReduce(f_mapupdate_t _mapUpdate, f_reducefunction_t _reduceFunction, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _map_degree, size_t _reduce_degree, string _name, bool _ordered=true, opt_level_t _opt_level=LEVEL0):
+    Win_MapReduce(f_mapupdate_t _mapUpdate,
+                  f_reducefunction_t _reduceFunction,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType,
+                  size_t _map_degree,
+                  size_t _reduce_degree,
+                  string _name,
+                  bool _ordered=true,
+                  opt_level_t _opt_level=LEVEL0)
+                  :
                   Win_MapReduce(_mapUpdate, _reduceFunction, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _name, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
 
     /// Destructor

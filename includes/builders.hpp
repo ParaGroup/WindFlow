@@ -288,6 +288,7 @@ private:
     uint64_t win_len = 1;
     uint64_t slide_len = 1;
     win_type_t winType = CB;
+    size_t emitter_degree = 1;
     size_t pardegree = 1;
     string name = "noname";
     bool ordered = true;
@@ -365,6 +366,18 @@ public:
     }
 
     /** 
+     *  \brief Method to specify the number of parallel emitters within the Win_Farm instance
+     *  
+     *  \param _emitter_degree number of emitters
+     *  \return the object itself (method chaining)
+     */ 
+    WinFarm_Builder<T>& withEmitters(size_t _emitter_degree)
+    {
+        emitter_degree = _emitter_degree;
+        return *this;
+    }
+
+    /** 
      *  \brief Method to specify the number of parallel instances within the Win_Farm instance
      *  
      *  \param _pardegree number of parallel instances
@@ -420,7 +433,7 @@ public:
      */ 
     winfarm_t build()
     {
-        return winfarm_t(input, win_len, slide_len, winType, pardegree, name, ordered, opt_level); // copy elision in C++17
+        return winfarm_t(input, win_len, slide_len, winType, emitter_degree, pardegree, name, ordered, opt_level); // copy elision in C++17
     }
 #endif
 
@@ -431,7 +444,7 @@ public:
      */ 
     winfarm_t *build_ptr()
     {
-        return new winfarm_t(input, win_len, slide_len, winType, pardegree, name, ordered, opt_level);
+        return new winfarm_t(input, win_len, slide_len, winType, emitter_degree, pardegree, name, ordered, opt_level);
     }
 
     /** 
@@ -441,7 +454,7 @@ public:
      */ 
     unique_ptr<winfarm_t> build_unique()
     {
-        return make_unique<winfarm_t>(input, win_len, slide_len, winType, pardegree, name, ordered, opt_level);
+        return make_unique<winfarm_t>(input, win_len, slide_len, winType, emitter_degree, pardegree, name, ordered, opt_level);
     }
 };
 
@@ -462,6 +475,7 @@ private:
     uint64_t win_len = 1;
     uint64_t slide_len = 1;
     win_type_t winType = CB;
+    size_t emitter_degree = 1;
     size_t pardegree = 1;
     size_t batch_len = 1;
     size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
@@ -547,6 +561,18 @@ public:
     }
 
     /** 
+     *  \brief Method to specify the number of parallel emitters within the Win_Farm_GPU instance
+     *  
+     *  \param _emitter_degree number of emitters
+     *  \return the object itself (method chaining)
+     */ 
+    WinFarmGPU_Builder<T>& withEmitters(size_t _emitter_degree)
+    {
+        emitter_degree = _emitter_degree;
+        return *this;
+    }
+
+    /** 
      *  \brief Method to specify the number of parallel instances within the Win_Farm_GPU instance
      *  
      *  \param _pardegree number of parallel instances
@@ -627,7 +653,7 @@ public:
      */ 
     winfarm_gpu_t *build_ptr()
     {
-        return new winfarm_gpu_t(input, win_len, slide_len, winType, pardegree, batch_len, n_thread_block, name, scratchpad_size, ordered, opt_level);
+        return new winfarm_gpu_t(input, win_len, slide_len, winType, emitter_degree, pardegree, batch_len, n_thread_block, name, scratchpad_size, ordered, opt_level);
     }
 
     /** 
@@ -637,7 +663,7 @@ public:
      */ 
     unique_ptr<winfarm_gpu_t> build_unique()
     {
-        return make_unique<winfarm_gpu_t>(input, win_len, slide_len, winType, pardegree, batch_len, n_thread_block, name, scratchpad_size, ordered, opt_level);
+        return make_unique<winfarm_gpu_t>(input, win_len, slide_len, winType, emitter_degree, pardegree, batch_len, n_thread_block, name, scratchpad_size, ordered, opt_level);
     }
 };
 

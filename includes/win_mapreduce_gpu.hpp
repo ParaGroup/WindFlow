@@ -112,7 +112,21 @@ private:
     PatternConfig config;
 
     // private constructor I (MAP stage on the GPU and REDUCE stage on the CPU with non-incremental query definition)
-    Win_MapReduce_GPU(F_t _gpuFunction, f_reducefunction_t _reduceFunction, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _map_degree, size_t _reduce_degree, size_t _batch_len, size_t _n_thread_block, string _name, size_t _scratchpad_size, bool _ordered, opt_level_t _opt_level, PatternConfig _config):
+    Win_MapReduce_GPU(F_t _gpuFunction,
+                      f_reducefunction_t _reduceFunction,
+                      uint64_t _win_len,
+                      uint64_t _slide_len,
+                      win_type_t _winType,
+                      size_t _map_degree,
+                      size_t _reduce_degree,
+                      size_t _batch_len,
+                      size_t _n_thread_block,
+                      string _name,
+                      size_t _scratchpad_size,
+                      bool _ordered,
+                      opt_level_t _opt_level,
+                      PatternConfig _config)
+                      :
                       gpuFunction(_gpuFunction),
                       reduceFunction(_reduceFunction),
                       isGPUMAP(true),
@@ -132,9 +146,24 @@ private:
                       opt_level(_opt_level),
                       config(_config)
     {
+        // check the validity of the windowing parameters
+        if (_win_len == 0 || _slide_len == 0) {
+            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
         // the Win_MapReduce_GPU must have a parallel MAP stage
         if(_map_degree < 2) {
             cerr << RED << "WindFlow Error: Win_MapReduce_GPU must have a parallel MAP stage" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the reduce parallelism degree
+        if (_reduce_degree == 0) {
+            cerr << RED << "WindFlow Error: reduce parallelism degree cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the batch length
+        if (_batch_len == 0) {
+            cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // general fastflow pointers to the MAP and REDUCE stages
@@ -169,7 +198,7 @@ private:
         if (_reduce_degree > 1) {
             // configuration structure of the Win_Farm instance (REDUCE)
             PatternConfig configWFREDUCE(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceFunction, _map_degree, _map_degree, CB, _reduce_degree, _name + "_reduce", _ordered, configWFREDUCE, REDUCE);
+            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceFunction, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", _ordered, configWFREDUCE, REDUCE);
             reduce_stage = farm_reduce;
         }
         else {
@@ -185,7 +214,21 @@ private:
     }
 
     // private constructor II (MAP stage on the GPU and REDUCE stage on the CPU with incremental query definition)
-    Win_MapReduce_GPU(F_t _gpuFunction, f_reduceupdate_t _reduceUpdate, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _map_degree, size_t _reduce_degree, size_t _batch_len, size_t _n_thread_block, string _name, size_t _scratchpad_size, bool _ordered, opt_level_t _opt_level, PatternConfig _config):
+    Win_MapReduce_GPU(F_t _gpuFunction,
+                      f_reduceupdate_t _reduceUpdate,
+                      uint64_t _win_len,
+                      uint64_t _slide_len,
+                      win_type_t _winType,
+                      size_t _map_degree,
+                      size_t _reduce_degree,
+                      size_t _batch_len,
+                      size_t _n_thread_block,
+                      string _name,
+                      size_t _scratchpad_size,
+                      bool _ordered,
+                      opt_level_t _opt_level,
+                      PatternConfig _config)
+                      :
                       gpuFunction(_gpuFunction),
                       reduceUpdate(_reduceUpdate),
                       isGPUMAP(true),
@@ -205,9 +248,24 @@ private:
                       opt_level(_opt_level),
                       config(_config)
     {
+        // check the validity of the windowing parameters
+        if (_win_len == 0 || _slide_len == 0) {
+            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
         // the Win_MapReduce_GPU must have a parallel MAP stage
         if(_map_degree < 2) {
             cerr << RED << "WindFlow Error: Win_MapReduce_GPU must have a parallel MAP stage" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the reduce parallelism degree
+        if (_reduce_degree == 0) {
+            cerr << RED << "WindFlow Error: reduce parallelism degree cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the batch length
+        if (_batch_len == 0) {
+            cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // general fastflow pointers to the MAP and REDUCE stages
@@ -242,7 +300,7 @@ private:
         if (_reduce_degree > 1) {
             // configuration structure of the Win_Farm instance (REDUCE)
             PatternConfig configWFREDUCE(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceUpdate, _map_degree, _map_degree, CB, _reduce_degree, _name + "_reduce", _ordered, configWFREDUCE, REDUCE);
+            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceUpdate, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", _ordered, configWFREDUCE, REDUCE);
             reduce_stage = farm_reduce;
         }
         else {
@@ -258,7 +316,21 @@ private:
     }
 
     // private constructor III (MAP stage on the CPU with non-incremental query definition and REDUCE stage on the GPU)
-    Win_MapReduce_GPU(f_mapfunction_t _mapFunction, F_t _gpuFunction, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _map_degree, size_t _reduce_degree, size_t _batch_len, size_t _n_thread_block, string _name, size_t _scratchpad_size, bool _ordered, opt_level_t _opt_level, PatternConfig _config):
+    Win_MapReduce_GPU(f_mapfunction_t _mapFunction,
+                      F_t _gpuFunction,
+                      uint64_t _win_len,
+                      uint64_t _slide_len,
+                      win_type_t _winType,
+                      size_t _map_degree,
+                      size_t _reduce_degree,
+                      size_t _batch_len,
+                      size_t _n_thread_block,
+                      string _name,
+                      size_t _scratchpad_size,
+                      bool _ordered,
+                      opt_level_t _opt_level,
+                      PatternConfig _config)
+                      :
                       mapFunction(_mapFunction),
                       gpuFunction(_gpuFunction),
                       isGPUMAP(false),
@@ -278,9 +350,24 @@ private:
                       opt_level(_opt_level),
                       config(_config)
     {
+        // check the validity of the windowing parameters
+        if (_win_len == 0 || _slide_len == 0) {
+            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
         // the Win_MapReduce_GPU must have a parallel MAP stage
         if(_map_degree < 2) {
             cerr << RED << "WindFlow Error: Win_MapReduce_GPU must have a parallel MAP stage" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the reduce parallelism degree
+        if (_reduce_degree == 0) {
+            cerr << RED << "WindFlow Error: reduce parallelism degree cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the batch length
+        if (_batch_len == 0) {
+            cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // general fastflow pointers to the MAP and REDUCE stages
@@ -315,7 +402,7 @@ private:
         if (_reduce_degree > 1) {
             // configuration structure of the Win_Farm_GPU instance (REDUCE)
             PatternConfig configWFREDUCE(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *farm_reduce = new Win_Farm_GPU<result_t, result_t, F_t>(_gpuFunction, _map_degree, _map_degree, CB, _reduce_degree, _batch_len, _n_thread_block, _name + "_reduce", scratchpad_size, _ordered, configWFREDUCE, REDUCE);
+            auto *farm_reduce = new Win_Farm_GPU<result_t, result_t, F_t>(_gpuFunction, _map_degree, _map_degree, CB, 1, _reduce_degree, _batch_len, _n_thread_block, _name + "_reduce", scratchpad_size, _ordered, configWFREDUCE, REDUCE);
             reduce_stage = farm_reduce;
         }
         else {
@@ -331,7 +418,21 @@ private:
     }
 
     // private constructor IV (MAP stage on the CPU with incremental query definition and REDUCE stage on the GPU)
-    Win_MapReduce_GPU(f_mapupdate_t _mapUpdate, F_t _gpuFunction, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _map_degree, size_t _reduce_degree, size_t _batch_len, size_t _n_thread_block, string _name, size_t _scratchpad_size, bool _ordered, opt_level_t _opt_level, PatternConfig _config):
+    Win_MapReduce_GPU(f_mapupdate_t _mapUpdate,
+                      F_t _gpuFunction,
+                      uint64_t _win_len,
+                      uint64_t _slide_len,
+                      win_type_t _winType,
+                      size_t _map_degree,
+                      size_t _reduce_degree,
+                      size_t _batch_len,
+                      size_t _n_thread_block,
+                      string _name,
+                      size_t _scratchpad_size,
+                      bool _ordered,
+                      opt_level_t _opt_level,
+                      PatternConfig _config)
+                      :
                       mapUpdate(_mapUpdate),
                       gpuFunction(_gpuFunction),
                       isGPUMAP(false),
@@ -351,9 +452,24 @@ private:
                       opt_level(_opt_level),
                       config(_config)
     {
+        // check the validity of the windowing parameters
+        if (_win_len == 0 || _slide_len == 0) {
+            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
         // the Win_MapReduce_GPU must have a parallel MAP stage
         if(_map_degree < 2) {
             cerr << RED << "WindFlow Error: Win_MapReduce_GPU must have a parallel MAP stage" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the reduce parallelism degree
+        if (_reduce_degree == 0) {
+            cerr << RED << "WindFlow Error: reduce parallelism degree cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the batch length
+        if (_batch_len == 0) {
+            cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // general fastflow pointers to the MAP and REDUCE stages
@@ -388,7 +504,7 @@ private:
         if (_reduce_degree > 1) {
             // configuration structure of the Win_Farm_GPU instance (REDUCE)
             PatternConfig configWFREDUCE(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *farm_reduce = new Win_Farm_GPU<result_t, result_t, F_t>(_gpuFunction, _map_degree, _map_degree, CB, _reduce_degree, _batch_len, _n_thread_block, _name + "_reduce", scratchpad_size, _ordered, configWFREDUCE, REDUCE);
+            auto *farm_reduce = new Win_Farm_GPU<result_t, result_t, F_t>(_gpuFunction, _map_degree, _map_degree, CB, 1, _reduce_degree, _batch_len, _n_thread_block, _name + "_reduce", scratchpad_size, _ordered, configWFREDUCE, REDUCE);
             reduce_stage = farm_reduce;
         }
         else {
@@ -452,7 +568,20 @@ public:
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Win_MapReduce_GPU(F_t _mapFunction, f_reducefunction_t _reduceFunction, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _map_degree, size_t _reduce_degree, size_t _batch_len, size_t _n_thread_block, string _name, size_t _scratchpad_size=0, bool _ordered=true, opt_level_t _opt_level=LEVEL0):
+    Win_MapReduce_GPU(F_t _mapFunction,
+                      f_reducefunction_t _reduceFunction,
+                      uint64_t _win_len,
+                      uint64_t _slide_len,
+                      win_type_t _winType,
+                      size_t _map_degree,
+                      size_t _reduce_degree,
+                      size_t _batch_len,
+                      size_t _n_thread_block,
+                      string _name,
+                      size_t _scratchpad_size=0,
+                      bool _ordered=true,
+                      opt_level_t _opt_level=LEVEL0)
+                      :
                       Win_MapReduce_GPU(_mapFunction, _reduceFunction, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
 
     /** 
@@ -472,7 +601,20 @@ public:
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Win_MapReduce_GPU(F_t _mapFunction, f_reduceupdate_t _reduceUpdate, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _map_degree, size_t _reduce_degree, size_t _batch_len, size_t _n_thread_block, string _name, size_t _scratchpad_size=0, bool _ordered=true, opt_level_t _opt_level=LEVEL0):
+    Win_MapReduce_GPU(F_t _mapFunction,
+                      f_reduceupdate_t _reduceUpdate,
+                      uint64_t _win_len,
+                      uint64_t _slide_len,
+                      win_type_t _winType,
+                      size_t _map_degree,
+                      size_t _reduce_degree,
+                      size_t _batch_len,
+                      size_t _n_thread_block,
+                      string _name,
+                      size_t _scratchpad_size=0,
+                      bool _ordered=true,
+                      opt_level_t _opt_level=LEVEL0)
+                      :
                       Win_MapReduce_GPU(_mapFunction, _reduceUpdate, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
 
     /** 
@@ -492,7 +634,20 @@ public:
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Win_MapReduce_GPU(f_mapfunction_t _mapFunction, F_t _reduceFunction, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _map_degree, size_t _reduce_degree, size_t _batch_len, size_t _n_thread_block, string _name, size_t _scratchpad_size=0, bool _ordered=true, opt_level_t _opt_level=LEVEL0):
+    Win_MapReduce_GPU(f_mapfunction_t _mapFunction,
+                      F_t _reduceFunction,
+                      uint64_t _win_len,
+                      uint64_t _slide_len,
+                      win_type_t _winType,
+                      size_t _map_degree,
+                      size_t _reduce_degree,
+                      size_t _batch_len,
+                      size_t _n_thread_block,
+                      string _name,
+                      size_t _scratchpad_size=0,
+                      bool _ordered=true,
+                      opt_level_t _opt_level=LEVEL0)
+                      :
                       Win_MapReduce_GPU(_mapFunction, _reduceFunction, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
 
     /** 
@@ -512,7 +667,20 @@ public:
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Win_MapReduce_GPU(f_mapupdate_t _mapUpdate, F_t _reduceUpdate, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _map_degree, size_t _reduce_degree, size_t _batch_len, size_t _n_thread_block, string _name, size_t _scratchpad_size=0, bool _ordered=true, opt_level_t _opt_level=LEVEL0):
+    Win_MapReduce_GPU(f_mapupdate_t _mapUpdate,
+                      F_t _reduceUpdate,
+                      uint64_t _win_len,
+                      uint64_t _slide_len,
+                      win_type_t _winType,
+                      size_t _map_degree,
+                      size_t _reduce_degree,
+                      size_t _batch_len,
+                      size_t _n_thread_block,
+                      string _name,
+                      size_t _scratchpad_size=0,
+                      bool _ordered=true,
+                      opt_level_t _opt_level=LEVEL0)
+                      :
                       Win_MapReduce_GPU(_mapUpdate, _reduceUpdate, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
 
     /// Destructor

@@ -115,7 +115,21 @@ private:
     PatternConfig config;
 
     // private constructor I (PLQ stage on the GPU and WLQ stage on the CPU with non-incremental query definition)
-    Pane_Farm_GPU(F_t _gpuFunction, f_wlqfunction_t _wlqFunction, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _plq_degree, size_t _wlq_degree, size_t _batch_len, size_t _n_thread_block, string _name, size_t _scratchpad_size, bool _ordered, opt_level_t _opt_level, PatternConfig _config):
+    Pane_Farm_GPU(F_t _gpuFunction,
+                  f_wlqfunction_t _wlqFunction,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType,
+                  size_t _plq_degree,
+                  size_t _wlq_degree,
+                  size_t _batch_len,
+                  size_t _n_thread_block,
+                  string _name,
+                  size_t _scratchpad_size,
+                  bool _ordered,
+                  opt_level_t _opt_level,
+                  PatternConfig _config)
+                  :
                   gpuFunction(_gpuFunction),
                   wlqFunction(_wlqFunction),
                   isGPUPLQ(true),
@@ -135,6 +149,21 @@ private:
                   opt_level(_opt_level),
                   config(_config)
     {
+        // check the validity of the windowing parameters
+        if (_win_len == 0 || _slide_len == 0) {
+            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the parallelism degrees
+        if (_plq_degree == 0 || _wlq_degree == 0) {
+            cerr << RED << "WindFlow Error: parallelism degrees cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the batch length
+        if (_batch_len == 0) {
+            cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
         // the Pane_Farm_GPU can be utilized with sliding windows only
         if(_win_len <= _slide_len) {
             cerr << RED << "WindFlow Error: Pane_Farm_GPU can be used with sliding windows only (s<w)" << DEFAULT << endl;
@@ -148,7 +177,7 @@ private:
         if(_plq_degree > 1) {
             // configuration structure of the Win_Farm_GPU instance (PLQ)
             PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *plq_wf = new Win_Farm_GPU<tuple_t, result_t, F_t, input_t>(_gpuFunction, _pane_len, _pane_len, _winType, _plq_degree, _batch_len, _n_thread_block, _name + "_plq", _scratchpad_size, true, configWFPLQ, PLQ);
+            auto *plq_wf = new Win_Farm_GPU<tuple_t, result_t, F_t, input_t>(_gpuFunction, _pane_len, _pane_len, _winType, 1, _plq_degree, _batch_len, _n_thread_block, _name + "_plq", _scratchpad_size, true, configWFPLQ, PLQ);
             plq_stage = plq_wf;
         }
         else {
@@ -161,7 +190,7 @@ private:
         if(_wlq_degree > 1) {
             // configuration structure of the Win_Farm instance (WLQ)
             PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqFunction, (_win_len/_pane_len), (_slide_len/_pane_len), CB, _wlq_degree, _name + "_wlq", _ordered, configWFWLQ, WLQ);
+            auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqFunction, (_win_len/_pane_len), (_slide_len/_pane_len), CB, 1, _wlq_degree, _name + "_wlq", _ordered, configWFWLQ, WLQ);
             wlq_stage = wlq_wf;
         }
         else {
@@ -177,7 +206,21 @@ private:
     }
 
     // private constructor II (PLQ stage on the GPU and WLQ stage on the CPU with incremental query definition)
-    Pane_Farm_GPU(F_t _gpuFunction, f_wlqupdate_t _wlqUpdate, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _plq_degree, size_t _wlq_degree, size_t _batch_len, size_t _n_thread_block, string _name, size_t _scratchpad_size, bool _ordered, opt_level_t _opt_level, PatternConfig _config):
+    Pane_Farm_GPU(F_t _gpuFunction,
+                  f_wlqupdate_t _wlqUpdate,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType,
+                  size_t _plq_degree,
+                  size_t _wlq_degree,
+                  size_t _batch_len,
+                  size_t _n_thread_block,
+                  string _name,
+                  size_t _scratchpad_size,
+                  bool _ordered,
+                  opt_level_t _opt_level,
+                  PatternConfig _config)
+                  :
                   gpuFunction(_gpuFunction),
                   wlqUpdate(_wlqUpdate),
                   isGPUPLQ(true),
@@ -197,6 +240,21 @@ private:
                   opt_level(_opt_level),
                   config(_config)
     {
+        // check the validity of the windowing parameters
+        if (_win_len == 0 || _slide_len == 0) {
+            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the parallelism degrees
+        if (_plq_degree == 0 || _wlq_degree == 0) {
+            cerr << RED << "WindFlow Error: parallelism degrees cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the batch length
+        if (_batch_len == 0) {
+            cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
         // the Pane_Farm_GPU can be utilized with sliding windows only
         if(_win_len <= _slide_len) {
             cerr << RED << "WindFlow Error: Pane_Farm_GPU can be used with sliding windows only (s<w)" << DEFAULT << endl;
@@ -210,7 +268,7 @@ private:
         if(_plq_degree > 1) {
             // configuration structure of the Win_Farm_GPU instance (PLQ)
             PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *plq_wf = new Win_Farm_GPU<tuple_t, result_t, F_t, input_t>(_gpuFunction, _pane_len, _pane_len, _winType, _plq_degree, _batch_len, _n_thread_block, _name + "_plq", _scratchpad_size, true, configWFPLQ, PLQ);
+            auto *plq_wf = new Win_Farm_GPU<tuple_t, result_t, F_t, input_t>(_gpuFunction, _pane_len, _pane_len, _winType, 1, _plq_degree, _batch_len, _n_thread_block, _name + "_plq", _scratchpad_size, true, configWFPLQ, PLQ);
             plq_stage = plq_wf;
         }
         else {
@@ -223,7 +281,7 @@ private:
         if(_wlq_degree > 1) {
             // configuration structure of the Win_Farm instance (WLQ)
             PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqUpdate, (_win_len/_pane_len), (_slide_len/_pane_len), CB, _wlq_degree, _name + "_wlq", _ordered, configWFWLQ, WLQ);
+            auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqUpdate, (_win_len/_pane_len), (_slide_len/_pane_len), CB, 1, _wlq_degree, _name + "_wlq", _ordered, configWFWLQ, WLQ);
             wlq_stage = wlq_wf;
         }
         else {
@@ -239,7 +297,21 @@ private:
     }
 
     // private constructor III (PLQ stage on the CPU with non-incremental query definition and WLQ stage on the GPU)
-    Pane_Farm_GPU(f_plqfunction_t _plqFunction, F_t _gpuFunction, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _plq_degree, size_t _wlq_degree, size_t _batch_len, size_t _n_thread_block, string _name, size_t _scratchpad_size, bool _ordered, opt_level_t _opt_level, PatternConfig _config):
+    Pane_Farm_GPU(f_plqfunction_t _plqFunction,
+                  F_t _gpuFunction,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType,
+                  size_t _plq_degree,
+                  size_t _wlq_degree,
+                  size_t _batch_len,
+                  size_t _n_thread_block,
+                  string _name,
+                  size_t _scratchpad_size,
+                  bool _ordered,
+                  opt_level_t _opt_level,
+                  PatternConfig _config)
+                  :
                   plqFunction(_plqFunction),
                   gpuFunction(_gpuFunction),
                   isGPUPLQ(false),
@@ -259,6 +331,21 @@ private:
                   opt_level(_opt_level),
                   config(_config)
     {
+        // check the validity of the windowing parameters
+        if (_win_len == 0 || _slide_len == 0) {
+            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the parallelism degrees
+        if (_plq_degree == 0 || _wlq_degree == 0) {
+            cerr << RED << "WindFlow Error: parallelism degrees cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the batch length
+        if (_batch_len == 0) {
+            cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
         // the Pane_Farm_GPU can be utilized with sliding windows only
         if(_win_len <= _slide_len) {
             cerr << RED << "WindFlow Error: Pane_Farm_GPU can be used with sliding windows only (s<w)" << DEFAULT << endl;
@@ -272,7 +359,7 @@ private:
         if(_plq_degree > 1) {
             // configuration structure of the Win_Farm instance (PLQ)
             PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqFunction, _pane_len, _pane_len, _winType, _plq_degree, _name + "_plq", true, configWFPLQ, PLQ);
+            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqFunction, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", true, configWFPLQ, PLQ);
             plq_stage = plq_wf;
         }
         else {
@@ -285,7 +372,7 @@ private:
         if(_wlq_degree > 1) {
             // configuration structure of the Win_Farm_GPU instance (WLQ)
             PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *wlq_wf = new Win_Farm_GPU<result_t, result_t, F_t>(_gpuFunction, (_win_len/_pane_len), (_slide_len/_pane_len), CB, _wlq_degree, _batch_len, _n_thread_block, _name + "_wlq", scratchpad_size, _ordered, configWFWLQ, WLQ);
+            auto *wlq_wf = new Win_Farm_GPU<result_t, result_t, F_t>(_gpuFunction, (_win_len/_pane_len), (_slide_len/_pane_len), CB, 1, _wlq_degree, _batch_len, _n_thread_block, _name + "_wlq", scratchpad_size, _ordered, configWFWLQ, WLQ);
             wlq_stage = wlq_wf;
         }
         else {
@@ -301,7 +388,21 @@ private:
     }
 
     // private constructor IV (PLQ stage on the CPU with incremental query definition and WLQ stage on the GPU)
-    Pane_Farm_GPU(f_plqupdate_t _plqUpdate, F_t _gpuFunction, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _plq_degree, size_t _wlq_degree, size_t _batch_len, size_t _n_thread_block, string _name, size_t _scratchpad_size, bool _ordered, opt_level_t _opt_level, PatternConfig _config):
+    Pane_Farm_GPU(f_plqupdate_t _plqUpdate,
+                  F_t _gpuFunction,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType,
+                  size_t _plq_degree,
+                  size_t _wlq_degree,
+                  size_t _batch_len,
+                  size_t _n_thread_block,
+                  string _name,
+                  size_t _scratchpad_size,
+                  bool _ordered,
+                  opt_level_t _opt_level,
+                  PatternConfig _config)
+                  :
                   plqUpdate(_plqUpdate),
                   gpuFunction(_gpuFunction),
                   isGPUPLQ(false),
@@ -321,6 +422,21 @@ private:
                   opt_level(_opt_level),
                   config(_config)
     {
+        // check the validity of the windowing parameters
+        if (_win_len == 0 || _slide_len == 0) {
+            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the parallelism degrees
+        if (_plq_degree == 0 || _wlq_degree == 0) {
+            cerr << RED << "WindFlow Error: parallelism degrees cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the batch length
+        if (_batch_len == 0) {
+            cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
         // the Pane_Farm_GPU can be utilized with sliding windows only
         if(_win_len <= _slide_len) {
             cerr << RED << "WindFlow Error: Pane_Farm_GPU can be used with sliding windows only (s<w)" << DEFAULT << endl;
@@ -334,7 +450,7 @@ private:
         if(_plq_degree > 1) {
             // configuration structure of the Win_Farm instance (PLQ)
             PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqUpdate, _pane_len, _pane_len, _winType, _plq_degree, _name + "_plq", true, configWFPLQ, PLQ);
+            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqUpdate, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", true, configWFPLQ, PLQ);
             plq_stage = plq_wf;
         }
         else {
@@ -347,7 +463,7 @@ private:
         if(_wlq_degree > 1) {
             // configuration structure of the Win_Farm_GPU instance (WLQ)
             PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *wlq_wf = new Win_Farm_GPU<result_t, result_t, F_t>(_gpuFunction, (_win_len/_pane_len), (_slide_len/_pane_len), CB, _wlq_degree, _batch_len, _n_thread_block, _name + "_wlq", scratchpad_size, _ordered, configWFWLQ, WLQ);
+            auto *wlq_wf = new Win_Farm_GPU<result_t, result_t, F_t>(_gpuFunction, (_win_len/_pane_len), (_slide_len/_pane_len), CB, 1, _wlq_degree, _batch_len, _n_thread_block, _name + "_wlq", scratchpad_size, _ordered, configWFWLQ, WLQ);
             wlq_stage = wlq_wf;
         }
         else {
@@ -423,7 +539,20 @@ public:
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Pane_Farm_GPU(F_t _plqFunction, f_wlqfunction_t _wlqFunction, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _plq_degree, size_t _wlq_degree, size_t _batch_len, size_t _n_thread_block, string _name, size_t _scratchpad_size=0, bool _ordered=true, opt_level_t _opt_level=LEVEL0):
+    Pane_Farm_GPU(F_t _plqFunction,
+                  f_wlqfunction_t _wlqFunction,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType,
+                  size_t _plq_degree,
+                  size_t _wlq_degree,
+                  size_t _batch_len,
+                  size_t _n_thread_block,
+                  string _name,
+                  size_t _scratchpad_size=0,
+                  bool _ordered=true,
+                  opt_level_t _opt_level=LEVEL0)
+                  :
                   Pane_Farm_GPU(_plqFunction, _wlqFunction, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
 
     /** 
@@ -443,8 +572,21 @@ public:
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Pane_Farm_GPU(F_t _plqFunction, f_wlqupdate_t _wlqUpdate, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _plq_degree, size_t _wlq_degree, size_t _batch_len, size_t _n_thread_block, string _name, size_t _scratchpad_size=0, bool _ordered=true, opt_level_t _opt_level=LEVEL0):
-              Pane_Farm_GPU(_plqFunction, _wlqUpdate, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
+    Pane_Farm_GPU(F_t _plqFunction,
+                  f_wlqupdate_t _wlqUpdate,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType, 
+                  size_t _plq_degree,
+                  size_t _wlq_degree,
+                  size_t _batch_len,
+                  size_t _n_thread_block,
+                  string _name,
+                  size_t _scratchpad_size=0,
+                  bool _ordered=true,
+                  opt_level_t _opt_level=LEVEL0)
+                  :
+                  Pane_Farm_GPU(_plqFunction, _wlqUpdate, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
 
     /** 
      *  \brief Constructor III (Non-Incremental PLQ stage on CPU and WLQ stage on GPU)
@@ -463,8 +605,21 @@ public:
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Pane_Farm_GPU(f_plqfunction_t _plqFunction, F_t _wlqFunction, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _plq_degree, size_t _wlq_degree, size_t _batch_len, size_t _n_thread_block, string _name, size_t _scratchpad_size=0, bool _ordered=true, opt_level_t _opt_level=LEVEL0):
-              Pane_Farm_GPU(_plqFunction, _wlqFunction, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
+    Pane_Farm_GPU(f_plqfunction_t _plqFunction,
+                  F_t _wlqFunction,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType,
+                  size_t _plq_degree,
+                  size_t _wlq_degree,
+                  size_t _batch_len,
+                  size_t _n_thread_block,
+                  string _name,
+                  size_t _scratchpad_size=0,
+                  bool _ordered=true,
+                  opt_level_t _opt_level=LEVEL0)
+                  :
+                  Pane_Farm_GPU(_plqFunction, _wlqFunction, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
 
     /** 
      *  \brief Constructor IV (Incremental PLQ stage on CPU and WLQ stage on GPU)
@@ -483,8 +638,21 @@ public:
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Pane_Farm_GPU(f_plqupdate_t _plqUpdate, F_t _wlqFunction, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _plq_degree, size_t _wlq_degree, size_t _batch_len, size_t _n_thread_block, string _name, size_t _scratchpad_size=0, bool _ordered=true, opt_level_t _opt_level=LEVEL0):
-              Pane_Farm_GPU(_plqUpdate, _wlqFunction, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
+    Pane_Farm_GPU(f_plqupdate_t _plqUpdate,
+                  F_t _wlqFunction,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType,
+                  size_t _plq_degree,
+                  size_t _wlq_degree,
+                  size_t _batch_len,
+                  size_t _n_thread_block,
+                  string _name,
+                  size_t _scratchpad_size=0,
+                  bool _ordered=true,
+                  opt_level_t _opt_level=LEVEL0)
+                  :
+                  Pane_Farm_GPU(_plqUpdate, _wlqFunction, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
 
     /// destructor
     ~Pane_Farm_GPU() {}

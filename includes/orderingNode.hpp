@@ -51,6 +51,10 @@ private:
     using wrapper_in_t = wrapper_tuple_t<tuple_t>;
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3>
+    friend class Win_Farm;
+    template<typename T1, typename T2, typename T3, typename T4>
+    friend class Win_Farm_GPU;
+    template<typename T1, typename T2, typename T3>
     friend class Pane_Farm;
     template<typename T1, typename T2, typename T3, typename T4>
     friend class Pane_Farm_GPU;

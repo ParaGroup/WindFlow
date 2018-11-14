@@ -42,6 +42,7 @@ int main(int argc, char *argv[])
 	size_t win_len = 0;
 	size_t win_slide = 0;
 	size_t num_keys = 1;
+	size_t emitter_degree = 1;
 	size_t degree1 = 1;
 	size_t degree2 = 1;
 	size_t degree3 = 1;
@@ -49,11 +50,11 @@ int main(int argc, char *argv[])
 	unsigned long value = 0;
 	opt_level_t opt_level = LEVEL0;
 	// arguments from command line
-	if (argc != 19) {
-		cout << argv[0] << " -l [stream_length] -k [num keys] -w [win length usec] -s [win slide usec] -b [batch_len] -r [pardegree] -n [pardegree] -m [pardegree] -o [opt_level]" << endl;
+	if (argc != 21) {
+		cout << argv[0] << " -l [stream_length] -k [num keys] -w [win length usec] -s [win slide usec] -b [batch_len] -e [pardegree] -r [pardegree] -n [pardegree] -m [pardegree] -o [opt_level]" << endl;
 		exit(EXIT_SUCCESS);
 	}
-	while ((option = getopt(argc, argv, "l:k:w:s:b:r:n:m:o:")) != -1) {
+	while ((option = getopt(argc, argv, "l:k:w:s:b:e:r:n:m:o:")) != -1) {
 		switch (option) {
 			case 'l': stream_len = atoi(optarg);
 					 break;
@@ -64,7 +65,9 @@ int main(int argc, char *argv[])
 			case 's': win_slide = atoi(optarg);
 					 break;
 			case 'b': batch_len = atoi(optarg);
-					 break;		
+					 break;
+			case 'e': emitter_degree = atoi(optarg);
+					 break;	
 			case 'r': degree1 = atoi(optarg);
 					 break;					 
 			case 'n': degree2 = atoi(optarg);
@@ -79,7 +82,7 @@ int main(int argc, char *argv[])
 					 break;
 			}
 			default: {
-				cout << argv[0] << " -l [stream_length] -k [num keys] -w [win length usec] -s [win slide usec] -b [batch_len] -r [pardegree] -n [pardegree] -m [pardegree] -o [opt_level]" << endl;
+				cout << argv[0] << " -l [stream_length] -k [num keys] -w [win length usec] -s [win slide usec] -b [batch_len] -e [pardegree] -r [pardegree] -n [pardegree] -m [pardegree] -o [opt_level]" << endl;
 				exit(EXIT_SUCCESS);
 			}
         }
@@ -238,6 +241,7 @@ int main(int argc, char *argv[])
 															  .withBatch(batch_len)
 										   					  .withParallelism(degree1)
 										   				      .withName("wf_gpu")
+										   				      .withEmitters(emitter_degree)
 										   					  .build_ptr();
 	ff_Pipe<tuple_t, output_t> pipe2(generator2, *wf2, consumer2);
 	cout << "Run Test 2 WF(SEQ_GPU): number of threads " << pipe2.cardinality() << endl;

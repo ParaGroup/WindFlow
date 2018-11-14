@@ -111,8 +111,33 @@ public:
      *  \param _routing function to map the key onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Key_Farm_GPU(win_F_t _winFunction, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _pardegree, size_t _batch_len, size_t _n_thread_block, string _name,  size_t _scratchpad_size=0, f_routing_t _routing=[](size_t k, size_t n) { return k%n; }, opt_level_t _opt_level=LEVEL0)
+    Key_Farm_GPU(win_F_t _winFunction,
+                 uint64_t _win_len,
+                 uint64_t _slide_len,
+                 win_type_t _winType,
+                 size_t _pardegree,
+                 size_t _batch_len,
+                 size_t _n_thread_block,
+                 string _name,
+                 size_t _scratchpad_size=0,
+                 f_routing_t _routing=[](size_t k, size_t n) { return k%n; },
+                 opt_level_t _opt_level=LEVEL0)
     {
+        // check the validity of the windowing parameters
+        if (_win_len == 0 || _slide_len == 0) {
+            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the parallelism degree
+        if (_pardegree == 0) {
+            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the batch length
+        if (_batch_len == 0) {
+            cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
         if (_opt_level != LEVEL0)
             cerr << YELLOW << "WindFlow Warning: optimization level has no effect" << DEFAULT << endl;
         // vector of Win_Seq_GPU instances
@@ -145,11 +170,36 @@ public:
      *  \param _routing function to map the key onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Key_Farm_GPU(const pane_farm_gpu_t &_pf, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _pardegree, size_t _batch_len, size_t _n_thread_block, string _name, size_t _scratchpad_size=0, f_routing_t _routing=[](size_t k, size_t n) { return k%n; }, opt_level_t _opt_level=LEVEL0)
+    Key_Farm_GPU(const pane_farm_gpu_t &_pf,
+                 uint64_t _win_len,
+                 uint64_t _slide_len,
+                 win_type_t _winType,
+                 size_t _pardegree,
+                 size_t _batch_len,
+                 size_t _n_thread_block,
+                 string _name,
+                 size_t _scratchpad_size=0,
+                 f_routing_t _routing=[](size_t k, size_t n) { return k%n; },
+                 opt_level_t _opt_level=LEVEL0)
     {
+        // check the validity of the windowing parameters
+        if (_win_len == 0 || _slide_len == 0) {
+            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the parallelism degree
+        if (_pardegree == 0) {
+            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the batch length
+        if (_batch_len == 0) {
+            cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
         // check the compatibility of the windowing/batching parameters
         if(_pf.win_len != _win_len || _pf.slide_len != _slide_len || _pf.winType != _winType || _pf.batch_len != _batch_len || _pf.n_thread_block != _n_thread_block) {
-            cerr << RED << "Error: to be nested Key_Farm_GPU and Pane_Farm_GPU instances must have compatible windowing and batching parameters" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: incompatible windowing and batching parameters" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // vector of Pane_Farm_GPU instances
@@ -199,11 +249,36 @@ public:
      *  \param _routing function to map the key onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Key_Farm_GPU(const win_mapreduce_gpu_t &_wm, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _pardegree, size_t _batch_len, size_t _n_thread_block, string _name, size_t _scratchpad_size=0, f_routing_t _routing=[](size_t k, size_t n) { return k%n; }, opt_level_t _opt_level=LEVEL0)
+    Key_Farm_GPU(const win_mapreduce_gpu_t &_wm,
+                 uint64_t _win_len,
+                 uint64_t _slide_len,
+                 win_type_t _winType,
+                 size_t _pardegree,
+                 size_t _batch_len,
+                 size_t _n_thread_block,
+                 string _name,
+                 size_t _scratchpad_size=0,
+                 f_routing_t _routing=[](size_t k, size_t n) { return k%n; },
+                 opt_level_t _opt_level=LEVEL0)
     {
+        // check the validity of the windowing parameters
+        if (_win_len == 0 || _slide_len == 0) {
+            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the parallelism degree
+        if (_pardegree == 0) {
+            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the batch length
+        if (_batch_len == 0) {
+            cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
         // check the compatibility of the windowing/batching parameters
         if(_wm.win_len != _win_len || _wm.slide_len != _slide_len || _wm.winType != _winType || _wm.batch_len != _batch_len || _wm.n_thread_block != _n_thread_block) {
-            cerr << RED << "Error: to be nested Key_Farm_GPU and Win_MapReduce_GPU instances must have compatible windowing and batching parameters" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: incompatible windowing and batching parameters" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // vector of Win_MapReduce_GPU instances

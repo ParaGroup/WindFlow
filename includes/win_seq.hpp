@@ -141,7 +141,14 @@ private:
 #endif
 
     // private constructor I (non-incremental queries)
-    Win_Seq(f_winfunction_t _winFunction, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, string _name, PatternConfig _config, role_t _role):
+    Win_Seq(f_winfunction_t _winFunction,
+            uint64_t _win_len,
+            uint64_t _slide_len,
+            win_type_t _winType,
+            string _name,
+            PatternConfig _config,
+            role_t _role)
+            :
             winFunction(_winFunction),
             compare([&] (const tuple_t &t1, const tuple_t &t2) { return (t1.getInfo()).second < (t2.getInfo()).second; }),
             win_len(_win_len),
@@ -150,10 +157,24 @@ private:
             isNIC(true),
             name(_name),
             config(_config),
-            role(_role) {}
+            role(_role)
+    {
+        // check the validity of the windowing parameters
+        if (_win_len == 0 || _slide_len == 0) {
+            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+    }
 
     // private constructor II (incremental queries)
-    Win_Seq(f_winupdate_t _winUpdate, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, string _name, PatternConfig _config, role_t _role):
+    Win_Seq(f_winupdate_t _winUpdate,
+            uint64_t _win_len,
+            uint64_t _slide_len,
+            win_type_t _winType,
+            string _name,
+            PatternConfig _config,
+            role_t _role)
+            :
             winUpdate(_winUpdate),
             compare([&] (const tuple_t &t1, const tuple_t &t2) { return (t1.getInfo()).second < (t2.getInfo()).second; }),
             win_len(_win_len),
@@ -162,7 +183,14 @@ private:
             isNIC(false),
             name(_name),
             config(_config),
-            role(_role) {}
+            role(_role)
+    {
+        // check the validity of the windowing parameters
+        if (_win_len == 0 || _slide_len == 0) {
+            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+    }
 
     // method to set the indexes useful if role is MAP
     void setMapIndexes(size_t _first, size_t _second) {
@@ -180,7 +208,12 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _name string with the unique name of the pattern
      */ 
-    Win_Seq(f_winfunction_t _winFunction, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, string _name):
+    Win_Seq(f_winfunction_t _winFunction,
+            uint64_t _win_len,
+            uint64_t _slide_len,
+            win_type_t _winType,
+            string _name)
+            :
             Win_Seq(_winFunction, _win_len, _slide_len, _winType, _name, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ) {}
 
     /** 
@@ -192,7 +225,12 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _name string with the unique name of the pattern
      */ 
-    Win_Seq(f_winupdate_t _winUpdate, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, string _name):
+    Win_Seq(f_winupdate_t _winUpdate,
+            uint64_t _win_len,
+            uint64_t _slide_len,
+            win_type_t _winType,
+            string _name)
+            :
             Win_Seq(_winUpdate, _win_len, _slide_len, _winType, _name, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ) {}
 
     /// Destructor
@@ -290,7 +328,7 @@ public:
                 if (!isNIC && !isEOSMarker<tuple_t, input_t>(*wt)) {
                     // incremental query -> call winUpdate
                     if (winUpdate(key, win.getGWID(), *t, *(win.getResult())) != 0) {
-                        cerr << RED << "Error: winUpdate() call returns non-zero" << DEFAULT << endl;
+                        cerr << RED << "WindFlow Error: winUpdate() call returns non-zero" << DEFAULT << endl;
                         exit(EXIT_FAILURE);
                     }
                 }
@@ -316,7 +354,7 @@ public:
                         its = (key_d.archive).getWinRange(*t_s, *t_e);
                     Iterable<tuple_t> iter(its.first, its.second);
                     if (winFunction(key, win.getGWID(), iter, *(win.getResult())) != 0) {
-                        cerr << RED << "Error: winFunction() call returns non-zero" << DEFAULT << endl;
+                        cerr << RED << "WindFlow Error: winFunction() call returns non-zero" << DEFAULT << endl;
                         exit(EXIT_FAILURE);
                     }
                 }
@@ -385,7 +423,7 @@ public:
                         its = ((k.second).archive).getWinRange(*t_s);
                     Iterable<tuple_t> iter(its.first, its.second);
                     if (winFunction(k.first, win.getGWID(), iter, *(win.getResult())) != 0) {
-                        cerr << RED << "Error: winFunction() call returns non-zero" << DEFAULT << endl;
+                        cerr << RED << "WindFlow Error: winFunction() call returns non-zero" << DEFAULT << endl;
                         exit(EXIT_FAILURE);
                     }
                 }

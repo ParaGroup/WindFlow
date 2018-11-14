@@ -88,50 +88,152 @@ private:
     Win_Farm() {}
 
     // private constructor II (non-incremental queries)
-    Win_Farm(f_winfunction_t _winFunction, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _pardegree, string _name, bool _ordered, PatternConfig _config, role_t _role)
+    Win_Farm(f_winfunction_t _winFunction,
+             uint64_t _win_len,
+             uint64_t _slide_len,
+             win_type_t _winType,
+             size_t _emitter_degree,
+             size_t _pardegree,
+             string _name,
+             bool _ordered,
+             PatternConfig _config,
+             role_t _role)
     {
+        // check the validity of the windowing parameters
+        if (_win_len == 0 || _slide_len == 0) {
+            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the emitter degree
+        if (_emitter_degree == 0) {
+            cerr << RED << "WindFlow Error: at least one emitter is needed" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the parallelism degree
+        if (_pardegree == 0) {
+            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
         // vector of Win_Seq instances
-        vector<ff_node *> w(_pardegree);
+        vector<ff_node *> w;
         // private sliding factor of each Win_Seq instance
         size_t private_slide = _slide_len * _pardegree;
-        // create the Win_Seq instances
-        for (size_t i = 0; i < _pardegree; i++) {
-            // configuration structure of the Win_Seq instances
-            PatternConfig configSeq(_config.id_inner, _config.n_inner, _config.slide_inner, i, _pardegree, _slide_len);
-            auto *seq = new win_seq_t(_winFunction, _win_len, private_slide, _winType, _name + "_wf", configSeq, _role);
-            w[i] = seq;
+        // standard case: one Emitter node
+        if (_emitter_degree == 1) {
+            // create the Win_Seq instances
+            for (size_t i = 0; i < _pardegree; i++) {
+                // configuration structure of the Win_Seq instances
+                PatternConfig configSeq(_config.id_inner, _config.n_inner, _config.slide_inner, i, _pardegree, _slide_len);
+                auto *seq = new win_seq_t(_winFunction, _win_len, private_slide, _winType, _name + "_wf", configSeq, _role);
+                w.push_back(seq);
+            }
+        }
+        // advanced case: multiple Emitter nodes
+        else {
+            ff_a2a *a2a = new ff_a2a();
+            // create the Emitter nodes
+            vector<ff_node *> emitters(_emitter_degree);
+            for (size_t i = 0; i < _emitter_degree; i++) {
+                auto *emitter = new wf_emitter_t(_win_len, _slide_len, _pardegree, _config.id_inner, _config.n_inner, _config.slide_inner, _role);
+                emitters[i] = emitter;
+            }
+            a2a->add_firstset(emitters, true);
+            // create the Win_Seq nodes composed with an orderingNodes
+            vector<ff_node *> seqs(_pardegree);
+            for (size_t i = 0; i < _pardegree; i++) {
+                auto *ord = new OrderingNode<tuple_t>(_emitter_degree);
+                // configuration structure of the Win_Seq instances
+                PatternConfig configSeq(_config.id_inner, _config.n_inner, _config.slide_inner, i, _pardegree, _slide_len);
+                auto *seq = new win_seq_t(_winFunction, _win_len, private_slide, _winType, _name + "_wf", configSeq, _role);
+                auto *comb = new ff_comb(ord, seq, true, true);
+                seqs[i] = comb;
+            }
+            a2a->add_secondset(seqs, true);
+            w.push_back(a2a);
         }
         ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
-        ff_farm::add_emitter(new wf_emitter_t(_win_len, _slide_len, _pardegree, _config.id_inner, _config.n_inner, _config.slide_inner, _role));
+        if(_emitter_degree == 1)
+            ff_farm::add_emitter(new wf_emitter_t(_win_len, _slide_len, _pardegree, _config.id_inner, _config.n_inner, _config.slide_inner, _role));
         if(_ordered)
             ff_farm::add_collector(new wf_collector_t());
-        else 
+        else
             ff_farm::add_collector(nullptr);
         // when the Win_Farm will be destroyed we need aslo to destroy the emitter, workers and collector
         ff_farm::cleanup_all();
     }
 
-    // private constructor II (incremental queries)
-    Win_Farm(f_winupdate_t _winUpdate, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _pardegree, string _name, bool _ordered, PatternConfig _config, role_t _role)
+    // private constructor III (incremental queries)
+    Win_Farm(f_winupdate_t _winUpdate,
+             uint64_t _win_len,
+             uint64_t _slide_len,
+             win_type_t _winType,
+             size_t _emitter_degree,
+             size_t _pardegree,
+             string _name,
+             bool _ordered,
+             PatternConfig _config,
+             role_t _role)
     {
+        // check the validity of the windowing parameters
+        if (_win_len == 0 || _slide_len == 0) {
+            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the emitter degree
+        if (_emitter_degree == 0) {
+            cerr << RED << "WindFlow Error: at least one emitter is needed" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the parallelism degree
+        if (_pardegree == 0) {
+            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
         // vector of Win_Seq instances
-        vector<ff_node *> w(_pardegree);
+        vector<ff_node *> w;
         // private sliding factor of each Win_Seq instance
         size_t private_slide = _slide_len * _pardegree;
-        // create the Win_Seq instances
-        for (size_t i = 0; i < _pardegree; i++) {
-            // configuration structure of the Win_Seq instances
-            PatternConfig configSeq(_config.id_inner, _config.n_inner, _config.slide_inner, i, _pardegree, _slide_len);
-            auto *seq = new win_seq_t(_winUpdate, _win_len, private_slide, _winType, _name + "_wf", configSeq, _role);
-            w[i] = seq;
+        // standard case: one Emitter node
+        if (_emitter_degree == 1) {
+            // create the Win_Seq instances
+            for (size_t i = 0; i < _pardegree; i++) {
+                // configuration structure of the Win_Seq instances
+                PatternConfig configSeq(_config.id_inner, _config.n_inner, _config.slide_inner, i, _pardegree, _slide_len);
+                auto *seq = new win_seq_t(_winUpdate, _win_len, private_slide, _winType, _name + "_wf", configSeq, _role);
+                w.push_back(seq);
+            }
+        }
+        // advanced case: multiple Emitter nodes
+        else {
+            ff_a2a *a2a = new ff_a2a();
+            // create the Emitter nodes
+            vector<ff_node *> emitters(_emitter_degree);
+            for (size_t i = 0; i < _emitter_degree; i++) {
+                auto *emitter = new wf_emitter_t(_win_len, _slide_len, _pardegree, _config.id_inner, _config.n_inner, _config.slide_inner, _role);
+                emitters[i] = emitter;
+            }
+            a2a->add_firstset(emitters, true);
+            // create the Win_Seq nodes composed with an orderingNodes
+            vector<ff_node *> seqs(_pardegree);
+            for (size_t i = 0; i < _pardegree; i++) {
+                auto *ord = new OrderingNode<tuple_t>(_emitter_degree);
+                // configuration structure of the Win_Seq instances
+                PatternConfig configSeq(_config.id_inner, _config.n_inner, _config.slide_inner, i, _pardegree, _slide_len);
+                auto *seq = new win_seq_t(_winUpdate, _win_len, private_slide, _winType, _name + "_wf", configSeq, _role);
+                auto *comb = new ff_comb(ord, seq, true, true);
+                seqs[i] = comb;
+            }
+            a2a->add_secondset(seqs, true);
+            w.push_back(a2a);
         }
         ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
-        ff_farm::add_emitter(new wf_emitter_t(_win_len, _slide_len, _pardegree, _config.id_inner, _config.n_inner, _config.slide_inner, _role));
+        if(_emitter_degree == 1)
+            ff_farm::add_emitter(new wf_emitter_t(_win_len, _slide_len, _pardegree, _config.id_inner, _config.n_inner, _config.slide_inner, _role));
         if(_ordered)
             ff_farm::add_collector(new wf_collector_t());
-        else 
+        else
             ff_farm::add_collector(nullptr);
         // when the Win_Farm will be destroyed we need aslo to destroy the emitter, workers and collector
         ff_farm::cleanup_all();
@@ -158,13 +260,23 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _emitter_degree number of replicas of the emitter node
      *  \param _pardegree number of Win_Seq instances to be created within the Win_Farm
      *  \param _name string with the unique name of the pattern
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Win_Farm(f_winfunction_t _winFunction, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _pardegree, string _name, bool _ordered=true, opt_level_t _opt_level=LEVEL0):
-             Win_Farm(_winFunction, _win_len, _slide_len, _winType, _pardegree, _name, _ordered, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
+    Win_Farm(f_winfunction_t _winFunction,
+             uint64_t _win_len,
+             uint64_t _slide_len,
+             win_type_t _winType,
+             size_t _emitter_degree,
+             size_t _pardegree,
+             string _name,
+             bool _ordered=true,
+             opt_level_t _opt_level=LEVEL0)
+             :
+             Win_Farm(_winFunction, _win_len, _slide_len, _winType, _emitter_degree, _pardegree, _name, _ordered, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
     {
         if (_opt_level != LEVEL0)
             cerr << YELLOW << "WindFlow Warning: optimization level has no effect" << DEFAULT << endl;
@@ -177,13 +289,23 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _emitter_degree number of replicas of the emitter node
      *  \param _pardegree number of Win_Seq instances to be created within the Win_Farm
      *  \param _name string with the unique name of the pattern
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Win_Farm(f_winupdate_t _winUpdate, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _pardegree, string _name, bool _ordered=true, opt_level_t _opt_level=LEVEL0):
-             Win_Farm(_winUpdate, _win_len, _slide_len, _winType, _pardegree, _name, _ordered, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
+    Win_Farm(f_winupdate_t _winUpdate,
+             uint64_t _win_len,
+             uint64_t _slide_len,
+             win_type_t _winType,
+             size_t _emitter_degree,
+             size_t _pardegree,
+             string _name,
+             bool _ordered=true,
+             opt_level_t _opt_level=LEVEL0)
+             :
+             Win_Farm(_winUpdate, _win_len, _slide_len, _winType, _emitter_degree, _pardegree, _name, _ordered, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
     {
         if (_opt_level != LEVEL0)
             cerr << YELLOW << "WindFlow Warning: optimization level has no effect" << DEFAULT << endl;         
@@ -196,19 +318,48 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _emitter_degree number of replicas of the emitter node
      *  \param _pardegree number of Pane_Farm instances to be created within the Win_Farm
      *  \param _name string with the unique name of the pattern
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Win_Farm(const pane_farm_t &_pf, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _pardegree, string _name, bool _ordered=true, opt_level_t _opt_level=LEVEL0)
+    Win_Farm(const pane_farm_t &_pf,
+             uint64_t _win_len,
+             uint64_t _slide_len,
+             win_type_t _winType,
+             size_t _emitter_degree,
+             size_t _pardegree,
+             string _name,
+             bool _ordered=true,
+             opt_level_t _opt_level=LEVEL0)
     {
         // type of the Pane_Farm to be created within the Win_Farm pattern
         using panewrap_farm_t = Pane_Farm<tuple_t, result_t, wrapper_in_t>;
+        // check the validity of the windowing parameters
+        if (_win_len == 0 || _slide_len == 0) {
+            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the emitter degree
+        if (_emitter_degree == 0) {
+            cerr << RED << "WindFlow Error: at least one emitter is needed" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the parallelism degree
+        if (_pardegree == 0) {
+            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
         // check the compatibility of the windowing parameters
         if(_pf.win_len != _win_len || _pf.slide_len != _slide_len || _pf.winType != _winType) {
-            cerr << RED << "Error: to be nested Win_Farm and Pane_Farm instances must have compatible windowing parameters" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: incompatible windowing parameters" << DEFAULT << endl;
             exit(EXIT_FAILURE);
+        }
+        // check that one single emitter is utilized
+        if (_emitter_degree > 1) {
+            cerr << YELLOW << "WindFlow Warning: forced to use one emitter in the Win_Farm" << DEFAULT << endl;
+            _emitter_degree = 1;
         }
         // vector of Pane_Farm instances
         vector<ff_node *> w(_pardegree);
@@ -246,19 +397,48 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _emitter_degree number of replicas of the emitter node
      *  \param _pardegree number of Win_MapReduce instances to be created within the Win_Farm
      *  \param _name string with the unique name of the pattern
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Win_Farm(const win_mapreduce_t &_wm, uint64_t _win_len, uint64_t _slide_len, win_type_t _winType, size_t _pardegree, string _name, bool _ordered=true, opt_level_t _opt_level=LEVEL0)
+    Win_Farm(const win_mapreduce_t &_wm,
+             uint64_t _win_len,
+             uint64_t _slide_len,
+             win_type_t _winType,
+             size_t _emitter_degree,
+             size_t _pardegree,
+             string _name,
+             bool _ordered=true,
+             opt_level_t _opt_level=LEVEL0)
     {
         // type of the Win_MapReduce to be created within the Win_Farm pattern
         using winwrap_map_t = Win_MapReduce<tuple_t, result_t, wrapper_in_t>;
+        // check the validity of the windowing parameters
+        if (_win_len == 0 || _slide_len == 0) {
+            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the emitter degree
+        if (_emitter_degree == 0) {
+            cerr << RED << "WindFlow Error: at least one emitter is needed" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the validity of the parallelism degree
+        if (_pardegree == 0) {
+            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
         // check the compatibility of the windowing parameters
         if(_wm.win_len != _win_len || _wm.slide_len != _slide_len || _wm.winType != _winType) {
-            cerr << RED << "Error: to be nested Win_Farm and Win_MapReduce instances must have compatible windowing parameters" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: incompatible windowing parameters" << DEFAULT << endl;
             exit(EXIT_FAILURE);
+        }
+        // check that one single emitter is utilized
+        if (_emitter_degree > 1) {
+            cerr << YELLOW << "WindFlow Warning: forced to use one emitter in the Win_Farm" << DEFAULT << endl;
+            _emitter_degree = 1;
         }
         // vector of Win_MapReduce instances
         vector<ff_node *> w(_pardegree);

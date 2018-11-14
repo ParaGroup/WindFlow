@@ -42,17 +42,18 @@ int main(int argc, char *argv[])
 	size_t win_len = 0;
 	size_t win_slide = 0;
 	size_t num_keys = 1;
+	size_t emitter_degree = 1;
 	size_t degree1 = 1;
 	size_t degree2 = 1;
 	size_t degree3 = 1;
 	unsigned long value = 0;
 	opt_level_t opt_level = LEVEL0;
 	// arguments from command line
-	if (argc != 17) {
-		cout << argv[0] << " -l [stream_length] -k [num keys] -w [win length usec] -s [win slide usec] -r [pardegree] -n [pardegree] -m [pardegree] -o [opt_level]" << endl;
+	if (argc != 19) {
+		cout << argv[0] << " -l [stream_length] -k [num keys] -w [win length usec] -s [win slide usec] -e [pardegree] -r [pardegree] -n [pardegree] -m [pardegree] -o [opt_level]" << endl;
 		exit(EXIT_SUCCESS);
 	}
-	while ((option = getopt(argc, argv, "l:k:w:s:r:n:m:o:")) != -1) {
+	while ((option = getopt(argc, argv, "l:k:w:s:e:r:n:m:o:")) != -1) {
 		switch (option) {
 			case 'l': stream_len = atoi(optarg);
 					 break;
@@ -62,6 +63,8 @@ int main(int argc, char *argv[])
 					 break;
 			case 's': win_slide = atoi(optarg);
 					 break;
+			case 'e': emitter_degree = atoi(optarg);
+					 break;						 
 			case 'r': degree1 = atoi(optarg);
 					 break;					 
 			case 'n': degree2 = atoi(optarg);
@@ -76,7 +79,7 @@ int main(int argc, char *argv[])
 					 break;
 			}
 			default: {
-				cout << argv[0] << " -l [stream_length] -k [num keys] -w [win length usec] -s [win slide usec] -r [pardegree] -n [pardegree] -m [pardegree] -o [opt_level]" << endl;
+		cout << argv[0] << " -l [stream_length] -k [num keys] -w [win length usec] -s [win slide usec] -e [pardegree] -r [pardegree] -n [pardegree] -m [pardegree] -o [opt_level]" << endl;
 				exit(EXIT_SUCCESS);
 			}
         }
@@ -215,6 +218,7 @@ int main(int argc, char *argv[])
 		Win_Farm wfNIC = WinFarm_Builder(seqFNIC).withTBWindow(microseconds(win_len), microseconds(win_slide))
 											   .withParallelism(degree1)
 											   .withName("wf_nic")
+											   .withEmitters(emitter_degree)
 											   .build();
 		ff_Pipe<tuple_t, output_t> pipe3(generator, wfNIC, consumer);
 		cout << "Run Test 3 WF(SEQ(NIC)): number of threads " << pipe3.cardinality() << endl;
@@ -234,6 +238,7 @@ int main(int argc, char *argv[])
 		Win_Farm wfINC = WinFarm_Builder(seqFINC).withTBWindow(microseconds(win_len), microseconds(win_slide))
 											   .withParallelism(degree1)
 											   .withName("wf_inc")
+											   .withEmitters(emitter_degree)
 											   .build();
 		ff_Pipe<tuple_t, output_t> pipe4(generator, wfINC, consumer);
 		cout << "Run Test 4 WF(SEQ(INC)): number of threads " << pipe4.cardinality() << endl;
