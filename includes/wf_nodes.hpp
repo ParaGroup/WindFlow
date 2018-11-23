@@ -46,18 +46,19 @@ private:
     friend class Win_Farm;
     template<typename T1, typename T2, typename T3, typename T4>
     friend class Win_Farm_GPU;
+    win_type_t winType; // type of the windows (CB or TB)
     uint64_t win_len; // window length (in no. of tuples or in time units)
     uint64_t slide_len; // window slide (in no. of tuples or in time units)
     size_t pardegree; // parallelism degree (number of inner patterns)
     size_t id_outer; // identifier in the outermost pattern
     size_t n_outer; // parallelism degree in the outermost pattern
-    size_t slide_outer; // sliding factor utilized by the outermost pattern
+    uint64_t slide_outer; // sliding factor utilized by the outermost pattern
     role_t role; // role of the innermost pattern
     vector<size_t> to_workers; // vector of identifiers used for scheduling purposes
     // struct of a key descriptor
     struct Key_Descriptor
     {
-        size_t rcv_counter; // number of tuples received of this key
+        uint64_t rcv_counter; // number of tuples received of this key
         tuple_t last_tuple; // copy of the last tuple received of this key
 
         // constructor
@@ -69,7 +70,8 @@ private:
     unordered_map<size_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
 
     // private constructor
-    WF_Emitter(uint64_t _win_len, uint64_t _slide_len, size_t _pardegree, size_t _id_outer, size_t _n_outer, size_t _slide_outer, role_t _role):
+    WF_Emitter(win_type_t _winType, uint64_t _win_len, uint64_t _slide_len, size_t _pardegree, size_t _id_outer, size_t _n_outer, uint64_t _slide_outer, role_t _role):
+               winType(_winType),
                win_len(_win_len),
                slide_len(_slide_len),
                pardegree(_pardegree),
@@ -93,8 +95,8 @@ private:
     {
         // extract the key and id/timestamp fields from the input tuple
         tuple_t *t = extractTuple<tuple_t, input_t>(wt);
-        size_t key = (t->getInfo()).first; // key
-        uint64_t id = (t->getInfo()).second; // identifier or timestamp
+        size_t key = std::get<0>(t->getInfo()); // key
+        uint64_t id = (winType == CB) ? std::get<1>(t->getInfo()) : std::get<2>(t->getInfo()); // identifier or timestamp
         // access the descriptor of the input key
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
@@ -106,9 +108,9 @@ private:
         key_d.rcv_counter++;
         key_d.last_tuple = *t;
         // gwid of the first window of that key assigned to this Win_Farm instance
-        size_t first_gwid_key = (id_outer - (key % n_outer) + n_outer) % n_outer;
+        uint64_t first_gwid_key = (id_outer - (key % n_outer) + n_outer) % n_outer;
         // initial identifer/timestamp of the keyed sub-stream arriving at this Win_Farm instance
-        size_t initial_id = first_gwid_key * slide_outer;
+        uint64_t initial_id = first_gwid_key * slide_outer;
         // special cases: role is WLQ or REDUCE
         if (role == WLQ || role == REDUCE)
             initial_id = 0;
@@ -118,8 +120,8 @@ private:
             return this->GO_ON;
         }
         // determine the range of local window identifiers that contain t
-        size_t first_w;
-        size_t last_w;
+        uint64_t first_w;
+        uint64_t last_w;
         // sliding or tumbling windows
         if (win_len >= slide_len) {
             if (id+1-initial_id < win_len)
@@ -130,7 +132,7 @@ private:
         }
         // hopping windows
         else {
-            size_t n = floor((double) (id-initial_id) / slide_len);
+            uint64_t n = floor((double) (id-initial_id) / slide_len);
             // if the tuple belongs to at least one window of this Win_Farm instance
             if (id-initial_id >= n*(slide_len) && id-initial_id < (n*slide_len)+win_len) {
                 first_w = last_w = n;
@@ -142,8 +144,8 @@ private:
             }
         }
         // determine the set of internal patterns that will receive the tuple
-        size_t countRcv = 0;
-        size_t i = first_w;
+        uint64_t countRcv = 0;
+        uint64_t i = first_w;
         // the first window of the key is assigned to worker startDstIdx
         size_t startDstIdx = key % pardegree;
         while ((i <= last_w) && (countRcv < pardegree)) {
@@ -193,7 +195,7 @@ private:
     // inner struct of a key descriptor
     struct Key_Descriptor
     {
-        size_t next_win; // next window to be transmitted of that key
+        uint64_t next_win; // next window to be transmitted of that key
         deque<result_t *> resultsSet; // deque of buffered results of that key
 
         // constructor
@@ -221,8 +223,8 @@ private:
     result_t *svc(result_t *r)
     {
         // extract key and identifier from the result
-        size_t key = (r->getInfo()).first; // key
-        size_t wid = (r->getInfo()).second; // identifier
+        size_t key = std::get<0>(r->getInfo()); // key
+        uint64_t wid = std::get<1>(r->getInfo()); // identifier
         // find the corresponding key descriptor
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
@@ -231,7 +233,7 @@ private:
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
-        size_t &next_win = key_d.next_win;
+        uint64_t &next_win = key_d.next_win;
         deque<result_t *> &resultsSet = key_d.resultsSet;
         // add the new result at the correct place
         if ((wid - next_win) >= resultsSet.size()) {

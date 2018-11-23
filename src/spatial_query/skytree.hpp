@@ -61,27 +61,31 @@ struct Node
 class Skyline
 {
 private:
+	size_t key; // not used
     uint64_t wid; // unique identifier (starting from zero)
+    uint64_t ts;
     vector<tuple_t> set; // set of tuples in the skyline
     using const_iterator_t = vector<tuple_t>::const_iterator;
 
 public:
     // constructor
-    Skyline(): wid(0) {}
+    Skyline(): key(0), wid(0), ts(0) {}
 
     // destructor
     ~Skyline() {}
 
     // getInfo method
-    pair<size_t, uint64_t> getInfo() const
+    tuple<size_t, uint64_t, uint64_t> getInfo() const
     {
-        return pair<size_t, uint64_t>(0, wid);
+        return tuple<size_t, uint64_t, uint64_t>(key, wid, ts);
     }
 
     // setInfo method
-    void setInfo(size_t _key, uint64_t _wid)
+    void setInfo(size_t _key, uint64_t _wid, uint64_t _ts)
     {
+        key = _key;
         wid = _wid;
+        ts = _ts;
     }
 
     // get the size of the skyline

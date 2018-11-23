@@ -66,13 +66,13 @@ class Pane_Farm_GPU: public ff_pipeline
 {
 private:
     // function type of the non-incremental pane processing
-    using f_plqfunction_t = function<int(size_t, size_t, Iterable<tuple_t> &, result_t &)>;
+    using f_plqfunction_t = function<int(size_t, uint64_t, Iterable<tuple_t> &, result_t &)>;
     // Function type of the incremental pane processing
-    using f_plqupdate_t = function<int(size_t, size_t, const tuple_t &, result_t &)>;
+    using f_plqupdate_t = function<int(size_t, uint64_t, const tuple_t &, result_t &)>;
     // function type of the non-incremental window processing
-    using f_wlqfunction_t = function<int(size_t, size_t, Iterable<result_t> &, result_t &)>;
+    using f_wlqfunction_t = function<int(size_t, uint64_t, Iterable<result_t> &, result_t &)>;
     // function type of the incremental window function
-    using f_wlqupdate_t = function<int(size_t, size_t, const result_t &, result_t &)>;
+    using f_wlqupdate_t = function<int(size_t, uint64_t, const result_t &, result_t &)>;
     /// friendships with other classes in the library
     template<typename T1, typename T2, typename T3, typename T4>
     friend class Win_Farm_GPU;
@@ -83,7 +83,7 @@ private:
     template<typename T>
     friend class KeyFarmGPU_Builder;
     // compute the gcd between two numbers
-    function<size_t(size_t, size_t)> gcd = [](size_t u, size_t v) {
+    function<uint64_t(uint64_t, uint64_t)> gcd = [](uint64_t u, uint64_t v) {
         while (v != 0) {
             unsigned long r = u % v;
             u = v;
@@ -170,7 +170,7 @@ private:
             exit(EXIT_FAILURE);
         }
         // compute the pane length (no. of tuples or in time units)
-        size_t _pane_len = gcd(_win_len, _slide_len);
+        uint64_t _pane_len = gcd(_win_len, _slide_len);
         // general fastflow pointers to the PLQ and WLQ stages
         ff_node *plq_stage, *wlq_stage;
         // create the first stage PLQ
@@ -261,7 +261,7 @@ private:
             exit(EXIT_FAILURE);
         }
         // compute the pane length (no. of tuples or in time units)
-        size_t _pane_len = gcd(_win_len, _slide_len);
+        uint64_t _pane_len = gcd(_win_len, _slide_len);
         // general fastflow pointers to the PLQ and WLQ stages
         ff_node *plq_stage, *wlq_stage;
         // create the first stage PLQ
@@ -352,7 +352,7 @@ private:
             exit(EXIT_FAILURE);
         }
         // compute the pane length (no. of tuples or in time units)
-        size_t _pane_len = gcd(_win_len, _slide_len);
+        uint64_t _pane_len = gcd(_win_len, _slide_len);
         // general fastflow pointers to the PLQ and WLQ stages
         ff_node *plq_stage, *wlq_stage;
         // create the first stage PLQ
@@ -443,7 +443,7 @@ private:
             exit(EXIT_FAILURE);
         }
         // compute the pane length (no. of tuples or in time units)
-        size_t _pane_len = gcd(_win_len, _slide_len);
+        uint64_t _pane_len = gcd(_win_len, _slide_len);
         // general fastflow pointers to the PLQ and WLQ stages
         ff_node *plq_stage, *wlq_stage;
         // create the first stage PLQ

@@ -51,7 +51,7 @@ private:
     // struct of a key descriptor
     struct Key_Descriptor
     {
-        size_t rcv_counter; // number of tuples received of this key
+        uint64_t rcv_counter; // number of tuples received of this key
         tuple_t last_tuple; // copy of the last tuple received of this key
         size_t nextDst; // id of the Win_Seq instance receiving the next tuple of this key
 
@@ -78,10 +78,9 @@ private:
     // svc method (utilized by the FastFlow runtime)
     wrapper_in_t *svc(input_t *wt)
     {
-        // extract the key and id/timestamp fields from the input tuple
+        // extract the key and id fields from the input tuple
         tuple_t *t = extractTuple<tuple_t, input_t>(wt);
-        size_t key = (t->getInfo()).first; // key
-        uint64_t id = (t->getInfo()).second; // identifier or timestamp
+        size_t key = std::get<0>(t->getInfo()); // key
         // access the descriptor of the input key
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
@@ -134,7 +133,7 @@ private:
     // inner struct of a key descriptor
     struct Key_Descriptor
     {
-        size_t next_win; // next window to be transmitted of that key
+        uint64_t next_win; // next window to be transmitted of that key
         deque<result_t *> resultsSet; // deque of buffered results of that key
 
         // constructor
@@ -162,8 +161,8 @@ private:
     result_t *svc(result_t *r)
     {
         // extract key and identifier from the result
-        size_t key = (r->getInfo()).first; // key
-        size_t wid = (r->getInfo()).second; // identifier
+        size_t key = std::get<0>(r->getInfo()); // key
+        uint64_t wid = std::get<1>(r->getInfo()); // identifier
         // find the corresponding key descriptor
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
@@ -172,7 +171,7 @@ private:
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
-        size_t &next_win = key_d.next_win;
+        uint64_t &next_win = key_d.next_win;
         deque<result_t *> &resultsSet = key_d.resultsSet;
         // add the new result at the correct place
         if ((wid - next_win) >= resultsSet.size()) {

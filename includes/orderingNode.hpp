@@ -67,16 +67,14 @@ private:
     struct Key_Descriptor
     {
     	// maxs[i] contains the greatest identifier received from the i-th input stream
-    	vector<size_t> maxs;
+    	vector<uint64_t> maxs;
         wrapper_in_t *eos_marker; // pointer to the wrapper to the most recent EOS marker of this key
     	// comparator functor (returns true if A comes before B in the ordering)
         struct Comparator {
             bool operator() (wrapper_in_t *wA, wrapper_in_t *wB) {
                 tuple_t *A = extractTuple<tuple_t, wrapper_in_t>(wA);
                 tuple_t *B = extractTuple<tuple_t, wrapper_in_t>(wB);
-                auto infoA = A->getInfo();
-                auto infoB = B->getInfo();
-                return infoA.second > infoB.second;
+                return std::get<1>(A->getInfo()) > std::get<1>(B->getInfo());
             }
         };
     	// ordered queue of tuples of the given key received by the node
@@ -109,8 +107,8 @@ private:
    	{
         // extract the key and id from the input tuple
         tuple_t *r = extractTuple<tuple_t, wrapper_in_t>(wr);
-        size_t key = (r->getInfo()).first; // key
-        size_t wid = (r->getInfo()).second; // identifier
+        size_t key = std::get<0>(r->getInfo()); // key
+        uint64_t wid = std::get<1>(r->getInfo()); // identifier
         // find the corresponding key descriptor
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
@@ -125,7 +123,7 @@ private:
             return this->GO_ON;
         }
         else if (wr->eos) {
-            if (wid > (((key_d.eos_marker)->tuple)->getInfo()).second)
+            if (wid > std::get<1>(((key_d.eos_marker)->tuple)->getInfo()))
                 key_d.eos_marker = wr;
             else
                 deleteTuple<tuple_t, wrapper_in_t>(wr);
@@ -135,14 +133,14 @@ private:
         size_t source_id = this->get_channel_id();
         // update the parameters of the key descriptor
         key_d.maxs[source_id] = wid;
-        size_t min_id = *(min_element((key_d.maxs).begin(), (key_d.maxs).end()));
+        uint64_t min_id = *(min_element((key_d.maxs).begin(), (key_d.maxs).end()));
         (key_d.queue).push(wr);
         // check if buffered tuples can be emitted in order
         while (!(key_d.queue).empty()) {
         	// emit all the buffered tuples with identifier lower or equal than min_i
             wrapper_in_t *wnext = (key_d.queue).top();
             tuple_t *next = extractTuple<tuple_t, wrapper_in_t>(wnext);
-        	size_t id = (next->getInfo()).second;
+        	uint64_t id = std::get<1>(next->getInfo());
         	if (id > min_id)
         		break;
         	else {

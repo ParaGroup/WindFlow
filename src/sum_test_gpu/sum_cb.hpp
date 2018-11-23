@@ -32,28 +32,30 @@ struct tuple_t
 {
 	size_t key;
 	uint64_t id;
-	int value;
+	uint64_t ts;
+	uint64_t value;
 
 	// constructor
-	tuple_t(size_t _key, uint64_t _id, int _value): key(_key), id(_id), value(_value) {}
+	tuple_t(size_t _key, uint64_t _id, uint64_t _ts, uint64_t _value): key(_key), id(_id), ts(_ts), value(_value) {}
 
 	// default constructor
-	tuple_t(): key(0), id(0), value(0) {}
+	tuple_t(): key(0), id(0), ts(0), value(0) {}
 
 	// destructor
 	~tuple_t() {}
 
 	// getInfo method
-	pair<size_t, uint64_t> getInfo() const
+	tuple<size_t, uint64_t, uint64_t> getInfo() const
 	{
-		return pair<size_t, uint64_t>(key, id);
+		return tuple<size_t, uint64_t, uint64_t>(key, id, ts);
 	}
 
 	// setInfo method
-	void setInfo(size_t _key, size_t _id)
+	void setInfo(size_t _key, uint64_t _id, uint64_t _ts)
 	{
 		key = _key;
 		id = _id;
+		ts = _ts;
 	}
 };
 
@@ -61,26 +63,28 @@ struct tuple_t
 struct output_t
 {
 	size_t key;
-	size_t id;
-	int value;
+	uint64_t id;
+	uint64_t ts;
+	uint64_t value;
 
 	// default constructor
-	output_t(): key(0), id(0), value(0) {}
+	output_t(): key(0), id(0), ts(0), value(0) {}
 
 	// destructor
 	~output_t() {}
 
 	// getInfo method
-	pair<size_t, size_t> getInfo() const
+	tuple<size_t, uint64_t, uint64_t> getInfo() const
 	{
-		return pair<size_t, size_t>(key, id);
+		return tuple<size_t, uint64_t, uint64_t>(key, id, ts);
 	}
 
 	// setInfo method
-	void setInfo(size_t _key, size_t _id)
+	void setInfo(size_t _key, uint64_t _id, uint64_t _ts)
 	{
 		key = _key;
 		id = _id;
+		ts = _ts;
 	}
 };
 
@@ -104,7 +108,7 @@ public:
 		// generation of the input stream
 		for (size_t i=0; i<len; i++) {
 			for (size_t k=0; k<keys; k++) {
-				tuple_t *t = new tuple_t(k, i, i);
+				tuple_t *t = new tuple_t(k, i, 0, i);
 				ff_send_out(t);
 			}
 		}

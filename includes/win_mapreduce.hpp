@@ -62,13 +62,13 @@ private:
     // type of the wrapper of input tuples
     using wrapper_in_t = wrapper_tuple_t<tuple_t>;
     // function type of the non-incremental MAP processing
-    using f_mapfunction_t = function<int(size_t, size_t, Iterable<tuple_t> &, result_t &)>;
+    using f_mapfunction_t = function<int(size_t, uint64_t, Iterable<tuple_t> &, result_t &)>;
     // function type of the incremental MAP processing
-    using f_mapupdate_t = function<int(size_t, size_t, const tuple_t &, result_t &)>;
+    using f_mapupdate_t = function<int(size_t, uint64_t, const tuple_t &, result_t &)>;
     // function type of the non-incremental REDUCE processing
-    using f_reducefunction_t = function<int(size_t, size_t, Iterable<result_t> &, result_t &)>;
+    using f_reducefunction_t = function<int(size_t, uint64_t, Iterable<result_t> &, result_t &)>;
     // function type of the incremental REDUCE processing
-    using f_reduceupdate_t = function<int(size_t, size_t, const result_t &, result_t &)>;
+    using f_reduceupdate_t = function<int(size_t, uint64_t, const result_t &, result_t &)>;
     // type of the MAP_Emitter node
     using map_emitter_t = MAP_Emitter<tuple_t, input_t>;
     // type of the MAP_Collector node

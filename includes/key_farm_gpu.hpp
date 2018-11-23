@@ -158,7 +158,7 @@ public:
     /** 
      *  \brief Constructor II (Nesting with Pane_Farm_GPU)
      *  
-     *  \param _pf Pane_Farm_GPU pattern to be replicated within the Key_Farm_GPU pattern
+     *  \param _pf Pane_Farm_GPU instance to be replicated within the Key_Farm_GPU pattern
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
@@ -237,7 +237,7 @@ public:
     /** 
      *  \brief Constructor III (Nesting with Win_MapReduce_GPU)
      *  
-     *  \param _wm Win_MapReduce_GPU pattern to be replicated within the Key_Farm_GPU pattern
+     *  \param _wm Win_MapReduce_GPU instance to be replicated within the Key_Farm_GPU pattern
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)

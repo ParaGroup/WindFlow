@@ -17,8 +17,7 @@
 /*  
  *  Spatial Query Application
  *  
- *  Version with a Win_Farm for the Skyline operator and a Win_Farm
- *  for the DKM operator.
+ *  Version where the Skyline operator is implemented by a Win_Farm pattern.
  */ 
 
 // includes
@@ -54,16 +53,17 @@ int main(int argc, char *argv[])
 	size_t win_len = 1;
 	size_t slide_len = 1;
 	size_t skyline_pardegree = 1;
+	size_t emitters_degree = 1;
 	static struct option long_opts[] = {
 		{"sky-n", 1, nullptr, 'n'},
 		{nullptr, 0, nullptr, 0}
 	};
 	// arguments from command line
-	if (argc != 11) {
-		cout << argv[0] << " -r [rate tuples/sec] -l [stream_length] -w [win_length ms] -s [slide_length ms] --sky-n [par_degree]" << endl;
+	if (argc != 13) {
+		cout << argv[0] << " -r [rate tuples/sec] -l [stream_length] -w [win_length ms] -s [slide_length ms] --sky-n [par_degree] -e [emitters]" << endl;
 		exit(EXIT_SUCCESS);
 	}
-	while ((option = getopt_long(argc, argv, "r:l:w:s:n:", long_opts, &option_index)) != -1) {
+	while ((option = getopt_long(argc, argv, "r:l:w:s:n:e:", long_opts, &option_index)) != -1) {
 		switch (option) {
 			case 'r': rate = atoi(optarg);
 					 break;
@@ -75,19 +75,14 @@ int main(int argc, char *argv[])
 					 break;
 			case 'n': skyline_pardegree = atoi(optarg);
 					 break;
+			case 'e': emitters_degree = atoi(optarg);
+					 break;
 			default: {
-				cout << argv[0] << " -r [rate tuples/sec] -l [stream_length] -w [win_length ms] -s [slide_length ms] --sky-n [par_degree]" << endl;
+				cout << argv[0] << " -r [rate tuples/sec] -l [stream_length] -w [win_length ms] -s [slide_length ms] --sky-n [par_degree] -e [emitters]" << endl;
 				exit(EXIT_SUCCESS);
 			}
         }
     }
-    // check the consistency of the windowing parameters
-    if (slide_len > 1000 || 1000 % slide_len != 0) {
-    	cout << RED << "Incorrect use of win_len and slide_len parameters for this application" << DEFAULT << endl;
-    	exit(1);
-    }
-    // compute the length of the count-based tumbling window used by the DKM operator
-    size_t tumbling_win_len = 1000/slide_len;
     // initialize the startBarrier
     pthread_barrier_init(&startBarrier, NULL, 2);
 	// create the pipeline of the application
@@ -102,6 +97,7 @@ int main(int argc, char *argv[])
 	Win_Farm sky_wf = WinFarm_Builder(SkyLineFunction).withTBWindow(milliseconds(win_len), milliseconds(slide_len))
 													  .withParallelism(skyline_pardegree)
 													  .withName("skyline")
+													  .withEmitters(emitters_degree)
 													  .build();
 	if (skyline_pardegree == 1) { // first stage is sequential
 		pipe.add_stage(&sky_seq);
@@ -112,7 +108,6 @@ int main(int argc, char *argv[])
 	// create the consumer stage (printing statistics every second)
 	SQPrinter<Skyline> *printer = new SQPrinter<Skyline>(1000, win_len);
 	pipe.add_stage(printer);
-	pipe.setFixedSize(false); // all the queues are unbounded
 	// run the application
 	cout << BOLDCYAN << "Starting Spatial Query Application (" << pipe.cardinality() << " threads)" << DEFAULT << endl;
 	if (pipe.run_and_wait_end() < 0) {

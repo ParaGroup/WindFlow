@@ -122,7 +122,7 @@ private:
         // vector of Win_Seq_GPU instances
         vector<ff_node *> w;
         // private sliding factor of each Win_Seq_GPU instance
-        size_t private_slide = _slide_len * _pardegree;
+        uint64_t private_slide = _slide_len * _pardegree;
         // standard case: one Emitter node
         if (_emitter_degree == 1) {
             // create the Win_Seq_GPU instances
@@ -139,10 +139,10 @@ private:
             // create the Emitter nodes
             vector<ff_node *> emitters(_emitter_degree);
             for (size_t i = 0; i < _emitter_degree; i++) {
-                auto *emitter = new wf_emitter_t(_win_len, _slide_len, _pardegree, _config.id_inner, _config.n_inner, _config.slide_inner, _role);
+                auto *emitter = new wf_emitter_t(_winType, _win_len, _slide_len, _pardegree, _config.id_inner, _config.n_inner, _config.slide_inner, _role);
                 emitters[i] = emitter;
             }
-            a2a->add_firstset(emitters, true);
+            a2a->add_firstset(emitters, 0, true);
             // create the Win_Seq_GPU nodes composed with an orderingNodes
             vector<ff_node *> seqs(_pardegree);
             for (size_t i = 0; i < _pardegree; i++) {
@@ -159,7 +159,7 @@ private:
         ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
         if(_emitter_degree == 1)
-            ff_farm::add_emitter(new wf_emitter_t(_win_len, _slide_len, _pardegree, _config.id_inner, _config.n_inner, _config.slide_inner, _role));
+            ff_farm::add_emitter(new wf_emitter_t(_winType, _win_len, _slide_len, _pardegree, _config.id_inner, _config.n_inner, _config.slide_inner, _role));
         if(_ordered)
             ff_farm::add_collector(new wf_collector_t());
         else
@@ -220,7 +220,7 @@ public:
     /** 
      *  \brief Constructor II (Nesting with Pane_Farm_GPU)
      *  
-     *  \param _pf Pane_Farm_GPU pattern to be replicated within the Win_Farm_GPU pattern
+     *  \param _pf Pane_Farm_GPU instance to be replicated within the Win_Farm_GPU pattern
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
@@ -302,7 +302,7 @@ public:
         }
         ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
-        ff_farm::add_emitter(new wf_emitter_t(_win_len, _slide_len, _pardegree, 0, 1, _slide_len, SEQ));
+        ff_farm::add_emitter(new wf_emitter_t(_winType, _win_len, _slide_len, _pardegree, 0, 1, _slide_len, SEQ));
         if(_ordered)
             ff_farm::add_collector(new wf_collector_t());
         // optimization process according to the provided optimization level
@@ -315,7 +315,7 @@ public:
     /** 
      *  \brief Constructor III (Nesting with Win_MapReduce_GPU)
      *  
-     *  \param _wm Win_MapReduce_GPU pattern to be replicated within the Win_Farm_GPU pattern
+     *  \param _wm Win_MapReduce_GPU instance to be replicated within the Win_Farm_GPU pattern
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
@@ -397,7 +397,7 @@ public:
         }
         ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
-        ff_farm::add_emitter(new wf_emitter_t(_win_len, _slide_len, _pardegree, 0, 1, _slide_len, SEQ));
+        ff_farm::add_emitter(new wf_emitter_t(_winType, _win_len, _slide_len, _pardegree, 0, 1, _slide_len, SEQ));
         if(_ordered)
             ff_farm::add_collector(new wf_collector_t());
         // optimization process according to the provided optimization level

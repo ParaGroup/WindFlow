@@ -93,8 +93,6 @@ int main(int argc, char *argv[])
 		for (size_t i=0; i<size; i++) {
 			sum += data[i].value;
 		}
-		res->key = key;
-		res->id = wid;
 		res->value = sum;
 		return 0;
 	};
@@ -104,8 +102,6 @@ int main(int argc, char *argv[])
 		for (size_t i=0; i<size; i++) {
 			sum += data[i].value;
 		}
-		res->key = key;
-		res->id = pid;
 		res->value = sum;
 		return 0;
 	};
@@ -116,15 +112,11 @@ int main(int argc, char *argv[])
 			int val = t.value;
 			sum += val;
 		}
-		pane_result.key = key;
-		pane_result.id = pid;
 		pane_result.value = sum;
 		return 0;
 	};
     // user-defined pane function (Incremental Query on CPU)
 	auto plqFINC = [](size_t key, size_t pid, const tuple_t &t, output_t &pane_result) {
-		pane_result.key = key;
-		pane_result.id = pid;
 		pane_result.value += t.value;
 		return 0;
 	};
@@ -134,8 +126,6 @@ int main(int argc, char *argv[])
 		for (size_t i=0; i<size; i++) {
 			sum += data[i].value;
 		}
-		res->key = key;
-		res->id = wid;
 		res->value = sum;
 		return 0;
 	};
@@ -146,15 +136,11 @@ int main(int argc, char *argv[])
 			int val = t.value;
 			sum += val;
 		}
-		win_result.key = key;
-		win_result.id = wid;
 		win_result.value = sum;
 		return 0;
 	};
 	// user-defined window function (Incremental Query on CPU)
 	auto wlqFINC = [](size_t key, size_t wid, const output_t &r, output_t &win_result) {
-		win_result.key = key;
-		win_result.id = wid;
 		win_result.value += r.value;
 		return 0;
 	};
@@ -164,8 +150,6 @@ int main(int argc, char *argv[])
 		for (size_t i=0; i<size; i++) {
 			sum += data[i].value;
 		}
-		res->key = key;
-		res->ts = wid;
 		res->value = sum;
 		return 0;
 	};
@@ -176,15 +160,11 @@ int main(int argc, char *argv[])
 			int val = t.value;
 			sum += val;
 		}
-		win_result.key = key;
-		win_result.ts = wid;
 		win_result.value = sum;
 		return 0;
 	};
 	// user-defined map functions (Incremental Query on CPU)
 	auto mapFINC = [](size_t key, size_t wid, const tuple_t &t, tuple_t &win_result) {
-		win_result.key = key;
-		win_result.ts = wid;
 		win_result.value += t.value;
 		return 0;
 	};
@@ -194,8 +174,6 @@ int main(int argc, char *argv[])
 		for (size_t i=0; i<size; i++) {
 			sum += data[i].value;
 		}
-		res->key = key;
-		res->ts = wid;
 		res->value = sum;
 		return 0;
 	};
@@ -206,15 +184,11 @@ int main(int argc, char *argv[])
 			int val = t.value;
 			sum += val;
 		}
-		win_result.key = key;
-		win_result.ts = wid;
 		win_result.value = sum;
 		return 0;
 	};
 	// user-defined reduce functions (Incremental Query on CPU)
 	auto reduceFINC = [](size_t key, size_t wid, const tuple_t &t, tuple_t &win_result) {
-		win_result.key = key;
-		win_result.ts = wid;
 		win_result.value += t.value;
 		return 0;
 	};

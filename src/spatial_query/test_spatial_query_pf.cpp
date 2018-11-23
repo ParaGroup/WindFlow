@@ -17,8 +17,7 @@
 /*  
  *  Spatial Query Application
  *  
- *  Version with a Pane_Farm for the Skyline operator and a Win_Farm
- *  for the DKM operator.
+ *  Version where the Skyline operator is implemented by a Pane_Farm pattern.
  */ 
 
 // includes
@@ -94,13 +93,6 @@ int main(int argc, char *argv[])
 			}
         }
     }
-    // check the consistency of the windowing parameters
-    if (slide_len > 1000 || 1000 % slide_len != 0) {
-    	cout << RED << "Incorrect use of win_len and slide_len parameters for this application" << DEFAULT << endl;
-    	exit(1);
-    }
-    // compute the length of the count-based tumbling window used by the DKM operator
-    size_t tumbling_win_len = 1000/slide_len;
     // initialize the startBarrier
     pthread_barrier_init(&startBarrier, NULL, 2);
 	// create the pipeline of the application
@@ -110,15 +102,14 @@ int main(int argc, char *argv[])
 	pipe.add_stage(generator);
 	// create the first stage (Skyline Operator)
 	Pane_Farm sky_pf = PaneFarm_Builder(SkyLineFunction, SkyLineMergeNIC).withTBWindow(milliseconds(win_len), milliseconds(slide_len))
-					   .withParallelism(skyline_plq_degree, skyline_wlq_degree)
-					   .withName("skyline")
-					   .withOpt(opt_level)
-					   .build();
+					   													 .withParallelism(skyline_plq_degree, skyline_wlq_degree)
+					   													 .withName("skyline")
+					   													 .withOpt(opt_level)
+					   													 .build();
 	pipe.add_stage(&sky_pf);
 	// create the consumer stage (printing statistics every second)
 	SQPrinter<Skyline> *printer = new SQPrinter<Skyline>(1000, win_len);
 	pipe.add_stage(printer);
-	pipe.setFixedSize(false); // all the queues are unbounded
 	// run the application
 	cout << BOLDCYAN << "Starting Spatial Query Application (" << pipe.cardinality() << " threads)" << DEFAULT << endl;
 	if (pipe.run_and_wait_end() < 0) {

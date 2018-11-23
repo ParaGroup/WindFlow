@@ -137,13 +137,13 @@ mutex mutex_screen;
 struct PatternConfig {
     size_t id_outer; // identifier in the outermost pattern
     size_t n_outer; // parallelism degree in the outermost pattern
-    size_t slide_outer; // sliding factor of the outermost pattern
+    uint64_t slide_outer; // sliding factor of the outermost pattern
     size_t id_inner; // identifier in the innermost pattern
     size_t n_inner; // parallelism degree in the innermost pattern
-    size_t slide_inner; // sliding factor of the innermost pattern
+    uint64_t slide_inner; // sliding factor of the innermost pattern
 
     // constructor
-    PatternConfig(size_t _id_outer, size_t _n_outer, size_t _slide_outer, size_t _id_inner, size_t _n_inner, size_t _slide_inner):
+    PatternConfig(size_t _id_outer, size_t _n_outer, uint64_t _slide_outer, size_t _id_inner, size_t _n_inner, uint64_t _slide_inner):
                   id_outer(_id_outer),
                   n_outer(_n_outer),
                   slide_outer(_slide_outer),

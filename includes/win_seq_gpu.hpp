@@ -47,7 +47,7 @@ using namespace ff;
 // CUDA KERNEL: it calls the user-defined function over the windows within a micro-batch
 template<typename win_F_t>
 __global__ void kernelBatch(size_t key, void *input_data, size_t *start, size_t *end,
-                            size_t *gwids, void *results, win_F_t F, size_t batch_len,
+                            uint64_t *gwids, void *results, win_F_t F, size_t batch_len,
                             char *scratchpad_memory, size_t scratchpad_size)
 {
     using input_t = decltype(get_tuple_t(F));
@@ -112,17 +112,18 @@ private:
     {
         archive_t archive; // archive of tuples of this key
         vector<win_t> wins; // open windows of this key
-        size_t emit_counter; // progressive counter (used if role is PLQ or MAP)
-        size_t rcv_counter; // number of tuples received of this key
+        uint64_t emit_counter; // progressive counter (used if role is PLQ or MAP)
+        uint64_t rcv_counter; // number of tuples received of this key
         tuple_t last_tuple; // copy of the last tuple received of this key
-        size_t next_lwid; // next window to be opened of this key (lwid)
+        uint64_t next_lwid; // next window to be opened of this key (lwid)
         size_t batchedWin; // number of batched windows of the key
         vector<size_t> start, end; // vectors of initial/final positions of each window in the current micro-batch
-        vector<size_t> gwids; // vector of gwid of the windows in the current micro-batch
+        vector<uint64_t> gwids; // vector of gwid of the windows in the current micro-batch
+        vector<uint64_t> tsWin; // vector of the final timestamp of the windows in the current micro-batch
         optional<tuple_t> start_tuple; // optional to the first tuple of the current micro-batch
 
         // constructor
-        Key_Descriptor(f_compare_t _compare, size_t _emit_counter=0):
+        Key_Descriptor(f_compare_t _compare, uint64_t _emit_counter=0):
                        archive(_compare),
                        emit_counter(_emit_counter),
                        rcv_counter(0),
@@ -144,6 +145,7 @@ private:
                        start(_k.start),
                        end(_k.end),
                        gwids(_k.gwids),
+                       tsWin(_k.tsWin),
                        start_tuple(_k.start_tuple) {}
 
         // destructor
@@ -170,7 +172,7 @@ private:
     tuple_t *Bin; // array of tuples in the micro-batch (allocated on the GPU)
     result_t *Bout; // array of results of the micro-batch (allocated on the GPU)
     size_t *gpu_start, *gpu_end; // arrays of the starting/ending positions of each window in the micro-batch (allocated on the GPU)
-    size_t *gpu_gwids; // array of the gwids of the windows in the microbatch (allocated on the GPU)
+    uint64_t *gpu_gwids; // array of the gwids of the windows in the microbatch (allocated on the GPU)
     size_t scratchpad_size = 0; // size of the scratchpage memory area on the GPU (one per CUDA thread)
     char *scratchpad_memory; // scratchpage memory area (allocated on the GPU, one per CUDA thread)
 #if defined(LOG_DIR)
@@ -198,7 +200,6 @@ private:
                 role_t _role)
                 :
                 winFunction(_winFunction),
-                compare([&] (const tuple_t &t1, const tuple_t &t2) { return (t1.getInfo()).second < (t2.getInfo()).second; }),
                 win_len(_win_len),
                 slide_len(_slide_len),
                 winType(_winType),
@@ -224,6 +225,17 @@ private:
             cerr << RED << "WindFlow Error: cudaStreamCreate() returns error code" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
+        // define the compare function depending on the window type
+        if (winType == CB) {
+            compare = [](const tuple_t &t1, const tuple_t &t2) {
+                return std::get<1>(t1.getInfo()) < std::get<1>(t2.getInfo());
+            };
+        }
+        else {
+            compare = [](const tuple_t &t1, const tuple_t &t2) {
+                return std::get<2>(t1.getInfo()) < std::get<2>(t2.getInfo());
+            };
+        }
         // initialization with count-based windows
         if (winType == CB) {
             // compute the fixed number of tuples per batch
@@ -243,7 +255,7 @@ private:
         // allocate the other arrays on the GPU
         gpuErrChk(cudaMalloc((size_t **) &gpu_start, batch_len * sizeof(size_t)));             // gpu_start
         gpuErrChk(cudaMalloc((size_t **) &gpu_end, batch_len * sizeof(size_t)));               // gpu_end
-        gpuErrChk(cudaMalloc((size_t **) &gpu_gwids, batch_len * sizeof(size_t)));             // gpu_gwids
+        gpuErrChk(cudaMalloc((uint64_t **) &gpu_gwids, batch_len * sizeof(uint64_t)));         // gpu_gwids
         gpuErrChk(cudaMalloc((result_t **) &Bout, batch_len * sizeof(result_t)));              // Bout
         gpuErrChk(cudaMallocHost((void **) &host_results, batch_len * sizeof(result_t)));      // host_results
         // allocate the scratchpad on the GPU (if required)
@@ -320,8 +332,8 @@ public:
 #endif
         // extract the key and id/timestamp fields from the input tuple
         tuple_t *t = extractTuple<tuple_t, input_t>(wt);
-        size_t key = (t->getInfo()).first; // key
-        uint64_t id = (t->getInfo()).second; // identifier or timestamp
+        size_t key = std::get<0>(t->getInfo()); // key
+        uint64_t id = (winType == CB) ? std::get<1>(t->getInfo()) : std::get<2>(t->getInfo()); // identifier or timestamp
         // access the descriptor of the input key
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
@@ -337,7 +349,8 @@ public:
         }
         else {
             // tuples can be received only ordered by id/timestamp
-            if (id <= ((key_d.last_tuple).getInfo()).second) {
+            uint64_t last_id = (winType == CB) ? std::get<1>((key_d.last_tuple).getInfo()) : std::get<2>((key_d.last_tuple).getInfo());
+            if (id <= last_id) {
                 // the tuple is immediately deleted
                 deleteTuple<tuple_t, input_t>(wt);
                 return this->GO_ON;
@@ -348,11 +361,11 @@ public:
             }
         }
         // gwid of the first window of that key assigned to this Win_Seq_GPU instance
-        size_t first_gwid_key = ((config.id_inner - (key % config.n_inner) + config.n_inner) % config.n_inner) * config.n_outer + (config.id_outer - (key % config.n_outer) + config.n_outer) % config.n_outer;
+        uint64_t first_gwid_key = ((config.id_inner - (key % config.n_inner) + config.n_inner) % config.n_inner) * config.n_outer + (config.id_outer - (key % config.n_outer) + config.n_outer) % config.n_outer;
         // initial identifer/timestamp of the keyed sub-stream arriving at this Win_Seq_GPU instance
-        size_t initial_outer = ((config.id_outer - (key % config.n_outer) + config.n_outer) % config.n_outer) * config.slide_outer;
-        size_t initial_inner = ((config.id_inner - (key % config.n_inner) + config.n_inner) % config.n_inner) * config.slide_inner;
-        size_t initial_id = initial_outer + initial_inner;
+        uint64_t initial_outer = ((config.id_outer - (key % config.n_outer) + config.n_outer) % config.n_outer) * config.slide_outer;
+        uint64_t initial_inner = ((config.id_inner - (key % config.n_inner) + config.n_inner) % config.n_inner) * config.slide_inner;
+        uint64_t initial_id = initial_outer + initial_inner;
         // special cases: if role is WLQ or REDUCE
         if (role == WLQ || role == REDUCE)
             initial_id = initial_inner;
@@ -377,11 +390,11 @@ public:
         // create all the new windows that need to be opened by the arrival of t
         for (long lwid = key_d.next_lwid; lwid <= last_w; lwid++) {
             // translate the lwid into the corresponding gwid
-            size_t gwid = first_gwid_key + (lwid * config.n_outer * config.n_inner);
+            uint64_t gwid = first_gwid_key + (lwid * config.n_outer * config.n_inner);
             if (winType == CB)
-                wins.push_back(win_t(key, lwid, gwid, Triggerer_CB(win_len, slide_len, lwid, initial_id)));
+                wins.push_back(win_t(key, lwid, gwid, Triggerer_CB(win_len, slide_len, lwid, initial_id), CB, win_len, slide_len));
             else
-                wins.push_back(win_t(key, lwid, gwid, Triggerer_TB(win_len, slide_len, lwid, initial_id)));
+                wins.push_back(win_t(key, lwid, gwid, Triggerer_TB(win_len, slide_len, lwid, initial_id), TB, win_len, slide_len));
             key_d.next_lwid++;
         }
         // evaluate all the open windows
@@ -391,6 +404,7 @@ public:
             if (win.onTuple(*t) == FIRED) {
                 key_d.batchedWin++;
                 (key_d.gwids).push_back(win.getGWID());
+                (key_d.tsWin).push_back(std::get<2>((win.getResult())->getInfo()));
                 // acquire from the archive the optionals to the first and the last tuple of the window
                 optional<tuple_t> t_s = win.getFirstTuple();
                 optional<tuple_t> t_e = win.getFiringTuple();
@@ -436,10 +450,14 @@ public:
                         if(isEOSMarker<tuple_t, input_t>(*wt))
                             size_copy++;
                     }
+                    // prepare the host_results
+                    for(size_t i=0; i < batch_len; i++)
+                        host_results[i].setInfo(key, key_d.gwids[i], key_d.tsWin[i]);
                     // copy of the arrays on the GPU
                     gpuErrChk(cudaMemcpyAsync(gpu_start, (key_d.start).data(), batch_len * sizeof(size_t), cudaMemcpyHostToDevice, cudaStream));
                     gpuErrChk(cudaMemcpyAsync(gpu_end, (key_d.end).data(), batch_len * sizeof(size_t), cudaMemcpyHostToDevice, cudaStream));
-                    gpuErrChk(cudaMemcpyAsync(gpu_gwids, (key_d.gwids).data(), batch_len * sizeof(size_t), cudaMemcpyHostToDevice, cudaStream));
+                    gpuErrChk(cudaMemcpyAsync(gpu_gwids, (key_d.gwids).data(), batch_len * sizeof(uint64_t), cudaMemcpyHostToDevice, cudaStream));
+                    gpuErrChk(cudaMemcpyAsync(Bout, host_results, batch_len * sizeof(result_t), cudaMemcpyHostToDevice, cudaStream));
                     // count-based windows
                     if (winType == CB) {
                         gpuErrChk(cudaMemcpyAsync(Bin, dataBatch, size_copy * sizeof(tuple_t), cudaMemcpyHostToDevice, cudaStream));   
@@ -477,12 +495,12 @@ public:
                         *res = host_results[i];
                         // special cases: role is PLQ or MAP
                         if (role == MAP) {
-                            res->setInfo(key, key_d.emit_counter);
+                            res->setInfo(key, key_d.emit_counter, std::get<2>(res->getInfo()));
                             key_d.emit_counter += map_indexes.second;
                         }
                         else if (role == PLQ) {
-                            size_t new_id = ((config.id_inner - (key % config.n_inner) + config.n_inner) % config.n_inner) + (key_d.emit_counter * config.n_inner);
-                            res->setInfo(key, new_id);
+                            uint64_t new_id = ((config.id_inner - (key % config.n_inner) + config.n_inner) % config.n_inner) + (key_d.emit_counter * config.n_inner);
+                            res->setInfo(key, new_id, std::get<2>(res->getInfo()));
                             key_d.emit_counter++;
                         }
                         this->ff_send_out(res);
@@ -553,12 +571,12 @@ public:
                 }
                 // special cases: role is PLQ or MAP
                 if (role == MAP) {
-                    out->setInfo(k.first, (k.second).emit_counter);
+                    out->setInfo(k.first, (k.second).emit_counter, std::get<2>(out->getInfo()));
                     (k.second).emit_counter += map_indexes.second;
                 }
                 else if (role == PLQ) {
-                    size_t new_id = ((config.id_inner - (k.first % config.n_inner) + config.n_inner) % config.n_inner) + ((k.second).emit_counter * config.n_inner);
-                    out->setInfo(k.first, new_id);
+                    uint64_t new_id = ((config.id_inner - (k.first % config.n_inner) + config.n_inner) % config.n_inner) + ((k.second).emit_counter * config.n_inner);
+                    out->setInfo(k.first, new_id, std::get<2>(out->getInfo()));
                     (k.second).emit_counter++;
                 }
                 this->ff_send_out(out);

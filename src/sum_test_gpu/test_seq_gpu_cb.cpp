@@ -68,8 +68,8 @@ int main(int argc, char *argv[])
 		for (size_t i=0; i<size; i++) {
 			sum += data[i].value;
 		}
-		res->key = key;
-		res->id = wid;
+		//res->key = key;
+		//res->id = wid;
 		res->value = sum;
 		return 0;
 	};

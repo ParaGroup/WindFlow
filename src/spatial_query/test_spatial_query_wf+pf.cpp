@@ -17,8 +17,8 @@
 /*  
  *  Spatial Query Application
  *  
- *  Version with a Win_Farm with Pane_Farm inside for the Skyline operator, while
- *  the DKM operator is implemented by a Win_Farm.
+ *  Version where the Skyline operator is implemented by a Win_Farm pattern with
+ *  internal replicas that are instances of Pane_Farm.
  */ 
 
 // includes
@@ -107,13 +107,6 @@ int main(int argc, char *argv[])
 			}
         }
     }
-    // check the consistency of the windowing parameters
-    if (slide_len > 1000 || 1000 % slide_len != 0) {
-    	cout << RED << "Incorrect use of win_len and slide_len parameters for this application" << DEFAULT << endl;
-    	exit(1);
-    }
-    // compute the length of the count-based tumbling window used by the DKM operator
-    size_t tumbling_win_len = 1000/slide_len;
     // initialize the startBarrier
     pthread_barrier_init(&startBarrier, NULL, 2);
 	// create the pipeline of the application
@@ -123,10 +116,10 @@ int main(int argc, char *argv[])
 	pipe.add_stage(generator);
 	// create the first stage (Skyline Operator)
 	Pane_Farm sky_pf = PaneFarm_Builder(SkyLineFunction, SkyLineMergeNIC).withTBWindow(milliseconds(win_len), milliseconds(slide_len))
-					   .withParallelism(skyline_plq_degree, skyline_wlq_degree)
-					   .withName("skyline")
-					   .withOpt(opt_level_inner)
-					   .build();
+					   													 .withParallelism(skyline_plq_degree, skyline_wlq_degree)
+					   													 .withName("skyline")
+					   													 .withOpt(opt_level_inner)
+					   													 .build();
 	Win_Farm sky_wf = WinFarm_Builder(sky_pf).withParallelism(skyline_wf_degree)
 											 .withName("skyline")
 											 .withOpt(opt_level_outer)

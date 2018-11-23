@@ -95,15 +95,11 @@ int main(int argc, char *argv[])
 			sum += val;
 		}
 		win = win + "] -> Sum "+ to_string(sum);
-		result.key = key;
-		result.id = wid;
 		result.value = sum;
 		return 0;
 	};
 	// user-defined window function (Incremental Query)
 	auto seqFINC = [](size_t key, size_t wid, const tuple_t &t, output_t &result) {
-		result.key = key;
-		result.id = wid;
 		result.value += t.value;
 		return 0;
 	};
@@ -118,8 +114,6 @@ int main(int argc, char *argv[])
 			sum += val;
 		}
 		pane = pane + "] -> Sum "+ to_string(sum);
-		pane_result.key = key;
-		pane_result.id = pid;
 		pane_result.value = sum;
 		return 0;
 	};
@@ -134,22 +128,16 @@ int main(int argc, char *argv[])
 			sum += val;
 		}
 		pane = pane + "] -> Sum "+ to_string(sum);
-		win_result.key = key;
-		win_result.id = wid;
 		win_result.value = sum;
 		return 0;
 	};
     // user-defined pane function (Incremental Query)
 	auto plqFINC = [](size_t key, size_t pid, const tuple_t &t, output_t &pane_result) {
-		pane_result.key = key;
-		pane_result.id = pid;
 		pane_result.value += t.value;
 		return 0;
 	};
     // user-defined window function (Incremental Query)
 	auto wlqFINC = [](size_t key, size_t wid, const output_t &r, output_t &win_result) {
-		win_result.key = key;
-		win_result.id = wid;
 		win_result.value += r.value;
 		return 0;
 	};
@@ -164,15 +152,11 @@ int main(int argc, char *argv[])
 			sum += val;
 		}
 		window = window + "] -> Sum "+ to_string(sum);
-		win_result.key = key;
-		win_result.id = wid;
 		win_result.value = sum;
 		return 0;
 	};
 	// user-defined map and reduce functions (Incremental Query)
 	auto wmFINC = [](size_t key, size_t wid, const tuple_t &t, tuple_t &win_result) {
-		win_result.key = key;
-		win_result.id = wid;
 		win_result.value += t.value;
 		return 0;
 	};

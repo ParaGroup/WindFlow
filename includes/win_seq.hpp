@@ -67,9 +67,9 @@ private:
     // window type used by the Win_Seq pattern
     using win_t = Window<tuple_t, result_t>;
     // function type of the non-incremental window processing
-    using f_winfunction_t = function<int(size_t, size_t, Iterable<tuple_t> &, result_t &)>;
+    using f_winfunction_t = function<int(size_t, uint64_t, Iterable<tuple_t> &, result_t &)>;
     // function type of the incremental window processing
-    using f_winupdate_t = function<int(size_t, size_t, const tuple_t &, result_t &)>;
+    using f_winupdate_t = function<int(size_t, uint64_t, const tuple_t &, result_t &)>;
     // function type to compare two tuples
     using f_compare_t = function<bool(const tuple_t &, const tuple_t &)>;
     // friendships with other classes in the library
@@ -90,13 +90,13 @@ private:
     {
         archive_t archive; // archive of tuples of this key
         vector<win_t> wins; // open windows of this key
-        size_t emit_counter; // progressive counter (used if role is PLQ or MAP)
-        size_t rcv_counter; // number of tuples received of this key
+        uint64_t emit_counter; // progressive counter (used if role is PLQ or MAP)
+        uint64_t rcv_counter; // number of tuples received of this key
         tuple_t last_tuple; // copy of the last tuple received of this key
-        size_t next_lwid; // next window to be opened of this key (lwid)
+        uint64_t next_lwid; // next window to be opened of this key (lwid)
 
         // constructor
-        Key_Descriptor(f_compare_t _compare, size_t _emit_counter=0):
+        Key_Descriptor(f_compare_t _compare, uint64_t _emit_counter=0):
                        archive(_compare),
                        emit_counter(_emit_counter),
                        rcv_counter(0),
@@ -150,7 +150,6 @@ private:
             role_t _role)
             :
             winFunction(_winFunction),
-            compare([&] (const tuple_t &t1, const tuple_t &t2) { return (t1.getInfo()).second < (t2.getInfo()).second; }),
             win_len(_win_len),
             slide_len(_slide_len),
             winType(_winType),
@@ -164,6 +163,17 @@ private:
             cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
+        // define the compare function depending on the window type
+        if (winType == CB) {
+            compare = [](const tuple_t &t1, const tuple_t &t2) {
+                return std::get<1>(t1.getInfo()) < std::get<1>(t2.getInfo());
+            };
+        }
+        else {
+            compare = [](const tuple_t &t1, const tuple_t &t2) {
+                return std::get<2>(t1.getInfo()) < std::get<2>(t2.getInfo());
+            };
+        }
     }
 
     // private constructor II (incremental queries)
@@ -176,7 +186,6 @@ private:
             role_t _role)
             :
             winUpdate(_winUpdate),
-            compare([&] (const tuple_t &t1, const tuple_t &t2) { return (t1.getInfo()).second < (t2.getInfo()).second; }),
             win_len(_win_len),
             slide_len(_slide_len),
             winType(_winType),
@@ -189,6 +198,17 @@ private:
         if (_win_len == 0 || _slide_len == 0) {
             cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
+        }
+        // define the compare function depending on the window type
+        if (winType == CB) {
+            compare = [](const tuple_t &t1, const tuple_t &t2) {
+                return std::get<1>(t1.getInfo()) < std::get<1>(t2.getInfo());
+            };
+        }
+        else {
+            compare = [](const tuple_t &t1, const tuple_t &t2) {
+                return std::get<2>(t1.getInfo()) < std::get<2>(t2.getInfo());
+            };
         }
     }
 
@@ -258,8 +278,8 @@ public:
 #endif
         // extract the key and id/timestamp fields from the input tuple
         tuple_t *t = extractTuple<tuple_t, input_t>(wt);
-        size_t key = (t->getInfo()).first; // key
-        uint64_t id = (t->getInfo()).second; // identifier or timestamp
+        size_t key = std::get<0>(t->getInfo()); // key
+        uint64_t id = (winType == CB) ? std::get<1>(t->getInfo()) : std::get<2>(t->getInfo()); // identifier or timestamp
         // access the descriptor of the input key
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
@@ -275,7 +295,8 @@ public:
         }
         else {
             // tuples can be received only ordered by id/timestamp
-            if (id <= ((key_d.last_tuple).getInfo()).second) {
+            uint64_t last_id = (winType == CB) ? std::get<1>((key_d.last_tuple).getInfo()) : std::get<2>((key_d.last_tuple).getInfo());
+            if (id <= last_id) {
                 // the tuple is immediately deleted
                 deleteTuple<tuple_t, input_t>(wt);
                 return this->GO_ON;
@@ -286,11 +307,11 @@ public:
             }
         }
         // gwid of the first window of that key assigned to this Win_Seq instance
-        size_t first_gwid_key = ((config.id_inner - (key % config.n_inner) + config.n_inner) % config.n_inner) * config.n_outer + (config.id_outer - (key % config.n_outer) + config.n_outer) % config.n_outer;
+        uint64_t first_gwid_key = ((config.id_inner - (key % config.n_inner) + config.n_inner) % config.n_inner) * config.n_outer + (config.id_outer - (key % config.n_outer) + config.n_outer) % config.n_outer;
         // initial identifer/timestamp of the keyed sub-stream arriving at this Win_Seq instance
-        size_t initial_outer = ((config.id_outer - (key % config.n_outer) + config.n_outer) % config.n_outer) * config.slide_outer;
-        size_t initial_inner = ((config.id_inner - (key % config.n_inner) + config.n_inner) % config.n_inner) * config.slide_inner;
-        size_t initial_id = initial_outer + initial_inner;
+        uint64_t initial_outer = ((config.id_outer - (key % config.n_outer) + config.n_outer) % config.n_outer) * config.slide_outer;
+        uint64_t initial_inner = ((config.id_inner - (key % config.n_inner) + config.n_inner) % config.n_inner) * config.slide_inner;
+        uint64_t initial_id = initial_outer + initial_inner;
         // special cases: if role is WLQ or REDUCE
         if (role == WLQ || role == REDUCE)
             initial_id = initial_inner;
@@ -314,11 +335,11 @@ public:
         // create all the new windows that need to be opened by the arrival of t
         for (long lwid = key_d.next_lwid; lwid <= last_w; lwid++) {
             // translate the lwid into the corresponding gwid
-            size_t gwid = first_gwid_key + (lwid * config.n_outer * config.n_inner);
+            uint64_t gwid = first_gwid_key + (lwid * config.n_outer * config.n_inner);
             if (winType == CB)
-                wins.push_back(win_t(key, lwid, gwid, Triggerer_CB(win_len, slide_len, lwid, initial_id)));
+                wins.push_back(win_t(key, lwid, gwid, Triggerer_CB(win_len, slide_len, lwid, initial_id), CB, win_len, slide_len));
             else
-                wins.push_back(win_t(key, lwid, gwid, Triggerer_TB(win_len, slide_len, lwid, initial_id)));
+                wins.push_back(win_t(key, lwid, gwid, Triggerer_TB(win_len, slide_len, lwid, initial_id), TB, win_len, slide_len));
             key_d.next_lwid++;
         }
         // evaluate all the open windows
@@ -366,12 +387,12 @@ public:
                 result_t *out = win.getResult();
                 // special cases: role is PLQ or MAP
                 if (role == MAP) {
-                    out->setInfo(key, key_d.emit_counter);
+                    out->setInfo(key, key_d.emit_counter, std::get<2>(out->getInfo()));
                     key_d.emit_counter += map_indexes.second;
                 }
                 else if (role == PLQ) {
-                    size_t new_id = ((config.id_inner - (key % config.n_inner) + config.n_inner) % config.n_inner) + (key_d.emit_counter * config.n_inner);
-                    out->setInfo(key, new_id);
+                    uint64_t new_id = ((config.id_inner - (key % config.n_inner) + config.n_inner) % config.n_inner) + (key_d.emit_counter * config.n_inner);
+                    out->setInfo(key, new_id, std::get<2>(out->getInfo()));
                     key_d.emit_counter++;
                 }
                 this->ff_send_out(out);
@@ -431,12 +452,12 @@ public:
                 result_t *out = win.getResult();
                 // special cases: role is PLQ or MAP
                 if (role == MAP) {
-                    out->setInfo(k.first, (k.second).emit_counter);
+                    out->setInfo(k.first, (k.second).emit_counter, std::get<2>(out->getInfo()));
                     (k.second).emit_counter += map_indexes.second;
                 }
                 else if (role == PLQ) {
-                    size_t new_id = ((config.id_inner - (k.first % config.n_inner) + config.n_inner) % config.n_inner) + ((k.second).emit_counter * config.n_inner);
-                    out->setInfo(k.first, new_id);
+                    uint64_t new_id = ((config.id_inner - (k.first % config.n_inner) + config.n_inner) % config.n_inner) + ((k.second).emit_counter * config.n_inner);
+                    out->setInfo(k.first, new_id, std::get<2>(out->getInfo()));
                     (k.second).emit_counter++;
                 }
                 this->ff_send_out(out);

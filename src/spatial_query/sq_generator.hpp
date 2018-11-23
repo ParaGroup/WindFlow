@@ -92,6 +92,7 @@ public:
 		for (int i=0; i<num_tuples; i++) {
 #if !defined(PREGENERATE)
 			tuple = new tuple_t();
+			tuple->key = 0;
 			tuple->id = i;
 			for (int j=0; j<DIM; j++)
 				(tuple->elems)[j] = random.randf() * 1000;

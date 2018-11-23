@@ -67,7 +67,7 @@ private:
     tuple_t *svc(tuple_t *t)
     {
         // extract the key field from the input tuple
-        size_t key = (t->getInfo()).first; // key
+        size_t key = std::get<0>(t->getInfo()); // key
         // evaluate the routing function
         size_t dest_w = routing(key, pardegree);
         this->ff_send_out_to(t, dest_w);
@@ -91,7 +91,7 @@ private:
     // inner struct of a key descriptor
     struct Key_Descriptor
     {
-        size_t next_win; // next window to be transmitted of that key
+        uint64_t next_win; // next window to be transmitted of that key
         deque<result_t *> resultsSet; // deque of buffered results of that key
 
         // constructor
@@ -119,8 +119,8 @@ private:
     result_t *svc(result_t *r)
     {
         // extract key and identifier from the result
-        size_t key = (r->getInfo()).first; // key
-        size_t wid = (r->getInfo()).second; // identifier
+        size_t key = std::get<0>(r->getInfo()); // key
+        uint64_t wid = std::get<1>(r->getInfo()); // identifier
         // find the corresponding key descriptor
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
@@ -129,7 +129,7 @@ private:
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
-        size_t &next_win = key_d.next_win;
+        uint64_t &next_win = key_d.next_win;
         deque<result_t *> &resultsSet = key_d.resultsSet;
         // add the new result at the correct place
         if ((wid - next_win) >= resultsSet.size()) {

@@ -59,9 +59,9 @@ private:
     // type of the wrapper of input tuples
     using wrapper_in_t = wrapper_tuple_t<tuple_t>;
     // function type of the non-incremental window processing
-    using f_winfunction_t = function<int(size_t, size_t, Iterable<tuple_t> &, result_t &)>;
+    using f_winfunction_t = function<int(size_t, uint64_t, Iterable<tuple_t> &, result_t &)>;
     // function type of the incremental window processing
-    using f_winupdate_t = function<int(size_t, size_t, const tuple_t &, result_t &)>;
+    using f_winupdate_t = function<int(size_t, uint64_t, const tuple_t &, result_t &)>;
     // type of the WF_Emitter node
     using wf_emitter_t = WF_Emitter<tuple_t, input_t>;
     // type of the WF_Collector node
@@ -117,7 +117,7 @@ private:
         // vector of Win_Seq instances
         vector<ff_node *> w;
         // private sliding factor of each Win_Seq instance
-        size_t private_slide = _slide_len * _pardegree;
+        uint64_t private_slide = _slide_len * _pardegree;
         // standard case: one Emitter node
         if (_emitter_degree == 1) {
             // create the Win_Seq instances
@@ -134,10 +134,10 @@ private:
             // create the Emitter nodes
             vector<ff_node *> emitters(_emitter_degree);
             for (size_t i = 0; i < _emitter_degree; i++) {
-                auto *emitter = new wf_emitter_t(_win_len, _slide_len, _pardegree, _config.id_inner, _config.n_inner, _config.slide_inner, _role);
+                auto *emitter = new wf_emitter_t(_winType, _win_len, _slide_len, _pardegree, _config.id_inner, _config.n_inner, _config.slide_inner, _role);
                 emitters[i] = emitter;
             }
-            a2a->add_firstset(emitters, true);
+            a2a->add_firstset(emitters, 0, true);
             // create the Win_Seq nodes composed with an orderingNodes
             vector<ff_node *> seqs(_pardegree);
             for (size_t i = 0; i < _pardegree; i++) {
@@ -154,7 +154,7 @@ private:
         ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
         if(_emitter_degree == 1)
-            ff_farm::add_emitter(new wf_emitter_t(_win_len, _slide_len, _pardegree, _config.id_inner, _config.n_inner, _config.slide_inner, _role));
+            ff_farm::add_emitter(new wf_emitter_t(_winType, _win_len, _slide_len, _pardegree, _config.id_inner, _config.n_inner, _config.slide_inner, _role));
         if(_ordered)
             ff_farm::add_collector(new wf_collector_t());
         else
@@ -193,7 +193,7 @@ private:
         // vector of Win_Seq instances
         vector<ff_node *> w;
         // private sliding factor of each Win_Seq instance
-        size_t private_slide = _slide_len * _pardegree;
+        uint64_t private_slide = _slide_len * _pardegree;
         // standard case: one Emitter node
         if (_emitter_degree == 1) {
             // create the Win_Seq instances
@@ -210,10 +210,10 @@ private:
             // create the Emitter nodes
             vector<ff_node *> emitters(_emitter_degree);
             for (size_t i = 0; i < _emitter_degree; i++) {
-                auto *emitter = new wf_emitter_t(_win_len, _slide_len, _pardegree, _config.id_inner, _config.n_inner, _config.slide_inner, _role);
+                auto *emitter = new wf_emitter_t(_winType, _win_len, _slide_len, _pardegree, _config.id_inner, _config.n_inner, _config.slide_inner, _role);
                 emitters[i] = emitter;
             }
-            a2a->add_firstset(emitters, true);
+            a2a->add_firstset(emitters, 0, true);
             // create the Win_Seq nodes composed with an orderingNodes
             vector<ff_node *> seqs(_pardegree);
             for (size_t i = 0; i < _pardegree; i++) {
@@ -230,7 +230,7 @@ private:
         ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
         if(_emitter_degree == 1)
-            ff_farm::add_emitter(new wf_emitter_t(_win_len, _slide_len, _pardegree, _config.id_inner, _config.n_inner, _config.slide_inner, _role));
+            ff_farm::add_emitter(new wf_emitter_t(_winType, _win_len, _slide_len, _pardegree, _config.id_inner, _config.n_inner, _config.slide_inner, _role));
         if(_ordered)
             ff_farm::add_collector(new wf_collector_t());
         else
@@ -314,7 +314,7 @@ public:
     /** 
      *  \brief Constructor III (Nesting with Pane_Farm)
      *  
-     *  \param _pf Pane_Farm pattern to be replicated within the Win_Farm pattern
+     *  \param _pf Pane_Farm instance to be replicated within the Win_Farm pattern
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
@@ -356,32 +356,79 @@ public:
             cerr << RED << "WindFlow Error: incompatible windowing parameters" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
-        // check that one single emitter is utilized
-        if (_emitter_degree > 1) {
-            cerr << YELLOW << "WindFlow Warning: forced to use one emitter in the Win_Farm" << DEFAULT << endl;
-            _emitter_degree = 1;
-        }
         // vector of Pane_Farm instances
-        vector<ff_node *> w(_pardegree);
-        // create the Pane_Farm instances starting from the passed one
-        for (size_t i = 0; i < _pardegree; i++) {
-            // configuration structure of the Pane_Farm instances
-            PatternConfig configPF(0, 1, _slide_len, i, _pardegree, _slide_len);
+        vector<ff_node *> w;
+        // standard case: one Emitter node
+        if (_emitter_degree == 1) {
+            // create the Pane_Farm instances starting from the input one
+            for (size_t i = 0; i < _pardegree; i++) {
+                // configuration structure of the Pane_Farm instances
+                PatternConfig configPF(0, 1, _slide_len, i, _pardegree, _slide_len);
+                // create the correct Pane_Farm instance
+                panewrap_farm_t *pf_W = nullptr;
+                if (_pf.isNICPLQ && _pf.isNICWLQ) // PLQ and WLQ are non-incremental
+                    pf_W = new panewrap_farm_t(_pf.plqFunction, _pf.wlqFunction, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), false, _pf.opt_level, configPF);
+                if (!_pf.isNICPLQ && !_pf.isNICWLQ) // PLQ and WLQ are incremental
+                    pf_W = new panewrap_farm_t(_pf.plqUpdate, _pf.wlqUpdate, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), false, _pf.opt_level, configPF);
+                if (_pf.isNICPLQ && !_pf.isNICWLQ) // PLQ is non-incremental and the WLQ is incremental
+                    pf_W = new panewrap_farm_t(_pf.plqFunction, _pf.wlqUpdate, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), false, _pf.opt_level, configPF);
+                if (!_pf.isNICPLQ && _pf.isNICWLQ) // PLQ is incremental and the WLQ is non-incremental
+                    pf_W = new panewrap_farm_t(_pf.plqUpdate, _pf.wlqFunction, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), false, _pf.opt_level, configPF);
+                w.push_back(pf_W);
+            }
+        }
+        // advanced case: multiple Emitter nodes
+        else {
+            assert(false);
+            /*
+            ff_a2a *a2a = new ff_a2a();
+            // create the Emitter nodes
+            vector<ff_node *> emitters(_emitter_degree);
+            for (size_t i = 0; i < _emitter_degree; i++) {
+                auto *emitter = new wf_emitter_t(_winType, _win_len, _slide_len, _pardegree, 0, 1, _slide_len, SEQ);
+                emitters[i] = emitter;
+            }
+            a2a->add_firstset(emitters, 0, true);
             // create the correct Pane_Farm instance
-            panewrap_farm_t *pf_W = nullptr;
-            if (_pf.isNICPLQ && _pf.isNICWLQ) // PLQ and WLQ are non-incremental
-                pf_W = new panewrap_farm_t(_pf.plqFunction, _pf.wlqFunction, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), false, _pf.opt_level, configPF);
-            if (!_pf.isNICPLQ && !_pf.isNICWLQ) // PLQ and WLQ are incremental
-                pf_W = new panewrap_farm_t(_pf.plqUpdate, _pf.wlqUpdate, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), false, _pf.opt_level, configPF);
-            if (_pf.isNICPLQ && !_pf.isNICWLQ) // PLQ is non-incremental and the WLQ is incremental
-                pf_W = new panewrap_farm_t(_pf.plqFunction, _pf.wlqUpdate, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), false, _pf.opt_level, configPF);
-            if (!_pf.isNICPLQ && _pf.isNICWLQ) // PLQ is incremental and the WLQ is non-incremental
-                pf_W = new panewrap_farm_t(_pf.plqUpdate, _pf.wlqFunction, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), false, _pf.opt_level, configPF);
-            w[i] = pf_W;
+            vector<ff_node *> pfs(_pardegree);
+            for (size_t i = 0; i < _pardegree; i++) {
+                // an ordering node must be composed before the first node of the Pane_Farm instance
+                auto *ord = new OrderingNode<tuple_t>(_emitter_degree);
+                // configuration structure of the Pane_Farm instances
+                PatternConfig configPF(0, 1, _slide_len, i, _pardegree, _slide_len);
+                // create the correct Pane_Farm instance
+                panewrap_farm_t *pf_W = nullptr;
+                if (_pf.isNICPLQ && _pf.isNICWLQ) // PLQ and WLQ are non-incremental
+                    pf_W = new panewrap_farm_t(_pf.plqFunction, _pf.wlqFunction, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), false, _pf.opt_level, configPF);
+                if (!_pf.isNICPLQ && !_pf.isNICWLQ) // PLQ and WLQ are incremental
+                    pf_W = new panewrap_farm_t(_pf.plqUpdate, _pf.wlqUpdate, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), false, _pf.opt_level, configPF);
+                if (_pf.isNICPLQ && !_pf.isNICWLQ) // PLQ is non-incremental and the WLQ is incremental
+                    pf_W = new panewrap_farm_t(_pf.plqFunction, _pf.wlqUpdate, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), false, _pf.opt_level, configPF);
+                if (!_pf.isNICPLQ && _pf.isNICWLQ) // PLQ is incremental and the WLQ is non-incremental
+                    pf_W = new panewrap_farm_t(_pf.plqUpdate, _pf.wlqFunction, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), false, _pf.opt_level, configPF);
+                // get the first node of the Pane_Farm
+                ff_node *first = pf_W->get_node(0);
+                // it is a sequential node
+                if (!first->isFarm()) {
+                    ff_comb *newNode = new ff_comb(ord, first, true, true);
+                    // devo rimpiazzare questo nodo con first dentro il PF
+                }
+                // it is a farm
+                else {
+                    ff_farm *plqFarm = reinterpret_cast<ff_farm *>(first);
+                    ff_node *plq_emitter = plqFarm->getEmitter();
+                    ff_comb *newEmitter = new ff_comb(ord, plq_emitter, true, true);
+                    plqFarm->change_emitter(newEmitter, true);
+                }
+                pfs[i] = pf_W;
+            }
+            a2a->add_secondset(pfs, true);
+            w.push_back(a2a);
+            */
         }
         ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
-        ff_farm::add_emitter(new wf_emitter_t(_win_len, _slide_len, _pardegree, 0, 1, _slide_len, SEQ));
+        ff_farm::add_emitter(new wf_emitter_t(_winType, _win_len, _slide_len, _pardegree, 0, 1, _slide_len, SEQ));
         if(_ordered)
             ff_farm::add_collector(new wf_collector_t());
         // optimization process according to the provided optimization level
@@ -393,7 +440,7 @@ public:
     /** 
      *  \brief Constructor IV (Nesting with Win_MapReduce)
      *  
-     *  \param _wm Win_MapReduce pattern to be replicated within the Win_Farm pattern
+     *  \param _wm Win_MapReduce instance to be replicated within the Win_Farm pattern
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
@@ -460,7 +507,7 @@ public:
         }
         ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
-        ff_farm::add_emitter(new wf_emitter_t(_win_len, _slide_len, _pardegree, 0, 1, _slide_len, SEQ));
+        ff_farm::add_emitter(new wf_emitter_t(_winType, _win_len, _slide_len, _pardegree, 0, 1, _slide_len, SEQ));
         if(_ordered)
             ff_farm::add_collector(new wf_collector_t());
         // optimization process according to the provided optimization level

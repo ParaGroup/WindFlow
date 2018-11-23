@@ -62,9 +62,9 @@ private:
     // function type to map the key onto an identifier starting from zero to pardegree-1
     using f_routing_t = function<size_t(size_t, size_t)>;
     // function type of the non-incremental window processing
-    using f_winfunction_t = function<int(size_t, size_t, Iterable<tuple_t> &, result_t &)>;
+    using f_winfunction_t = function<int(size_t, uint64_t, Iterable<tuple_t> &, result_t &)>;
     // function type of the incremental window processing
-    using f_winupdate_t = function<int(size_t, size_t, const tuple_t &, result_t &)>;
+    using f_winupdate_t = function<int(size_t, uint64_t, const tuple_t &, result_t &)>;
     // type of the Win_Seq to be created within the regular constructor
     using win_seq_t = Win_Seq<tuple_t, result_t>;
     // type of the KF_Emitter node
@@ -195,7 +195,7 @@ public:
     /** 
      *  \brief Constructor III (Nesting with Pane_Farm)
      *  
-     *  \param _pf Pane_Farm pattern to be replicated within the Key_Farm pattern
+     *  \param _pf Pane_Farm instance to be replicated within the Key_Farm pattern
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
@@ -259,7 +259,7 @@ public:
     /** 
      *  \brief Constructor IV (Nesting with Win_MapReduce)
      *  
-     *  \param _wm Win_MapReduce pattern to be replicated within the Key_Farm pattern
+     *  \param _wm Win_MapReduce instance to be replicated within the Key_Farm pattern
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)

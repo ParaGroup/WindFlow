@@ -25,6 +25,7 @@
 #define TUPLE_H
 
 // include
+#include <tuple>
 #include <array>
 #include <iostream>
 #include <algorithm>
@@ -35,6 +36,7 @@ using namespace std;
 
 struct tuple_t
 {
+	size_t key; // not used
     uint64_t id; // unique identifier (starting from zero)
     uint64_t lid; // local id used by the skyline query (starting from zero)
     uint64_t ts; // timestamp in nanoseconds (starting from zero)
@@ -42,6 +44,7 @@ struct tuple_t
 
     // empty constructor
     tuple_t() {
+    	key = 0;
         id = 0;
         lid = 0;
         ts = 0;
@@ -51,6 +54,7 @@ struct tuple_t
     // copy constructor
     tuple_t(const tuple_t &t)
     {
+    	key = t.key;
         id = t.id;
         lid = t.lid;
         ts = t.ts;
@@ -60,6 +64,7 @@ struct tuple_t
     // copy operator
     tuple_t &operator= (const tuple_t &other)
     {
+    	key = other.key;
         id = other.id;
         lid = other.lid;
         ts = other.ts;
@@ -70,7 +75,7 @@ struct tuple_t
     // operator == (equal to)
     bool operator== (const tuple_t &other) const
     {
-        bool equal = (id == other.id) && (lid == other.lid) && (ts == other.ts);
+        bool equal = (key == other.key) && (id == other.id) && (lid == other.lid) && (ts == other.ts);
         for (size_t i=0; i<DIM; i++)
             equal = equal && (elems[i] == other.elems[i]);
         return equal;
@@ -83,9 +88,17 @@ struct tuple_t
     }
 
     // getInfo method
-    pair<size_t, uint64_t> getInfo() const
+    tuple<size_t, uint64_t, uint64_t> getInfo() const
     {
-        return pair<size_t, uint64_t>(0, ts); // TB windows
+        return tuple<size_t, uint64_t, uint64_t>(key, id, ts);
+    }
+
+    // setInfo method
+    void setInfo(size_t _key, uint64_t _id, uint64_t _ts)
+    {
+        key = _key;
+        id = _id;
+        ts = _ts;
     }
 
     // convert a tuple into an array
