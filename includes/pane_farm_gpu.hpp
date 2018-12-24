@@ -165,7 +165,7 @@ private:
             exit(EXIT_FAILURE);
         }
         // the Pane_Farm_GPU can be utilized with sliding windows only
-        if(_win_len <= _slide_len) {
+        if (_win_len <= _slide_len) {
             cerr << RED << "WindFlow Error: Pane_Farm_GPU can be used with sliding windows only (s<w)" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
@@ -174,7 +174,7 @@ private:
         // general fastflow pointers to the PLQ and WLQ stages
         ff_node *plq_stage, *wlq_stage;
         // create the first stage PLQ
-        if(_plq_degree > 1) {
+        if (_plq_degree > 1) {
             // configuration structure of the Win_Farm_GPU instance (PLQ)
             PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *plq_wf = new Win_Farm_GPU<tuple_t, result_t, F_t, input_t>(_gpuFunction, _pane_len, _pane_len, _winType, 1, _plq_degree, _batch_len, _n_thread_block, _name + "_plq", _scratchpad_size, true, configWFPLQ, PLQ);
@@ -187,7 +187,7 @@ private:
             plq_stage = plq_seq;
         }
         // create the second stage WLQ
-        if(_wlq_degree > 1) {
+        if (_wlq_degree > 1) {
             // configuration structure of the Win_Farm instance (WLQ)
             PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqFunction, (_win_len/_pane_len), (_slide_len/_pane_len), CB, 1, _wlq_degree, _name + "_wlq", _ordered, configWFWLQ, WLQ);
@@ -203,6 +203,8 @@ private:
         ff_pipeline::add_stage(optimize_PaneFarmGPU(plq_stage, wlq_stage, _opt_level));
         // when the Pane_Farm_GPU will be destroyed we need aslo to destroy the two stages
         ff_pipeline::cleanup_nodes();
+        // flatten the pipeline
+        //ff_pipeline::flatten();
     }
 
     // private constructor II (PLQ stage on the GPU and WLQ stage on the CPU with incremental query definition)
@@ -256,7 +258,7 @@ private:
             exit(EXIT_FAILURE);
         }
         // the Pane_Farm_GPU can be utilized with sliding windows only
-        if(_win_len <= _slide_len) {
+        if (_win_len <= _slide_len) {
             cerr << RED << "WindFlow Error: Pane_Farm_GPU can be used with sliding windows only (s<w)" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
@@ -265,7 +267,7 @@ private:
         // general fastflow pointers to the PLQ and WLQ stages
         ff_node *plq_stage, *wlq_stage;
         // create the first stage PLQ
-        if(_plq_degree > 1) {
+        if (_plq_degree > 1) {
             // configuration structure of the Win_Farm_GPU instance (PLQ)
             PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *plq_wf = new Win_Farm_GPU<tuple_t, result_t, F_t, input_t>(_gpuFunction, _pane_len, _pane_len, _winType, 1, _plq_degree, _batch_len, _n_thread_block, _name + "_plq", _scratchpad_size, true, configWFPLQ, PLQ);
@@ -278,7 +280,7 @@ private:
             plq_stage = plq_seq;
         }
         // create the second stage WLQ
-        if(_wlq_degree > 1) {
+        if (_wlq_degree > 1) {
             // configuration structure of the Win_Farm instance (WLQ)
             PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqUpdate, (_win_len/_pane_len), (_slide_len/_pane_len), CB, 1, _wlq_degree, _name + "_wlq", _ordered, configWFWLQ, WLQ);
@@ -294,6 +296,8 @@ private:
         ff_pipeline::add_stage(optimize_PaneFarmGPU(plq_stage, wlq_stage, _opt_level));
         // when the Pane_Farm_GPU will be destroyed we need aslo to destroy the two stages
         ff_pipeline::cleanup_nodes();
+        // flatten the pipeline
+        //ff_pipeline::flatten();
     }
 
     // private constructor III (PLQ stage on the CPU with non-incremental query definition and WLQ stage on the GPU)
@@ -347,7 +351,7 @@ private:
             exit(EXIT_FAILURE);
         }
         // the Pane_Farm_GPU can be utilized with sliding windows only
-        if(_win_len <= _slide_len) {
+        if (_win_len <= _slide_len) {
             cerr << RED << "WindFlow Error: Pane_Farm_GPU can be used with sliding windows only (s<w)" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
@@ -356,7 +360,7 @@ private:
         // general fastflow pointers to the PLQ and WLQ stages
         ff_node *plq_stage, *wlq_stage;
         // create the first stage PLQ
-        if(_plq_degree > 1) {
+        if (_plq_degree > 1) {
             // configuration structure of the Win_Farm instance (PLQ)
             PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqFunction, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", true, configWFPLQ, PLQ);
@@ -369,7 +373,7 @@ private:
             plq_stage = plq_seq;
         }
         // create the second stage WLQ
-        if(_wlq_degree > 1) {
+        if (_wlq_degree > 1) {
             // configuration structure of the Win_Farm_GPU instance (WLQ)
             PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *wlq_wf = new Win_Farm_GPU<result_t, result_t, F_t>(_gpuFunction, (_win_len/_pane_len), (_slide_len/_pane_len), CB, 1, _wlq_degree, _batch_len, _n_thread_block, _name + "_wlq", scratchpad_size, _ordered, configWFWLQ, WLQ);
@@ -385,6 +389,8 @@ private:
         ff_pipeline::add_stage(optimize_PaneFarmGPU(plq_stage, wlq_stage, _opt_level));
         // when the Pane_Farm_GPU will be destroyed we need aslo to destroy the two stages
         ff_pipeline::cleanup_nodes();
+        // flatten the pipeline
+        //ff_pipeline::flatten();
     }
 
     // private constructor IV (PLQ stage on the CPU with incremental query definition and WLQ stage on the GPU)
@@ -438,7 +444,7 @@ private:
             exit(EXIT_FAILURE);
         }
         // the Pane_Farm_GPU can be utilized with sliding windows only
-        if(_win_len <= _slide_len) {
+        if (_win_len <= _slide_len) {
             cerr << RED << "WindFlow Error: Pane_Farm_GPU can be used with sliding windows only (s<w)" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
@@ -447,7 +453,7 @@ private:
         // general fastflow pointers to the PLQ and WLQ stages
         ff_node *plq_stage, *wlq_stage;
         // create the first stage PLQ
-        if(_plq_degree > 1) {
+        if (_plq_degree > 1) {
             // configuration structure of the Win_Farm instance (PLQ)
             PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqUpdate, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", true, configWFPLQ, PLQ);
@@ -460,7 +466,7 @@ private:
             plq_stage = plq_seq;
         }
         // create the second stage WLQ
-        if(_wlq_degree > 1) {
+        if (_wlq_degree > 1) {
             // configuration structure of the Win_Farm_GPU instance (WLQ)
             PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *wlq_wf = new Win_Farm_GPU<result_t, result_t, F_t>(_gpuFunction, (_win_len/_pane_len), (_slide_len/_pane_len), CB, 1, _wlq_degree, _batch_len, _n_thread_block, _name + "_wlq", scratchpad_size, _ordered, configWFWLQ, WLQ);
@@ -476,6 +482,8 @@ private:
         ff_pipeline::add_stage(optimize_PaneFarmGPU(plq_stage, wlq_stage, _opt_level));
         // when the Pane_Farm_GPU will be destroyed we need aslo to destroy the two stages
         ff_pipeline::cleanup_nodes();
+        // flatten the pipeline
+        //ff_pipeline::flatten();
     }
 
     // method to optimize the structure of the Pane_Farm_GPU pattern

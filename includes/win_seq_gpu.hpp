@@ -425,7 +425,7 @@ public:
                     size_t start_pos = (key_d.archive).getDistance(*(key_d.start_tuple), *t_s);
                     (key_d.start).push_back(start_pos);
                     size_t end_pos = (key_d.archive).getDistance(*(key_d.start_tuple))-1;
-                    if(isEOSMarker<tuple_t, input_t>(*wt))
+                    if (isEOSMarker<tuple_t, input_t>(*wt))
                         end_pos++;
                     (key_d.end).push_back(end_pos);
                 }
@@ -447,11 +447,11 @@ public:
                     else { // the batch is not empty
                         dataBatch = (const tuple_t *) &(*((key_d.archive).getIterator(*(key_d.start_tuple))));
                         size_copy = (key_d.archive).getDistance(*(key_d.start_tuple)) - 1;
-                        if(isEOSMarker<tuple_t, input_t>(*wt))
+                        if (isEOSMarker<tuple_t, input_t>(*wt))
                             size_copy++;
                     }
                     // prepare the host_results
-                    for(size_t i=0; i < batch_len; i++)
+                    for (size_t i=0; i < batch_len; i++)
                         host_results[i].setInfo(key, key_d.gwids[i], key_d.tsWin[i]);
                     // copy of the arrays on the GPU
                     gpuErrChk(cudaMemcpyAsync(gpu_start, (key_d.start).data(), batch_len * sizeof(size_t), cudaMemcpyHostToDevice, cudaStream));
@@ -490,7 +490,7 @@ public:
                         (key_d.archive).purge(*(key_d.start_tuple));
                     cnt_fired += batch_len;
                     // transmission of results
-                    for(size_t i=0; i<batch_len; i++) {
+                    for (size_t i=0; i<batch_len; i++) {
                         result_t *res = new result_t();
                         *res = host_results[i];
                         // special cases: role is PLQ or MAP

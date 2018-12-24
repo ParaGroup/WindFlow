@@ -132,7 +132,7 @@ private:
             exit(EXIT_FAILURE);
         }
         // the Win_MapReduce must have a parallel MAP stage
-        if(_map_degree < 2) {
+        if (_map_degree < 2) {
             cerr << RED << "WindFlow Error: Win_MapReduce must have a parallel MAP stage" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
@@ -186,6 +186,8 @@ private:
         ff_pipeline::add_stage(optimize_WinMapReduce(map_stage, reduce_stage, _opt_level));
         // when the Win_MapReduce will be destroyed we need aslo to destroy the two internal stages
         ff_pipeline::cleanup_nodes();
+        // flatten the pipeline
+        //ff_pipeline::flatten();
     }
 
     // private constructor II (incremental MAP phase and incremental REDUCE phase)
@@ -221,7 +223,7 @@ private:
             exit(EXIT_FAILURE);
         }
         // the Win_MapReduce must have a parallel MAP stage
-        if(_map_degree < 2) {
+        if (_map_degree < 2) {
             cerr << RED << "WindFlow Error: Win_MapReduce must have a parallel MAP stage" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
@@ -275,6 +277,8 @@ private:
         ff_pipeline::add_stage(optimize_WinMapReduce(map_stage, reduce_stage, _opt_level));
         // when the Win_MapReduce will be destroyed we need aslo to destroy the two internal stages
         ff_pipeline::cleanup_nodes();
+        // flatten the pipeline
+        //ff_pipeline::flatten();
     }
 
     // private constructor III (non-incremental MAP phase and incremental REDUCE phase)
@@ -310,7 +314,7 @@ private:
             exit(EXIT_FAILURE);
         }
         // the Win_MapReduce must have a parallel MAP stage
-        if(_map_degree < 2) {
+        if (_map_degree < 2) {
             cerr << RED << "WindFlow Error: Win_MapReduce must have a parallel MAP stage" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
@@ -364,6 +368,8 @@ private:
         ff_pipeline::add_stage(optimize_WinMapReduce(map_stage, reduce_stage, _opt_level));
         // when the Win_MapReduce will be destroyed we need aslo to destroy the two internal stages
         ff_pipeline::cleanup_nodes();
+        // flatten the pipeline
+        //ff_pipeline::flatten();
     }
 
     // private constructor IV (incremental MAP phase and non-incremental REDUCE phase)
@@ -399,7 +405,7 @@ private:
             exit(EXIT_FAILURE);
         }
         // the Win_MapReduce must have a parallel MAP stage
-        if(_map_degree < 2) {
+        if (_map_degree < 2) {
             cerr << RED << "WindFlow Error: Win_MapReduce must have a parallel MAP stage" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
@@ -453,6 +459,8 @@ private:
         ff_pipeline::add_stage(optimize_WinMapReduce(map_stage, reduce_stage, _opt_level));
         // when the Win_MapReduce will be destroyed we need aslo to destroy the two internal stages
         ff_pipeline::cleanup_nodes();
+        // flatten the pipeline
+        //ff_pipeline::flatten();
     }
 
     // method to optimize the structure of the Win_MapReduce pattern

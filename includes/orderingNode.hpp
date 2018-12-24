@@ -40,7 +40,6 @@
 #include <meta_utils.hpp>
 
 using namespace ff;
-using namespace std;
 
 // class OrderingNode
 template<typename tuple_t>

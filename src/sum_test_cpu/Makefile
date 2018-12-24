@@ -29,17 +29,17 @@ LDFLAGS			= -pthread
 OPT_LEVEL		= -DLEVEL=LEVEL0
 
 SEQ_SRCS		:= $(wildcard *seq*.cpp)
-SEQ_TGT			:= $(addprefix $(OUT_DIR)/, $(basename $(SEQ_SRCS)))
+SEQ_TGT			:= $(basename $(SEQ_SRCS))
 WF_SRCS			:= $(wildcard *wf_*.cpp)
-WF_TGT			:= $(addprefix $(OUT_DIR)/, $(basename $(WF_SRCS)))
+WF_TGT			:= $(basename $(WF_SRCS))
 KF_SRCS			:= $(wildcard *kf_*.cpp)
-KF_TGT			:= $(addprefix $(OUT_DIR)/, $(basename $(KF_SRCS)))
+KF_TGT			:= $(basename $(KF_SRCS))
 PF_SRCS			:= $(wildcard *_pf*.cpp)
-PF_TGT			:= $(addprefix $(OUT_DIR)/, $(basename $(PF_SRCS)))
+PF_TGT			:= $(basename $(PF_SRCS))
 WM_SRCS			:= $(wildcard *_wm*.cpp)
-WM_TGT			:= $(addprefix $(OUT_DIR)/, $(basename $(WM_SRCS)))
+WM_TGT			:= $(basename $(WM_SRCS))
 NESTED_SRCS		:= $(wildcard *+*.cpp)
-NESTED_TGT		:= $(addprefix $(OUT_DIR)/, $(basename $(NESTED_SRCS)))
+NESTED_TGT		:= $(basename $(NESTED_SRCS))
 
 all: $(SEQ_TGT) $(WF_TGT) $(KF_TGT) $(PF_TGT) $(WM_TGT) $(NESTED_TGT) test_all_cb test_all_tb
 
@@ -49,23 +49,8 @@ test_all_cb: test_all_cb.cpp
 test_all_tb: test_all_tb.cpp
 	$(CXX) $(CXXFLAGS) $(INCLUDES) $(MACROS) -DALL_TESTS $(OPTFLAGS) -o $(OUT_DIR)/test_all_tb test_all_tb.cpp $(LDFLAGS)
 
-$(SEQ_TGT): $(OUT_DIR)/% : %.cpp
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(MACROS) $(OPT_LEVEL) $(OPTFLAGS) -o $@ $< $(LDFLAGS)
-
-$(WF_TGT): $(OUT_DIR)/% : %.cpp
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(MACROS) $(OPT_LEVEL) $(OPTFLAGS) -o $@ $< $(LDFLAGS)
-
-$(KF_TGT): $(OUT_DIR)/% : %.cpp
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(MACROS) $(OPT_LEVEL) $(OPTFLAGS) -o $@ $< $(LDFLAGS)
-
-$(PF_TGT): $(OUT_DIR)/% : %.cpp
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(MACROS) $(OPT_LEVEL) $(OPTFLAGS) -o $@ $< $(LDFLAGS)
-
-$(WM_TGT): $(OUT_DIR)/% : %.cpp
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(MACROS) $(OPT_LEVEL) $(OPTFLAGS) -o $@ $< $(LDFLAGS)
-
-$(NESTED_TGT): $(OUT_DIR)/% : %.cpp
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(MACROS) $(OPT_LEVEL) $(OPTFLAGS) -o $@ $< $(LDFLAGS)
+%: %.cpp
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $(MACROS) $(OPT_LEVEL) $(OPTFLAGS) -o $(OUT_DIR)/$@ $< $(LDFLAGS)
 
 clean:
 	rm -f $(OUT_DIR)/*

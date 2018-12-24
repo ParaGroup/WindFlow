@@ -140,7 +140,7 @@ private:
             exit(EXIT_FAILURE);
         }
         // the Pane_Farm can be utilized with sliding windows only
-        if(_win_len <= _slide_len) {
+        if (_win_len <= _slide_len) {
             cerr << RED << "WindFlow Error: Pane_Farm can be used with sliding windows only (s<w)" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
@@ -149,7 +149,7 @@ private:
         // general fastflow pointers to the PLQ and WLQ stages
         ff_node *plq_stage, *wlq_stage;
         // create the first stage PLQ (Pane Level Query)
-        if(_plq_degree > 1) {
+        if (_plq_degree > 1) {
             // configuration structure of the Win_Farm instance (PLQ)
             PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqFunction, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", true, configWFPLQ, PLQ);
@@ -162,7 +162,7 @@ private:
             plq_stage = plq_seq;
         }
         // create the second stage WLQ (Window Level Query)
-        if(_wlq_degree > 1) {
+        if (_wlq_degree > 1) {
             // configuration structure of the Win_Farm instance (WLQ)
             PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqFunction, (_win_len/_pane_len), (_slide_len/_pane_len), CB, 1, _wlq_degree, _name + "_wlq", _ordered, configWFWLQ, WLQ);
@@ -178,6 +178,8 @@ private:
         ff_pipeline::add_stage(optimize_PaneFarm(plq_stage, wlq_stage, _opt_level));
         // when the Pane_Farm will be destroyed we need also to destroy the two stages
         ff_pipeline::cleanup_nodes();
+        // flatten the pipeline
+        //ff_pipeline::flatten();
     }
 
     // private constructor II (incremental PLQ stage and incremental WLQ stage)
@@ -218,7 +220,7 @@ private:
             exit(EXIT_FAILURE);
         }
         // the Pane_Farm can be utilized with sliding windows only
-        if(_win_len <= _slide_len) {
+        if (_win_len <= _slide_len) {
             cerr << RED << "WindFlow Error: Pane_Farm can be used with sliding windows only (s<w)" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
@@ -227,7 +229,7 @@ private:
         // general fastflow pointers to the PLQ and WLQ stages
         ff_node *plq_stage, *wlq_stage;
         // create the first stage PLQ
-        if(_plq_degree > 1) {
+        if (_plq_degree > 1) {
             // configuration structure of the Win_Farm instance (PLQ)
             PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqUpdate, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", true, configWFPLQ, PLQ);
@@ -240,7 +242,7 @@ private:
             plq_stage = plq_seq;
         }
         // create the second stage WLQ
-        if(_wlq_degree > 1) {
+        if (_wlq_degree > 1) {
             // configuration structure of the Win_Farm instance (WLQ)
             PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqUpdate, _win_len/_pane_len, _slide_len/_pane_len, CB, 1, _wlq_degree, _name + "_wlq", _ordered, configWFWLQ, WLQ);
@@ -256,6 +258,8 @@ private:
         ff_pipeline::add_stage(optimize_PaneFarm(plq_stage, wlq_stage, _opt_level));
         // when the Pane_Farm will be destroyed we need aslo to destroy the two stages
         ff_pipeline::cleanup_nodes();
+        // flatten the pipeline
+        //ff_pipeline::flatten();
     }
 
     // private constructor III (non-incremental PLQ stage and incremental WLQ stage)
@@ -296,7 +300,7 @@ private:
             exit(EXIT_FAILURE);
         }
         // the Pane_Farm can be utilized with sliding windows only
-        if(_win_len <= _slide_len) {
+        if (_win_len <= _slide_len) {
             cerr << RED << "WindFlow Error: Pane_Farm can be used with sliding windows only (s<w)" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
@@ -305,7 +309,7 @@ private:
         // general fastflow pointers to the PLQ and WLQ stages
         ff_node *plq_stage, *wlq_stage;
         // create the first stage PLQ (Pane Level Query)
-        if(_plq_degree > 1) {
+        if (_plq_degree > 1) {
             // configuration structure of the Win_Farm instance (PLQ)
             PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqFunction, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", true, configWFPLQ, PLQ);
@@ -318,7 +322,7 @@ private:
             plq_stage = plq_seq;
         }
         // create the second stage WLQ (Window Level Query)
-        if(_wlq_degree > 1) {
+        if (_wlq_degree > 1) {
             // configuration structure of the Win_Farm instance (WLQ)
             PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqUpdate, _win_len/_pane_len, _slide_len/_pane_len, CB, 1, _wlq_degree, _name + "_wlq", _ordered, configWFWLQ, WLQ);
@@ -334,6 +338,8 @@ private:
         ff_pipeline::add_stage(optimize_PaneFarm(plq_stage, wlq_stage, _opt_level));
         // when the Pane_Farm will be destroyed we need aslo to destroy the two stages
         ff_pipeline::cleanup_nodes();
+        // flatten the pipeline
+        //ff_pipeline::flatten();
     }
 
     // private constructor IV (incremental PLQ stage and non-incremental WLQ stage)
@@ -374,7 +380,7 @@ private:
             exit(EXIT_FAILURE);
         }
         // the Pane_Farm can be utilized with sliding windows only
-        if(_win_len <= _slide_len) {
+        if (_win_len <= _slide_len) {
             cerr << RED << "WindFlow Error: Pane_Farm can be used with sliding windows only (s<w)" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
@@ -412,6 +418,8 @@ private:
         ff_pipeline::add_stage(optimize_PaneFarm(plq_stage, wlq_stage, _opt_level));
         // when the Pane_Farm will be destroyed we need aslo to destroy the two stages
         ff_pipeline::cleanup_nodes();
+        // flatten the pipeline
+        //ff_pipeline::flatten();
     }
 
     // method to optimize the structure of the Pane_Farm pattern

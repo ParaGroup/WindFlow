@@ -158,9 +158,9 @@ private:
         }
         ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
-        if(_emitter_degree == 1)
+        if (_emitter_degree == 1)
             ff_farm::add_emitter(new wf_emitter_t(_winType, _win_len, _slide_len, _pardegree, _config.id_inner, _config.n_inner, _config.slide_inner, _role));
-        if(_ordered)
+        if (_ordered)
             ff_farm::add_collector(new wf_collector_t());
         else
             ff_farm::add_collector(nullptr);
@@ -269,7 +269,7 @@ public:
             exit(EXIT_FAILURE);
         }
         // check the compatibility of the windowing/batching parameters
-        if(_pf.win_len != _win_len || _pf.slide_len != _slide_len || _pf.winType != _winType || _pf.batch_len != _batch_len || _pf.n_thread_block != _n_thread_block) {
+        if (_pf.win_len != _win_len || _pf.slide_len != _slide_len || _pf.winType != _winType || _pf.batch_len != _batch_len || _pf.n_thread_block != _n_thread_block) {
             cerr << RED << "WindFlow Error: incompatible windowing and batching parameters" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
@@ -303,10 +303,10 @@ public:
         ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
         ff_farm::add_emitter(new wf_emitter_t(_winType, _win_len, _slide_len, _pardegree, 0, 1, _slide_len, SEQ));
-        if(_ordered)
+        if (_ordered)
             ff_farm::add_collector(new wf_collector_t());
         // optimization process according to the provided optimization level
-        optimize_WinFarmGPU(_opt_level);
+        this->optimize_WinFarmGPU(_opt_level);
         // when the Win_Farm_GPU will be destroyed we need aslo to destroy the emitter, workers and collector
         ff_farm::cleanup_all();
 
@@ -364,7 +364,7 @@ public:
             exit(EXIT_FAILURE);
         }
         // check the compatibility of the windowing/batching parameters
-        if(_wm.win_len != _win_len || _wm.slide_len != _slide_len || _wm.winType != _winType || _wm.batch_len != _batch_len || _wm.n_thread_block != _n_thread_block) {
+        if (_wm.win_len != _win_len || _wm.slide_len != _slide_len || _wm.winType != _winType || _wm.batch_len != _batch_len || _wm.n_thread_block != _n_thread_block) {
             cerr << RED << "WindFlow Error: incompatible windowing and batching parameters" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
@@ -398,10 +398,10 @@ public:
         ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
         ff_farm::add_emitter(new wf_emitter_t(_winType, _win_len, _slide_len, _pardegree, 0, 1, _slide_len, SEQ));
-        if(_ordered)
+        if (_ordered)
             ff_farm::add_collector(new wf_collector_t());
         // optimization process according to the provided optimization level
-        optimize_WinFarmGPU(_opt_level);
+        this->optimize_WinFarmGPU(_opt_level);
         // when the Win_Farm_GPU will be destroyed we need aslo to destroy the emitter, workers and collector
         ff_farm::cleanup_all();
     }

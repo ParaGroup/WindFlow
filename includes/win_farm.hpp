@@ -153,9 +153,9 @@ private:
         }
         ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
-        if(_emitter_degree == 1)
+        if (_emitter_degree == 1)
             ff_farm::add_emitter(new wf_emitter_t(_winType, _win_len, _slide_len, _pardegree, _config.id_inner, _config.n_inner, _config.slide_inner, _role));
-        if(_ordered)
+        if (_ordered)
             ff_farm::add_collector(new wf_collector_t());
         else
             ff_farm::add_collector(nullptr);
@@ -229,9 +229,9 @@ private:
         }
         ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
-        if(_emitter_degree == 1)
+        if (_emitter_degree == 1)
             ff_farm::add_emitter(new wf_emitter_t(_winType, _win_len, _slide_len, _pardegree, _config.id_inner, _config.n_inner, _config.slide_inner, _role));
-        if(_ordered)
+        if (_ordered)
             ff_farm::add_collector(new wf_collector_t());
         else
             ff_farm::add_collector(nullptr);
@@ -352,7 +352,7 @@ public:
             exit(EXIT_FAILURE);
         }
         // check the compatibility of the windowing parameters
-        if(_pf.win_len != _win_len || _pf.slide_len != _slide_len || _pf.winType != _winType) {
+        if (_pf.win_len != _win_len || _pf.slide_len != _slide_len || _pf.winType != _winType) {
             cerr << RED << "WindFlow Error: incompatible windowing parameters" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
@@ -379,8 +379,8 @@ public:
         }
         // advanced case: multiple Emitter nodes
         else {
-            assert(false);
-            /*
+            abort();
+#if 0
             ff_a2a *a2a = new ff_a2a();
             // create the Emitter nodes
             vector<ff_node *> emitters(_emitter_degree);
@@ -389,7 +389,7 @@ public:
                 emitters[i] = emitter;
             }
             a2a->add_firstset(emitters, 0, true);
-            // create the correct Pane_Farm instance
+            // create the correct Pane_Farm instances
             vector<ff_node *> pfs(_pardegree);
             for (size_t i = 0; i < _pardegree; i++) {
                 // an ordering node must be composed before the first node of the Pane_Farm instance
@@ -406,33 +406,24 @@ public:
                     pf_W = new panewrap_farm_t(_pf.plqFunction, _pf.wlqUpdate, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), false, _pf.opt_level, configPF);
                 if (!_pf.isNICPLQ && _pf.isNICWLQ) // PLQ is incremental and the WLQ is non-incremental
                     pf_W = new panewrap_farm_t(_pf.plqUpdate, _pf.wlqFunction, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), false, _pf.opt_level, configPF);
-                // get the first node of the Pane_Farm
-                ff_node *first = pf_W->get_node(0);
-                // it is a sequential node
-                if (!first->isFarm()) {
-                    ff_comb *newNode = new ff_comb(ord, first, true, true);
-                    // devo rimpiazzare questo nodo con first dentro il PF
-                }
-                // it is a farm
-                else {
-                    ff_farm *plqFarm = reinterpret_cast<ff_farm *>(first);
-                    ff_node *plq_emitter = plqFarm->getEmitter();
-                    ff_comb *newEmitter = new ff_comb(ord, plq_emitter, true, true);
-                    plqFarm->change_emitter(newEmitter, true);
-                }
+                // combine the first node of the Pane_Farm instance with the buffering node
+                combine_with_firststage(*pf_W, ord, true);
                 pfs[i] = pf_W;
             }
             a2a->add_secondset(pfs, true);
             w.push_back(a2a);
-            */
+#endif
         }
         ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
-        ff_farm::add_emitter(new wf_emitter_t(_winType, _win_len, _slide_len, _pardegree, 0, 1, _slide_len, SEQ));
-        if(_ordered)
+        if (_emitter_degree == 1)
+            ff_farm::add_emitter(new wf_emitter_t(_winType, _win_len, _slide_len, _pardegree, 0, 1, _slide_len, SEQ));
+        if (_ordered)
             ff_farm::add_collector(new wf_collector_t());
+        else
+            ff_farm::add_collector(nullptr);
         // optimization process according to the provided optimization level
-        optimize_WinFarm(_opt_level);
+        this->optimize_WinFarm(_opt_level);
         // when the Win_Farm will be destroyed we need aslo to destroy the emitter, workers and collector
         ff_farm::cleanup_all();
     }
@@ -478,7 +469,7 @@ public:
             exit(EXIT_FAILURE);
         }
         // check the compatibility of the windowing parameters
-        if(_wm.win_len != _win_len || _wm.slide_len != _slide_len || _wm.winType != _winType) {
+        if (_wm.win_len != _win_len || _wm.slide_len != _slide_len || _wm.winType != _winType) {
             cerr << RED << "WindFlow Error: incompatible windowing parameters" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
@@ -488,30 +479,73 @@ public:
             _emitter_degree = 1;
         }
         // vector of Win_MapReduce instances
-        vector<ff_node *> w(_pardegree);
-        // create the Win_MapReduce instances starting from the passed one
-        for (size_t i = 0; i < _pardegree; i++) {
-            // configuration structure of the Win_MapReduce instances
-            PatternConfig configWM(0, 1, _slide_len, i, _pardegree, _slide_len);
-            // create the correct Win_MapReduce instance
-            winwrap_map_t *wm_W = nullptr;
-            if (_wm.isNICMAP && _wm.isNICREDUCE) // MAP and REDUCE are non-incremental
-                wm_W = new winwrap_map_t(_wm.mapFunction, _wm.reduceFunction, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), false, _wm.opt_level, configWM);
-            if (!_wm.isNICMAP && !_wm.isNICREDUCE) // MAP and REDUCE are incremental
-                wm_W = new winwrap_map_t(_wm.mapUpdate, _wm.reduceUpdate, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), false, _wm.opt_level, configWM);
-            if (_wm.isNICMAP && !_wm.isNICREDUCE) // MAP is non-incremental and the REDUCE is incremental
-                wm_W = new winwrap_map_t(_wm.mapFunction, _wm.reduceUpdate, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), false, _wm.opt_level, configWM);
-            if (!_wm.isNICMAP && _wm.isNICREDUCE) // MAP is incremental and the REDUCE is non-incremental
-                wm_W = new winwrap_map_t(_wm.mapUpdate, _wm.reduceFunction, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), false, _wm.opt_level, configWM);
-            w[i] = wm_W;
+        vector<ff_node *> w;
+        // standard case: one Emitter node
+        if (_emitter_degree == 1) {
+            // create the Win_MapReduce instances starting from the input one
+            for (size_t i = 0; i < _pardegree; i++) {
+                // configuration structure of the Win_mapReduce instances
+                PatternConfig configWM(0, 1, _slide_len, i, _pardegree, _slide_len);
+                // create the correct Win_MapReduce instance
+                winwrap_map_t *wm_W = nullptr;
+                if (_wm.isNICMAP && _wm.isNICREDUCE) // MAP and REDUCE are non-incremental
+                    wm_W = new winwrap_map_t(_wm.mapFunction, _wm.reduceFunction, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), false, _wm.opt_level, configWM);
+                if (!_wm.isNICMAP && !_wm.isNICREDUCE) // MAP and REDUCE are incremental
+                    wm_W = new winwrap_map_t(_wm.mapUpdate, _wm.reduceUpdate, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), false, _wm.opt_level, configWM);
+                if (_wm.isNICMAP && !_wm.isNICREDUCE) // MAP is non-incremental and the REDUCE is incremental
+                    wm_W = new winwrap_map_t(_wm.mapFunction, _wm.reduceUpdate, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), false, _wm.opt_level, configWM);
+                if (!_wm.isNICMAP && _wm.isNICREDUCE) // MAP is incremental and the REDUCE is non-incremental
+                    wm_W = new winwrap_map_t(_wm.mapUpdate, _wm.reduceFunction, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), false, _wm.opt_level, configWM);
+                w.push_back(wm_W);
+            }
+        }
+        // advanced case: multiple Emitter nodes
+        else {
+            abort();
+#if 0
+            ff_a2a *a2a = new ff_a2a();
+            // create the Emitter nodes
+            vector<ff_node *> emitters(_emitter_degree);
+            for (size_t i = 0; i < _emitter_degree; i++) {
+                auto *emitter = new wf_emitter_t(_winType, _win_len, _slide_len, _pardegree, 0, 1, _slide_len, SEQ);
+                emitters[i] = emitter;
+            }
+            a2a->add_firstset(emitters, 0, true);
+            // create the correct Win_MapReduce instances
+            vector<ff_node *> wms(_pardegree);
+            for (size_t i = 0; i < _pardegree; i++) {
+                // an ordering node must be composed before the first node of the Win_MapReduce instance
+                auto *ord = new OrderingNode<tuple_t>(_emitter_degree);
+                // configuration structure of the Win_mapReduce instances
+                PatternConfig configWM(0, 1, _slide_len, i, _pardegree, _slide_len);
+                // create the correct Win_MapReduce instance
+                winwrap_map_t *wm_W = nullptr;
+                if (_wm.isNICMAP && _wm.isNICREDUCE) // MAP and REDUCE are non-incremental
+                    wm_W = new winwrap_map_t(_wm.mapFunction, _wm.reduceFunction, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), false, _wm.opt_level, configWM);
+                if (!_wm.isNICMAP && !_wm.isNICREDUCE) // MAP and REDUCE are incremental
+                    wm_W = new winwrap_map_t(_wm.mapUpdate, _wm.reduceUpdate, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), false, _wm.opt_level, configWM);
+                if (_wm.isNICMAP && !_wm.isNICREDUCE) // MAP is non-incremental and the REDUCE is incremental
+                    wm_W = new winwrap_map_t(_wm.mapFunction, _wm.reduceUpdate, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), false, _wm.opt_level, configWM);
+                if (!_wm.isNICMAP && _wm.isNICREDUCE) // MAP is incremental and the REDUCE is non-incremental
+                    wm_W = new winwrap_map_t(_wm.mapUpdate, _wm.reduceFunction, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), false, _wm.opt_level, configWM);                
+                // combine the first node of the Win_MapReduce instance with the buffering node
+                combine_with_firststage(*wm_W, ord, true);
+                wms[i] = wm_W;
+            }
+            a2a->add_secondset(wms, true);
+            w.push_back(a2a);
+#endif        
         }
         ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
-        ff_farm::add_emitter(new wf_emitter_t(_winType, _win_len, _slide_len, _pardegree, 0, 1, _slide_len, SEQ));
-        if(_ordered)
+        if (_emitter_degree == 1)
+            ff_farm::add_emitter(new wf_emitter_t(_winType, _win_len, _slide_len, _pardegree, 0, 1, _slide_len, SEQ));
+        if (_ordered)
             ff_farm::add_collector(new wf_collector_t());
+        else
+            ff_farm::add_collector(nullptr);
         // optimization process according to the provided optimization level
-        optimize_WinFarm(_opt_level);
+        this->optimize_WinFarm(_opt_level);
         // when the Win_Farm will be destroyed we need aslo to destroy the emitter, workers and collector
         ff_farm::cleanup_all();
     }

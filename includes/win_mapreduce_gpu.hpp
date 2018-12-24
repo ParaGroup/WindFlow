@@ -152,7 +152,7 @@ private:
             exit(EXIT_FAILURE);
         }
         // the Win_MapReduce_GPU must have a parallel MAP stage
-        if(_map_degree < 2) {
+        if (_map_degree < 2) {
             cerr << RED << "WindFlow Error: Win_MapReduce_GPU must have a parallel MAP stage" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
@@ -211,6 +211,8 @@ private:
         ff_pipeline::add_stage(optimize_WinMapReduceGPU(map_stage, reduce_stage, _opt_level));
         // when the Win_MapReduce_GPU will be destroyed we need aslo to destroy the two internal stages
         ff_pipeline::cleanup_nodes();
+        // flatten the pipeline
+        //ff_pipeline::flatten();
     }
 
     // private constructor II (MAP stage on the GPU and REDUCE stage on the CPU with incremental query definition)
@@ -254,7 +256,7 @@ private:
             exit(EXIT_FAILURE);
         }
         // the Win_MapReduce_GPU must have a parallel MAP stage
-        if(_map_degree < 2) {
+        if (_map_degree < 2) {
             cerr << RED << "WindFlow Error: Win_MapReduce_GPU must have a parallel MAP stage" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
@@ -313,6 +315,8 @@ private:
         ff_pipeline::add_stage(optimize_WinMapReduceGPU(map_stage, reduce_stage, _opt_level));
         // when the Win_MapReduce_GPU will be destroyed we need aslo to destroy the two internal stages
         ff_pipeline::cleanup_nodes();
+        // flatten the pipeline
+        //ff_pipeline::flatten();
     }
 
     // private constructor III (MAP stage on the CPU with non-incremental query definition and REDUCE stage on the GPU)
@@ -356,7 +360,7 @@ private:
             exit(EXIT_FAILURE);
         }
         // the Win_MapReduce_GPU must have a parallel MAP stage
-        if(_map_degree < 2) {
+        if (_map_degree < 2) {
             cerr << RED << "WindFlow Error: Win_MapReduce_GPU must have a parallel MAP stage" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
@@ -415,6 +419,8 @@ private:
         ff_pipeline::add_stage(optimize_WinMapReduceGPU(map_stage, reduce_stage, _opt_level));
         // when the Win_MapReduce_GPU will be destroyed we need aslo to destroy the two internal stages
         ff_pipeline::cleanup_nodes();
+        // flatten the pipeline
+        //ff_pipeline::flatten();
     }
 
     // private constructor IV (MAP stage on the CPU with incremental query definition and REDUCE stage on the GPU)
@@ -458,7 +464,7 @@ private:
             exit(EXIT_FAILURE);
         }
         // the Win_MapReduce_GPU must have a parallel MAP stage
-        if(_map_degree < 2) {
+        if (_map_degree < 2) {
             cerr << RED << "WindFlow Error: Win_MapReduce_GPU must have a parallel MAP stage" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
@@ -517,6 +523,8 @@ private:
         ff_pipeline::add_stage(optimize_WinMapReduceGPU(map_stage, reduce_stage, _opt_level));
         // when the Win_MapReduce_GPU will be destroyed we need aslo to destroy the two internal stages
         ff_pipeline::cleanup_nodes();
+        // flatten the pipeline
+        //ff_pipeline::flatten();
     }
 
     // method to optimize the structure of the Win_MapReduce_GPU pattern

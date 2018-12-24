@@ -116,6 +116,7 @@ int main(int argc, char *argv[])
 									.build();
 	Win_Farm wf = WinFarm_Builder(pf).withParallelism(wf_degree)
 									.withName("test_sum")
+									.withEmitters(1)
 									.withOpt(LEVEL)
 									.build();
 	// creation of the pipeline

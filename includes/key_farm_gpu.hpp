@@ -198,7 +198,7 @@ public:
             exit(EXIT_FAILURE);
         }
         // check the compatibility of the windowing/batching parameters
-        if(_pf.win_len != _win_len || _pf.slide_len != _slide_len || _pf.winType != _winType || _pf.batch_len != _batch_len || _pf.n_thread_block != _n_thread_block) {
+        if (_pf.win_len != _win_len || _pf.slide_len != _slide_len || _pf.winType != _winType || _pf.batch_len != _batch_len || _pf.n_thread_block != _n_thread_block) {
             cerr << RED << "WindFlow Error: incompatible windowing and batching parameters" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
@@ -229,7 +229,7 @@ public:
         ff_farm::add_collector(new kf_collector_t());
         ff_farm::add_emitter(new kf_emitter_t(_routing, _pardegree));
         // optimization process according to the provided optimization level
-        optimize_KeyFarmGPU(_opt_level);
+        this->optimize_KeyFarmGPU(_opt_level);
         // when the Key_Farm_GPU will be destroyed we need aslo to destroy the emitter, workers and collector
         ff_farm::cleanup_all();
     }
@@ -277,7 +277,7 @@ public:
             exit(EXIT_FAILURE);
         }
         // check the compatibility of the windowing/batching parameters
-        if(_wm.win_len != _win_len || _wm.slide_len != _slide_len || _wm.winType != _winType || _wm.batch_len != _batch_len || _wm.n_thread_block != _n_thread_block) {
+        if (_wm.win_len != _win_len || _wm.slide_len != _slide_len || _wm.winType != _winType || _wm.batch_len != _batch_len || _wm.n_thread_block != _n_thread_block) {
             cerr << RED << "WindFlow Error: incompatible windowing and batching parameters" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
@@ -308,7 +308,7 @@ public:
         ff_farm::add_collector(new kf_collector_t());
         ff_farm::add_emitter(new kf_emitter_t(_routing, _pardegree));
         // optimization process according to the provided optimization level
-        optimize_KeyFarmGPU(_opt_level);
+        this->optimize_KeyFarmGPU(_opt_level);
         // when the Key_Farm_GPU will be destroyed we need aslo to destroy the emitter, workers and collector
         ff_farm::cleanup_all();
     }

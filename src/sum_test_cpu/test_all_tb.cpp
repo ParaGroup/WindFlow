@@ -444,6 +444,7 @@ int main(int argc, char *argv[])
 											   .build();
 		Win_Farm wf = WinFarm_Builder(pfNICNIC).withParallelism(degree1)
 											   .withName("wf_pf_nic_nic")
+											   .withEmitters(emitter_degree)
 											   .withOpt(opt_level)
 											   .build();
 		ff_Pipe<tuple_t, output_t> pipe15(generator, wf, consumer);
@@ -468,6 +469,7 @@ int main(int argc, char *argv[])
 											   .build();
 		Win_Farm wf = WinFarm_Builder(pfNICINC).withParallelism(degree1)
 											   .withName("wf_pf_nic_inc")
+											   .withEmitters(emitter_degree)
 											   .withOpt(opt_level)
 											   .build();
 		ff_Pipe<tuple_t, output_t> pipe16(generator, wf, consumer);
@@ -492,6 +494,7 @@ int main(int argc, char *argv[])
 											   .build();
 		Win_Farm wf = WinFarm_Builder(pfINCNIC).withParallelism(degree1)
 											   .withName("wf_pf_inc_nic")
+											   .withEmitters(emitter_degree)
 											   .withOpt(opt_level)
 											   .build();
 		ff_Pipe<tuple_t, output_t> pipe17(generator, wf, consumer);
@@ -516,6 +519,7 @@ int main(int argc, char *argv[])
 											   .build();
 		Win_Farm wf = WinFarm_Builder(pfINCINC).withParallelism(degree1)
 											   .withName("wf_pf_inc_inc")
+											   .withEmitters(emitter_degree)
 											   .withOpt(opt_level)
 											   .build();
 		ff_Pipe<tuple_t, output_t> pipe18(generator, wf, consumer);
@@ -540,6 +544,7 @@ int main(int argc, char *argv[])
 											   .build();
 		Win_Farm wf = WinFarm_Builder(wmNICNIC).withParallelism(degree1)
 											   .withName("wf_wm_nic_nic")
+											   .withEmitters(emitter_degree)
 											   .withOpt(opt_level)
 											   .build();
 		ff_Pipe<tuple_t, output_t> pipe19(generator, wf, consumer);
@@ -564,6 +569,7 @@ int main(int argc, char *argv[])
 											   .build();
 		Win_Farm wf = WinFarm_Builder(wmNICINC).withParallelism(degree1)
 											   .withName("wf_wm_nic_inc")
+											   .withEmitters(emitter_degree)
 											   .withOpt(opt_level)
 											   .build();
 		ff_Pipe<tuple_t, output_t> pipe20(generator, wf, consumer);
@@ -588,6 +594,7 @@ int main(int argc, char *argv[])
 											   .build();
 		Win_Farm wf = WinFarm_Builder(wmINCNIC).withParallelism(degree1)
 											   .withName("wf_wm_inc_nic")
+											   .withEmitters(emitter_degree)
 											   .withOpt(opt_level)
 											   .build();
 		ff_Pipe<tuple_t, output_t> pipe21(generator, wf, consumer);
@@ -612,6 +619,7 @@ int main(int argc, char *argv[])
 											   .build();
 		Win_Farm wf = WinFarm_Builder(wmINCINC).withParallelism(degree1)
 											   .withName("wf_wm_inc_inc")
+											   .withEmitters(emitter_degree)
 											   .withOpt(opt_level)
 											   .build();
 		ff_Pipe<tuple_t, output_t> pipe22(generator, wf, consumer);

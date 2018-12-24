@@ -149,7 +149,7 @@ public:
                 result->setInfo(key, gwid, std::get<2>(_t.getInfo()));
         }
         if (event == FIRED) {
-            if(!firingTuple)
+            if (!firingTuple)
                 firingTuple = make_optional(_t);
         }
         if (batched)

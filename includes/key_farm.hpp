@@ -224,7 +224,7 @@ public:
             exit(EXIT_FAILURE);
         }
         // check the compatibility of the windowing parameters
-        if(_pf.win_len != _win_len || _pf.slide_len != _slide_len || _pf.winType != _winType) {
+        if (_pf.win_len != _win_len || _pf.slide_len != _slide_len || _pf.winType != _winType) {
             cerr << RED << "WindFlow Error: incompatible windowing parameters" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
@@ -251,7 +251,7 @@ public:
         ff_farm::add_collector(new kf_collector_t());
         ff_farm::add_emitter(new kf_emitter_t(_routing, _pardegree));
         // optimization process according to the provided optimization level
-        optimize_KeyFarm(_opt_level);
+        this->optimize_KeyFarm(_opt_level);
         // when the Key_Farm will be destroyed we need aslo to destroy the emitter, workers and collector
         ff_farm::cleanup_all();
     }
@@ -288,7 +288,7 @@ public:
             exit(EXIT_FAILURE);
         }
         // check the compatibility of the windowing parameters
-        if(_wm.win_len != _win_len || _wm.slide_len != _slide_len || _wm.winType != _winType) {
+        if (_wm.win_len != _win_len || _wm.slide_len != _slide_len || _wm.winType != _winType) {
             cerr << RED << "WindFlow Error: incompatible windowing parameters" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
@@ -315,7 +315,7 @@ public:
         ff_farm::add_collector(new kf_collector_t());
         ff_farm::add_emitter(new kf_emitter_t(_routing, _pardegree));
         // optimization process according to the provided optimization level
-        optimize_KeyFarm(_opt_level);
+        this->optimize_KeyFarm(_opt_level);
         // when the Key_Farm will be destroyed we need aslo to destroy the emitter, workers and collector
         ff_farm::cleanup_all();
     }

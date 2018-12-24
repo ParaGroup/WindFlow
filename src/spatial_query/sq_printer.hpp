@@ -115,7 +115,7 @@ public:
 			last_time = current_time_usecs();
 		}
 #if defined(LOG_DIR)
-		//results.push_back(*r);
+		results.push_back(*r);
 #endif
 		delete r;
 		return ff_node_t<result_t>::GO_ON;
@@ -154,6 +154,10 @@ public:
     	}
     	logfile << stream.str();
     	logfile.close();*/
+    	long sum_size = 0;
+    	for(auto &s: results)
+    		sum_size += s.size();
+    	cout << "Average skyline size: " << ((double) sum_size) / results.size() << endl;
 #endif
     }
 };
