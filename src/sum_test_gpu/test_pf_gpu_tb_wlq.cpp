@@ -26,9 +26,9 @@
 // includes
 #include <string>
 #include <iostream>
-#include <ff/mapper.hpp>
-#include <ff/pipeline.hpp>
-#include <pane_farm_gpu.hpp>
+#include <ff/ff.hpp>
+#include <windflow.hpp>
+#include <windflow_gpu.hpp>
 #include <sum_tb.hpp>
 
 using namespace ff;

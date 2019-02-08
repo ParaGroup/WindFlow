@@ -22,14 +22,9 @@
 // includes
 #include <string>
 #include <iostream>
-#include <ff/mapper.hpp>
-#include <ff/pipeline.hpp>
-#include <win_seq.hpp>
-#include <win_mapreduce.hpp>
-#include <win_farm.hpp>
-#include <key_farm.hpp>
-#include <pane_farm.hpp>
-#include <sum_cb.hpp>
+#include <ff/ff.hpp>
+#include <windflow.hpp>
+#include "sum_cb.hpp"
 
 using namespace ff;
 using namespace std;

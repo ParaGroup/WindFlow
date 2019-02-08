@@ -18,15 +18,19 @@
  *  @file    win_seq_gpu.hpp
  *  @author  Gabriele Mencagli
  *  @date    16/03/2018
- *  @version 1.0
  *  
- *  @brief Win_Seq_GPU pattern executing windowed queries on a heterogeneous system (CPU+GPU)
+ *  @brief Win_Seq_GPU pattern executing a windowed transformation on a CPU+GPU system
  *  
- *  @section DESCRIPTION
+ *  @section Win_Seq_GPU (Description)
  *  
  *  This file implements the Win_Seq_GPU pattern able to execute windowed queries on a heterogeneous
  *  system (CPU+GPU). The pattern prepares batches of input tuples sequentially on a CPU core and
  *  offloads on the GPU the parallel processing of the windows within each batch.
+ *  
+ *  The template arguments tuple_t and result_t must be default constructible, with a copy constructor
+ *  and copy assignment operator, and they must provide and implement the setInfo() and
+ *  getInfo() methods. The third template argument win_F_t is the type of the callable object to be used for GPU
+ *  processing.
  */ 
 
 #ifndef WIN_SEQ_GPU_H
@@ -43,6 +47,8 @@
 #include <stream_archive.hpp>
 
 using namespace ff;
+
+//@cond DOXY_IGNORE
 
 // CUDA KERNEL: it calls the user-defined function over the windows within a micro-batch
 template<typename win_F_t>
@@ -70,21 +76,16 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=f
     }
 }
 
+//@endcond
+
 /** 
  *  \class Win_Seq_GPU
  *  
- *  \brief Win_Seq_GPU pattern executing windowed queries on heterogeneous system (CPU+GPU)
+ *  \brief Win_Seq_GPU pattern executing a windowed transformation on a CPU+GPU system
  *  
  *  This class implements the Win_Seq_GPU pattern executing windowed queries on a heterogeneous
  *  system (CPU+GPU). The pattern prepares batches of input tuples on a CPU core sequentially,
- *  and offloads the processing of all the windows within a batch on the GPU. The pattern class
- *  has four template arguments. The first is the type of the input tuples. It must be copyable
- *  and providing the getInfo() and setinfo() methods. The second is the type of the window results.
- *  It must have a default constructor and the getInfo() and setInfo() methods. The first and the
- *  second types must be POD C++ types (Plain Old Data). The third template argument is the type
- *  of the function to process per window. It must be declared in order to be executable both on
- *  the device (GPU) and on the CPU. The last template argument is used by the WindFlow run-time
- *  system and should never be utilized by the high-level programmer.
+ *  and offloads the processing of all the windows within a batch on the GPU.
  */ 
 template<typename tuple_t, typename result_t, typename win_F_t, typename input_t>
 class Win_Seq_GPU: public ff_node_t<input_t, result_t>
@@ -98,7 +99,7 @@ private:
     using win_t = Window<tuple_t, result_t>;
     // function type to compare two tuples
     using f_compare_t = function<bool(const tuple_t &, const tuple_t &)>;
-    /// friendships with other classes in the library
+    // friendships with other classes in the library
     template<typename T1, typename T2, typename T3, typename T4>
     friend class Win_Farm_GPU;
     template<typename T1, typename T2, typename T3, typename T4>
@@ -147,9 +148,6 @@ private:
                        gwids(_k.gwids),
                        tsWin(_k.tsWin),
                        start_tuple(_k.start_tuple) {}
-
-        // destructor
-       ~Key_Descriptor() {}
     };
     // CPU variables
     f_compare_t compare; // function to compare two tuples
@@ -310,6 +308,8 @@ public:
         cudaStreamDestroy(cudaStream);
     }
 
+//@cond DOXY_IGNORE
+
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
     {
@@ -342,7 +342,7 @@ public:
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
-        // check duplicate tuples
+        // check duplicate or out-of-order tuples
         if (key_d.rcv_counter == 0) {
             key_d.rcv_counter++;
             key_d.last_tuple = *t;
@@ -350,7 +350,7 @@ public:
         else {
             // tuples can be received only ordered by id/timestamp
             uint64_t last_id = (winType == CB) ? std::get<1>((key_d.last_tuple).getInfo()) : std::get<2>((key_d.last_tuple).getInfo());
-            if (id <= last_id) {
+            if (id < last_id) {
                 // the tuple is immediately deleted
                 deleteTuple<tuple_t, input_t>(wt);
                 return this->GO_ON;
@@ -380,10 +380,20 @@ public:
         if (win_len >= slide_len)
             last_w = ceil(((double) id + 1 - initial_id)/((double) slide_len)) - 1;
         // hopping windows
-        else
-            last_w = floor((double) (id-initial_id) / ((double) slide_len));
+        else {
+            uint64_t n = floor((double) (id-initial_id) / slide_len);
+            last_w = n;
+            // if the tuple does not belong to at least one window assigned to this Win_Seq instance
+            if ((id-initial_id < n*(slide_len)) || (id-initial_id >= (n*slide_len)+win_len)) {
+                // if it is not an EOS marker, we delete the tuple immediately
+                if (!isEOSMarker<tuple_t, input_t>(*wt)) {
+                    // delete the received tuple
+                    deleteTuple<tuple_t, input_t>(wt);
+                    return this->GO_ON;
+                }
+            }
+        }
         // copy the tuple into the archive of the corresponding key
-        //if (role != MAP || (role == MAP && !isEOSMarker<tuple_t, input_t>(*wt)))
         if (!isEOSMarker<tuple_t, input_t>(*wt))
             (key_d.archive).insert(*t);
         auto &wins = key_d.wins;
@@ -460,7 +470,7 @@ public:
                     gpuErrChk(cudaMemcpyAsync(Bout, host_results, batch_len * sizeof(result_t), cudaMemcpyHostToDevice, cudaStream));
                     // count-based windows
                     if (winType == CB) {
-                        gpuErrChk(cudaMemcpyAsync(Bin, dataBatch, size_copy * sizeof(tuple_t), cudaMemcpyHostToDevice, cudaStream));   
+                        gpuErrChk(cudaMemcpyAsync(Bin, dataBatch, size_copy * sizeof(tuple_t), cudaMemcpyHostToDevice, cudaStream));
                     }
                     // time-based windows
                     else {
@@ -558,14 +568,14 @@ public:
                         its = (key_d.archive).getWinRange(*t_s);
                     // call the winFunction on the CPU
                     decltype(get_tuple_t(winFunction)) *my_input_data = (decltype(get_tuple_t(winFunction)) *) &(*(its.first));
-                    if (winFunction(key, win.getGWID(), my_input_data, out, distance(its.first, its.second), scratchpad_memory_cpu) != 0) {
-                        cerr << RED << "WindFlow Error: winFunction() call returns non-zero on CPU" << DEFAULT << endl;
+                    if (winFunction(key, win.getGWID(), my_input_data, out, distance(its.first, its.second), scratchpad_memory_cpu) < 0) {
+                        cerr << RED << "WindFlow Error: winFunction() call error (negative return value)" << DEFAULT << endl;
                         exit(EXIT_FAILURE);
                     }
                 }
                 else {// empty window
-                    if (winFunction(key, win.getGWID(), nullptr, out, 0, scratchpad_memory_cpu) != 0) {
-                        cerr << RED << "WindFlow Error: winFunction() call returns non-zero on CPU" << DEFAULT << endl;
+                    if (winFunction(key, win.getGWID(), nullptr, out, 0, scratchpad_memory_cpu) < 0) {
+                        cerr << RED << "WindFlow Error: winFunction() call error (negative return value)" << DEFAULT << endl;
                         exit(EXIT_FAILURE);
                     }
                 }
@@ -603,6 +613,14 @@ public:
         logfile.close();
 #endif
     }
+
+//@endcond
+
+    /** 
+     *  \brief Get the window type (CB or TB) utilized by the pattern
+     *  \return adopted windowing semantics (count- or time-based)
+     */
+    win_type_t getWinType() { return winType; }
 
     /// Method to start the pattern execution asynchronously
     virtual int run(bool)

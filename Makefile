@@ -19,17 +19,38 @@
 all:
 	$(MAKE) -C src
 
+source_test:
+	$(MAKE) source_test -C src
+
+map_test:
+	$(MAKE) map_test -C src
+
+filter_test:
+	$(MAKE) filter_test -C src
+
+flatmap_test:
+	$(MAKE) flatmap_test -C src
+
 sum_test_cpu:
 	$(MAKE) sum_test_cpu -C src
 
 sum_test_gpu:
 	$(MAKE) sum_test_gpu -C src
 
-spatial_query:
-	$(MAKE) spatial_query -C src
+sink_test:
+	$(MAKE) sink_test -C src
+
+pipe_test_cpu:
+	$(MAKE) pipe_test_cpu -C src
+
+spatial_test:
+	$(MAKE) spatial_test -C src
+
+yahoo_test_cpu:
+	$(MAKE) yahoo_test_cpu -C src
 
 clean:
 	$(MAKE) clean -C src
 
 .DEFAULT_GOAL := all
-.PHONY: all sum_test_cpu sum_test_gpu spatial_query clean
+.PHONY: all source_test map_test filter_test flatmap_test sum_test_cpu sum_test_gpu sink_test pipe_test_cpu spatial_test yahoo_test_cpu clean

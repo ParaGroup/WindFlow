@@ -22,13 +22,9 @@
 // includes
 #include <string>
 #include <iostream>
-#include <ff/mapper.hpp>
-#include <ff/pipeline.hpp>
-#include <win_seq_gpu.hpp>
-#include <win_farm_gpu.hpp>
-#include <key_farm_gpu.hpp>
-#include <pane_farm_gpu.hpp>
-#include <win_mapreduce_gpu.hpp>
+#include <ff/ff.hpp>
+#include <windflow.hpp>
+#include <windflow_gpu.hpp>
 #include <sum_cb.hpp>
 
 using namespace ff;

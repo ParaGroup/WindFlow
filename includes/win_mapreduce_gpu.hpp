@@ -18,11 +18,10 @@
  *  @file    win_mapreduce_gpu.hpp
  *  @author  Gabriele Mencagli
  *  @date    22/05/2018
- *  @version 1.0
  *  
- *  @brief Win_MapReduce_GPU pattern executing windowed queries on a heterogeneous system (CPU+GPU)
+ *  @brief Win_MapReduce_GPU pattern executing a windowed transformation in parallel on a CPU+GPU system
  *  
- *  @section DESCRIPTION
+ *  @section Win_MapReduce_GPU (Description)
  *  
  *  This file implements the Win_MapReduce_GPU pattern able to execute windowed queries on a heterogeneous
  *  system (CPU+GPU). The pattern processes (possibly in parallel) partitions of the windows in the so-called
@@ -30,6 +29,11 @@
  *  REDUCE stage. The pattern allows the user to offload either the MAP or the REDUCE processing on the GPU
  *  while the other stage is executed on the CPU with either a non-incremental or an incremental query
  *  definition.
+ *  
+ *  The template arguments tuple_t and result_t must be default constructible, with a copy constructor
+ *  and copy assignment operator, and they must provide and implement the setInfo() and
+ *  getInfo() methods. The third template argument F_t is the type of the callable object to be used for GPU
+ *  processing (either for the MAP or for the REDUCE stage).
  */ 
 
 #ifndef WIN_MAPREDUCE_GPU_H
@@ -46,40 +50,34 @@
 /** 
  *  \class Win_MapReduce_GPU
  *  
- *  \brief Win_MapReduce_GPU pattern executing windowed queries on a heterogeneous system (CPU+GPU)
+ *  \brief Win_MapReduce_GPU pattern executing a windowed transformation in parallel on a CPU+GPU system
  *  
  *  This class implements the Win_MapReduce_GPU pattern executing windowed queries in parallel on
  *  heterogeneous system (CPU+GPU). The pattern processes (possibly in parallel) window partitions
  *  in the MAP stage and builds window results out from partition results (possibly in parallel) in
  *  the REDUCE stage. Either the MAP or the REDUCE stage are executed on the GPU device while the
- *  others is executed on the CPU as in the Win_MapReduce pattern. The pattern class has four
- *  template arguments. The first is the type of the input tuples. It must be copyable and providing
- *  the getInfo() and setInfo() methods. The second is the type of the window results. It must have
- *  a default constructor and the getInfo() and setInfo() methods. The first and the second types
- *  must be POD C++ types (Plain Old Data). The third template argument is the type of the function
- *  to process per partition/window. It must be declared in order to be executable both on the device
- *  (GPU) and on the CPU. The last template argument is used by the WindFlow run-time system and should
- *  never be utilized by the high-level programmer.
+ *  others is executed on the CPU as in the Win_MapReduce pattern.
  */ 
 template<typename tuple_t, typename result_t, typename F_t, typename input_t>
 class Win_MapReduce_GPU: public ff_pipeline
 {
+public:
+    /// function type of the non-incremental MAP processing
+    using f_mapfunction_t = function<int(size_t, uint64_t, Iterable<tuple_t> &, result_t &)>;
+    /// function type of the incremental MAP processing
+    using f_mapupdate_t = function<int(size_t, uint64_t, const tuple_t &, result_t &)>;
+    /// function type of the non-incremental REDUCE processing
+    using f_reducefunction_t = function<int(size_t, uint64_t, Iterable<result_t> &, result_t &)>;
+    /// function type of the incremental REDUCE processing
+    using f_reduceupdate_t = function<int(size_t, uint64_t, const result_t &, result_t &)>;
 private:
     // type of the wrapper of input tuples
     using wrapper_in_t = wrapper_tuple_t<tuple_t>;  
-    // function type of the non-incremental MAP processing
-    using f_mapfunction_t = function<int(size_t, uint64_t, Iterable<tuple_t> &, result_t &)>;
-    // function type of the incremental MAP processing
-    using f_mapupdate_t = function<int(size_t, uint64_t, const tuple_t &, result_t &)>;
-    // function type of the non-incremental REDUCE processing
-    using f_reducefunction_t = function<int(size_t, uint64_t, Iterable<result_t> &, result_t &)>;
-    // function type of the incremental REDUCE processing
-    using f_reduceupdate_t = function<int(size_t, uint64_t, const result_t &, result_t &)>;
-    // type of the MAP_Emitter node
-    using map_emitter_t = MAP_Emitter<tuple_t, input_t>;
-    // type of the MAP_Collector node
-    using map_collector_t = MAP_Collector<result_t>; 
-    /// friendships with other classes in the library
+    // type of the WinMap_Emitter node
+    using map_emitter_t = WinMap_Emitter<tuple_t, input_t>;
+    // type of the WinMap_Collector node
+    using map_collector_t = WinMap_Collector<result_t>; 
+    // friendships with other classes in the library
     template<typename T1, typename T2, typename T3, typename T4>
     friend class Win_Farm_GPU;
     template<typename T1, typename T2, typename T3, typename T4>
@@ -158,7 +156,7 @@ private:
         }
         // check the validity of the reduce parallelism degree
         if (_reduce_degree == 0) {
-            cerr << RED << "WindFlow Error: reduce parallelism degree cannot be zero" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: parallelism degree of the REDUCE cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
@@ -198,7 +196,7 @@ private:
         if (_reduce_degree > 1) {
             // configuration structure of the Win_Farm instance (REDUCE)
             PatternConfig configWFREDUCE(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceFunction, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", _ordered, configWFREDUCE, REDUCE);
+            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceFunction, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", _ordered, LEVEL0, configWFREDUCE, REDUCE);
             reduce_stage = farm_reduce;
         }
         else {
@@ -212,7 +210,7 @@ private:
         // when the Win_MapReduce_GPU will be destroyed we need aslo to destroy the two internal stages
         ff_pipeline::cleanup_nodes();
         // flatten the pipeline
-        //ff_pipeline::flatten();
+        ff_pipeline::flatten();
     }
 
     // private constructor II (MAP stage on the GPU and REDUCE stage on the CPU with incremental query definition)
@@ -262,7 +260,7 @@ private:
         }
         // check the validity of the reduce parallelism degree
         if (_reduce_degree == 0) {
-            cerr << RED << "WindFlow Error: reduce parallelism degree cannot be zero" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: parallelism degree of the REDUCE cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
@@ -302,7 +300,7 @@ private:
         if (_reduce_degree > 1) {
             // configuration structure of the Win_Farm instance (REDUCE)
             PatternConfig configWFREDUCE(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceUpdate, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", _ordered, configWFREDUCE, REDUCE);
+            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceUpdate, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", _ordered, LEVEL0, configWFREDUCE, REDUCE);
             reduce_stage = farm_reduce;
         }
         else {
@@ -316,7 +314,7 @@ private:
         // when the Win_MapReduce_GPU will be destroyed we need aslo to destroy the two internal stages
         ff_pipeline::cleanup_nodes();
         // flatten the pipeline
-        //ff_pipeline::flatten();
+        ff_pipeline::flatten();
     }
 
     // private constructor III (MAP stage on the CPU with non-incremental query definition and REDUCE stage on the GPU)
@@ -366,7 +364,7 @@ private:
         }
         // check the validity of the reduce parallelism degree
         if (_reduce_degree == 0) {
-            cerr << RED << "WindFlow Error: reduce parallelism degree cannot be zero" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: parallelism degree of the REDUCE cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
@@ -406,7 +404,7 @@ private:
         if (_reduce_degree > 1) {
             // configuration structure of the Win_Farm_GPU instance (REDUCE)
             PatternConfig configWFREDUCE(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *farm_reduce = new Win_Farm_GPU<result_t, result_t, F_t>(_gpuFunction, _map_degree, _map_degree, CB, 1, _reduce_degree, _batch_len, _n_thread_block, _name + "_reduce", scratchpad_size, _ordered, configWFREDUCE, REDUCE);
+            auto *farm_reduce = new Win_Farm_GPU<result_t, result_t, F_t>(_gpuFunction, _map_degree, _map_degree, CB, 1, _reduce_degree, _batch_len, _n_thread_block, _name + "_reduce", scratchpad_size, _ordered, LEVEL0, configWFREDUCE, REDUCE);
             reduce_stage = farm_reduce;
         }
         else {
@@ -420,7 +418,7 @@ private:
         // when the Win_MapReduce_GPU will be destroyed we need aslo to destroy the two internal stages
         ff_pipeline::cleanup_nodes();
         // flatten the pipeline
-        //ff_pipeline::flatten();
+        ff_pipeline::flatten();
     }
 
     // private constructor IV (MAP stage on the CPU with incremental query definition and REDUCE stage on the GPU)
@@ -470,7 +468,7 @@ private:
         }
         // check the validity of the reduce parallelism degree
         if (_reduce_degree == 0) {
-            cerr << RED << "WindFlow Error: reduce parallelism degree cannot be zero" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: parallelism degree of the REDUCE cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
@@ -510,7 +508,7 @@ private:
         if (_reduce_degree > 1) {
             // configuration structure of the Win_Farm_GPU instance (REDUCE)
             PatternConfig configWFREDUCE(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *farm_reduce = new Win_Farm_GPU<result_t, result_t, F_t>(_gpuFunction, _map_degree, _map_degree, CB, 1, _reduce_degree, _batch_len, _n_thread_block, _name + "_reduce", scratchpad_size, _ordered, configWFREDUCE, REDUCE);
+            auto *farm_reduce = new Win_Farm_GPU<result_t, result_t, F_t>(_gpuFunction, _map_degree, _map_degree, CB, 1, _reduce_degree, _batch_len, _n_thread_block, _name + "_reduce", scratchpad_size, _ordered, LEVEL0, configWFREDUCE, REDUCE);
             reduce_stage = farm_reduce;
         }
         else {
@@ -524,7 +522,7 @@ private:
         // when the Win_MapReduce_GPU will be destroyed we need aslo to destroy the two internal stages
         ff_pipeline::cleanup_nodes();
         // flatten the pipeline
-        //ff_pipeline::flatten();
+        ff_pipeline::flatten();
     }
 
     // method to optimize the structure of the Win_MapReduce_GPU pattern
@@ -548,7 +546,7 @@ private:
                 ff_farm *farm_map = static_cast<ff_farm *>(map);
                 ff_farm *farm_reduce = static_cast<ff_farm *>(reduce);
                 emitter_reduce_t *emitter_reduce = static_cast<emitter_reduce_t *>(farm_reduce->getEmitter());
-                OrderingNode<result_t> *buf_node = new OrderingNode<result_t>(farm_map->getNWorkers());
+                OrderingNode<result_t, wrapper_tuple_t<result_t>> *buf_node = new OrderingNode<result_t, wrapper_tuple_t<result_t>>();
                 const ff_pipeline result = combine_farms(*farm_map, emitter_reduce, *farm_reduce, buf_node, false);
                 delete farm_map;
                 delete farm_reduce;
@@ -567,8 +565,8 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _map_degree number of Win_Seq_GPU instances in the MAP phase
-     *  \param _reduce_degree number of Win_Seq instances in the REDUCE phase
+     *  \param _map_degree parallelism degree of the MAP stage
+     *  \param _reduce_degree parallelism degree of the REDUCE stage
      *  \param _batch_len no. of window partitions in a batch (i.e. 1 window patition mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. window patitions) per block
      *  \param _name string with the unique name of the pattern
@@ -600,8 +598,8 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _map_degree number of Win_Seq_GPU instances in the MAP phase
-     *  \param _reduce_degree number of Win_Seq instances in the REDUCE phase
+     *  \param _map_degree parallelism degree of the MAP stage
+     *  \param _reduce_degree parallelism degree of the REDUCE stage
      *  \param _batch_len no. of window partitions in a batch (i.e. 1 window patition mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. window patitions) per block
      *  \param _name string with the unique name of the pattern
@@ -633,8 +631,8 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _map_degree number of Win_Seq_GPU instances in the MAP phase
-     *  \param _reduce_degree number of Win_Seq instances in the REDUCE phase
+     *  \param _map_degree parallelism degree of the MAP stage
+     *  \param _reduce_degree parallelism degree of the REDUCE stage
      *  \param _batch_len no. of window partitions in a batch (i.e. 1 window patition mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. window patitions) per block
      *  \param _name string with the unique name of the pattern
@@ -662,12 +660,12 @@ public:
      *  \brief Constructor IV (Incremental MAP stage on CPU and REDUCE stage on GPU)
      *  
      *  \param _mapUpdate the incremental map processing function (CPU function)
-     *  \param _reduceFunction the non-incremental window reduce processing function (CPU/GPU function)
+     *  \param _reduceUpdate the incremental window reduce processing function (CPU/GPU function)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _map_degree number of Win_Seq_GPU instances in the MAP phase
-     *  \param _reduce_degree number of Win_Seq instances in the REDUCE phase
+     *  \param _map_degree parallelism degree of the MAP stage
+     *  \param _reduce_degree parallelism degree of the REDUCE stage
      *  \param _batch_len no. of window partitions in a batch (i.e. 1 window patition mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. window patitions) per block
      *  \param _name string with the unique name of the pattern
@@ -691,8 +689,19 @@ public:
                       :
                       Win_MapReduce_GPU(_mapUpdate, _reduceUpdate, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
 
-    /// Destructor
-    ~Win_MapReduce_GPU() {}
+    /** 
+     *  \brief Get the optimization level used to build the pattern
+     *  \return adopted utilization level by the pattern
+     */
+    opt_level_t getOptLevel() { return opt_level; }
+
+    /** 
+     *  \brief Get the window type (CB or TB) utilized by the pattern
+     *  \return adopted windowing semantics (count- or time-based)
+     */
+    win_type_t getWinType() { return winType; }
+
+//@cond DOXY_IGNORE
 
     // ------------------------- deleted method ---------------------------
     int  add_stage(ff_node *s)                                    = delete;
@@ -705,6 +714,9 @@ public:
                      unsigned long retry=((unsigned long)-1),
                      unsigned long ticks=ff_node::TICKS2WAIT)     = delete;
     bool load_result_nb(void ** task)                             = delete;
+
+//@endcond
+
 };
 
 #endif

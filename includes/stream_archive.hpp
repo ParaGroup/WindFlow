@@ -18,11 +18,10 @@
  *  @file    stream_archive.hpp
  *  @author  Gabriele Mencagli
  *  @date    28/06/2017
- *  @version 1.0
  *  
  *  @brief Stream archive
  *  
- *  @section DESCRIPTION
+ *  @section Stream_Archive (Description)
  *  
  *  Stream archive of tuples received from the input stream and still useful
  *  for the query processing.
@@ -55,9 +54,6 @@ private:
 public:
     // constructor
     StreamArchive(f_compare_t _lessThan): lessThan(_lessThan) {}
-
-    // destructor
-    ~StreamArchive() {}
 
     // method to add a tuple to the archive
     void insert(const tuple_t &_t)

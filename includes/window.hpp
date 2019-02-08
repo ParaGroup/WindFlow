@@ -18,11 +18,10 @@
  *  @file    window.hpp
  *  @author  Gabriele Mencagli
  *  @date    28/06/2017
- *  @version 1.0
  *  
  *  @brief Streaming windows
  *  
- *  @section DESCRIPTION
+ *  @section Windows (Description)
  *  
  *  This file implements the classes used by the WindFlow library to support
  *  streaming windows. The library natively supports count-based and time-
@@ -33,15 +32,15 @@
 #define WINDOW_H
 
 // includes
+#include<tuple>
+#include <functional>
 #if __cplusplus < 201703L //not C++17
     #include <experimental/optional>
     using namespace std::experimental;
 #else
     #include <optional>
 #endif
-#include<tuple>
-#include <functional>
-#include <windflow.hpp>
+#include <basic.hpp>
 
 // window events
 enum win_event_t { CONTINUE, FIRED, BATCHED };
@@ -59,9 +58,6 @@ public:
     // constructor
     Triggerer_CB(uint64_t _win_len, uint64_t _slide_len, uint64_t _wid, uint64_t _initial_id=0):
                  win_len(_win_len), slide_len(_slide_len), wid(_wid), initial_id(_initial_id) {}
-
-    // destructor
-    ~Triggerer_CB() {}
 
     // method to trigger a new event from a tuple's identifier
     win_event_t operator()(uint64_t _id) const
@@ -83,9 +79,6 @@ public:
     // constructor 
     Triggerer_TB(uint64_t _win_len, uint64_t _slide_len, uint64_t _wid, uint64_t _starting_ts=0):
                  win_len(_win_len), slide_len(_slide_len), wid(_wid), starting_ts(_starting_ts) {}
-
-    // destructor
-    ~Triggerer_TB() {}
 
     // method to trigger a new event from a tuple's identifier
     win_event_t operator()(uint64_t _ts) const
@@ -131,9 +124,6 @@ public:
             result->setInfo(_key, _gwid, _gwid * _slide_len + _win_len - 1);
     }
 
-    // destructor
-    ~Window() {}
-
     // method to evaluate the status of the window
     win_event_t onTuple(const tuple_t &_t)
     {
@@ -144,13 +134,13 @@ public:
         if (event == CONTINUE) {
             no_tuples++;
             if (!firstTuple)
-                firstTuple = make_optional(_t);
+                firstTuple = make_optional(_t); // need a copy constructor for tuple_t
             if (winType == CB)
                 result->setInfo(key, gwid, std::get<2>(_t.getInfo()));
         }
         if (event == FIRED) {
             if (!firingTuple)
-                firingTuple = make_optional(_t);
+                firingTuple = make_optional(_t); // need a copy constructor for tuple_t
         }
         if (batched)
             return BATCHED;

@@ -18,15 +18,18 @@
  *  @file    iterable.hpp
  *  @author  Gabriele Mencagli
  *  @date    14/01/2018
- *  @version 1.0
  *  
- *  @brief Iterable
+ *  @brief Iterable class providing access to the tuples within a streaming window
  *  
- *  @section DESCRIPTION
+ *  @section Iterable (Description)
  *  
- *  An iterable object gives to the user a read-only view of the tuples belonging
+ *  An Iterable object gives to the user a read-only view of the tuples belonging
  *  to a window to be processed. This is used by queries instantiated with the
  *  non-incremental interface for patterns implemented on the CPU.
+ *  
+ *  The template argument of the data items that can be used with the Iterable must be default
+ *  constructible, with a copy constructor and copy assignment operator, and they
+ *  must provide and implement the setInfo() and getInfo() methods.
  */ 
 
 #ifndef ITERABLE_H
@@ -41,11 +44,11 @@ using namespace std;
 /** 
  *  \class Iterable
  *  
- *  \brief Iterable
+ *  \brief Iterable class providing access to the tuples within a streaming window
  *  
- *  An iterable object gives to the user a read-only view of the tuples belonging to a
- *  given window to be processed. The template argument is the type of the tuples. This
- *  must be copyable and providing the getInfo() and setInfo() methods.
+ *  An Iterable object gives to the user a read-only view of the tuples belonging to a
+ *  given window to be processed. The template argument is the type of the items used
+ *  by the Iterable.
  */ 
 template<typename tuple_t>
 class Iterable
@@ -61,7 +64,7 @@ public:
     /** 
      *  \class Iterator
      *  
-     *  \brief Iterator object to access the tuples in an Iterable
+     *  \brief Iterator object to access the data items in an Iterable
      *  
      *  An Iterator object to access (read-only) the tuples in an Iterable.
      */ 
@@ -76,9 +79,6 @@ public:
      	 *  \param _pos initial const iterator
      	 */ 
 		Iterator(const_iterator_t _pos): pos(_pos) {}
-
-		/// Destructor
-		~Iterator() {}
 
     	/** 
      	 *  \brief Comparison operator
@@ -134,9 +134,6 @@ public:
              first(_first),
              last(_last),
              n_size(distance(_first, _last)) {}
-
-    /// Destructor
-    ~Iterable() {}
 
     /** 
      *  \brief Return an Iterator to the begin of the iterable object

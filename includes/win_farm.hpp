@@ -18,15 +18,18 @@
  *  @file    win_farm.hpp
  *  @author  Gabriele Mencagli
  *  @date    03/10/2017
- *  @version 1.0
  *  
- *  @brief Win_Farm pattern executing windowed queries on a multicore
+ *  @brief Win_Farm pattern executing a windowed transformation in parallel on multi-core CPUs
  *  
- *  @section DESCRIPTION
+ *  @section Win_Farm (Description)
  *  
  *  This file implements the Win_Farm pattern able to executes windowed queries on a
  *  multicore. The pattern executes streaming windows in parallel on the CPU cores
  *  and supports both a non-incremental and an incremental query definition.
+ *  
+ *  The template arguments tuple_t and result_t must be default constructible, with a copy constructor
+ *  and copy assignment operator, and they must provide and implement the setInfo() and
+ *  getInfo() methods.
  */ 
 
 #ifndef WIN_FARM_H
@@ -43,35 +46,32 @@
 /** 
  *  \class Win_Farm
  *  
- *  \brief Win_Farm pattern executing windowed queries on a multicore
+ *  \brief Win_Farm pattern executing a windowed transformation in parallel on multi-core CPUs
  *  
  *  This class implements the Win_Farm pattern executing windowed queries in parallel on
- *  a multicore. The pattern class has three template arguments. The first is the type
- *  of the input tuples. It must be copyable and providing the getInfo() and setInfo()
- *  methods. The second is the type of the window results. It must have a default constructor
- *  and the getInfo() and setInfo() methods. The third template argument is used by the
- *  WindFlow run-time system and should never be utilized by the high-level programmer.
+ *  a multicore.
  */ 
 template<typename tuple_t, typename result_t, typename input_t>
 class Win_Farm: public ff_farm
 {
+public:
+    /// function type of the non-incremental window processing
+    using f_winfunction_t = function<int(size_t, uint64_t, Iterable<tuple_t> &, result_t &)>;
+    /// function type of the incremental window processing
+    using f_winupdate_t = function<int(size_t, uint64_t, const tuple_t &, result_t &)>;
+    /// type of the Pane_Farm passed to the proper nesting constructor
+    using pane_farm_t = Pane_Farm<tuple_t, result_t>;
+    /// type of the Win_MapReduce passed to the proper nesting constructor
+    using win_mapreduce_t = Win_MapReduce<tuple_t, result_t>;
 private:
     // type of the wrapper of input tuples
     using wrapper_in_t = wrapper_tuple_t<tuple_t>;
-    // function type of the non-incremental window processing
-    using f_winfunction_t = function<int(size_t, uint64_t, Iterable<tuple_t> &, result_t &)>;
-    // function type of the incremental window processing
-    using f_winupdate_t = function<int(size_t, uint64_t, const tuple_t &, result_t &)>;
     // type of the WF_Emitter node
     using wf_emitter_t = WF_Emitter<tuple_t, input_t>;
     // type of the WF_Collector node
     using wf_collector_t = WF_Collector<result_t>;
     // type of the Win_Seq to be created within the regular constructor
     using win_seq_t = Win_Seq<tuple_t, result_t, wrapper_in_t>;
-    // type of the Pane_Farm passed to the proper nesting constructor
-    using pane_farm_t = Pane_Farm<tuple_t, result_t>;
-    // type of the Win_MapReduce passed to the proper nesting constructor
-    using win_mapreduce_t = Win_MapReduce<tuple_t, result_t>;
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3>
     friend class Pane_Farm;
@@ -83,6 +83,14 @@ private:
     friend class Win_MapReduce_GPU;
     template<typename T>
     friend auto get_WF_nested_type(T);
+    // flag stating whether the Win_Farm has been instantiated with complex workers (Pane_Farm or Win_MapReduce instances)
+    bool hasComplexWorkers;
+    // optimization level of the Win_Farm
+    opt_level_t opt_level;
+    // window type (CB or TB)
+    win_type_t winType;
+    // number of Win_Farm emitters
+    size_t num_emitters;
 
     // private constructor I (stub)
     Win_Farm() {}
@@ -96,8 +104,9 @@ private:
              size_t _pardegree,
              string _name,
              bool _ordered,
+             opt_level_t _opt_level,
              PatternConfig _config,
-             role_t _role)
+             role_t _role): hasComplexWorkers(false), opt_level(_opt_level), winType(_winType), num_emitters(_emitter_degree)
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -113,6 +122,11 @@ private:
         if (_pardegree == 0) {
             cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
+        }
+        // check the optimization level
+        if (_opt_level != LEVEL0) {
+            cerr << YELLOW << "WindFlow Warning: optimization level has no effect" << DEFAULT << endl;
+            opt_level = LEVEL0;
         }
         // vector of Win_Seq instances
         vector<ff_node *> w;
@@ -141,7 +155,7 @@ private:
             // create the Win_Seq nodes composed with an orderingNodes
             vector<ff_node *> seqs(_pardegree);
             for (size_t i = 0; i < _pardegree; i++) {
-                auto *ord = new OrderingNode<tuple_t>(_emitter_degree);
+                auto *ord = new OrderingNode<tuple_t, wrapper_in_t>(((_winType == CB) ? ID : TS));
                 // configuration structure of the Win_Seq instances
                 PatternConfig configSeq(_config.id_inner, _config.n_inner, _config.slide_inner, i, _pardegree, _slide_len);
                 auto *seq = new win_seq_t(_winFunction, _win_len, private_slide, _winType, _name + "_wf", configSeq, _role);
@@ -172,8 +186,9 @@ private:
              size_t _pardegree,
              string _name,
              bool _ordered,
+             opt_level_t _opt_level,
              PatternConfig _config,
-             role_t _role)
+             role_t _role): hasComplexWorkers(false), opt_level(_opt_level), winType(_winType), num_emitters(_emitter_degree)
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -189,6 +204,11 @@ private:
         if (_pardegree == 0) {
             cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
+        }
+        // check the optimization level
+        if (_opt_level != LEVEL0) {
+            cerr << YELLOW << "WindFlow Warning: optimization level has no effect" << DEFAULT << endl;
+            opt_level = LEVEL0;
         }
         // vector of Win_Seq instances
         vector<ff_node *> w;
@@ -217,7 +237,7 @@ private:
             // create the Win_Seq nodes composed with an orderingNodes
             vector<ff_node *> seqs(_pardegree);
             for (size_t i = 0; i < _pardegree; i++) {
-                auto *ord = new OrderingNode<tuple_t>(_emitter_degree);
+                auto *ord = new OrderingNode<tuple_t, wrapper_in_t>(((_winType == CB) ? ID : TS));
                 // configuration structure of the Win_Seq instances
                 PatternConfig configSeq(_config.id_inner, _config.n_inner, _config.slide_inner, i, _pardegree, _slide_len);
                 auto *seq = new win_seq_t(_winUpdate, _win_len, private_slide, _winType, _name + "_wf", configSeq, _role);
@@ -261,7 +281,7 @@ public:
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _emitter_degree number of replicas of the emitter node
-     *  \param _pardegree number of Win_Seq instances to be created within the Win_Farm
+     *  \param _pardegree parallelism degree of the Win_Farm pattern
      *  \param _name string with the unique name of the pattern
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -276,11 +296,7 @@ public:
              bool _ordered=true,
              opt_level_t _opt_level=LEVEL0)
              :
-             Win_Farm(_winFunction, _win_len, _slide_len, _winType, _emitter_degree, _pardegree, _name, _ordered, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
-    {
-        if (_opt_level != LEVEL0)
-            cerr << YELLOW << "WindFlow Warning: optimization level has no effect" << DEFAULT << endl;
-    }
+             Win_Farm(_winFunction, _win_len, _slide_len, _winType, _emitter_degree, _pardegree, _name, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ) {}
 
     /** 
      *  \brief Constructor II (Incremental Queries)
@@ -290,7 +306,7 @@ public:
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _emitter_degree number of replicas of the emitter node
-     *  \param _pardegree number of Win_Seq instances to be created within the Win_Farm
+     *  \param _pardegree parallelism degree of the Win_Farm pattern
      *  \param _name string with the unique name of the pattern
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -305,11 +321,7 @@ public:
              bool _ordered=true,
              opt_level_t _opt_level=LEVEL0)
              :
-             Win_Farm(_winUpdate, _win_len, _slide_len, _winType, _emitter_degree, _pardegree, _name, _ordered, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
-    {
-        if (_opt_level != LEVEL0)
-            cerr << YELLOW << "WindFlow Warning: optimization level has no effect" << DEFAULT << endl;         
-    }
+             Win_Farm(_winUpdate, _win_len, _slide_len, _winType, _emitter_degree, _pardegree, _name, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ) {}
 
     /** 
      *  \brief Constructor III (Nesting with Pane_Farm)
@@ -319,7 +331,7 @@ public:
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _emitter_degree number of replicas of the emitter node
-     *  \param _pardegree number of Pane_Farm instances to be created within the Win_Farm
+     *  \param _pardegree parallelism degree of the Win_Farm pattern
      *  \param _name string with the unique name of the pattern
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -332,7 +344,7 @@ public:
              size_t _pardegree,
              string _name,
              bool _ordered=true,
-             opt_level_t _opt_level=LEVEL0)
+             opt_level_t _opt_level=LEVEL0): hasComplexWorkers(true), opt_level(_opt_level), winType(_winType), num_emitters(_emitter_degree)
     {
         // type of the Pane_Farm to be created within the Win_Farm pattern
         using panewrap_farm_t = Pane_Farm<tuple_t, result_t, wrapper_in_t>;
@@ -379,8 +391,6 @@ public:
         }
         // advanced case: multiple Emitter nodes
         else {
-            abort();
-#if 0
             ff_a2a *a2a = new ff_a2a();
             // create the Emitter nodes
             vector<ff_node *> emitters(_emitter_degree);
@@ -393,7 +403,7 @@ public:
             vector<ff_node *> pfs(_pardegree);
             for (size_t i = 0; i < _pardegree; i++) {
                 // an ordering node must be composed before the first node of the Pane_Farm instance
-                auto *ord = new OrderingNode<tuple_t>(_emitter_degree);
+                auto *ord = new OrderingNode<tuple_t, wrapper_in_t>(((_winType == CB) ? ID : TS));
                 // configuration structure of the Pane_Farm instances
                 PatternConfig configPF(0, 1, _slide_len, i, _pardegree, _slide_len);
                 // create the correct Pane_Farm instance
@@ -412,7 +422,6 @@ public:
             }
             a2a->add_secondset(pfs, true);
             w.push_back(a2a);
-#endif
         }
         ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
@@ -436,7 +445,7 @@ public:
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _emitter_degree number of replicas of the emitter node
-     *  \param _pardegree number of Win_MapReduce instances to be created within the Win_Farm
+     *  \param _pardegree parallelism degree of the Win_Farm pattern
      *  \param _name string with the unique name of the pattern
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -449,7 +458,7 @@ public:
              size_t _pardegree,
              string _name,
              bool _ordered=true,
-             opt_level_t _opt_level=LEVEL0)
+             opt_level_t _opt_level=LEVEL0): hasComplexWorkers(true), opt_level(_opt_level), winType(_winType), num_emitters(_emitter_degree)
     {
         // type of the Win_MapReduce to be created within the Win_Farm pattern
         using winwrap_map_t = Win_MapReduce<tuple_t, result_t, wrapper_in_t>;
@@ -472,11 +481,6 @@ public:
         if (_wm.win_len != _win_len || _wm.slide_len != _slide_len || _wm.winType != _winType) {
             cerr << RED << "WindFlow Error: incompatible windowing parameters" << DEFAULT << endl;
             exit(EXIT_FAILURE);
-        }
-        // check that one single emitter is utilized
-        if (_emitter_degree > 1) {
-            cerr << YELLOW << "WindFlow Warning: forced to use one emitter in the Win_Farm" << DEFAULT << endl;
-            _emitter_degree = 1;
         }
         // vector of Win_MapReduce instances
         vector<ff_node *> w;
@@ -501,8 +505,6 @@ public:
         }
         // advanced case: multiple Emitter nodes
         else {
-            abort();
-#if 0
             ff_a2a *a2a = new ff_a2a();
             // create the Emitter nodes
             vector<ff_node *> emitters(_emitter_degree);
@@ -515,8 +517,8 @@ public:
             vector<ff_node *> wms(_pardegree);
             for (size_t i = 0; i < _pardegree; i++) {
                 // an ordering node must be composed before the first node of the Win_MapReduce instance
-                auto *ord = new OrderingNode<tuple_t>(_emitter_degree);
-                // configuration structure of the Win_mapReduce instances
+                auto *ord = new OrderingNode<tuple_t, wrapper_in_t>(((_winType == CB) ? ID : TS));
+                // configuration structure of the Win_MapReduce instances
                 PatternConfig configWM(0, 1, _slide_len, i, _pardegree, _slide_len);
                 // create the correct Win_MapReduce instance
                 winwrap_map_t *wm_W = nullptr;
@@ -533,8 +535,7 @@ public:
                 wms[i] = wm_W;
             }
             a2a->add_secondset(wms, true);
-            w.push_back(a2a);
-#endif        
+            w.push_back(a2a);    
         }
         ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
@@ -550,8 +551,31 @@ public:
         ff_farm::cleanup_all();
     }
 
-    /// Destructor
-    ~Win_Farm() {}
+    /** 
+     *  \brief Check whether the Win_Farm has been instantiated with complex patterns inside
+     *  \return true if the Win_Farm has complex patterns inside
+     */
+    bool useComplexNesting() { return hasComplexWorkers; }
+
+    /** 
+     *  \brief Get the optimization level used to build the pattern
+     *  \return adopted utilization level by the pattern
+     */
+    opt_level_t getOptLevel() { return opt_level; }
+
+    /** 
+     *  \brief Get the window type (CB or TB) utilized by the pattern
+     *  \return adopted windowing semantics (count- or time-based)
+     */
+    win_type_t getWinType() { return winType; }
+
+    /** 
+     *  \brief Get the number of emitters utilized by the pattern
+     *  \return number of emitters
+     */
+    size_t getNumEmitters() { return num_emitters; }
+
+//@cond DOXY_IGNORE
 
     // -------------------------------------- deleted methods ----------------------------------------
     template<typename T>
@@ -577,6 +601,9 @@ public:
 
 private:
     using ff_farm::set_scheduling_ondemand;
+
+//@endcond
+
 };
 
 #endif

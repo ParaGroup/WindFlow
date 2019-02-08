@@ -16,7 +16,19 @@
 # Author: Gabriele Mencagli <mencagli@di.unipi.it>
 # Date:   June 2017
 
-all: sum_test_cpu sum_test_gpu spatial_query
+all: source_test map_test filter_test flatmap_test sum_test_cpu sum_test_gpu sink_test pipe_test_cpu spatial_test yahoo_test_cpu
+
+source_test:
+	$(MAKE) -C source_test
+
+map_test:
+	$(MAKE) -C map_test
+
+filter_test:
+	$(MAKE) -C filter_test
+
+flatmap_test:
+	$(MAKE) -C flatmap_test
 
 sum_test_cpu:
 	$(MAKE) -C sum_test_cpu
@@ -24,13 +36,29 @@ sum_test_cpu:
 sum_test_gpu:
 	$(MAKE) -C sum_test_gpu
 
-spatial_query:
-	$(MAKE) -C spatial_query
+sink_test:
+	$(MAKE) -C sink_test
+
+pipe_test_cpu:
+	$(MAKE) -C pipe_test_cpu
+
+spatial_test:
+	$(MAKE) -C spatial_test
+
+yahoo_test_cpu:
+	$(MAKE) -C yahoo_test_cpu
 
 clean:
+	$(MAKE) clean -C source_test
+	$(MAKE) clean -C map_test
+	$(MAKE) clean -C filter_test
+	$(MAKE) clean -C flatmap_test
 	$(MAKE) clean -C sum_test_cpu
 	$(MAKE) clean -C sum_test_gpu
-	$(MAKE) clean -C spatial_query
-
+	$(MAKE) clean -C sink_test
+	$(MAKE) clean -C pipe_test_cpu
+	$(MAKE) clean -C spatial_test
+	$(MAKE) clean -C yahoo_test_cpu
+	
 .DEFAULT_GOAL := all
-.PHONY: all sum_test_cpu sum_test_gpu spatial_query clean
+.PHONY: all source_test map_test filter_test flatmap_test sum_test_cpu sum_test_gpu sink_test pipe_test_cpu spatial_test yahoo_test_cpu clean

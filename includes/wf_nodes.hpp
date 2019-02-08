@@ -18,11 +18,10 @@
  *  @file    wf_nodes.hpp
  *  @author  Gabriele Mencagli
  *  @date    01/10/2018
- *  @version 1.0
  *  
  *  @brief Emitter and Collector nodes of the Win_Farm and Win_Farm_GPU patterns
  *  
- *  @section DESCRIPTION
+ *  @section Win_Farm_Nodes (Description)
  *  
  *  This file implements the Emitter and the Collector nodes used in the Win_Farm
  *  and Win_Farm_GPU patterns in the library.
@@ -33,6 +32,8 @@
 
 // includes
 #include <ff/multinode.hpp>
+
+using namespace ff;
 
 // class WF_Emitter
 template<typename tuple_t, typename input_t=tuple_t>
@@ -46,6 +47,7 @@ private:
     friend class Win_Farm;
     template<typename T1, typename T2, typename T3, typename T4>
     friend class Win_Farm_GPU;
+    friend class Pipe;
     win_type_t winType; // type of the windows (CB or TB)
     uint64_t win_len; // window length (in no. of tuples or in time units)
     uint64_t slide_len; // window slide (in no. of tuples or in time units)
@@ -63,9 +65,6 @@ private:
 
         // constructor
         Key_Descriptor(): rcv_counter(0) {}
-
-        // destructor
-       ~Key_Descriptor() {}
     };
     unordered_map<size_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
 
@@ -80,9 +79,6 @@ private:
                slide_outer(_slide_outer),
                role(_role),
                to_workers(pardegree) {}
-
-    // destructor
-    ~WF_Emitter() {}
 
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
@@ -105,8 +101,24 @@ private:
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
-        key_d.rcv_counter++;
-        key_d.last_tuple = *t;
+        // check duplicate or out-of-order tuples
+        if (key_d.rcv_counter == 0) {
+            key_d.rcv_counter++;
+            key_d.last_tuple = *t;
+        }
+        else {
+            // tuples can be received only ordered by id/timestamp
+            uint64_t last_id = (winType == CB) ? std::get<1>((key_d.last_tuple).getInfo()) : std::get<2>((key_d.last_tuple).getInfo());
+            if (id < last_id) {
+                // the tuple is immediately deleted
+                deleteTuple<tuple_t, input_t>(wt);
+                return this->GO_ON;
+            }
+            else {
+                key_d.rcv_counter++;
+                key_d.last_tuple = *t;
+            }
+        }
         // gwid of the first window of that key assigned to this Win_Farm instance
         uint64_t first_gwid_key = (id_outer - (key % n_outer) + n_outer) % n_outer;
         // initial identifer/timestamp of the keyed sub-stream arriving at this Win_Farm instance
@@ -120,8 +132,8 @@ private:
             return this->GO_ON;
         }
         // determine the range of local window identifiers that contain t
-        uint64_t first_w;
-        uint64_t last_w;
+        long first_w = -1;
+        long last_w = -1;
         // sliding or tumbling windows
         if (win_len >= slide_len) {
             if (id+1-initial_id < win_len)
@@ -168,7 +180,7 @@ private:
         for (auto &k: keyMap) {
             Key_Descriptor &key_d = k.second;
             if (key_d.rcv_counter > 0) {
-                // send the last tuple to all the internal patterns
+                // send the last tuple to all the internal patterns as an EOS marker
                 tuple_t *t = new tuple_t();
                 *t = key_d.last_tuple;
                 wrapper_in_t *wt = new wrapper_in_t(t, pardegree, true); // eos marker enabled
@@ -200,18 +212,12 @@ private:
 
         // constructor
         Key_Descriptor(): next_win(0) {}
-
-        // destructor
-        ~Key_Descriptor() {}
     };
     // hash table that maps key identifiers onto key descriptors
     unordered_map<size_t, Key_Descriptor> keyMap;
 
     // private constructor
     WF_Collector() {}
-
-    // destructor
-    ~WF_Collector() {}
 
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()

@@ -18,17 +18,20 @@
  *  @file    key_farm.hpp
  *  @author  Gabriele Mencagli
  *  @date    17/10/2017
- *  @version 1.0
  *  
- *  @brief Key_Farm pattern executing windowed queries on a multicore
+ *  @brief Key_Farm pattern executing a windowed transformation in parallel on multi-core CPUs
  *  
- *  @section DESCRIPTION
+ *  @section Key_Farm (Description)
  *  
  *  This file implements the Key_Farm pattern able to executes windowed queries on a
  *  multicore. The pattern executes streaming windows in parallel on the CPU cores
  *  and supports both a non-incremental and an incremental query definition. Only
  *  windows belonging to different sub-streams can be executed in parallel, while
  *  windows of the same sub-stream are executed rigorously in order.
+ *  
+ *  The template arguments tuple_t and result_t must be default constructible, with a copy constructor
+ *  and copy assignment operator, and they must provide and implement the setInfo() and
+ *  getInfo() methods.
  */ 
 
 #ifndef KEY_FARM_H
@@ -45,39 +48,44 @@
 /** 
  *  \class Key_Farm
  *  
- *  \brief Key_Farm pattern executing windowed queries on a multicore
+ *  \brief Key_Farm pattern executing a windowed transformation in parallel on multi-core CPUs
  *  
  *  This class implements the Key_Farm pattern executing windowed queries in parallel on
  *  a multicore. In the pattern, only windows belonging to different sub-streams can be
- *  executed in parallel. The pattern class has three template arguments. The first is the
- *  type of the input tuples. It must be copyable and providing the getInfo() and setInfo()
- *  methods. The second is the type of the window results. It must have a default constructor
- *  and the getInfo() and setInfo() methods. The third template argument is used by the
- *  WindFlow run-time system and should never be utilized by the high-level programmer.
+ *  executed in parallel.
  */ 
 template<typename tuple_t, typename result_t, typename input_t>
 class Key_Farm: public ff_farm
 {
-private:
-    // function type to map the key onto an identifier starting from zero to pardegree-1
+public:
+    /// function type to map the key onto an identifier starting from zero to pardegree-1
     using f_routing_t = function<size_t(size_t, size_t)>;
-    // function type of the non-incremental window processing
+    /// function type of the non-incremental window processing
     using f_winfunction_t = function<int(size_t, uint64_t, Iterable<tuple_t> &, result_t &)>;
-    // function type of the incremental window processing
+    /// function type of the incremental window processing
     using f_winupdate_t = function<int(size_t, uint64_t, const tuple_t &, result_t &)>;
-    // type of the Win_Seq to be created within the regular constructor
-    using win_seq_t = Win_Seq<tuple_t, result_t>;
+    /// type of the Pane_Farm used for the nesting constructor
+    using pane_farm_t = Pane_Farm<tuple_t, result_t>;
+    /// type of the Win_MapReduce used for the nesting constructor
+    using win_mapreduce_t = Win_MapReduce<tuple_t, result_t>;
+private:
+    // type of the wrapper of input tuples
+    using wrapper_in_t = wrapper_tuple_t<tuple_t>;
     // type of the KF_Emitter node
-    using kf_emitter_t = KF_Emitter<tuple_t>;
+    using kf_emitter_t = KF_Emitter<tuple_t, input_t>;
     // type of the KF_Collector node
     using kf_collector_t = KF_NestedCollector<result_t>;
-    // type of the Pane_Farm used for the nesting constructor
-    using pane_farm_t = Pane_Farm<tuple_t, result_t>;
-    // type of the Win_MapReduce used for the nesting constructor
-    using win_mapreduce_t = Win_MapReduce<tuple_t, result_t>;
+    // type of the Win_Seq to be created within the regular constructor
+    using win_seq_t = Win_Seq<tuple_t, result_t, wrapper_in_t>;
     // friendships with other classes in the library
     template<typename T>
     friend auto get_KF_nested_type(T);
+    // flag stating whether the Key_Farm has been instantiated with complex workers (Pane_Farm or Win_MapReduce instances)
+    bool hasComplexWorkers;
+    // optimization level of the Key_Farm
+    opt_level_t opt_level;
+    // window type (CB or TB)
+    win_type_t winType;
 
     // private constructor (stub)
     Key_Farm() {}
@@ -103,7 +111,7 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _pardegree number of Win_Seq instances to be created within the Key_Farm
+     *  \param _pardegree parallelism degree of the Key_Farm pattern
      *  \param _name string with the unique name of the pattern
      *  \param _routing function to map the key onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the pattern
@@ -115,7 +123,7 @@ public:
              size_t _pardegree,
              string _name,
              f_routing_t _routing=[](size_t k, size_t n) { return k%n; },
-             opt_level_t _opt_level=LEVEL0)
+             opt_level_t _opt_level=LEVEL0): hasComplexWorkers(false), opt_level(_opt_level), winType(_winType)
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -127,8 +135,11 @@ public:
             cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
-        if (_opt_level != LEVEL0)
+        // check the optimization level
+        if (_opt_level != LEVEL0) {
             cerr << YELLOW << "WindFlow Warning: optimization level has no effect" << DEFAULT << endl;
+            opt_level = LEVEL0;
+        }
         // vector of Win_Seq instances
         vector<ff_node *> w(_pardegree);
         // create the Win_Seq instances
@@ -151,7 +162,7 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _pardegree number of Win_Seq instances to be created within the Key_Farm
+     *  \param _pardegree parallelism degree of the Key_Farm pattern
      *  \param _name string with the unique name of the pattern
      *  \param _routing function to map the key onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the pattern
@@ -163,7 +174,7 @@ public:
              size_t _pardegree,
              string _name,
              f_routing_t _routing=[](size_t k, size_t n) { return k%n; },
-             opt_level_t _opt_level=LEVEL0)
+             opt_level_t _opt_level=LEVEL0): hasComplexWorkers(false), opt_level(_opt_level), winType(_winType)
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -175,8 +186,11 @@ public:
             cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
-        if (_opt_level != LEVEL0)
+        // check the optimization level
+        if (_opt_level != LEVEL0) {
             cerr << YELLOW << "WindFlow Warning: optimization level has no effect" << DEFAULT << endl;
+            opt_level = LEVEL0;
+        }
         // vector of Win_Seq instances
         vector<ff_node *> w(_pardegree);
         // create the Win_Seq instances
@@ -199,7 +213,7 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _pardegree number of Pane_Farm instances to be created within the Key_Farm
+     *  \param _pardegree parallelism degree of the Key_Farm pattern
      *  \param _name string with the unique name of the pattern
      *  \param _routing function to map the key onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the pattern
@@ -211,8 +225,10 @@ public:
              size_t _pardegree,
              string _name, 
              f_routing_t _routing=[](size_t k, size_t n) { return k%n; },
-             opt_level_t _opt_level=LEVEL0)
+             opt_level_t _opt_level=LEVEL0): hasComplexWorkers(true), opt_level(_opt_level), winType(_winType)
     {
+        // type of the Pane_Farm to be created within the Key_Farm pattern
+        using panewrap_farm_t = Pane_Farm<tuple_t, result_t, wrapper_in_t>;
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
             cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
@@ -235,15 +251,15 @@ public:
             // configuration structure of the Pane_Farm instances
             PatternConfig configPF(0, 1, _slide_len, 0, 1, _slide_len);
             // create the correct Pane_Farm instance
-            pane_farm_t *pf_W = nullptr;
+            panewrap_farm_t *pf_W = nullptr;
             if (_pf.isNICPLQ && _pf.isNICWLQ) // PLQ and WLQ are non-incremental
-                pf_W = new pane_farm_t(_pf.plqFunction, _pf.wlqFunction, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + to_string(i), false, _pf.opt_level, configPF);
+                pf_W = new panewrap_farm_t(_pf.plqFunction, _pf.wlqFunction, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + to_string(i), false, _pf.opt_level, configPF);
             if (!_pf.isNICPLQ && !_pf.isNICWLQ) // PLQ and WLQ are incremental
-                pf_W = new pane_farm_t(_pf.plqUpdate, _pf.wlqUpdate, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + to_string(i), false, _pf.opt_level, configPF);
+                pf_W = new panewrap_farm_t(_pf.plqUpdate, _pf.wlqUpdate, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + to_string(i), false, _pf.opt_level, configPF);
             if (_pf.isNICPLQ && !_pf.isNICWLQ) // PLQ is non-incremental and the WLQ is incremental
-                pf_W = new pane_farm_t(_pf.plqFunction, _pf.wlqUpdate, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + to_string(i), false, _pf.opt_level, configPF);
+                pf_W = new panewrap_farm_t(_pf.plqFunction, _pf.wlqUpdate, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + to_string(i), false, _pf.opt_level, configPF);
             if (!_pf.isNICPLQ && _pf.isNICWLQ) // PLQ is incremental and the WLQ is non-incremental
-                pf_W = new pane_farm_t(_pf.plqUpdate, _pf.wlqFunction, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + to_string(i), false, _pf.opt_level, configPF);
+                pf_W = new panewrap_farm_t(_pf.plqUpdate, _pf.wlqFunction, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + to_string(i), false, _pf.opt_level, configPF);
             w[i] = pf_W;
         }
         ff_farm::add_workers(w);
@@ -263,7 +279,7 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _pardegree number of Win_MapReduce instances to be created within the Key_Farm
+     *  \param _pardegree parallelism degree of the Key_Farm pattern
      *  \param _name string with the unique name of the pattern
      *  \param _routing function to map the key onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the pattern
@@ -275,8 +291,10 @@ public:
              size_t _pardegree,
              string _name,
              f_routing_t _routing=[](size_t k, size_t n) { return k%n; },
-             opt_level_t _opt_level=LEVEL0)
+             opt_level_t _opt_level=LEVEL0): hasComplexWorkers(true), opt_level(_opt_level), winType(_winType)
     {
+        // type of the Win_MapReduce to be created within the Key_Farm pattern
+        using winwrap_map_t = Win_MapReduce<tuple_t, result_t, wrapper_in_t>;
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
             cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
@@ -299,15 +317,15 @@ public:
             // configuration structure of the Win_MapReduce instances
             PatternConfig configWM(0, 1, _slide_len, 0, 1, _slide_len);
             // create the correct Win_MapReduce instance
-            win_mapreduce_t *wm_W = nullptr;
+            winwrap_map_t *wm_W = nullptr;
             if (_wm.isNICMAP && _wm.isNICREDUCE) // PLQ and WLQ are non-incremental
-                wm_W = new win_mapreduce_t(_wm.mapFunction, _wm.reduceFunction, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_kf_" + to_string(i), false, _wm.opt_level, configWM);
+                wm_W = new winwrap_map_t(_wm.mapFunction, _wm.reduceFunction, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_kf_" + to_string(i), false, _wm.opt_level, configWM);
             if (!_wm.isNICMAP && !_wm.isNICREDUCE) // PLQ and WLQ are incremental
-                wm_W = new win_mapreduce_t(_wm.mapUpdate, _wm.reduceUpdate, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_kf_" + to_string(i), false, _wm.opt_level, configWM);
+                wm_W = new winwrap_map_t(_wm.mapUpdate, _wm.reduceUpdate, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_kf_" + to_string(i), false, _wm.opt_level, configWM);
             if (_wm.isNICMAP && !_wm.isNICREDUCE) // PLQ is non-incremental and the WLQ is incremental
-                wm_W = new win_mapreduce_t(_wm.mapFunction, _wm.reduceUpdate, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_kf_" + to_string(i), false, _wm.opt_level, configWM);
+                wm_W = new winwrap_map_t(_wm.mapFunction, _wm.reduceUpdate, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_kf_" + to_string(i), false, _wm.opt_level, configWM);
             if (!_wm.isNICMAP && _wm.isNICREDUCE) // PLQ is incremental and the WLQ is non-incremental
-                wm_W = new win_mapreduce_t(_wm.mapUpdate, _wm.reduceFunction, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_kf_" + to_string(i), false, _wm.opt_level, configWM);
+                wm_W = new winwrap_map_t(_wm.mapUpdate, _wm.reduceFunction, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_kf_" + to_string(i), false, _wm.opt_level, configWM);
             w[i] = wm_W;
         }
         ff_farm::add_workers(w);
@@ -320,8 +338,25 @@ public:
         ff_farm::cleanup_all();
     }
 
-    /// Destructor
-    ~Key_Farm() {}
+    /** 
+     *  \brief Check whether the Win_Farm has been instantiated with complex patterns inside
+     *  \return true if the Win_Farm has complex patterns inside
+     */
+    bool useComplexNesting() { return hasComplexWorkers; }
+
+    /** 
+     *  \brief Get the optimization level used to build the pattern
+     *  \return adopted utilization level by the pattern
+     */
+    opt_level_t getOptLevel() { return opt_level; }
+
+    /** 
+     *  \brief Get the window type (CB or TB) utilized by the pattern
+     *  \return adopted windowing semantics (count- or time-based)
+     */
+    win_type_t getWinType() { return winType; }
+
+//@cond DOXY_IGNORE
 
     // -------------------------------------- deleted methods ----------------------------------------
     template<typename T>
@@ -347,6 +382,9 @@ public:
 
 private:
     using ff_farm::set_scheduling_ondemand;
+
+//@endcond
+
 };
 
 #endif

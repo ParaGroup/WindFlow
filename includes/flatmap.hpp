@@ -1,0 +1,196 @@
+/******************************************************************************
+ *  This program is free software; you can redistribute it and/or modify it
+ *  under the terms of the GNU Lesser General Public License version 3 as
+ *  published by the Free Software Foundation.
+ *  
+ *  This program is distributed in the hope that it will be useful, but WITHOUT
+ *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+ *  License for more details.
+ *  
+ *  You should have received a copy of the GNU Lesser General Public License
+ *  along with this program; if not, write to the Free Software Foundation,
+ *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ ******************************************************************************
+ */
+
+/** 
+ *  @file    flatmap.hpp
+ *  @author  Gabriele Mencagli
+ *  @date    08/01/2019
+ *  
+ *  @brief FlatMap pattern executing a one-to-any transformation on the input stream
+ *  
+ *  @section FlatMap (Description)
+ *  
+ *  This file implements the FlatMap pattern able to execute a one-to-any transformation
+ *  on each tuple of the input data stream. The transformation should be stateless and
+ *  must produce zero, one or more than one output result for each input tuple consumed.
+ *  
+ *  The template arguments tuple_t and result_t must be default constructible, with a copy constructor
+ *  and copy assignment operator, and they must provide and implement the setInfo() and
+ *  getInfo() methods.
+ */ 
+
+#ifndef FLATMAP_H
+#define FLATMAP_H
+
+// includes
+#include <string>
+#include <ff/node.hpp>
+#include <ff/farm.hpp>
+#include <shipper.hpp>
+#include <builders.hpp>
+
+using namespace ff;
+
+/** 
+ *  \class FlatMap
+ *  
+ *  \brief FlatMap pattern executing a one-to-any transformation on the input stream
+ *  
+ *  This class implements the FlatMap pattern executing a one-to-any stateless transformation
+ *  on each tuple of the input stream.
+ */ 
+template<typename tuple_t, typename result_t>
+class FlatMap: public ff_farm
+{
+public:
+    /// type of the flatmap function
+    using flatmap_func_t = function<void(const tuple_t &, Shipper<result_t> &)>;
+private:
+    // class FlatMap_Node
+    class FlatMap_Node: public ff_node_t<tuple_t, result_t>
+    {
+    private:
+        flatmap_func_t flatmap_func; // flatmap function
+        string name; // string of the unique name of the pattern
+        // shipper object used for the delivery of results
+        Shipper<result_t> shipper;
+#if defined(LOG_DIR)
+        unsigned long rcvTuples = 0;
+        unsigned long delivered = 0;
+        unsigned long selectivity = 0;
+        double avg_td_us = 0;
+        double avg_ts_us = 0;
+        volatile unsigned long startTD, startTS, endTD, endTS;
+        ofstream logfile;
+#endif
+    public:
+        // Constructor
+        FlatMap_Node(flatmap_func_t _flatmap_func, string _name): flatmap_func(_flatmap_func), name(_name), shipper(*this) {}
+
+        // svc_init method (utilized by the FastFlow runtime)
+        int svc_init()
+        {
+#if defined(LOG_DIR)
+            name += "_node_" + to_string(ff_node_t<tuple_t, result_t>::get_my_id()) + ".log";
+            string filename = string(STRINGIFY(LOG_DIR)) + "/" + name;
+            logfile.open(filename);
+#endif
+            return 0;
+        }
+
+        // svc method (utilized by the FastFlow runtime)
+        result_t *svc(tuple_t *t)
+        {
+#if defined (LOG_DIR)
+            startTS = current_time_nsecs();
+            if (rcvTuples == 0)
+                startTD = current_time_nsecs();
+            rcvTuples++;
+#endif
+            // call the flatmap function
+            flatmap_func(*t, shipper);
+            delete t;
+#if defined(LOG_DIR)
+            selectivity += (shipper.delivered() - delivered);
+            delivered = shipper.delivered();
+            endTS = current_time_nsecs();
+            endTD = current_time_nsecs();
+            double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
+            avg_ts_us += (1.0 / rcvTuples) * (elapsedTS_us - avg_ts_us);
+            double elapsedTD_us = ((double) (endTD - startTD)) / 1000;
+            avg_td_us += (1.0 / rcvTuples) * (elapsedTD_us - avg_td_us);
+            startTD = current_time_nsecs();
+#endif
+            return this->GO_ON;
+        }
+
+        // svc_end method (utilized by the FastFlow runtime)
+        void svc_end()
+        {
+#if defined (LOG_DIR)
+            ostringstream stream;
+            stream << "************************************LOG************************************\n";
+            stream << "No. of received tuples: " << rcvTuples << "\n";
+            stream << "Output selectivity: " << delivered/((double) rcvTuples) << "\n";
+            stream << "Average service time: " << avg_ts_us << " usec \n";
+            stream << "Average inter-departure time: " << avg_td_us << " usec \n";
+            stream << "***************************************************************************\n";
+            logfile << stream.str();
+            logfile.close();
+#endif
+        }
+    };
+
+public:
+    /** 
+     *  \brief Constructor
+     *  
+     *  \param _func flatmap function
+     *  \param _pardegree parallelism degree of the FlatMap pattern
+     *  \param _name string with the unique name of the FlatMap pattern
+     */ 
+    FlatMap(flatmap_func_t _func, size_t _pardegree, string _name)
+    {
+        // check the validity of the parallelism degree
+        if (_pardegree == 0) {
+            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // vector of FlatMap_Node instances
+        vector<ff_node *> w;
+        for (size_t i=0; i<_pardegree; i++) {
+            auto *seq = new FlatMap_Node(_func, _name);
+            w.push_back(seq);
+        }
+        ff_farm::add_workers(w);
+        // add default collector
+        ff_farm::add_collector(nullptr);
+        // when the Map will be destroyed we need aslo to destroy the emitter, workers and collector
+        ff_farm::cleanup_all();
+    }
+
+//@cond DOXY_IGNORE
+
+    // -------------------------------------- deleted methods ----------------------------------------
+    template<typename T>
+    int add_emitter(T *e)                                                                    = delete;
+    template<typename T>
+    int add_emitter(const T &e)                                                              = delete;
+    template<typename T>
+    int change_emitter(T *e, bool cleanup=false)                                             = delete;
+    template<typename T>
+    int change_emitter(const T &e, bool cleanup=false)                                       = delete;
+    void set_ordered(const size_t MemoryElements=DEF_OFARM_ONDEMAND_MEMORY)                  = delete;
+    int add_workers(std::vector<ff_node *> &w)                                               = delete;
+    int add_collector(ff_node *c, bool cleanup=false)                                        = delete;
+    int wrap_around(bool multi_input=false)                                                  = delete;
+    int remove_collector()                                                                   = delete;
+    void cleanup_workers()                                                                   = delete;
+    void cleanup_all()                                                                       = delete;
+    bool offload(void *task, unsigned long retry=((unsigned long)-1),
+        unsigned long ticks=ff_loadbalancer::TICKS2WAIT)                                     = delete;
+    bool load_result(void **task, unsigned long retry=((unsigned long)-1),
+        unsigned long ticks=ff_gatherer::TICKS2WAIT)                                         = delete;
+    bool load_result_nb(void **task)                                                         = delete;
+
+private:
+    using ff_farm::set_scheduling_ondemand;
+
+//@endcond
+
+};
+
+#endif

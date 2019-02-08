@@ -22,7 +22,7 @@
 // includes
 #include <string>
 #include <ff/node.hpp>
-#include <windflow.hpp>
+#include <basic.hpp>
 
 using namespace ff;
 using namespace std;
@@ -148,6 +148,7 @@ public:
 			cout << "Results received out-of-order!" << endl;
 		//else cout << "Received result window " << out->id << " of key " << out->key << " with value " << out->value << endl;
 		check_counters[out->key]++;
+		delete out;
 		return GO_ON;
 	}
 

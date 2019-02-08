@@ -23,7 +23,7 @@
 #include <string>
 #include <math.h>
 #include <ff/node.hpp>
-#include <windflow.hpp>
+#include <basic.hpp>
 
 // defines
 #define RATIO 0.46566128e-9
@@ -133,7 +133,6 @@ public:
 				tuple_t *t = new tuple_t(k, i, next_ts[k], i);
 				double x = (1000 * 0.05) / 1.05;
 				next_ts[k] += ceil(pareto(1.05, x));
-				//next_ts[k] += 1000;
 				ff_send_out(t);
 			}
 		}

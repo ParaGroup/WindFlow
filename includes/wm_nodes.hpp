@@ -18,15 +18,13 @@
  *  @file    wm_nodes.hpp
  *  @author  Gabriele Mencagli
  *  @date    02/10/2018
- *  @version 1.0
  *  
- *  @brief Emitter and Collector nodes of the MAP stage of the Win_MapReduce and
- *         Win_MapReduce_GPU patterns
+ *  @brief Utility nodes of the Win_MapReduce and Win_MapReduce_GPU patterns
  *  
- *  @section DESCRIPTION
+ *  @section Win_MapReduce_Nodes (Description)
  *  
- *  This file implements the Emitter and the Collector nodes of the MAP stage of the
- *  Win_MapReduce and Win_MapReduce_GPU patterns in the library.
+ *  This file implements the utility nodes (Emitter, Collector and DroppingNode) of the
+ *  MAP stage of the Win_MapReduce and Win_MapReduce_GPU patterns in the library.
  */ 
 
 #ifndef WM_NODES_H
@@ -35,9 +33,11 @@
 // includes
 #include <ff/multinode.hpp>
 
-// class MAP_Emitter
+using namespace ff;
+
+// class WinMap_Emitter
 template<typename tuple_t, typename input_t=tuple_t>
-class MAP_Emitter: public ff_monode_t<input_t, wrapper_tuple_t<tuple_t>>
+class WinMap_Emitter: public ff_monode_t<input_t, wrapper_tuple_t<tuple_t>>
 {
 private:
     // type of the wrapper of input tuples
@@ -57,17 +57,11 @@ private:
 
         // constructor
         Key_Descriptor(size_t _nextDst): rcv_counter(0), nextDst(_nextDst) {}
-
-        // destructor
-       ~Key_Descriptor() {}
     };
     unordered_map<size_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
 
     // private constructor
-    MAP_Emitter(size_t _map_degree): map_degree(_map_degree) {}
-
-    // destructor
-    ~MAP_Emitter() {}
+    WinMap_Emitter(size_t _map_degree): map_degree(_map_degree) {}
 
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
@@ -78,7 +72,7 @@ private:
     // svc method (utilized by the FastFlow runtime)
     wrapper_in_t *svc(input_t *wt)
     {
-        // extract the key and id fields from the input tuple
+        // extract the key field from the input tuple
         tuple_t *t = extractTuple<tuple_t, input_t>(wt);
         size_t key = std::get<0>(t->getInfo()); // key
         // access the descriptor of the input key
@@ -120,9 +114,90 @@ private:
     void svc_end() {}
 };
 
-// class MAP_Collector
+// class WinMap_Dropper
+template<typename tuple_t>
+class WinMap_Dropper: public ff_node_t<wrapper_tuple_t<tuple_t>, wrapper_tuple_t<tuple_t>>
+{
+private:
+    // type of the wrapper of input tuples
+    using wrapper_in_t = wrapper_tuple_t<tuple_t>;
+    // friendships with other classes in the library
+    friend class Pipe;
+    size_t map_degree; // parallelism degree (MAP phase)
+    // struct of a key descriptor
+    struct Key_Descriptor
+    {
+        uint64_t rcv_counter; // number of tuples received of this key
+        tuple_t last_tuple; // copy of the last tuple received of this key
+        size_t nextDst; // id of the Win_Seq instance receiving the next tuple of this key
+
+        // constructor
+        Key_Descriptor(size_t _nextDst): rcv_counter(0), nextDst(_nextDst) {}
+    };
+    unordered_map<size_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
+    size_t my_id; // identifier of the Win_Seq instance associated with this WinMap_Dropper istance
+
+    // private constructor
+    WinMap_Dropper(size_t _my_id, size_t _map_degree): my_id(_my_id), map_degree(_map_degree) {}
+
+    // svc_init method (utilized by the FastFlow runtime)
+    int svc_init()
+    {
+        return 0;
+    }
+
+    // svc method (utilized by the FastFlow runtime)
+    wrapper_in_t *svc(wrapper_in_t *wt)
+    {
+        // extract the key field from the input tuple
+        tuple_t *t = extractTuple<tuple_t, wrapper_in_t>(wt);
+        size_t key = std::get<0>(t->getInfo()); // key
+        // access the descriptor of the input key
+        auto it = keyMap.find(key);
+        if (it == keyMap.end()) {
+            // create the descriptor of that key
+            keyMap.insert(make_pair(key, Key_Descriptor(key % map_degree)));
+            it = keyMap.find(key);
+        }
+        Key_Descriptor &key_d = (*it).second;
+        key_d.rcv_counter++;
+        key_d.last_tuple = *t;
+        // decide whether to drop or send the tuple
+        if (key_d.nextDst == my_id) {
+            // sent the tuple
+            this->ff_send_out(wt);
+        }
+        else {
+            // delete the tuple
+            deleteTuple<tuple_t, wrapper_in_t>(wt);
+        }
+        key_d.nextDst = (key_d.nextDst + 1) % map_degree;
+        return this->GO_ON;
+    }
+
+    // method to manage the EOS (utilized by the FastFlow runtime)
+    void eosnotify(ssize_t id)
+    {
+        // iterate over all the keys
+        for (auto &k: keyMap) {
+            Key_Descriptor &key_d = k.second;
+            if (key_d.rcv_counter > 0) {
+                // send the last tuple to the Win_Seq instance associated with this WinMap_Dropper instance
+                tuple_t *tuple = new tuple_t();
+                *tuple = key_d.last_tuple;
+                wrapper_in_t *out = new wrapper_in_t(tuple, 1, true); // eos marker enabled
+                this->ff_send_out(out);
+            }
+        }
+    }
+
+    // svc_end method (utilized by the FastFlow runtime)
+    void svc_end() {}
+};
+
+// class WinMap_Collector
 template<typename result_t>
-class MAP_Collector: public ff_node_t<result_t, result_t>
+class WinMap_Collector: public ff_node_t<result_t, result_t>
 {
 private:
     // friendships with other classes in the library
@@ -138,18 +213,12 @@ private:
 
         // constructor
         Key_Descriptor(): next_win(0) {}
-
-        // destructor
-        ~Key_Descriptor() {}
     };
     // hash table that maps key identifiers onto key descriptors
     unordered_map<size_t, Key_Descriptor> keyMap;
 
     // private constructor
-    MAP_Collector() {}
-
-    // destructor
-    ~MAP_Collector() {}
+    WinMap_Collector() {}
 
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()

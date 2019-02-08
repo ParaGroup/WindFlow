@@ -18,11 +18,10 @@
  *  @file    meta_utils.hpp
  *  @author  Gabriele Mencagli
  *  @date    16/08/2018
- *  @version 1.0
  *  
  *  @brief Metafunctions used by the WindFlow library
  *  
- *  @section DESCRIPTION
+ *  @section Metafunctions (Descriptions)
  *  
  *  Set of metafunctions used by the WindFlow library
  */ 
@@ -32,13 +31,77 @@
 
 // includes
 #include <atomic>
+#if __cplusplus < 201703L //not C++17
+    #include <experimental/optional>
+    using namespace std::experimental;
+#else
+    #include <optional>
+#endif
+#include <shipper.hpp>
 #include <iterable.hpp>
 
 using namespace std;
 
 // metafunctions to get the tuple type from a callable type (e.g., function, lambda, functor)
+template<typename F_t, typename Arg1, typename Arg2>
+Arg1 get_tuple_t(void (F_t::*)(const Arg1 &, Arg2 &) const);
+
+template<typename F_t, typename Arg1, typename Arg2>
+Arg1 get_tuple_t(void (F_t::*)(const Arg1 &, Arg2 &));
+
+template<typename Arg1, typename Arg2>
+Arg1 get_tuple_t(void (*)(const Arg1 &, Arg2 &));
+
+template<typename F_t, typename Arg1>
+Arg1 get_tuple_t(void (F_t::*)(Arg1 &) const);
+
+template<typename F_t, typename Arg1>
+Arg1 get_tuple_t(void (F_t::*)(Arg1 &));
+
+template<typename Arg1>
+Arg1 get_tuple_t(void (*)(Arg1 &));
+
+template<typename F_t, typename Arg>
+Arg get_tuple_t(bool (F_t::*)(Arg &) const);
+
+template<typename F_t, typename Arg>
+Arg get_tuple_t(bool (F_t::*)(Arg &));
+
+template<typename Arg>
+Arg get_tuple_t(bool (*)(Arg &));
+
+template<typename F_t, typename Arg1, typename Arg2>
+Arg1 get_tuple_t(void (F_t::*)(const Arg1 &, Shipper<Arg2>&) const);
+
+template<typename F_t, typename Arg1, typename Arg2>
+Arg1 get_tuple_t(void (F_t::*)(const Arg1 &, Shipper<Arg2>&));
+
+template<typename Arg1, typename Arg2>
+Arg1 get_tuple_t(void (*)(const Arg1 &, Shipper<Arg2>&));
+
+template<typename F_t, typename Arg>
+Arg get_tuple_t(void (F_t::*)(Shipper<Arg>&) const);
+
+template<typename F_t, typename Arg>
+Arg get_tuple_t(void (F_t::*)(Shipper<Arg>&));
+
+template<typename Arg>
+Arg get_tuple_t(void (*)(Shipper<Arg>&));
+
+template<typename F_t, typename Arg>
+Arg get_tuple_t(void (F_t::*)(optional<Arg> &) const);
+
+template<typename F_t, typename Arg>
+Arg get_tuple_t(void (F_t::*)(optional<Arg> &));
+
+template<typename Arg>
+Arg get_tuple_t(void (*)(optional<Arg> &));
+
 template<typename F_t, typename Ret, typename Arg1, typename Arg2>
 Arg1 get_tuple_t(Ret (F_t::*)(size_t, uint64_t, Iterable<Arg1>&, Arg2&) const);
+
+template<typename F_t, typename Ret, typename Arg1, typename Arg2>
+Arg1 get_tuple_t(Ret (F_t::*)(size_t, uint64_t, Iterable<Arg1>&, Arg2&));
 
 template<typename Ret, typename Arg1, typename Arg2>
 Arg1 get_tuple_t(Ret (*)(size_t, uint64_t, Iterable<Arg1>&, Arg2&));
@@ -46,11 +109,17 @@ Arg1 get_tuple_t(Ret (*)(size_t, uint64_t, Iterable<Arg1>&, Arg2&));
 template<typename F_t, typename Ret, typename Arg1, typename Arg2>
 Arg1 get_tuple_t(Ret (F_t::*)(size_t, uint64_t, const Arg1&, Arg2&) const);
 
+template<typename F_t, typename Ret, typename Arg1, typename Arg2>
+Arg1 get_tuple_t(Ret (F_t::*)(size_t, uint64_t, const Arg1&, Arg2&));
+
 template<typename Ret, typename Arg1, typename Arg2>
 Arg1 get_tuple_t(Ret (*)(size_t, uint64_t, const Arg1&, Arg2&));
 
 template<typename F_t, typename Ret, typename Arg1, typename Arg2>
 Arg1 get_tuple_t(Ret (F_t::*)(size_t, uint64_t, const Arg1*, Arg2*, size_t, char*) const);
+
+template<typename F_t, typename Ret, typename Arg1, typename Arg2>
+Arg1 get_tuple_t(Ret (F_t::*)(size_t, uint64_t, const Arg1*, Arg2*, size_t, char*));
 
 template<typename Ret, typename Arg1, typename Arg2>
 Arg1 get_tuple_t(Ret (*)(size_t, uint64_t, const Arg1*, Arg2*, size_t, char*));
@@ -59,14 +128,47 @@ template<typename F_t>
 decltype(get_tuple_t(&F_t::operator())) get_tuple_t(F_t);
 
 // metafunctions to get the result type from a callable type (e.g., function, lambda, functor)
+template<typename F_t, typename Arg1, typename Arg2>
+Arg2 get_result_t(void (F_t::*)(const Arg1 &, Arg2 &) const);
+
+template<typename F_t, typename Arg1, typename Arg2>
+Arg2 get_result_t(void (F_t::*)(const Arg1 &, Arg2 &));
+
+template<typename Arg1, typename Arg2>
+Arg2 get_result_t(void (*)(const Arg1 &, Arg2 &));
+
+template<typename F_t, typename Arg1>
+Arg1 get_result_t(void (F_t::*)(Arg1 &) const);
+
+template<typename F_t, typename Arg1>
+Arg1 get_result_t(void (F_t::*)(Arg1 &));
+
+template<typename Arg1>
+Arg1 get_result_t(void (*)(Arg1 &));
+
+template<typename F_t, typename Arg1, typename Arg2>
+Arg2 get_result_t(void (F_t::*)(const Arg1 &, Shipper<Arg2>&) const);
+
+template<typename F_t, typename Arg1, typename Arg2>
+Arg2 get_result_t(void (F_t::*)(const Arg1 &, Shipper<Arg2>&));
+
+template<typename Arg1, typename Arg2>
+Arg2 get_result_t(void (*)(const Arg1 &, Shipper<Arg2>&));
+
 template<typename F_t, typename Ret, typename Arg1, typename Arg2>
 Arg2 get_result_t(Ret (F_t::*)(size_t, uint64_t, Arg1&, Arg2&) const);
+
+template<typename F_t, typename Ret, typename Arg1, typename Arg2>
+Arg2 get_result_t(Ret (F_t::*)(size_t, uint64_t, Arg1&, Arg2&));
 
 template<typename Ret, typename Arg1, typename Arg2>
 Arg2 get_result_t(Ret (*)(size_t, uint64_t, Arg1&, Arg2&));
 
 template<typename F_t, typename Ret, typename Arg1, typename Arg2>
 Arg2 get_result_t(Ret (F_t::*)(size_t, uint64_t, const Arg1*, Arg2*, size_t, char*) const);
+
+template<typename F_t, typename Ret, typename Arg1, typename Arg2>
+Arg2 get_result_t(Ret (F_t::*)(size_t, uint64_t, const Arg1*, Arg2*, size_t, char*));
 
 template<typename Ret, typename Arg1, typename Arg2>
 Arg2 get_result_t(Ret (*)(size_t, uint64_t, const Arg1*, Arg2*, size_t, char*));
@@ -176,8 +278,6 @@ struct wrapper_tuple_t
     // constructor
     wrapper_tuple_t(tuple_t *_t, size_t _counter=1, bool _eos=false): tuple(_t), counter(_counter), eos(_eos) {}
 
-    // destructor
-    ~wrapper_tuple_t() {}
 };
 
 // function extractTuple: definition valid if T1 != T2
@@ -212,6 +312,23 @@ template <typename T1, typename T2>
 void deleteTuple(typename enable_if<is_same<T1,T2>::value, T2>::type *t) // T1 and T2 are the same type: the tuple's type
 {
     delete t;
+}
+
+// function createWrapper: definition valid if T2 != T3
+template<typename T1, typename T2, typename T3>
+T1 *createWrapper(typename enable_if<!is_same<T2,T3>::value, T1>::type *t, size_t val, bool isEOS=false) // T1 is the tuple type, T2 the output type and T3 is the wrapper type
+{
+    // only return the tuple
+    return t;
+}
+
+// function createWrapper: definition valid if T2 == T3
+template<typename T1, typename T2, typename T3>
+T2 *createWrapper(typename enable_if<is_same<T2,T3>::value, T1>::type *t, size_t val, bool isEOS=false) // T1 is the tuple type, T2 the output type and T3 is the wrapper type
+{
+    // create and return a wrapper to the tuple
+    T2 *wt = new T2(t, val, isEOS);
+    return wt;
 }
 
 // function prepareWrapper: definition valid if T1 != T2

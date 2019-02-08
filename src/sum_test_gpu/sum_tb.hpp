@@ -23,7 +23,7 @@
 #include <string>
 #include <math.h>
 #include <ff/node.hpp>
-#include <windflow.hpp>
+#include <basic.hpp>
 
 // defines
 #define RATIO 0.46566128e-9

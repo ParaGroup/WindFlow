@@ -18,11 +18,10 @@
  *  @file    pane_farm.hpp
  *  @author  Gabriele Mencagli
  *  @date    17/10/2017
- *  @version 1.0
  *  
- *  @brief Pane_Farm pattern executing windowed queries on a multicore
+ *  @brief Pane_Farm pattern executing a windowed transformation in parallel on multi-core CPUs
  *  
- *  @section DESCRIPTION
+ *  @section Pane_Farm (Description)
  *  
  *  This file implements the Pane_Farm pattern able to execute windowed queries on a multicore.
  *  The pattern processes (possibly in parallel) panes of the windows in the so-called PLQ stage
@@ -30,6 +29,10 @@
  *  pane results in the so-called WLQ stage (Window-Level Sub-Query). Panes shared by more than
  *  one window are not recomputed by saving processing time. The pattern supports both a
  *  non-incremental and an incremental query definition in the two stages.
+ *   
+ *  The template arguments tuple_t and result_t must be default constructible, with a copy constructor
+ *  and copy assignment operator, and they must provide and implement the setInfo() and
+ *  getInfo() methods.
  */ 
 
 #ifndef PANE_FARM_H
@@ -44,29 +47,26 @@
 /** 
  *  \class Pane_Farm
  *  
- *  \brief Pane_Farm pattern executing windowed queries on a multicore
+ *  \brief Pane_Farm pattern executing a windowed transformation in parallel on multi-core CPUs
  *  
  *  This class implements the Pane_Farm pattern executing windowed queries in parallel on
  *  a multicore. The pattern processes (possibly in parallel) panes in the PLQ stage while
  *  window results are built out from the pane results (possibly in parallel) in the WLQ
- *  stage. The pattern class has three template arguments. The first is the type of the
- *  input tuples. It must be copyable and providing the getInfo() and setInfo() methods.
- *  The second is the type of the window results. It must have a default constructor and
- *  the getInfo() and setInfo() methods. The third template argument is used by the WindFlow
- *  run-time system and should never be utilized by the high-level programmer.
+ *  stage.
  */ 
 template<typename tuple_t, typename result_t, typename input_t>
 class Pane_Farm: public ff_pipeline
 {
-private:
-    // function type of the non-incremental pane processing
+public:
+    /// function type of the non-incremental pane processing
     using f_plqfunction_t = function<int(size_t, uint64_t, Iterable<tuple_t> &, result_t &)>;
-    // Function type of the incremental pane processing
+    /// function type of the incremental pane processing
     using f_plqupdate_t = function<int(size_t, uint64_t, const tuple_t &, result_t &)>;
-    // function type of the non-incremental window processing
+    /// function type of the non-incremental window processing
     using f_wlqfunction_t = function<int(size_t, uint64_t, Iterable<result_t> &, result_t &)>;
-    // function type of the incremental window function
+    /// function type of the incremental window function
     using f_wlqupdate_t = function<int(size_t, uint64_t, const result_t &, result_t &)>;
+private:
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3>
     friend class Win_Farm;
@@ -152,7 +152,7 @@ private:
         if (_plq_degree > 1) {
             // configuration structure of the Win_Farm instance (PLQ)
             PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqFunction, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", true, configWFPLQ, PLQ);
+            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqFunction, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", true, LEVEL0, configWFPLQ, PLQ);
             plq_stage = plq_wf;
         }
         else {
@@ -165,7 +165,7 @@ private:
         if (_wlq_degree > 1) {
             // configuration structure of the Win_Farm instance (WLQ)
             PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqFunction, (_win_len/_pane_len), (_slide_len/_pane_len), CB, 1, _wlq_degree, _name + "_wlq", _ordered, configWFWLQ, WLQ);
+            auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqFunction, (_win_len/_pane_len), (_slide_len/_pane_len), CB, 1, _wlq_degree, _name + "_wlq", _ordered, LEVEL0, configWFWLQ, WLQ);
             wlq_stage = wlq_wf;
         }
         else {
@@ -179,7 +179,7 @@ private:
         // when the Pane_Farm will be destroyed we need also to destroy the two stages
         ff_pipeline::cleanup_nodes();
         // flatten the pipeline
-        //ff_pipeline::flatten();
+        ff_pipeline::flatten();
     }
 
     // private constructor II (incremental PLQ stage and incremental WLQ stage)
@@ -232,7 +232,7 @@ private:
         if (_plq_degree > 1) {
             // configuration structure of the Win_Farm instance (PLQ)
             PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqUpdate, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", true, configWFPLQ, PLQ);
+            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqUpdate, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", true, LEVEL0, configWFPLQ, PLQ);
             plq_stage = plq_wf;
         }
         else {
@@ -245,7 +245,7 @@ private:
         if (_wlq_degree > 1) {
             // configuration structure of the Win_Farm instance (WLQ)
             PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqUpdate, _win_len/_pane_len, _slide_len/_pane_len, CB, 1, _wlq_degree, _name + "_wlq", _ordered, configWFWLQ, WLQ);
+            auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqUpdate, _win_len/_pane_len, _slide_len/_pane_len, CB, 1, _wlq_degree, _name + "_wlq", _ordered, LEVEL0, configWFWLQ, WLQ);
             wlq_stage = wlq_wf;
         }
         else {
@@ -259,7 +259,7 @@ private:
         // when the Pane_Farm will be destroyed we need aslo to destroy the two stages
         ff_pipeline::cleanup_nodes();
         // flatten the pipeline
-        //ff_pipeline::flatten();
+        ff_pipeline::flatten();
     }
 
     // private constructor III (non-incremental PLQ stage and incremental WLQ stage)
@@ -312,7 +312,7 @@ private:
         if (_plq_degree > 1) {
             // configuration structure of the Win_Farm instance (PLQ)
             PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqFunction, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", true, configWFPLQ, PLQ);
+            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqFunction, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", true, LEVEL0, configWFPLQ, PLQ);
             plq_stage = plq_wf;
         }
         else {
@@ -325,7 +325,7 @@ private:
         if (_wlq_degree > 1) {
             // configuration structure of the Win_Farm instance (WLQ)
             PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqUpdate, _win_len/_pane_len, _slide_len/_pane_len, CB, 1, _wlq_degree, _name + "_wlq", _ordered, configWFWLQ, WLQ);
+            auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqUpdate, _win_len/_pane_len, _slide_len/_pane_len, CB, 1, _wlq_degree, _name + "_wlq", _ordered, LEVEL0, configWFWLQ, WLQ);
             wlq_stage = wlq_wf;
         }
         else {
@@ -339,7 +339,7 @@ private:
         // when the Pane_Farm will be destroyed we need aslo to destroy the two stages
         ff_pipeline::cleanup_nodes();
         // flatten the pipeline
-        //ff_pipeline::flatten();
+        ff_pipeline::flatten();
     }
 
     // private constructor IV (incremental PLQ stage and non-incremental WLQ stage)
@@ -392,7 +392,7 @@ private:
         if (_plq_degree > 1) {
             // configuration structure of the Win_Farm instance (PLQ)
             PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqUpdate, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", true, configWFPLQ, PLQ);
+            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqUpdate, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", true, LEVEL0, configWFPLQ, PLQ);
             plq_stage = plq_wf;
         }
         else {
@@ -405,7 +405,7 @@ private:
         if (_wlq_degree > 1) {
             // configuration structure of the Win_Farm instance (WLQ)
             PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqFunction, _win_len/_pane_len, _slide_len/_pane_len, CB, 1, _wlq_degree, _name + "_wlq", _ordered, configWFWLQ, WLQ);
+            auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqFunction, _win_len/_pane_len, _slide_len/_pane_len, CB, 1, _wlq_degree, _name + "_wlq", _ordered, LEVEL0, configWFWLQ, WLQ);
             wlq_stage = wlq_wf;
         }
         else {
@@ -419,7 +419,7 @@ private:
         // when the Pane_Farm will be destroyed we need aslo to destroy the two stages
         ff_pipeline::cleanup_nodes();
         // flatten the pipeline
-        //ff_pipeline::flatten();
+        ff_pipeline::flatten();
     }
 
     // method to optimize the structure of the Pane_Farm pattern
@@ -455,7 +455,7 @@ private:
                 ff_farm *farm_plq = static_cast<ff_farm *>(plq);
                 ff_farm *farm_wlq = static_cast<ff_farm *>(wlq);
                 emitter_wlq_t *emitter_wlq = static_cast<emitter_wlq_t *>(farm_wlq->getEmitter());
-                OrderingNode<result_t> *buf_node = new OrderingNode<result_t>(farm_plq->getNWorkers());
+                OrderingNode<result_t, wrapper_tuple_t<result_t>> *buf_node = new OrderingNode<result_t, wrapper_tuple_t<result_t>>();
                 const ff_pipeline result = combine_farms(*farm_plq, emitter_wlq, *farm_wlq, buf_node, false);
                 delete farm_plq;
                 delete farm_wlq;
@@ -474,8 +474,8 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _plq_degree number of Win_Seq instances within the PLQ stage
-     *  \param _wlq_degree number of Win_Seq instances within the WLQ stage
+     *  \param _plq_degree parallelism degree of the PLQ stage
+     *  \param _wlq_degree parallelism degree of the WLQ stage
      *  \param _name string with the unique name of the pattern
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -501,8 +501,8 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _plq_degree number of Win_Seq instances in the PLQ stage
-     *  \param _wlq_degree number of Win_Seq instances in the WLQ stage
+     *  \param _plq_degree parallelism degree of the PLQ stage
+     *  \param _wlq_degree parallelism degree of the WLQ stage
      *  \param _name string with the unique name of the pattern
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -528,8 +528,8 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _plq_degree number of Win_Seq instances in the PLQ stage
-     *  \param _wlq_degree number of Win_Seq instances in the WLQ stage
+     *  \param _plq_degree parallelism degree of the PLQ stage
+     *  \param _wlq_degree parallelism degree of the WLQ stage
      *  \param _name string with the unique name of the pattern
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -555,8 +555,8 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _plq_degree number of Win_Seq instances in the PLQ stage
-     *  \param _wlq_degree number of Win_Seq instances in the WLQ stage
+     *  \param _plq_degree parallelism degree of the PLQ stage
+     *  \param _wlq_degree parallelism degree of the WLQ stage
      *  \param _name string with the unique name of the pattern
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -574,8 +574,19 @@ public:
               :
               Pane_Farm(_plqUpdate, _wlqFunction, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _name, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
 
-    /// Destructor
-    ~Pane_Farm() {}
+    /** 
+     *  \brief Get the optimization level used to build the pattern
+     *  \return adopted utilization level by the pattern
+     */
+    opt_level_t getOptLevel() { return opt_level; }
+
+    /** 
+     *  \brief Get the window type (CB or TB) utilized by the pattern
+     *  \return adopted windowing semantics (count- or time-based)
+     */
+    win_type_t getWinType() { return winType; }
+
+//@cond DOXY_IGNORE
 
     // ------------------------- deleted methods ---------------------------
     template<typename T>
@@ -591,6 +602,9 @@ public:
                      unsigned long retry=((unsigned long)-1),
                      unsigned long ticks=ff_node::TICKS2WAIT)     = delete;
     bool load_result_nb(void ** task)                             = delete;
+
+//@endcond
+
 };
 
 #endif

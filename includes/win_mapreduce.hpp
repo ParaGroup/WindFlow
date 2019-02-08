@@ -18,17 +18,20 @@
  *  @file    win_mapreduce.hpp
  *  @author  Gabriele Mencagli
  *  @date    29/10/2017
- *  @version 1.0
  *  
- *  @brief Win_MapReduce pattern executing windowed queries on a multicore
+ *  @brief Win_MapReduce pattern executing a windowed transformation in parallel on multi-core CPUs
  *  
- *  @section DESCRIPTION
+ *  @section Win_MapReduce (Description)
  *  
  *  This file implements the Win_MapReduce pattern able to execute windowed queries on a
  *  multicore. The pattern processes (possibly in parallel) partitions of the windows in the
  *  so-called MAP stage, and computes (possibly in parallel) results of the windows out of the
  *  partition results in the REDUCE stage. The pattern supports both a non-incremental and an
  *  incremental query definition in the two stages.
+ *  
+ *  The template arguments tuple_t and result_t must be default constructible, with a copy constructor
+ *  and copy assignment operator, and they must provide and implement the setInfo() and
+ *  getInfo() methods.
  */ 
 
 #ifndef WIN_MAPREDUCE_H
@@ -44,35 +47,32 @@
 /** 
  *  \class Win_MapReduce
  *  
- *  \brief Win_MapReduce pattern executing windowed queries on a multicore
+ *  \brief Win_MapReduce pattern executing a windowed transformation in parallel on multi-core CPUs
  *  
  *  This class implements the Win_MapReduce pattern executing windowed queries in parallel on
  *  a multicore. The pattern processes (possibly in parallel) window partitions in the MAP
  *  stage and builds window results out from partition results (possibly in parallel) in the
- *  REDUCE stage. The pattern class has three template arguments. The first is the type of the
- *  input tuples. It must be copyable and providing the getInfo() and setInfo() methods. The second
- *  is the type of the window results. It must have a default constructor and the getInfo() and
- *  setInfo() methods. The third template argument is used by the WindFlow run-time system and
- *  should never be utilized by the high-level programmer.
+ *  REDUCE stage.
  */ 
 template<typename tuple_t, typename result_t, typename input_t>
 class Win_MapReduce: public ff_pipeline
 {
+public:
+    /// function type of the non-incremental MAP processing
+    using f_mapfunction_t = function<int(size_t, uint64_t, Iterable<tuple_t> &, result_t &)>;
+    /// function type of the incremental MAP processing
+    using f_mapupdate_t = function<int(size_t, uint64_t, const tuple_t &, result_t &)>;
+    /// function type of the non-incremental REDUCE processing
+    using f_reducefunction_t = function<int(size_t, uint64_t, Iterable<result_t> &, result_t &)>;
+    /// function type of the incremental REDUCE processing
+    using f_reduceupdate_t = function<int(size_t, uint64_t, const result_t &, result_t &)>;
 private:
     // type of the wrapper of input tuples
     using wrapper_in_t = wrapper_tuple_t<tuple_t>;
-    // function type of the non-incremental MAP processing
-    using f_mapfunction_t = function<int(size_t, uint64_t, Iterable<tuple_t> &, result_t &)>;
-    // function type of the incremental MAP processing
-    using f_mapupdate_t = function<int(size_t, uint64_t, const tuple_t &, result_t &)>;
-    // function type of the non-incremental REDUCE processing
-    using f_reducefunction_t = function<int(size_t, uint64_t, Iterable<result_t> &, result_t &)>;
-    // function type of the incremental REDUCE processing
-    using f_reduceupdate_t = function<int(size_t, uint64_t, const result_t &, result_t &)>;
-    // type of the MAP_Emitter node
-    using map_emitter_t = MAP_Emitter<tuple_t, input_t>;
-    // type of the MAP_Collector node
-    using map_collector_t = MAP_Collector<result_t>;    
+    // type of the WinMap_Emitter node
+    using map_emitter_t = WinMap_Emitter<tuple_t, input_t>;
+    // type of the WinMap_Collector node
+    using map_collector_t = WinMap_Collector<result_t>;    
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3>
     friend class Win_Farm;
@@ -138,7 +138,7 @@ private:
         }
         // check the validity of the reduce parallelism degree
         if (_reduce_degree == 0) {
-            cerr << RED << "WindFlow Error: reduce parallelism degree cannot be zero" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: parallelism degree of the REDUCE cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // general fastflow pointers to the MAP and REDUCE stages
@@ -173,7 +173,7 @@ private:
         if (_reduce_degree > 1) {
             // configuration structure of the Win_Farm instance (REDUCE)
             PatternConfig configWFREDUCE(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceFunction, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", _ordered, configWFREDUCE, REDUCE);
+            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceFunction, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", _ordered, LEVEL0, configWFREDUCE, REDUCE);
             reduce_stage = farm_reduce;
         }
         else {
@@ -187,7 +187,7 @@ private:
         // when the Win_MapReduce will be destroyed we need aslo to destroy the two internal stages
         ff_pipeline::cleanup_nodes();
         // flatten the pipeline
-        //ff_pipeline::flatten();
+        ff_pipeline::flatten();
     }
 
     // private constructor II (incremental MAP phase and incremental REDUCE phase)
@@ -229,7 +229,7 @@ private:
         }
         // check the validity of the reduce parallelism degree
         if (_reduce_degree == 0) {
-            cerr << RED << "WindFlow Error: reduce parallelism degree cannot be zero" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: parallelism degree of the REDUCE cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // general fastflow pointers to the MAP and REDUCE stages
@@ -264,7 +264,7 @@ private:
         if (_reduce_degree > 1) {
             // configuration structure of the Win_Farm instance (REDUCE)
             PatternConfig configWFREDUCE(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceUpdate, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", _ordered, configWFREDUCE, REDUCE);
+            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceUpdate, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", _ordered, LEVEL0, configWFREDUCE, REDUCE);
             reduce_stage = farm_reduce;
         }
         else {
@@ -278,7 +278,7 @@ private:
         // when the Win_MapReduce will be destroyed we need aslo to destroy the two internal stages
         ff_pipeline::cleanup_nodes();
         // flatten the pipeline
-        //ff_pipeline::flatten();
+        ff_pipeline::flatten();
     }
 
     // private constructor III (non-incremental MAP phase and incremental REDUCE phase)
@@ -320,7 +320,7 @@ private:
         }
         // check the validity of the reduce parallelism degree
         if (_reduce_degree == 0) {
-            cerr << RED << "WindFlow Error: reduce parallelism degree cannot be zero" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: parallelism degree of the REDUCE cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // general fastflow pointers to the MAP and REDUCE stages
@@ -355,7 +355,7 @@ private:
         if (_reduce_degree > 1) {
             // configuration structure of the Win_Farm instance (REDUCE)
             PatternConfig configWFREDUCE(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceUpdate, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", _ordered, configWFREDUCE, REDUCE);
+            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceUpdate, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", _ordered, LEVEL0, configWFREDUCE, REDUCE);
             reduce_stage = farm_reduce;
         }
         else {
@@ -369,7 +369,7 @@ private:
         // when the Win_MapReduce will be destroyed we need aslo to destroy the two internal stages
         ff_pipeline::cleanup_nodes();
         // flatten the pipeline
-        //ff_pipeline::flatten();
+        ff_pipeline::flatten();
     }
 
     // private constructor IV (incremental MAP phase and non-incremental REDUCE phase)
@@ -411,7 +411,7 @@ private:
         }
         // check the validity of the reduce parallelism degree
         if (_reduce_degree == 0) {
-            cerr << RED << "WindFlow Error: reduce parallelism degree cannot be zero" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: parallelism degree of the REDUCE cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // general fastflow pointers to the MAP and REDUCE stages
@@ -446,7 +446,7 @@ private:
         if (_reduce_degree > 1) {
             // configuration structure of the Win_Farm instance (REDUCE)
             PatternConfig configWFREDUCE(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceFunction, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", _ordered, configWFREDUCE, REDUCE);
+            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceFunction, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", _ordered, LEVEL0, configWFREDUCE, REDUCE);
             reduce_stage = farm_reduce;
         }
         else {
@@ -460,7 +460,7 @@ private:
         // when the Win_MapReduce will be destroyed we need aslo to destroy the two internal stages
         ff_pipeline::cleanup_nodes();
         // flatten the pipeline
-        //ff_pipeline::flatten();
+        ff_pipeline::flatten();
     }
 
     // method to optimize the structure of the Win_MapReduce pattern
@@ -484,7 +484,7 @@ private:
                 ff_farm *farm_map = static_cast<ff_farm *>(map);
                 ff_farm *farm_reduce = static_cast<ff_farm *>(reduce);
                 emitter_reduce_t *emitter_reduce = static_cast<emitter_reduce_t *>(farm_reduce->getEmitter());
-                OrderingNode<result_t> *buf_node = new OrderingNode<result_t>(farm_map->getNWorkers());
+                OrderingNode<result_t, wrapper_tuple_t<result_t>> *buf_node = new OrderingNode<result_t, wrapper_tuple_t<result_t>>();
                 const ff_pipeline result = combine_farms(*farm_map, emitter_reduce, *farm_reduce, buf_node, false);
                 delete farm_map;
                 delete farm_reduce;
@@ -503,9 +503,9 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _map_degree number of Win_Seq instances in the MAP phase
+     *  \param _map_degree parallelism degree of the MAP stage
      *  \param _name string with the unique name of the pattern
-     *  \param _reduce_degree number of Win_Seq instances in the REDUCE phase
+     *  \param _reduce_degree parallelism degree of the REDUCE stage
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
      */ 
@@ -530,8 +530,8 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _map_degree number of Win_Seq instances in the MAP phase
-     *  \param _reduce_degree number of Win_Seq instances in the REDUCE phase
+     *  \param _map_degree parallelism degree of the MAP stage
+     *  \param _reduce_degree parallelism degree of the REDUCE stage
      *  \param _name string with the unique name of the pattern
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -557,8 +557,8 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _map_degree number of Win_Seq instances in the MAP phase
-     *  \param _reduce_degree number of Win_Seq instances in the REDUCE phase
+     *  \param _map_degree parallelism degree of the MAP stage
+     *  \param _reduce_degree parallelism degree of the REDUCE stage
      *  \param _name string with the unique name of the pattern
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -584,8 +584,8 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _map_degree number of Win_Seq instances in the MAP phase
-     *  \param _reduce_degree number of Win_Seq instances in the REDUCE phase
+     *  \param _map_degree parallelism degree of the MAP stage
+     *  \param _reduce_degree parallelism degree of the REDUCE stage
      *  \param _name string with the unique name of the pattern
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -603,8 +603,19 @@ public:
                   :
                   Win_MapReduce(_mapUpdate, _reduceFunction, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _name, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
 
-    /// Destructor
-    ~Win_MapReduce() {}
+    /** 
+     *  \brief Get the optimization level used to build the pattern
+     *  \return adopted utilization level by the pattern
+     */
+    opt_level_t getOptLevel() { return opt_level; }
+
+    /** 
+     *  \brief Get the window type (CB or TB) utilized by the pattern
+     *  \return adopted windowing semantics (count- or time-based)
+     */
+    win_type_t getWinType() { return winType; }
+
+//@cond DOXY_IGNORE
 
     // ------------------------- deleted method ---------------------------
     template<typename T>
@@ -620,6 +631,9 @@ public:
                      unsigned long retry=((unsigned long)-1),
                      unsigned long ticks=ff_node::TICKS2WAIT)     = delete;
     bool load_result_nb(void ** task)                             = delete;
+
+//@endcond
+
 };
 
 #endif

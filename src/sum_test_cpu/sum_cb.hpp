@@ -22,7 +22,7 @@
 // includes
 #include <string>
 #include <ff/node.hpp>
-#include <windflow.hpp>
+#include <basic.hpp>
 
 using namespace ff;
 using namespace std;

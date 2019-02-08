@@ -27,11 +27,9 @@
 // includes
 #include <string>
 #include <iostream>
-#include <ff/mapper.hpp>
-#include <ff/pipeline.hpp>
-#include <key_farm.hpp>
-#include <pane_farm.hpp>
-#include <sum_tb.hpp>
+#include <ff/ff.hpp>
+#include <windflow.hpp>
+#include "sum_tb.hpp"
 
 using namespace ff;
 using namespace std;

@@ -18,15 +18,18 @@
  *  @file    win_seq.hpp
  *  @author  Gabriele Mencagli
  *  @date    30/06/2017
- *  @version 1.0
  *  
- *  @brief Win_Seq pattern executing windowed queries on a multicore
+ *  @brief Win_Seq pattern executing a windowed transformation on a multi-core CPU
  *  
- *  @section DESCRIPTION
+ *  @section Win_Seq (Description)
  *  
  *  This file implements the Win_Seq pattern able to execute windowed queries on a
  *  multicore. The pattern executes streaming windows in a serial fashion on a CPU
  *  core and supports both a non-incremental and an incremental query definition.
+ *  
+ *  The template arguments tuple_t and result_t must be default constructible, with a copy constructor
+ *  and copy assignment operator, and they must provide and implement the setInfo() and
+ *  getInfo() methods.
  */ 
 
 #ifndef WIN_SEQ_H
@@ -47,18 +50,19 @@ using namespace ff;
 /** 
  *  \class Win_Seq
  *  
- *  \brief Win_Seq pattern executing windowed queries on a multicore
+ *  \brief Win_Seq pattern executing a windowed transformation on a multi-core CPU
  *  
  *  This class implements the Win_Seq pattern executing windowed queries on a multicore
- *  in a serial fashion. The pattern class has three template arguments. The first is the
- *  type of the input tuples. It must be copyable and providing the getInfo() and setInfo()
- *  methods. The second is the type of the window results. It must have a default constructor
- *  and the getInfo() and setInfo() methods. The third template argument is used by the
- *  WindFlow run-time system and should never be utilized by the high-level programmer.
+ *  in a serial fashion.
  */ 
 template<typename tuple_t, typename result_t, typename input_t>
 class Win_Seq: public ff_node_t<input_t, result_t>
 {
+public:
+    /// function type of the non-incremental window processing
+    using f_winfunction_t = function<int(size_t, uint64_t, Iterable<tuple_t> &, result_t &)>;
+    /// function type of the incremental window processing
+    using f_winupdate_t = function<int(size_t, uint64_t, const tuple_t &, result_t &)>;
 private:
     // const iterator type for accessing tuples
     using const_input_iterator_t = typename deque<tuple_t>::const_iterator;
@@ -66,10 +70,6 @@ private:
     using archive_t = StreamArchive<tuple_t, deque<tuple_t>>;
     // window type used by the Win_Seq pattern
     using win_t = Window<tuple_t, result_t>;
-    // function type of the non-incremental window processing
-    using f_winfunction_t = function<int(size_t, uint64_t, Iterable<tuple_t> &, result_t &)>;
-    // function type of the incremental window processing
-    using f_winupdate_t = function<int(size_t, uint64_t, const tuple_t &, result_t &)>;
     // function type to compare two tuples
     using f_compare_t = function<bool(const tuple_t &, const tuple_t &)>;
     // friendships with other classes in the library
@@ -112,9 +112,6 @@ private:
                        emit_counter(_k.emit_counter),
                        rcv_counter(_k.rcv_counter),
                        next_lwid(_k.next_lwid) {}
-
-        // destructor
-       ~Key_Descriptor() {}
     };
     f_winfunction_t winFunction; // function of the non-incremental window processing
     f_winupdate_t winUpdate; // function of the incremental window processing
@@ -253,8 +250,7 @@ public:
             :
             Win_Seq(_winUpdate, _win_len, _slide_len, _winType, _name, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ) {}
 
-    /// Destructor
-    ~Win_Seq() {}
+//@cond DOXY_IGNORE
 
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
@@ -288,7 +284,7 @@ public:
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
-        // check duplicate tuples
+        // check duplicate or out-of-order tuples
         if (key_d.rcv_counter == 0) {
             key_d.rcv_counter++;
             key_d.last_tuple = *t;
@@ -296,7 +292,7 @@ public:
         else {
             // tuples can be received only ordered by id/timestamp
             uint64_t last_id = (winType == CB) ? std::get<1>((key_d.last_tuple).getInfo()) : std::get<2>((key_d.last_tuple).getInfo());
-            if (id <= last_id) {
+            if (id < last_id) {
                 // the tuple is immediately deleted
                 deleteTuple<tuple_t, input_t>(wt);
                 return this->GO_ON;
@@ -326,10 +322,21 @@ public:
         if (win_len >= slide_len)
             last_w = ceil(((double) id + 1 - initial_id)/((double) slide_len)) - 1;
         // hopping windows
-        else
-            last_w = floor((double) (id-initial_id) / slide_len);
+        else {
+            uint64_t n = floor((double) (id-initial_id) / slide_len);
+            last_w = n;
+            // if the tuple does not belong to at least one window assigned to this Win_Seq instance
+            if ((id-initial_id < n*(slide_len)) || (id-initial_id >= (n*slide_len)+win_len)) {
+                // if it is not an EOS marker, we delete the tuple immediately
+                if (!isEOSMarker<tuple_t, input_t>(*wt)) {
+                    // delete the received tuple
+                    deleteTuple<tuple_t, input_t>(wt);
+                    return this->GO_ON;
+                }
+            }
+        }
         // copy the tuple into the archive of the corresponding key
-        if (!isEOSMarker<tuple_t, input_t>(*wt))
+        if (!isEOSMarker<tuple_t, input_t>(*wt) && isNIC)
             (key_d.archive).insert(*t);
         auto &wins = key_d.wins;
         // create all the new windows that need to be opened by the arrival of t
@@ -348,8 +355,8 @@ public:
             if (win.onTuple(*t) == CONTINUE) { // window is not fired yet
                 if (!isNIC && !isEOSMarker<tuple_t, input_t>(*wt)) {
                     // incremental query -> call winUpdate
-                    if (winUpdate(key, win.getGWID(), *t, *(win.getResult())) != 0) {
-                        cerr << RED << "WindFlow Error: winUpdate() call returns non-zero" << DEFAULT << endl;
+                    if (winUpdate(key, win.getGWID(), *t, *(win.getResult())) < 0) {
+                        cerr << RED << "WindFlow Error: winUpdate() call error (negative return value)" << DEFAULT << endl;
                         exit(EXIT_FAILURE);
                     }
                 }
@@ -374,8 +381,8 @@ public:
                     else
                         its = (key_d.archive).getWinRange(*t_s, *t_e);
                     Iterable<tuple_t> iter(its.first, its.second);
-                    if (winFunction(key, win.getGWID(), iter, *(win.getResult())) != 0) {
-                        cerr << RED << "WindFlow Error: winFunction() call returns non-zero" << DEFAULT << endl;
+                    if (winFunction(key, win.getGWID(), iter, *(win.getResult())) < 0) {
+                        cerr << RED << "WindFlow Error: winFunction() call error (negative return value)" << DEFAULT << endl;
                         exit(EXIT_FAILURE);
                     }
                 }
@@ -443,8 +450,8 @@ public:
                     else
                         its = ((k.second).archive).getWinRange(*t_s);
                     Iterable<tuple_t> iter(its.first, its.second);
-                    if (winFunction(k.first, win.getGWID(), iter, *(win.getResult())) != 0) {
-                        cerr << RED << "WindFlow Error: winFunction() call returns non-zero" << DEFAULT << endl;
+                    if (winFunction(k.first, win.getGWID(), iter, *(win.getResult())) < 0) {
+                        cerr << RED << "WindFlow Error: winFunction() call error (negative return value)" << DEFAULT << endl;
                         exit(EXIT_FAILURE);
                     }
                 }
@@ -491,6 +498,14 @@ public:
         logfile.close();
 #endif
     }
+
+//@endcond
+
+    /** 
+     *  \brief Get the window type (CB or TB) utilized by the pattern
+     *  \return adopted windowing semantics (count- or time-based)
+     */
+    win_type_t getWinType() { return winType; }
 
     /// Method to start the pattern execution asynchronously
     virtual int run(bool)

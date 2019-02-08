@@ -18,11 +18,10 @@
  *  @file    kf_nodes.hpp
  *  @author  Gabriele Mencagli
  *  @date    02/10/2018
- *  @version 1.0
  *  
  *  @brief Emitter and Collector nodes of the Key_Farm and Key_Farm_GPU patterns
  *  
- *  @section DESCRIPTION
+ *  @section Key_Farm_Nodes (Description)
  *  
  *  This file implements the Emitter and the Collector nodes used in the Key_Farm
  *  and Key_Farm_GPU patterns in the library.
@@ -34,11 +33,15 @@
 // includes
 #include <ff/multinode.hpp>
 
+using namespace ff;
+
 // class KF_Emitter
-template<typename tuple_t>
-class KF_Emitter: public ff_monode_t<tuple_t, tuple_t>
+template<typename tuple_t, typename input_t=tuple_t>
+class KF_Emitter: public ff_monode_t<input_t, wrapper_tuple_t<tuple_t>>
 {
 private:
+    // type of the wrapper of input tuples
+    using wrapper_in_t = wrapper_tuple_t<tuple_t>;
     // function type to map the key onto an identifier starting from zero to pardegree-1
     using f_routing_t = function<size_t(size_t, size_t)>;
     // friendships with other classes in the library
@@ -46,6 +49,7 @@ private:
     friend class Key_Farm;
     template<typename T1, typename T2, typename T3, typename T4>
     friend class Key_Farm_GPU;
+    friend class Pipe;
     f_routing_t routing; // routing function
     size_t pardegree; // parallelism degree (number of inner patterns)
     vector<size_t> to_workers; // vector of identifiers used for scheduling purposes
@@ -54,9 +58,6 @@ private:
     KF_Emitter(f_routing_t _routing, size_t _pardegree):
                routing(_routing), pardegree(_pardegree), to_workers(_pardegree) {}
 
-    // destructor
-    ~KF_Emitter() {}
-
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
     {
@@ -64,13 +65,16 @@ private:
     }
 
     // svc method (utilized by the FastFlow runtime)
-    tuple_t *svc(tuple_t *t)
+    wrapper_in_t *svc(input_t *wt)
     {
-        // extract the key field from the input tuple
+        // extract the key from the input tuple
+        tuple_t *t = extractTuple<tuple_t, input_t>(wt);
         size_t key = std::get<0>(t->getInfo()); // key
         // evaluate the routing function
         size_t dest_w = routing(key, pardegree);
-        this->ff_send_out_to(t, dest_w);
+        // prepare the wrapper to be sent
+        wrapper_in_t *out = prepareWrapper<input_t, wrapper_in_t>(wt, 1);
+        this->ff_send_out_to(out, dest_w);
         return this->GO_ON;
     }
 
@@ -97,17 +101,12 @@ private:
         // constructor
         Key_Descriptor(): next_win(0) {}
 
-        // destructor
-        ~Key_Descriptor() {}
     };
     // hash table that maps key identifiers onto key descriptors
     unordered_map<size_t, Key_Descriptor> keyMap;
 
     // private constructor
     KF_NestedCollector() {}
-
-    // destructor
-    ~KF_NestedCollector() {}
 
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()

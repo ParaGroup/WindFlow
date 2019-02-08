@@ -18,11 +18,10 @@
  *  @file    pane_farm_gpu.hpp
  *  @author  Gabriele Mencagli
  *  @date    22/05/2018
- *  @version 1.0
  *  
- *  @brief Pane_Farm_GPU pattern executing windowed queries on a heterogeneous system (CPU+GPU)
+ *  @brief Pane_Farm_GPU pattern executing a windowed transformation in parallel on a CPU+GPU system
  *  
- *  @section DESCRIPTION
+ *  @section Pane_Farm_GPU (Description)
  *  
  *  This file implements the Pane_Farm_GPU pattern able to execute windowed queries on a heterogeneous
  *  system (CPU+GPU). The pattern processes (possibly in parallel) panes of the windows in the so-called
@@ -31,12 +30,17 @@
  *  are not recomputed by saving processing time. The pattern allows the user to offload either the PLQ
  *  or the WLQ processing on the GPU while the other stage is executed on the CPU with either a non-incremental
  *  or an incremental query definition.
+ *  
+ *  The template arguments tuple_t and result_t must be default constructible, with a copy constructor
+ *  and copy assignment operator, and they must provide and implement the setInfo() and
+ *  getInfo() methods. The third template argument F_t is the type of the callable object to be used for GPU
+ *  processing (either for the PLQ or for the WLQ stage).
  */ 
 
 #ifndef PANE_FARM_GPU_H
 #define PANE_FARM_GPU_H
 
-/// includes
+// includes
 #include <ff/combine.hpp>
 #include <ff/pipeline.hpp>
 #include <win_farm.hpp>
@@ -46,34 +50,28 @@
 /** 
  *  \class Pane_Farm_GPU
  *  
- *  \brief Pane_Farm_GPU pattern executing windowed queries on a heterogeneous system (CPU+GPU)
+ *  \brief Pane_Farm_GPU pattern executing a windowed transformation in parallel on a CPU+GPU system
  *  
  *  This class implements the Pane_Farm_GPU pattern executing windowed queries in parallel on
  *  a heterogeneous system (CPU+GPU). The pattern processes (possibly in parallel) panes in the
  *  PLQ stage while window results are built out from the pane results (possibly in parallel)
  *  in the WLQ stage. Either the PLQ or the WLQ stage are executed on the GPU device while the
- *  others is executed on the CPU as in the Pane_Farm pattern. The pattern class has four
- *  template arguments. The first is the type of the input tuples. It must be copyable and
- *  providing the getInfo() and setInfo() methods. The second is the type of the window results.
- *  It must have a default constructor and the getInfo() and setInfo() methods. The first and the
- *  second types must be POD C++ types (Plain Old Data). The third template argument is the type of
- *  the function to process per pane/window. It must be declared in order to be executable both
- *  on the device (GPU) and on the CPU. The last template argument is used by the WindFlow run-time
- *  system and should never be utilized by the high-level programmer.
+ *  others is executed on the CPU as in the Pane_Farm pattern.
  */ 
 template<typename tuple_t, typename result_t, typename F_t, typename input_t>
 class Pane_Farm_GPU: public ff_pipeline
 {
-private:
-    // function type of the non-incremental pane processing
+public:
+    /// function type of the non-incremental pane processing
     using f_plqfunction_t = function<int(size_t, uint64_t, Iterable<tuple_t> &, result_t &)>;
-    // Function type of the incremental pane processing
+    /// Function type of the incremental pane processing
     using f_plqupdate_t = function<int(size_t, uint64_t, const tuple_t &, result_t &)>;
-    // function type of the non-incremental window processing
+    /// function type of the non-incremental window processing
     using f_wlqfunction_t = function<int(size_t, uint64_t, Iterable<result_t> &, result_t &)>;
-    // function type of the incremental window function
+    /// function type of the incremental window function
     using f_wlqupdate_t = function<int(size_t, uint64_t, const result_t &, result_t &)>;
-    /// friendships with other classes in the library
+private:
+    // friendships with other classes in the library
     template<typename T1, typename T2, typename T3, typename T4>
     friend class Win_Farm_GPU;
     template<typename T1, typename T2, typename T3, typename T4>
@@ -177,7 +175,7 @@ private:
         if (_plq_degree > 1) {
             // configuration structure of the Win_Farm_GPU instance (PLQ)
             PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *plq_wf = new Win_Farm_GPU<tuple_t, result_t, F_t, input_t>(_gpuFunction, _pane_len, _pane_len, _winType, 1, _plq_degree, _batch_len, _n_thread_block, _name + "_plq", _scratchpad_size, true, configWFPLQ, PLQ);
+            auto *plq_wf = new Win_Farm_GPU<tuple_t, result_t, F_t, input_t>(_gpuFunction, _pane_len, _pane_len, _winType, 1, _plq_degree, _batch_len, _n_thread_block, _name + "_plq", _scratchpad_size, true, LEVEL0, configWFPLQ, PLQ);
             plq_stage = plq_wf;
         }
         else {
@@ -190,7 +188,7 @@ private:
         if (_wlq_degree > 1) {
             // configuration structure of the Win_Farm instance (WLQ)
             PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqFunction, (_win_len/_pane_len), (_slide_len/_pane_len), CB, 1, _wlq_degree, _name + "_wlq", _ordered, configWFWLQ, WLQ);
+            auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqFunction, (_win_len/_pane_len), (_slide_len/_pane_len), CB, 1, _wlq_degree, _name + "_wlq", _ordered, LEVEL0, configWFWLQ, WLQ);
             wlq_stage = wlq_wf;
         }
         else {
@@ -204,7 +202,7 @@ private:
         // when the Pane_Farm_GPU will be destroyed we need aslo to destroy the two stages
         ff_pipeline::cleanup_nodes();
         // flatten the pipeline
-        //ff_pipeline::flatten();
+        ff_pipeline::flatten();
     }
 
     // private constructor II (PLQ stage on the GPU and WLQ stage on the CPU with incremental query definition)
@@ -270,7 +268,7 @@ private:
         if (_plq_degree > 1) {
             // configuration structure of the Win_Farm_GPU instance (PLQ)
             PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *plq_wf = new Win_Farm_GPU<tuple_t, result_t, F_t, input_t>(_gpuFunction, _pane_len, _pane_len, _winType, 1, _plq_degree, _batch_len, _n_thread_block, _name + "_plq", _scratchpad_size, true, configWFPLQ, PLQ);
+            auto *plq_wf = new Win_Farm_GPU<tuple_t, result_t, F_t, input_t>(_gpuFunction, _pane_len, _pane_len, _winType, 1, _plq_degree, _batch_len, _n_thread_block, _name + "_plq", _scratchpad_size, true, LEVEL0, configWFPLQ, PLQ);
             plq_stage = plq_wf;
         }
         else {
@@ -283,7 +281,7 @@ private:
         if (_wlq_degree > 1) {
             // configuration structure of the Win_Farm instance (WLQ)
             PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqUpdate, (_win_len/_pane_len), (_slide_len/_pane_len), CB, 1, _wlq_degree, _name + "_wlq", _ordered, configWFWLQ, WLQ);
+            auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqUpdate, (_win_len/_pane_len), (_slide_len/_pane_len), CB, 1, _wlq_degree, _name + "_wlq", _ordered, LEVEL0, configWFWLQ, WLQ);
             wlq_stage = wlq_wf;
         }
         else {
@@ -297,7 +295,7 @@ private:
         // when the Pane_Farm_GPU will be destroyed we need aslo to destroy the two stages
         ff_pipeline::cleanup_nodes();
         // flatten the pipeline
-        //ff_pipeline::flatten();
+        ff_pipeline::flatten();
     }
 
     // private constructor III (PLQ stage on the CPU with non-incremental query definition and WLQ stage on the GPU)
@@ -363,7 +361,7 @@ private:
         if (_plq_degree > 1) {
             // configuration structure of the Win_Farm instance (PLQ)
             PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqFunction, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", true, configWFPLQ, PLQ);
+            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqFunction, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", true, LEVEL0, configWFPLQ, PLQ);
             plq_stage = plq_wf;
         }
         else {
@@ -376,7 +374,7 @@ private:
         if (_wlq_degree > 1) {
             // configuration structure of the Win_Farm_GPU instance (WLQ)
             PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *wlq_wf = new Win_Farm_GPU<result_t, result_t, F_t>(_gpuFunction, (_win_len/_pane_len), (_slide_len/_pane_len), CB, 1, _wlq_degree, _batch_len, _n_thread_block, _name + "_wlq", scratchpad_size, _ordered, configWFWLQ, WLQ);
+            auto *wlq_wf = new Win_Farm_GPU<result_t, result_t, F_t>(_gpuFunction, (_win_len/_pane_len), (_slide_len/_pane_len), CB, 1, _wlq_degree, _batch_len, _n_thread_block, _name + "_wlq", scratchpad_size, _ordered, LEVEL0, configWFWLQ, WLQ);
             wlq_stage = wlq_wf;
         }
         else {
@@ -390,7 +388,7 @@ private:
         // when the Pane_Farm_GPU will be destroyed we need aslo to destroy the two stages
         ff_pipeline::cleanup_nodes();
         // flatten the pipeline
-        //ff_pipeline::flatten();
+        ff_pipeline::flatten();
     }
 
     // private constructor IV (PLQ stage on the CPU with incremental query definition and WLQ stage on the GPU)
@@ -456,7 +454,7 @@ private:
         if (_plq_degree > 1) {
             // configuration structure of the Win_Farm instance (PLQ)
             PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqUpdate, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", true, configWFPLQ, PLQ);
+            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqUpdate, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", true, LEVEL0, configWFPLQ, PLQ);
             plq_stage = plq_wf;
         }
         else {
@@ -469,7 +467,7 @@ private:
         if (_wlq_degree > 1) {
             // configuration structure of the Win_Farm_GPU instance (WLQ)
             PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *wlq_wf = new Win_Farm_GPU<result_t, result_t, F_t>(_gpuFunction, (_win_len/_pane_len), (_slide_len/_pane_len), CB, 1, _wlq_degree, _batch_len, _n_thread_block, _name + "_wlq", scratchpad_size, _ordered, configWFWLQ, WLQ);
+            auto *wlq_wf = new Win_Farm_GPU<result_t, result_t, F_t>(_gpuFunction, (_win_len/_pane_len), (_slide_len/_pane_len), CB, 1, _wlq_degree, _batch_len, _n_thread_block, _name + "_wlq", scratchpad_size, _ordered, LEVEL0, configWFWLQ, WLQ);
             wlq_stage = wlq_wf;
         }
         else {
@@ -483,7 +481,7 @@ private:
         // when the Pane_Farm_GPU will be destroyed we need aslo to destroy the two stages
         ff_pipeline::cleanup_nodes();
         // flatten the pipeline
-        //ff_pipeline::flatten();
+        ff_pipeline::flatten();
     }
 
     // method to optimize the structure of the Pane_Farm_GPU pattern
@@ -519,7 +517,7 @@ private:
                 ff_farm *farm_plq = static_cast<ff_farm *>(plq);
                 ff_farm *farm_wlq = static_cast<ff_farm *>(wlq);
                 emitter_wlq_t *emitter_wlq = static_cast<emitter_wlq_t *>(farm_wlq->getEmitter());
-                OrderingNode<result_t> *buf_node = new OrderingNode<result_t>(farm_plq->getNWorkers());
+                OrderingNode<result_t, wrapper_tuple_t<result_t>> *buf_node = new OrderingNode<result_t, wrapper_tuple_t<result_t>>();
                 const ff_pipeline result = combine_farms(*farm_plq, emitter_wlq, *farm_wlq, buf_node, false);
                 delete farm_plq;
                 delete farm_wlq;
@@ -538,8 +536,8 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _plq_degree number of Win_Seq_GPU instances within the PLQ stage
-     *  \param _wlq_degree number of Win_Seq instances within the WLQ stage
+     *  \param _plq_degree parallelism degree of the PLQ stage
+     *  \param _wlq_degree parallelism degree of the WLQ stage
      *  \param _batch_len no. of panes in a batch (i.e. 1 pane mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. panes) per block
      *  \param _name string with the unique name of the pattern
@@ -571,8 +569,8 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _plq_degree number of Win_Seq instances in the PLQ stage
-     *  \param _wlq_degree number of Win_Seq instances in the WLQ stage
+     *  \param _plq_degree parallelism degree of the PLQ stage
+     *  \param _wlq_degree parallelism degree of the WLQ stage
      *  \param _batch_len no. of panes in a batch (i.e. 1 pane mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. panes) per block
      *  \param _name string with the unique name of the pattern
@@ -604,8 +602,8 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _plq_degree number of Win_Seq instances in the PLQ stage
-     *  \param _wlq_degree number of Win_Seq instances in the WLQ stage
+     *  \param _plq_degree parallelism degree of the PLQ stage
+     *  \param _wlq_degree parallelism degree of the WLQ stage
      *  \param _batch_len no. of panes in a batch (i.e. 1 pane mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. panes) per block
      *  \param _name string with the unique name of the pattern
@@ -637,8 +635,8 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _plq_degree number of Win_Seq instances in the PLQ stage
-     *  \param _wlq_degree number of Win_Seq instances in the WLQ stage
+     *  \param _plq_degree parallelism degree of the PLQ stage
+     *  \param _wlq_degree parallelism degree of the WLQ stage
      *  \param _batch_len no. of panes in a batch (i.e. 1 pane mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. panes) per block
      *  \param _name string with the unique name of the pattern
@@ -662,8 +660,19 @@ public:
                   :
                   Pane_Farm_GPU(_plqUpdate, _wlqFunction, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
 
-    /// destructor
-    ~Pane_Farm_GPU() {}
+    /** 
+     *  \brief Get the optimization level used to build the pattern
+     *  \return adopted utilization level by the pattern
+     */
+    opt_level_t getOptLevel() { return opt_level; }
+
+    /** 
+     *  \brief Get the window type (CB or TB) utilized by the pattern
+     *  \return adopted windowing semantics (count- or time-based)
+     */
+    win_type_t getWinType() { return winType; }
+
+//@cond DOXY_IGNORE
 
     // ------------------------- deleted method ---------------------------
     int  add_stage(ff_node *s)                                    = delete;
@@ -676,6 +685,9 @@ public:
                      unsigned long retry=((unsigned long)-1),
                      unsigned long ticks=ff_node::TICKS2WAIT)     = delete;
     bool load_result_nb(void ** task)                             = delete;
+
+//@endcond
+
 };
 
 #endif
