@@ -31,6 +31,9 @@ filter_test:
 flatmap_test:
 	$(MAKE) flatmap_test -C src
 
+accumulator_test:
+	$(MAKE) accumulator_test -C src
+
 sum_test_cpu:
 	$(MAKE) sum_test_cpu -C src
 
@@ -43,6 +46,9 @@ sink_test:
 pipe_test_cpu:
 	$(MAKE) pipe_test_cpu -C src
 
+pipe_test_gpu:
+	$(MAKE) pipe_test_gpu -C src
+
 spatial_test:
 	$(MAKE) spatial_test -C src
 
@@ -53,4 +59,4 @@ clean:
 	$(MAKE) clean -C src
 
 .DEFAULT_GOAL := all
-.PHONY: all source_test map_test filter_test flatmap_test sum_test_cpu sum_test_gpu sink_test pipe_test_cpu spatial_test yahoo_test_cpu clean
+.PHONY: all source_test map_test filter_test flatmap_test accumulator_test sum_test_cpu sum_test_gpu sink_test pipe_test_cpu pipe_test_gpu spatial_test yahoo_test_cpu clean
