@@ -163,7 +163,7 @@ public:
             w.push_back(seq);
         }
         ff_farm::add_workers(w);
-        // when the Map will be destroyed we need aslo to destroy the emitter and workers
+        // when the Sink will be destroyed we need aslo to destroy the emitter and workers
         ff_farm::cleanup_all();
     }
 

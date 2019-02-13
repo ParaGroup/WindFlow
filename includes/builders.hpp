@@ -67,7 +67,7 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _func host function to generate the stream elements
+     *  \param _func function to generate the stream elements
      */ 
     Source_Builder(F_t _func): func(_func) {}
 
@@ -149,7 +149,7 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _func host function implementing the boolean predicate
+     *  \param _func function implementing the boolean predicate
      */ 
     Filter_Builder(F_t _func): func(_func) {}
 
@@ -232,7 +232,7 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _func host function of the one-to-one transformation
+     *  \param _func function of the one-to-one transformation
      */ 
     Map_Builder(F_t _func): func(_func) {}
 
@@ -315,7 +315,7 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _func host function of the one-to-any transformation
+     *  \param _func function of the one-to-any transformation
      */ 
     FlatMap_Builder(F_t _func): func(_func) {}
 
@@ -377,6 +377,103 @@ public:
 };
 
 /** 
+ *  \class Accumulator_Builder
+ *  
+ *  \brief Builder of the Accumulator pattern
+ *  
+ *  Builder class to ease the creation of the Accumulator pattern.
+ */ 
+template<typename F_t>
+class Accumulator_Builder
+{
+private:
+    F_t func;
+    // type of the pattern to be created by this builder
+    using accumulator_t = Accumulator<decltype(get_tuple_t(func)), decltype(get_result_t(func))>;
+    // type of the routing function
+    using routing_F_t = function<size_t(size_t, size_t)>;
+    uint64_t pardegree = 1;
+    string name = "anonymous_accumulator";
+    routing_F_t routing_F = [](size_t k, size_t n) { return k%n; };
+
+public:
+    /** 
+     *  \brief Constructor
+     *  
+     *  \param _func function implementing the reduce/fold
+     */ 
+    Accumulator_Builder(F_t _func): func(_func) {}
+
+    /** 
+     *  \brief Method to specify the name of the Accumulator pattern
+     *  
+     *  \param _name string with the name to be given
+     *  \return the object itself
+     */ 
+    Accumulator_Builder<F_t>& withName(string _name)
+    {
+        name = _name;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to specify the number of parallel instances within the Accumulator pattern
+     *  
+     *  \param _pardegree number of parallel instances
+     *  \return the object itself
+     */ 
+    Accumulator_Builder<F_t>& withParallelism(size_t _pardegree)
+    {
+        pardegree = _pardegree;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to specify the routing function of input tuples to the internal patterns
+     *  
+     *  \param _routing_F routing function to be used
+     *  \return the object itself
+     */ 
+    Accumulator_Builder<F_t>& withRouting(routing_F_t _routing_F)
+    {
+        routing_F = _routing_F;
+        return *this;
+    }
+
+#if __cplusplus >= 201703L
+    /** 
+     *  \brief Method to create the Accumulator pattern (only C++17)
+     *  
+     *  \return a copy of the created Accumulator pattern
+     */ 
+    accumulator_t build()
+    {
+        return accumulator_t(func, pardegree, name, routing_F); // copy elision in C++17
+    }
+#endif
+
+    /** 
+     *  \brief Method to create the Accumulator pattern
+     *  
+     *  \return a pointer to the created Accumulator pattern (to be explicitly deallocated/destroyed)
+     */ 
+    accumulator_t *build_ptr()
+    {
+        return new accumulator_t(func, pardegree, name, routing_F);
+    }
+
+    /** 
+     *  \brief Method to create the Accumulator pattern
+     *  
+     *  \return a unique_ptr to the created Accumulator pattern
+     */ 
+    unique_ptr<accumulator_t> build_unique()
+    {
+        return make_unique<accumulator_t>(func, pardegree, name, routing_F);
+    }
+};
+
+/** 
  *  \class WinSeq_Builder
  *  
  *  \brief Builder of the Win_Seq pattern
@@ -400,7 +497,7 @@ public:
 	/** 
      *  \brief Constructor
      *  
-     *  \param _func non-incremental/incremental host function
+     *  \param _func non-incremental/incremental function
      */ 
     WinSeq_Builder(F_t _func): func(_func) {}
 
@@ -654,7 +751,7 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _input can be either a host function or an already instantiated Pane_Farm or Win_MapReduce pattern.
+     *  \param _input can be either a function or an already instantiated Pane_Farm or Win_MapReduce pattern.
      */ 
     WinFarm_Builder(T _input): input(_input)
     {
@@ -1045,7 +1142,7 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _input can be either a host function or an already instantiated Pane_Farm or Win_MapReduce pattern.
+     *  \param _input can be either a function or an already instantiated Pane_Farm or Win_MapReduce pattern.
      */ 
     KeyFarm_Builder(T _input): input(_input)
     {
@@ -1386,8 +1483,8 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _func_F non-incremental/incremental host function for the PLQ stage
-     *  \param _func_G non-incremental/incremental host function for the WLQ stage
+     *  \param _func_F non-incremental/incremental function for the PLQ stage
+     *  \param _func_G non-incremental/incremental function for the WLQ stage
      */ 
     PaneFarm_Builder(F_t _func_F, G_t _func_G): func_F(_func_F), func_G(_func_G) {}
 
@@ -1699,8 +1796,8 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _func_F non-incremental/incremental host function for the MAP stage
-     *  \param _func_G non-incremental/incremental host function for the REDUCE stage
+     *  \param _func_F non-incremental/incremental function for the MAP stage
+     *  \param _func_G non-incremental/incremental function for the REDUCE stage
      */ 
     WinMapReduce_Builder(F_t _func_F, G_t _func_G): func_F(_func_F), func_G(_func_G) {}
 
@@ -2004,7 +2101,7 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _func host function to absorb the stream elements
+     *  \param _func function to absorb the stream elements
      */ 
     Sink_Builder(F_t _func): func(_func) {}
 

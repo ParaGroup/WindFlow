@@ -36,8 +36,9 @@
 // includes
 #include <string>
 #include <ff/node.hpp>
-#include <ff/farm.hpp>
+#include <ff/all2all.hpp>
 #include <ff/multinode.hpp>
+#include <dummy.hpp>
 #include <shipper.hpp>
 #include <builders.hpp>
 
@@ -51,54 +52,32 @@ using namespace ff;
  *  This class implements the Source pattern generating a data stream of items.
  */ 
 template<typename tuple_t>
-class Source: public ff_farm
+class Source: public ff_a2a
 {
 public:
-    /// type of the generation function (tuple-by-tuple version also called one-to-one or "o2o")
+    /// type of the generation function (one-to-one version, briefly "o2o")
     using source_o2o_func_t = function<bool(tuple_t &)>;
     /// type of the generation function (single-loop version)
     using source_sloop_func_t = function<void(Shipper<tuple_t>&)>;
     // friendships with other classes in the library
     friend class Pipe;
 private:
-    // class Source_Emitter
-    class Source_Emitter: public ff_monode_t<tuple_t>
-    {
-    public:
-        // Constructor
-        Source_Emitter() {}
-
-        // svc_init method (utilized by the FastFlow runtime)
-        int svc_init() {}
-
-        // svc_init method (utilized by the FastFlow runtime)
-        tuple_t *svc(tuple_t *)
-        {
-            // its role is only to start the Source_Node instances and then it dies
-            this->broadcast_task(this->GO_ON);
-            return this->EOS;
-        }
-
-        // svc_end method (utilized by the FastFlow runtime)
-        void svc_end() {}
-    };
     // class Source_Node
     class Source_Node: public ff_node_t<tuple_t>
     {
     private:
-        source_o2o_func_t source_func_o2o; // generation function (tuple-by-tuple version)
+        source_o2o_func_t source_func_o2o; // generation function (one-to-one version)
         source_sloop_func_t source_func_sloop; // generation function (single-loop version)
         string name; // string of the unique name of the pattern
-        bool isO2O; // flag stating whether we are using the tuple-by-tuple generation function
+        bool isO2O; // flag stating whether we are using the one-to-one generation function
         bool isEND; // flag stating whether the Source_Node has completed to generate items (used only for the single-loop generation)
-        // shipper object used for the delivery of results
-        Shipper<tuple_t> shipper;
+        Shipper<tuple_t> shipper; // shipper object used for the delivery of results (single-loop generation)
 #if defined(LOG_DIR)
         unsigned long sentTuples = 0;
         ofstream logfile;
 #endif
     public:
-        // Constructor I (tuple-by-tuple version)
+        // Constructor I (one-to-one version)
         Source_Node(source_o2o_func_t _source_func_o2o, string _name): source_func_o2o(_source_func_o2o), name(_name), isO2O(true), isEND(false), shipper(*this) {}
 
         // Constructor II (single-loop version)
@@ -125,11 +104,11 @@ private:
                 else {
                     // allocate the new tuple to be sent
                     tuple_t *t = new tuple_t();
-                    isEND = !source_func_o2o(*t); // call the tuple-by-tuple generation function
-    #if defined (LOG_DIR)
+                    isEND = !source_func_o2o(*t); // call the one-to-one generation function
+#if defined (LOG_DIR)
                     sentTuples++;
-    #endif
-                    return t;                
+#endif
+                    return t;           
                 }
             }
             // single-loop version
@@ -159,9 +138,9 @@ private:
 
 public:
     /** 
-     *  \brief Constructor I (tuple-by-tuple version)
+     *  \brief Constructor I (one-to-one version)
      *  
-     *  \param _func generation function (tuple-by-tuple version)
+     *  \param _func generation function (one-to-one version)
      *  \param _pardegree parallelism degree of the Source pattern
      *  \param _name string with the unique name of the Source pattern
      */ 
@@ -172,19 +151,16 @@ public:
             cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
-        // add emitter
-        ff_farm::add_emitter(new Source_Emitter());
         // vector of Source_Node instances
-        vector<ff_node *> w;
+        vector<ff_node *> first_set;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new Source_Node(_func, _name);
-            w.push_back(seq);
+            first_set.push_back(seq);
         }
-        ff_farm::add_workers(w);
-        // add default collector
-        ff_farm::add_collector(nullptr);
-        // when the Map will be destroyed we need aslo to destroy the emitter, workers and collector
-        ff_farm::cleanup_all();
+        ff_a2a::add_firstset(first_set, 0, true);
+        vector<ff_node *> second_set;
+        second_set.push_back(new dummy_collector());
+        ff_a2a::add_secondset(second_set, true);
     }
 
     /** 
@@ -201,47 +177,31 @@ public:
             cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
-        // add emitter
-        ff_farm::add_emitter(new Source_Emitter());
         // vector of Source_Node instances
-        vector<ff_node *> w;
+        vector<ff_node *> first_set;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new Source_Node(_func, _name);
-            w.push_back(seq);
+            first_set.push_back(seq);
         }
-        ff_farm::add_workers(w);
-        // add default collector
-        ff_farm::add_collector(nullptr);
-        // when the Map will be destroyed we need aslo to destroy the emitter, workers and collector
-        ff_farm::cleanup_all();
+        ff_a2a::add_firstset(first_set, 0, true);
+        vector<ff_node *> second_set;
+        second_set.push_back(new dummy_collector());
+        ff_a2a::add_secondset(second_set, true);
     }
 
 //@cond DOXY_IGNORE
 
     // -------------------------------------- deleted methods ----------------------------------------
-    template<typename T>
-    int add_emitter(T *e)                                                                    = delete;
-    template<typename T>
-    int add_emitter(const T &e)                                                              = delete;
-    template<typename T>
-    int change_emitter(T *e, bool cleanup=false)                                             = delete;
-    template<typename T>
-    int change_emitter(const T &e, bool cleanup=false)                                       = delete;
-    void set_ordered(const size_t MemoryElements=DEF_OFARM_ONDEMAND_MEMORY)                  = delete;
-    int add_workers(std::vector<ff_node *> &w)                                               = delete;
-    int add_collector(ff_node *c, bool cleanup=false)                                        = delete;
-    int wrap_around(bool multi_input=false)                                                  = delete;
-    int remove_collector()                                                                   = delete;
-    void cleanup_workers()                                                                   = delete;
-    void cleanup_all()                                                                       = delete;
-    bool offload(void *task, unsigned long retry=((unsigned long)-1),
-        unsigned long ticks=ff_loadbalancer::TICKS2WAIT)                                     = delete;
-    bool load_result(void **task, unsigned long retry=((unsigned long)-1),
-        unsigned long ticks=ff_gatherer::TICKS2WAIT)                                         = delete;
-    bool load_result_nb(void **task)                                                         = delete;
-
-private:
-    using ff_farm::set_scheduling_ondemand;
+    int add_firstset(const std::vector<ff_node *> & w, int ondemand=0, bool cleanup=false)  = delete;
+    int add_secondset(const std::vector<ff_node *> & w, bool cleanup=false)                 = delete;
+    //void skipfirstpop(bool sk)                                                              = delete;
+    //void blocking_mode(bool blk=true)                                                       = delete;
+    //void no_mapping()                                                                       = delete;
+    ///void no_barrier()                                                                       = delete;
+    //int set_output(ff_node *node)                                                           = delete;
+    //void get_out_nodes(svector<ff_node*>&w)                                                 = delete;
+    //virtual void get_in_nodes(svector<ff_node*>&w)                                                  = delete;
+    int wrap_around()                                                                       = delete;
 
 //@endcond
 

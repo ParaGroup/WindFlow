@@ -37,6 +37,7 @@
 #include <math.h>
 #include <ff/ff.hpp>
 #include <basic.hpp>
+#include <dummy.hpp>
 #include <wm_nodes.hpp>
 #include <wf_nodes.hpp>
 #include <kf_nodes.hpp>
@@ -130,23 +131,11 @@ class Pipe: public ff_pipeline
 {
 private:
     // enumeration of the possible classes of patterns that may be part of this Multi-Pipe instance
-    enum pattern_types_t { SIMPLE, WINBASED };
+    enum pattern_types_t { SIMPLE, SHUFFLED };
 	string name; // string with the unique name of the Multi-Pipe instance
 	bool has_source; // true if the Multi-Pipe already has a Source instance
 	bool has_sink; // true if the Multi-Pipe ends with a Sink instance
 	ff_a2a *last; // pointer to the last matrioska present in the Multi-Pipe instance (implementation building-block)
-    // class of the dummy multi-output node (dummy_emitter)
-    class dummy_emitter: public ff_monode
-    {
-        // svc method (utilized by the FastFlow runtime)
-        void *svc(void *t) { return t; }
-    };
-    // class of the dummy multi-input node (dummy_collector)
-    class dummy_collector: public ff_minode
-    {
-        // svc method (utilized by the FastFlow runtime)
-        void *svc(void *t) { return t; }
-    };
     // class of the self-killer multi-input node (selfkiller_node)
     class selfkiller_node: public ff_minode
     {
@@ -189,13 +178,13 @@ private:
                 stage->add_stage(worker_set[i], false);
             }
         }
-        // Case 2: different cardinalities and/or WINBASED type -> shuffling connection
+        // Case 2: different cardinalities and/or SHUFFLED type -> shuffling connection
         else {
             // prepare the nodes of the first_set_m of the last matrioska for the shuffling
             auto first_set_m = last->getFirstSet();
             for (size_t i=0; i<first_set_m.size(); i++) {
                 ff_pipeline *stage = static_cast<ff_pipeline *>(first_set_m[i]);
-                if (_type == WINBASED) {
+                if (_type == SHUFFLED) {
                     emitter_t *tmp_e = static_cast<emitter_t *>(_pattern->getEmitter());
                     combine_with_laststage(*stage, new emitter_t(*tmp_e), true);
                 }
@@ -278,8 +267,8 @@ public:
         // create the initial matrioska
         ff_a2a *matrioska = new ff_a2a();
         vector<ff_node *> first_set;
-        auto workers = _source.getWorkers();
-        for (size_t i=0; i<_source.getNWorkers(); i++) {
+        auto workers = _source.getFirstSet();
+        for (size_t i=0; i<workers.size(); i++) {
             ff_pipeline *stage = new ff_pipeline();
             stage->add_stage(workers[i], false);
             first_set.push_back(stage);
@@ -380,6 +369,18 @@ public:
         return *this;
     }
 
+    /** 
+     *  \brief Add an Accumulator to the Multi-Pipe instance
+     *  \return the modified Multi-Pipe instance
+     */
+    template<typename tuple_t, typename result_t>
+    Pipe &add(Accumulator<tuple_t, result_t> &_acc)
+    {
+        // call the generic method to add the operator to the Multi-Pipe
+        add_operator<Accumulator_Emitter<tuple_t>, OrderingNode<tuple_t, tuple_t>>(&_acc, SHUFFLED, TS);
+        return *this;
+    }
+
 	/** 
      *  \brief Add a Win_Farm to the Multi-Pipe instance
      *  \return the modified Multi-Pipe instance
@@ -400,14 +401,14 @@ public:
         // check the type of the windows used by the Win_Farm pattern
         if (_wf.getWinType() == TB) { // time-based windows
             // call the generic method to add the operator to the Multi-Pipe
-            add_operator<WF_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, WINBASED, TS);
+            add_operator<WF_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, SHUFFLED, TS);
         }
         else { // count-based windows
             ff_farm *wf_farm = static_cast<ff_farm *>(&_wf);
             size_t n = (wf_farm->getWorkers()).size();
             wf_farm->change_emitter(new broadcast_node<tuple_t>(n));
             // call the generic method to add the operator to the Multi-Pipe
-            add_operator<broadcast_node<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, WINBASED, TS_RENUMBERING);
+            add_operator<broadcast_node<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, SHUFFLED, TS_RENUMBERING);
         }
     	return *this;
     }
@@ -432,14 +433,14 @@ public:
         // check the type of the windows used by the Win_Farm_GPU pattern
         if (_wf.getWinType() == TB) { // time-based windows
             // call the generic method to add the operator to the Multi-Pipe
-            add_operator<WF_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, WINBASED, TS);
+            add_operator<WF_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, SHUFFLED, TS);
         }
         else { // count-based windows
             ff_farm *wf_farm = static_cast<ff_farm *>(&_wf);
             size_t n = (wf_farm->getWorkers()).size();
             wf_farm->change_emitter(new broadcast_node<tuple_t>(n));
             // call the generic method to add the operator to the Multi-Pipe
-            add_operator<broadcast_node<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, WINBASED, TS_RENUMBERING);
+            add_operator<broadcast_node<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, SHUFFLED, TS_RENUMBERING);
         }
         return *this;
     }
@@ -459,11 +460,11 @@ public:
         // check the type of the windows used by the Key_Farm pattern
         if (_kf.getWinType() == TB) { // time-based windows
             // call the generic method to add the operator to the Multi-Pipe
-            add_operator<KF_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, WINBASED, TS);
+            add_operator<KF_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, SHUFFLED, TS);
         }
         else { // count-based windows
             // call the generic method to add the operator to the Multi-Pipe
-            add_operator<KF_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, WINBASED, TS_RENUMBERING);
+            add_operator<KF_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, SHUFFLED, TS_RENUMBERING);
         }
     	return *this;
     }
@@ -483,11 +484,11 @@ public:
         // check the type of the windows used by the Key_Farm_GPU pattern
         if (_kf.getWinType() == TB) { // time-based windows
             // call the generic method to add the operator to the Multi-Pipe
-            add_operator<KF_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, WINBASED, TS);
+            add_operator<KF_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, SHUFFLED, TS);
         }
         else { // count-based windows
             // call the generic method to add the operator to the Multi-Pipe
-            add_operator<KF_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, WINBASED, TS_RENUMBERING);
+            add_operator<KF_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, SHUFFLED, TS_RENUMBERING);
         }
         return *this;
     }
@@ -520,11 +521,11 @@ public:
             // check the type of the windows
             if (_pf.getWinType() == TB) { // time-based windows
                 // call the generic method to add the operator (PLQ stage) to the Multi-Pipe
-                add_operator<dummy_emitter, OrderingNode<tuple_t, tuple_t>>(plq, WINBASED, TS);
+                add_operator<dummy_emitter, OrderingNode<tuple_t, tuple_t>>(plq, SHUFFLED, TS);
             }
             else { // count-based windows
                 // call the generic method to add the operator (PLQ stage) to the Multi-Pipe
-                add_operator<dummy_emitter, OrderingNode<tuple_t, tuple_t>>(plq, WINBASED, TS_RENUMBERING);
+                add_operator<dummy_emitter, OrderingNode<tuple_t, tuple_t>>(plq, SHUFFLED, TS_RENUMBERING);
             }
             delete plq;
         }
@@ -533,13 +534,13 @@ public:
             // check the type of the windows
             if (_pf.getWinType() == TB) { // time-based windows
                 // call the generic method to add the operator (PLQ stage) to the Multi-Pipe
-                add_operator<WF_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, WINBASED, TS);
+                add_operator<WF_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, SHUFFLED, TS);
             }
             else { // count-based windows
                 size_t n = (plq->getWorkers()).size();
                 plq->change_emitter(new broadcast_node<tuple_t>(n));
                 // call the generic method to add the operator
-                add_operator<broadcast_node<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, WINBASED, TS_RENUMBERING);
+                add_operator<broadcast_node<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, SHUFFLED, TS_RENUMBERING);
             }
         }
         ff_farm *wlq = nullptr;
@@ -554,13 +555,13 @@ public:
             wlq->cleanup_emitter(true);
             wlq->cleanup_workers(false);
             // call the generic method to add the operator (WLQ stage) to the Multi-Pipe
-            add_operator<dummy_emitter, OrderingNode<result_t, result_t>>(wlq, WINBASED, ID);
+            add_operator<dummy_emitter, OrderingNode<result_t, result_t>>(wlq, SHUFFLED, ID);
             delete wlq;
         }
         else {
             wlq = static_cast<ff_farm *>(stages[1]);
             // call the generic method to add the operator (WLQ stage) to the Multi-Pipe
-            add_operator<WF_Emitter<result_t>, OrderingNode<result_t, wrapper_tuple_t<result_t>>>(wlq, WINBASED, ID);
+            add_operator<WF_Emitter<result_t>, OrderingNode<result_t, wrapper_tuple_t<result_t>>>(wlq, SHUFFLED, ID);
         }
     	return *this;
     }
@@ -593,11 +594,11 @@ public:
             // check the type of the windows
             if (_pf.getWinType() == TB) { // time-based windows
                 // call the generic method to add the operator (PLQ stage) to the Multi-Pipe
-                add_operator<dummy_emitter, OrderingNode<tuple_t, tuple_t>>(plq, WINBASED, TS);
+                add_operator<dummy_emitter, OrderingNode<tuple_t, tuple_t>>(plq, SHUFFLED, TS);
             }
             else { // count-based windows
                 // call the generic method to add the operator (PLQ stage) to the Multi-Pipe
-                add_operator<dummy_emitter, OrderingNode<tuple_t, tuple_t>>(plq, WINBASED, TS_RENUMBERING);
+                add_operator<dummy_emitter, OrderingNode<tuple_t, tuple_t>>(plq, SHUFFLED, TS_RENUMBERING);
             }
             delete plq;
         }
@@ -606,13 +607,13 @@ public:
             // check the type of the windows
             if (_pf.getWinType() == TB) { // time-based windows
                 // call the generic method to add the operator (PLQ stage) to the Multi-Pipe
-                add_operator<WF_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, WINBASED, TS);
+                add_operator<WF_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, SHUFFLED, TS);
             }
             else { // count-based windows
                 size_t n = (plq->getWorkers()).size();
                 plq->change_emitter(new broadcast_node<tuple_t>(n));
                 // call the generic method to add the operator
-                add_operator<broadcast_node<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, WINBASED, TS_RENUMBERING);
+                add_operator<broadcast_node<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, SHUFFLED, TS_RENUMBERING);
             }
         }
         ff_farm *wlq = nullptr;
@@ -627,13 +628,13 @@ public:
             wlq->cleanup_emitter(true);
             wlq->cleanup_workers(false);
             // call the generic method to add the operator (WLQ stage) to the Multi-Pipe
-            add_operator<dummy_emitter, OrderingNode<result_t, result_t>>(wlq, WINBASED, ID);
+            add_operator<dummy_emitter, OrderingNode<result_t, result_t>>(wlq, SHUFFLED, ID);
             delete wlq;
         }
         else {
             wlq = static_cast<ff_farm *>(stages[1]);
             // call the generic method to add the operator (WLQ stage) to the Multi-Pipe
-            add_operator<WF_Emitter<result_t>, OrderingNode<result_t, wrapper_tuple_t<result_t>>>(wlq, WINBASED, ID);
+            add_operator<WF_Emitter<result_t>, OrderingNode<result_t, wrapper_tuple_t<result_t>>>(wlq, SHUFFLED, ID);
         }
         return *this;
     }
@@ -657,7 +658,7 @@ public:
         // check the type of the windows
         if (_wmr.getWinType() == TB) { // time-based windows
             // call the generic method to add the operator (MAP stage) to the Multi-Pipe
-            add_operator<WinMap_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(map, WINBASED, TS);
+            add_operator<WinMap_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(map, SHUFFLED, TS);
         }
         else { // count-based windows
             size_t n_map = (map->getWorkers()).size();
@@ -674,7 +675,7 @@ public:
             new_map->cleanup_emitter(true);
             new_map->cleanup_workers(false);
             // call the generic method to add the operator (MAP stage) to the Multi-Pipe
-            add_operator<broadcast_node<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(new_map, WINBASED, TS_RENUMBERING);
+            add_operator<broadcast_node<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(new_map, SHUFFLED, TS_RENUMBERING);
             delete new_map;
         }
         // add the REDUCE stage
@@ -690,13 +691,13 @@ public:
             reduce->cleanup_emitter(true);
             reduce->cleanup_workers(false);
             // call the generic method to add the operator (REDUCE stage) to the Multi-Pipe
-            add_operator<dummy_emitter, OrderingNode<result_t, result_t>>(reduce, WINBASED, ID);
+            add_operator<dummy_emitter, OrderingNode<result_t, result_t>>(reduce, SHUFFLED, ID);
             delete reduce;
         }
         else {
             reduce = static_cast<ff_farm *>(stages[1]);
             // call the generic method to add the operator (REDUCE stage) to the Multi-Pipe
-            add_operator<WF_Emitter<result_t>, OrderingNode<result_t, wrapper_tuple_t<result_t>>>(reduce, WINBASED, ID);
+            add_operator<WF_Emitter<result_t>, OrderingNode<result_t, wrapper_tuple_t<result_t>>>(reduce, SHUFFLED, ID);
         }
         return *this;
     }
@@ -720,7 +721,7 @@ public:
         // check the type of the windows
         if (_wmr.getWinType() == TB) { // time-based windows
             // call the generic method to add the operator (MAP stage) to the Multi-Pipe
-            add_operator<WinMap_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(map, WINBASED, TS);
+            add_operator<WinMap_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(map, SHUFFLED, TS);
         }
         else { // count-based windows
             size_t n_map = (map->getWorkers()).size();
@@ -737,7 +738,7 @@ public:
             new_map->cleanup_emitter(true);
             new_map->cleanup_workers(false);
             // call the generic method to add the operator (MAP stage) to the Multi-Pipe
-            add_operator<broadcast_node<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(new_map, WINBASED, TS_RENUMBERING);
+            add_operator<broadcast_node<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(new_map, SHUFFLED, TS_RENUMBERING);
             delete new_map;
         }
         // add the REDUCE stage
@@ -753,13 +754,13 @@ public:
             reduce->cleanup_emitter(true);
             reduce->cleanup_workers(false);
             // call the generic method to add the operator (REDUCE stage) to the Multi-Pipe
-            add_operator<dummy_emitter, OrderingNode<result_t, result_t>>(reduce, WINBASED, ID);
+            add_operator<dummy_emitter, OrderingNode<result_t, result_t>>(reduce, SHUFFLED, ID);
             delete reduce;
         }
         else {
             reduce = static_cast<ff_farm *>(stages[1]);
             // call the generic method to add the operator (REDUCE stage) to the Multi-Pipe
-            add_operator<WF_Emitter<result_t>, OrderingNode<result_t, wrapper_tuple_t<result_t>>>(reduce, WINBASED, ID);
+            add_operator<WF_Emitter<result_t>, OrderingNode<result_t, wrapper_tuple_t<result_t>>>(reduce, SHUFFLED, ID);
         }
         return *this;
     }

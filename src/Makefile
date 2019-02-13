@@ -16,7 +16,7 @@
 # Author: Gabriele Mencagli <mencagli@di.unipi.it>
 # Date:   June 2017
 
-all: source_test map_test filter_test flatmap_test sum_test_cpu sum_test_gpu sink_test pipe_test_cpu spatial_test yahoo_test_cpu
+all: source_test map_test filter_test flatmap_test accumulator_test sum_test_cpu sum_test_gpu sink_test pipe_test_cpu spatial_test yahoo_test_cpu
 
 source_test:
 	$(MAKE) -C source_test
@@ -29,6 +29,9 @@ filter_test:
 
 flatmap_test:
 	$(MAKE) -C flatmap_test
+
+accumulator_test:
+	$(MAKE) -C accumulator_test
 
 sum_test_cpu:
 	$(MAKE) -C sum_test_cpu
@@ -53,6 +56,7 @@ clean:
 	$(MAKE) clean -C map_test
 	$(MAKE) clean -C filter_test
 	$(MAKE) clean -C flatmap_test
+	$(MAKE) clean -C accumulator_test
 	$(MAKE) clean -C sum_test_cpu
 	$(MAKE) clean -C sum_test_gpu
 	$(MAKE) clean -C sink_test
@@ -61,4 +65,4 @@ clean:
 	$(MAKE) clean -C yahoo_test_cpu
 	
 .DEFAULT_GOAL := all
-.PHONY: all source_test map_test filter_test flatmap_test sum_test_cpu sum_test_gpu sink_test pipe_test_cpu spatial_test yahoo_test_cpu clean
+.PHONY: all source_test map_test filter_test flatmap_test accumulator_test sum_test_cpu sum_test_gpu sink_test pipe_test_cpu spatial_test yahoo_test_cpu clean

@@ -188,7 +188,7 @@ int main(int argc, char *argv[])
     cout << CYAN << "(Test 3) Filter with functor" << DEFAULT << endl;
     Predicate_Functor<tuple_t> functor;
 	Generator generator3(stream_len);
-	// creation of the Map pattern
+	// creation of the Filter pattern
 	Filter filter3 = Filter_Builder(functor).withParallelism(pardegree)
 	                                          .withName("filter")
 						                      .build();

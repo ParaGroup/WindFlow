@@ -152,7 +152,7 @@ public:
         ff_farm::add_workers(w);
         // add default collector
         ff_farm::add_collector(nullptr);
-        // when the Map will be destroyed we need aslo to destroy the emitter, workers and collector
+        // when the Filter will be destroyed we need aslo to destroy the emitter, workers and collector
         ff_farm::cleanup_all();
     }
 

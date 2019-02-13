@@ -52,11 +52,10 @@ private:
     friend class Pipe;
     f_routing_t routing; // routing function
     size_t pardegree; // parallelism degree (number of inner patterns)
-    vector<size_t> to_workers; // vector of identifiers used for scheduling purposes
 
     // private constructor
     KF_Emitter(f_routing_t _routing, size_t _pardegree):
-               routing(_routing), pardegree(_pardegree), to_workers(_pardegree) {}
+               routing(_routing), pardegree(_pardegree) {}
 
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()

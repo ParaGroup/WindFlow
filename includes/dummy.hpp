@@ -15,36 +15,37 @@
  */
 
 /** 
- *  @file    windflow.hpp
+ *  @file    dummy.hpp
  *  @author  Gabriele Mencagli
- *  @date    28/01/2019
+ *  @date    12/02/2019
  *  
- *  @brief General header file of the WindFlow library
+ *  @brief Dummy nodes used by the WindFlow library
  *  
- *  @section General Header File
+ *  @section Dummy Nodes (Description)
  *  
- *  General header file to be included in any WindFlow program.
+ *  This file implements a set of dummy emitter and collector nodes used by the library.
  */ 
 
-#ifndef WINDFLOW_H
-#define WINDFLOW_H
+#ifndef DUMMY_H
+#define DUMMY_H
 
 // includes
-#include <builders.hpp>
-#include <source.hpp>
-#include <map.hpp>
-#include <filter.hpp>
-#include <flatmap.hpp>
-#include <accumulator.hpp>
-#include <win_seq.hpp>
-#include <win_farm.hpp>
-#include <key_farm.hpp>
-#include <pane_farm.hpp>
-#include <win_mapreduce.hpp>
-#include <pipe.hpp>
-#include <sink.hpp>
+#include <ff/multinode.hpp>
 
-// namespace
 using namespace ff;
+
+// class of the dummy multi-output node (dummy_emitter)
+class dummy_emitter: public ff_monode
+{
+    // svc method (utilized by the FastFlow runtime)
+    void *svc(void *t) { return t; }
+};
+
+// class of the dummy multi-input node (dummy_collector)
+class dummy_collector: public ff_minode
+{
+    // svc method (utilized by the FastFlow runtime)
+    void *svc(void *t) { return t; }
+};
 
 #endif

@@ -35,11 +35,17 @@
 
 using namespace ff;
 
-// global variable starting time of the execution
+// global variable: starting time of the execution
 volatile unsigned long start_time_usec;
 
-// global variable number of generated events
+// global variable: number of generated events
 atomic<int> sentCounter;
+
+// global variable: number of received results
+atomic<int> rcvResults;
+
+// global variable: sum of the latency values
+atomic<int> latency_sum;
 
 // Source functor
 class YSBSource
@@ -219,7 +225,10 @@ public:
             avgLatencyUs += current_time_usecs() - ((*res).lastUpdate + start_time_usec); 
         }
         else {
-            cout << "[Sink] Received " << received << " results, average latency (usec) " << avgLatencyUs/((double) received) << endl; 
+            //cout << "[Sink] Received " << received << " results, average latency (usec) " << avgLatencyUs/((double) received) << endl;
+            int value_lat = (int) avgLatencyUs;
+            latency_sum.fetch_add(value_lat);
+            rcvResults.fetch_add(received);
         }
     }
 };

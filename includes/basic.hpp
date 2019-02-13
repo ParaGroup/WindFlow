@@ -167,6 +167,10 @@ class Filter;
 template<typename tuple_t, typename result_t>
 class FlatMap;
 
+// forward declaration of the Accumulator pattern
+template<typename tuple_t, typename result_t>
+class Accumulator;
+
 // forward declaration of the Win_Seq pattern
 template<typename tuple_t, typename result_t, typename input_t=tuple_t>
 class Win_Seq;

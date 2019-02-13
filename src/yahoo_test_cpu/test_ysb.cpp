@@ -34,11 +34,17 @@
 #include <ysb_nodes.hpp>
 #include <campaign_generator.hpp>
 
-// global variable starting time of the execution
+// global variable: starting time of the execution
 extern volatile unsigned long start_time_usec;
 
-// global variable number of generated events
+// global variable: number of generated events
 extern atomic<int> sentCounter;
+
+// global variable: number of received results
+extern atomic<int> rcvResults;
+
+// global variable: sum of the latency values
+extern atomic<int> latency_sum;
 
 // main
 int main(int argc, char *argv[])
@@ -47,6 +53,10 @@ int main(int argc, char *argv[])
 	unsigned long exec_time_sec = 0;
 	size_t pardegree1 = 1;
     size_t pardegree2 = 1;
+    // initialize global variables
+    sentCounter = 0;
+    rcvResults = 0;
+    latency_sum = 0;
 	// arguments from command line
 	if (argc != 7) {
 		cout << argv[0] << " -l [execution_seconds] -n [par_degree] -m [par_degree]" << endl;
@@ -96,6 +106,8 @@ int main(int argc, char *argv[])
 	volatile unsigned long end_time_main_us = current_time_usecs();
 	double elapsed_time_sec = (end_time_main_us - start_time_main_us) / (1000000.0);
     cout << "[Main] Total generated messages are " << sentCounter << endl;
+    cout << "[Main] Total received results are " << rcvResults << endl;
+    cout << "[Main] Latency (usec) " << latency_sum/rcvResults << endl;
 	cout << "[Main] Total elapsed time (seconds) " << elapsed_time_sec << endl;
 
 #if 0
