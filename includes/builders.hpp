@@ -392,8 +392,11 @@ private:
     using accumulator_t = Accumulator<decltype(get_tuple_t(func)), decltype(get_result_t(func))>;
     // type of the routing function
     using routing_F_t = function<size_t(size_t, size_t)>;
+    // type of the result produced by the Accumulator instance
+    using result_t = decltype(get_result_t(func));
     uint64_t pardegree = 1;
     string name = "anonymous_accumulator";
+    result_t init_value;
     routing_F_t routing_F = [](size_t k, size_t n) { return k%n; };
 
 public:
@@ -413,6 +416,20 @@ public:
     Accumulator_Builder<F_t>& withName(string _name)
     {
         name = _name;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to specify the initial value for fold functions
+     *         (for reduce the initial value is the one obtained by the
+     *          default constructor of result_t)
+     *  
+     *  \param _init_value initial value
+     *  \return the object itself
+     */ 
+    Accumulator_Builder<F_t>& withInitialValue(result_t _init_value)
+    {
+        init_value = _init_value;
         return *this;
     }
 
@@ -448,7 +465,7 @@ public:
      */ 
     accumulator_t build()
     {
-        return accumulator_t(func, pardegree, name, routing_F); // copy elision in C++17
+        return accumulator_t(func, init_value, pardegree, name, routing_F); // copy elision in C++17
     }
 #endif
 
@@ -459,7 +476,7 @@ public:
      */ 
     accumulator_t *build_ptr()
     {
-        return new accumulator_t(func, pardegree, name, routing_F);
+        return new accumulator_t(func, init_value, pardegree, name, routing_F);
     }
 
     /** 
@@ -469,7 +486,7 @@ public:
      */ 
     unique_ptr<accumulator_t> build_unique()
     {
-        return make_unique<accumulator_t>(func, pardegree, name, routing_F);
+        return make_unique<accumulator_t>(func, init_value, pardegree, name, routing_F);
     }
 };
 

@@ -116,13 +116,14 @@ private:
         string name; // string of the unique name of the pattern
         bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
         RuntimeContext context; // RuntimeContext instance
+        result_t init_value; // initial value of the results
         // inner struct of a key descriptor
         struct Key_Descriptor
         {
             result_t result;
 
             // constructor
-            Key_Descriptor() {}
+            Key_Descriptor(result_t _init_value): result(_init_value) {}
         };
         // hash table that maps key identifiers onto key descriptors
         unordered_map<size_t, Key_Descriptor> keyMap;
@@ -135,10 +136,10 @@ private:
 #endif
     public:
         // Constructor I
-        Accumulator_Node(acc_func_t _acc_func, string _name): acc_func(_acc_func), name(_name), isRich(false) {}
+        Accumulator_Node(acc_func_t _acc_func, result_t _init_value, string _name): acc_func(_acc_func), init_value(_init_value), name(_name), isRich(false) {}
 
         // Constructor II
-        Accumulator_Node(rich_acc_func_t _rich_acc_func, string _name, RuntimeContext _context): rich_acc_func(_rich_acc_func), name(_name), isRich(true), context(_context) {}
+        Accumulator_Node(rich_acc_func_t _rich_acc_func, result_t _init_value, string _name, RuntimeContext _context): rich_acc_func(_rich_acc_func), init_value(_init_value), name(_name), isRich(true), context(_context) {}
 
         // svc_init method (utilized by the FastFlow runtime)
         int svc_init()
@@ -167,7 +168,7 @@ private:
             auto it = keyMap.find(key);
             if (it == keyMap.end()) {
                 // create the descriptor of that key
-                keyMap.insert(make_pair(key, Key_Descriptor()));
+                keyMap.insert(make_pair(key, Key_Descriptor(init_value)));
                 it = keyMap.find(key);
             }
             Key_Descriptor &key_d = (*it).second;
@@ -212,11 +213,12 @@ public:
      *  \brief Constructor I
      *  
      *  \param _func reduce/fold function
+     *  \param _init_value initial value to be used by the fold function (for reduce the initial value is the one obtained by the default constructor of result_t)
      *  \param _pardegree parallelism degree of the Accumulator pattern
      *  \param _name string with the unique name of the Accumulator pattern
      *  \param _routing function to map the key onto an identifier starting from zero to pardegree-1
      */ 
-    Accumulator(acc_func_t _func, size_t _pardegree, string _name, f_routing_t _routing=[](size_t k, size_t n) { return k%n; })
+    Accumulator(acc_func_t _func, result_t _init_value, size_t _pardegree, string _name, f_routing_t _routing=[](size_t k, size_t n) { return k%n; })
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -226,7 +228,7 @@ public:
         // vector of Accumulator_Node instances
         vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
-            auto *seq = new Accumulator_Node(_func, _name);
+            auto *seq = new Accumulator_Node(_func, _init_value, _name);
             w.push_back(seq);
         }
         ff_farm::add_emitter(new Accumulator_Emitter<tuple_t>(_routing, _pardegree));
@@ -241,11 +243,12 @@ public:
      *  \brief Constructor II
      *  
      *  \param _func rich reduce/fold function
+     *  \param _init_value initial value to be used by the fold function (for reduce the initial value is the one obtained by the default constructor of result_t)
      *  \param _pardegree parallelism degree of the Accumulator pattern
      *  \param _name string with the unique name of the Accumulator pattern
      *  \param _routing function to map the key onto an identifier starting from zero to pardegree-1
      */ 
-    Accumulator(rich_acc_func_t _func, size_t _pardegree, string _name, f_routing_t _routing=[](size_t k, size_t n) { return k%n; })
+    Accumulator(rich_acc_func_t _func, result_t _init_value, size_t _pardegree, string _name, f_routing_t _routing=[](size_t k, size_t n) { return k%n; })
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -255,7 +258,7 @@ public:
         // vector of Accumulator_Node instances
         vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
-            auto *seq = new Accumulator_Node(_func, _name, RuntimeContext(_pardegree, i));
+            auto *seq = new Accumulator_Node(_func, _init_value, _name, RuntimeContext(_pardegree, i));
             w.push_back(seq);
         }
         ff_farm::add_emitter(new Accumulator_Emitter<tuple_t>(_routing, _pardegree));
