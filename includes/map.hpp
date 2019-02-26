@@ -39,7 +39,7 @@
 #include <string>
 #include <ff/node.hpp>
 #include <ff/farm.hpp>
-#include <builders.hpp>
+#include <context.hpp>
 
 using namespace ff;
 
@@ -57,42 +57,63 @@ class Map: public ff_farm
 public:
     /// type of the map function (in-place version)
     using map_func_ip_t = function<void(tuple_t &)>;
+    /// type of the rich map function (in-place version)
+    using rich_map_func_ip_t = function<void(tuple_t &, RuntimeContext)>;
     /// type of the map function (not in-place version)
     using map_func_nip_t = function<void(const tuple_t &, result_t &)>;
+    /// type of the rich map function (not in-place version)
+    using rich_map_func_nip_t = function<void(const tuple_t &, result_t &, RuntimeContext)>;
 private:
+    // friendships with other classes in the library
+    friend class Pipe;
     // class Map_Node
     class Map_Node: public ff_node_t<tuple_t, result_t>
     {
     private:
         map_func_ip_t func_ip; // in-place map function
+        rich_map_func_ip_t rich_func_ip; // in-place rich map function
         map_func_nip_t func_nip; // not in-place map function
+        rich_map_func_nip_t rich_func_nip; // not in-place rich map function
         string name; // string of the unique name of the pattern
         bool isIP; // flag stating if the in-place map function should be used (otherwise the not in-place version)
+        bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
+        RuntimeContext context; // RuntimeContext instance
 #if defined(LOG_DIR)
         unsigned long rcvTuples = 0;
         double avg_td_us = 0;
         double avg_ts_us = 0;
         volatile unsigned long startTD, startTS, endTD, endTS;
-        ofstream logfile;
+        ofstream *logfile = nullptr;
 #endif
     public:
-        // Constructor I (in-place version)
+        // Constructor I
         template <typename T=string>
         Map_Node(typename enable_if<is_same<T,T>::value && is_same<tuple_t,result_t>::value, map_func_ip_t>::type _func, T _name):
-                 func_ip(_func), name(_name), isIP(true) {}
+                 func_ip(_func), name(_name), isIP(true), isRich(false) {}
 
-        // Constructor II (not in-place version)
+        // Constructor II
+        template <typename T=string>
+        Map_Node(typename enable_if<is_same<T,T>::value && is_same<tuple_t,result_t>::value, rich_map_func_ip_t>::type _func, T _name, RuntimeContext _context):
+                 rich_func_ip(_func), name(_name), isIP(true), isRich(true), context(_context) {}
+
+        // Constructor III
         template <typename T=string>
         Map_Node(typename enable_if<is_same<T,T>::value && !is_same<tuple_t,result_t>::value, map_func_nip_t>::type _func, T _name):
-                 func_nip(_func), name(_name), isIP(false) {}
+                 func_nip(_func), name(_name), isIP(false), isRich(false) {}
+
+        // Constructor IV
+        template <typename T=string>
+        Map_Node(typename enable_if<is_same<T,T>::value && !is_same<tuple_t,result_t>::value, rich_map_func_nip_t>::type _func, T _name, RuntimeContext _context):
+                 rich_func_nip(_func), name(_name), isIP(false), isRich(true), context(_context) {}
 
         // svc_init method (utilized by the FastFlow runtime)
         int svc_init()
         {
 #if defined(LOG_DIR)
+            logfile = new ofstream();
             name += "_node_" + to_string(ff_node_t<tuple_t, result_t>::get_my_id()) + ".log";
             string filename = string(STRINGIFY(LOG_DIR)) + "/" + name;
-            logfile.open(filename);
+            logfile->open(filename);
 #endif
             return 0;
         }
@@ -109,12 +130,18 @@ private:
             result_t *r;
             // in-place version
             if (isIP) {
-                func_ip(*t);
+                if (!isRich)
+                    func_ip(*t);
+                else
+                    rich_func_ip(*t, context);
                 r = reinterpret_cast<result_t *>(t);
             }
             else {
                 r = new result_t();
-                func_nip(*t, *r);
+                if (!isRich)
+                    func_nip(*t, *r);
+                else
+                    rich_func_nip(*t, *r, context);
                 delete t;
             }
 #if defined(LOG_DIR)
@@ -139,17 +166,18 @@ private:
             stream << "Average service time: " << avg_ts_us << " usec \n";
             stream << "Average inter-departure time: " << avg_td_us << " usec \n";
             stream << "***************************************************************************\n";
-            logfile << stream.str();
-            logfile.close();
+            *logfile << stream.str();
+            logfile->close();
+            delete logfile;
 #endif
         }
     };
 
 public:
     /** 
-     *  \brief Constructor I (in-place version, valid if tuple_t = result_t)
+     *  \brief Constructor I
      *  
-     *  \param _func a function/functor to be executed on each input tuple
+     *  \param _func function to be executed on each input tuple (in-place version)
      *  \param _pardegree parallelism degree of the Map pattern
      *  \param _name string with the unique name of the Map pattern
      */ 
@@ -175,9 +203,37 @@ public:
     }
 
     /** 
-     *  \brief Constructor II (not in-place version, valid if tuple_t != result_t)
+     *  \brief Constructor II
      *  
-     *  \param _func a function/functor to be executed on each input tuple
+     *  \param _func rich function to be executed on each input tuple (in-place version)
+     *  \param _pardegree parallelism degree of the Map pattern
+     *  \param _name string with the unique name of the Map pattern
+     */ 
+    template <typename T=size_t>
+    Map(typename enable_if<is_same<T,T>::value && is_same<tuple_t,result_t>::value, rich_map_func_ip_t>::type _func, T _pardegree, string _name)
+    {
+        // check the validity of the parallelism degree
+        if (_pardegree == 0) {
+            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // vector of Map_Node instances
+        vector<ff_node *> w;
+        for (size_t i=0; i<_pardegree; i++) {
+            auto *seq = new Map_Node(_func, _name, RuntimeContext(_pardegree, i));
+            w.push_back(seq);
+        }
+        ff_farm::add_workers(w);
+        // add default collector
+        ff_farm::add_collector(nullptr);
+        // when the Map will be destroyed we need aslo to destroy the emitter, workers and collector
+        ff_farm::cleanup_all();
+    }
+
+    /** 
+     *  \brief Constructor III
+     *  
+     *  \param _func function to be executed on each input tuple (not in-place version)
      *  \param _pardegree parallelism degree of the Map pattern
      *  \param _name string with the unique name of the Map pattern
      */ 
@@ -193,6 +249,34 @@ public:
         vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new Map_Node(_func, _name);
+            w.push_back(seq);
+        }
+        ff_farm::add_workers(w);
+        // add default collector
+        ff_farm::add_collector(nullptr);
+        // when the Map will be destroyed we need aslo to destroy the emitter, workers and collector
+        ff_farm::cleanup_all();
+    }
+
+    /** 
+     *  \brief Constructor IV
+     *  
+     *  \param _func rich function to be executed on each input tuple (not in-place version)
+     *  \param _pardegree parallelism degree of the Map pattern
+     *  \param _name string with the unique name of the Map pattern
+     */ 
+    template <typename T=size_t>
+    Map(typename enable_if<is_same<T,T>::value && !is_same<tuple_t,result_t>::value, rich_map_func_nip_t>::type _func, T _pardegree, string _name)
+    {
+        // check the validity of the parallelism degree
+        if (_pardegree == 0) {
+            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // vector of Map_Node instances
+        vector<ff_node *> w;
+        for (size_t i=0; i<_pardegree; i++) {
+            auto *seq = new Map_Node(_func, _name, RuntimeContext(_pardegree, i));
             w.push_back(seq);
         }
         ff_farm::add_workers(w);

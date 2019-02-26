@@ -124,6 +124,21 @@ public:
             result->setInfo(_key, _gwid, _gwid * _slide_len + _win_len - 1);
     }
 
+    // copy constructor
+    Window(const Window &win)
+    {
+        winType = win.winType;
+        triggerer = win.triggerer;
+        result = new result_t(*win.result);
+        firstTuple = win.firstTuple;
+        firingTuple = win.firingTuple;
+        key = win.key;
+        lwid = win.lwid;
+        gwid = win.gwid;
+        no_tuples = win.no_tuples;
+        batched = win.batched;
+    }
+
     // method to evaluate the status of the window
     win_event_t onTuple(const tuple_t &_t)
     {

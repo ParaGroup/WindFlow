@@ -37,140 +37,222 @@
 #else
     #include <optional>
 #endif
+#include <context.hpp>
 #include <shipper.hpp>
 #include <iterable.hpp>
 
 using namespace std;
 
 // metafunctions to get the tuple type from a callable type (e.g., function, lambda, functor)
-template<typename F_t, typename Arg1, typename Arg2>
+template<typename F_t, typename Arg1, typename Arg2> // Map not in-place, Accumulator
 Arg1 get_tuple_t(void (F_t::*)(const Arg1 &, Arg2 &) const);
 
-template<typename F_t, typename Arg1, typename Arg2>
+template<typename F_t, typename Arg1, typename Arg2> // Map not in-place, Accumulator
 Arg1 get_tuple_t(void (F_t::*)(const Arg1 &, Arg2 &));
 
-template<typename Arg1, typename Arg2>
+template<typename Arg1, typename Arg2> // Map not in-place, Accumulator
 Arg1 get_tuple_t(void (*)(const Arg1 &, Arg2 &));
 
-template<typename F_t, typename Arg1>
+template<typename F_t, typename Arg1, typename Arg2> // Map not in-place, Accumulator
+Arg1 get_tuple_t(void (F_t::*)(const Arg1 &, Arg2 &, RuntimeContext) const);
+
+template<typename F_t, typename Arg1, typename Arg2> // Map not in-place, Accumulator
+Arg1 get_tuple_t(void (F_t::*)(const Arg1 &, Arg2 &, RuntimeContext));
+
+template<typename Arg1, typename Arg2> // Map not in-place, Accumulator
+Arg1 get_tuple_t(void (*)(const Arg1 &, Arg2 &, RuntimeContext));
+
+template<typename F_t, typename Arg1> // Map in-place
 Arg1 get_tuple_t(void (F_t::*)(Arg1 &) const);
 
-template<typename F_t, typename Arg1>
+template<typename F_t, typename Arg1> // Map in-place
 Arg1 get_tuple_t(void (F_t::*)(Arg1 &));
 
-template<typename Arg1>
+template<typename Arg1> // Map in-place
 Arg1 get_tuple_t(void (*)(Arg1 &));
 
-template<typename F_t, typename Arg>
+template<typename F_t, typename Arg1> // Map in-place
+Arg1 get_tuple_t(void (F_t::*)(Arg1 &, RuntimeContext) const);
+
+template<typename F_t, typename Arg1> // Map in-place
+Arg1 get_tuple_t(void (F_t::*)(Arg1 &, RuntimeContext));
+
+template<typename Arg1> // Map in-place
+Arg1 get_tuple_t(void (*)(Arg1 &, RuntimeContext));
+
+template<typename F_t, typename Arg> // Source item-by-item, filter
 Arg get_tuple_t(bool (F_t::*)(Arg &) const);
 
-template<typename F_t, typename Arg>
+template<typename F_t, typename Arg> // Source item-by-item, filter
 Arg get_tuple_t(bool (F_t::*)(Arg &));
 
-template<typename Arg>
+template<typename Arg> // Source item-by-item, filter
 Arg get_tuple_t(bool (*)(Arg &));
 
-template<typename F_t, typename Arg1, typename Arg2>
+template<typename F_t, typename Arg> // Source item-by-item, filter
+Arg get_tuple_t(bool (F_t::*)(Arg &, RuntimeContext) const);
+
+template<typename F_t, typename Arg> // Source item-by-item, filter
+Arg get_tuple_t(bool (F_t::*)(Arg &, RuntimeContext));
+
+template<typename Arg>
+Arg get_tuple_t(bool (*)(Arg &, RuntimeContext)); // Source item-by-item, filter
+
+template<typename F_t, typename Arg1, typename Arg2> // FlatMap
 Arg1 get_tuple_t(void (F_t::*)(const Arg1 &, Shipper<Arg2>&) const);
 
-template<typename F_t, typename Arg1, typename Arg2>
+template<typename F_t, typename Arg1, typename Arg2> // FlatMap
 Arg1 get_tuple_t(void (F_t::*)(const Arg1 &, Shipper<Arg2>&));
 
-template<typename Arg1, typename Arg2>
+template<typename Arg1, typename Arg2> // FlatMap
 Arg1 get_tuple_t(void (*)(const Arg1 &, Shipper<Arg2>&));
 
-template<typename F_t, typename Arg>
+template<typename F_t, typename Arg1, typename Arg2> // FlatMap
+Arg1 get_tuple_t(void (F_t::*)(const Arg1 &, Shipper<Arg2>&, RuntimeContext) const);
+
+template<typename F_t, typename Arg1, typename Arg2> // FlatMap
+Arg1 get_tuple_t(void (F_t::*)(const Arg1 &, Shipper<Arg2>&, RuntimeContext));
+
+template<typename Arg1, typename Arg2> // FlatMap
+Arg1 get_tuple_t(void (*)(const Arg1 &, Shipper<Arg2>&, RuntimeContext));
+
+template<typename F_t, typename Arg> // Source single-loop
 Arg get_tuple_t(void (F_t::*)(Shipper<Arg>&) const);
 
-template<typename F_t, typename Arg>
+template<typename F_t, typename Arg> // Source single-loop
 Arg get_tuple_t(void (F_t::*)(Shipper<Arg>&));
 
-template<typename Arg>
+template<typename Arg> // Source single-loop
 Arg get_tuple_t(void (*)(Shipper<Arg>&));
 
-template<typename F_t, typename Arg>
+template<typename F_t, typename Arg> // Source single-loop
+Arg get_tuple_t(void (F_t::*)(Shipper<Arg>&, RuntimeContext) const);
+
+template<typename F_t, typename Arg> // Source single-loop
+Arg get_tuple_t(void (F_t::*)(Shipper<Arg>&, RuntimeContext));
+
+template<typename Arg> // Source single-loop
+Arg get_tuple_t(void (*)(Shipper<Arg>&, RuntimeContext));
+
+template<typename F_t, typename Arg> // Sink
 Arg get_tuple_t(void (F_t::*)(optional<Arg> &) const);
 
-template<typename F_t, typename Arg>
+template<typename F_t, typename Arg> // Sink
 Arg get_tuple_t(void (F_t::*)(optional<Arg> &));
 
-template<typename Arg>
+template<typename Arg> // Sink
 Arg get_tuple_t(void (*)(optional<Arg> &));
 
-template<typename F_t, typename Ret, typename Arg1, typename Arg2>
+template<typename F_t, typename Arg> // Sink
+Arg get_tuple_t(void (F_t::*)(optional<Arg> &, RuntimeContext) const);
+
+template<typename F_t, typename Arg> // Sink
+Arg get_tuple_t(void (F_t::*)(optional<Arg> &, RuntimeContext));
+
+template<typename Arg> // Sink
+Arg get_tuple_t(void (*)(optional<Arg> &, RuntimeContext));
+
+template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (non-incremental)
 Arg1 get_tuple_t(Ret (F_t::*)(size_t, uint64_t, Iterable<Arg1>&, Arg2&) const);
 
-template<typename F_t, typename Ret, typename Arg1, typename Arg2>
+template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (non-incremental)
 Arg1 get_tuple_t(Ret (F_t::*)(size_t, uint64_t, Iterable<Arg1>&, Arg2&));
 
-template<typename Ret, typename Arg1, typename Arg2>
+template<typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (non-incremental)
 Arg1 get_tuple_t(Ret (*)(size_t, uint64_t, Iterable<Arg1>&, Arg2&));
 
-template<typename F_t, typename Ret, typename Arg1, typename Arg2>
+template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (incremental)
 Arg1 get_tuple_t(Ret (F_t::*)(size_t, uint64_t, const Arg1&, Arg2&) const);
 
-template<typename F_t, typename Ret, typename Arg1, typename Arg2>
+template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (incremental)
 Arg1 get_tuple_t(Ret (F_t::*)(size_t, uint64_t, const Arg1&, Arg2&));
 
-template<typename Ret, typename Arg1, typename Arg2>
+template<typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (incremental)
 Arg1 get_tuple_t(Ret (*)(size_t, uint64_t, const Arg1&, Arg2&));
 
-template<typename F_t, typename Ret, typename Arg1, typename Arg2>
+template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (non-incremental on GPU)
 Arg1 get_tuple_t(Ret (F_t::*)(size_t, uint64_t, const Arg1*, Arg2*, size_t, char*) const);
 
-template<typename F_t, typename Ret, typename Arg1, typename Arg2>
+template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (non-incremental on GPU)
 Arg1 get_tuple_t(Ret (F_t::*)(size_t, uint64_t, const Arg1*, Arg2*, size_t, char*));
 
-template<typename Ret, typename Arg1, typename Arg2>
+template<typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (non-incremental on GPU)
 Arg1 get_tuple_t(Ret (*)(size_t, uint64_t, const Arg1*, Arg2*, size_t, char*));
 
 template<typename F_t>
 decltype(get_tuple_t(&F_t::operator())) get_tuple_t(F_t);
 
 // metafunctions to get the result type from a callable type (e.g., function, lambda, functor)
-template<typename F_t, typename Arg1, typename Arg2>
+template<typename F_t, typename Arg1, typename Arg2> // Map not in-place, Accumulator
 Arg2 get_result_t(void (F_t::*)(const Arg1 &, Arg2 &) const);
 
-template<typename F_t, typename Arg1, typename Arg2>
+template<typename F_t, typename Arg1, typename Arg2> // Map not in-place, Accumulator
 Arg2 get_result_t(void (F_t::*)(const Arg1 &, Arg2 &));
 
-template<typename Arg1, typename Arg2>
+template<typename Arg1, typename Arg2> // Map not in-place, Accumulator
 Arg2 get_result_t(void (*)(const Arg1 &, Arg2 &));
 
-template<typename F_t, typename Arg1>
+template<typename F_t, typename Arg1, typename Arg2> // Map not in-place, Accumulator
+Arg2 get_result_t(void (F_t::*)(const Arg1 &, Arg2 &, RuntimeContext) const);
+
+template<typename F_t, typename Arg1, typename Arg2> // Map not in-place, Accumulator
+Arg2 get_result_t(void (F_t::*)(const Arg1 &, Arg2 &, RuntimeContext));
+
+template<typename Arg1, typename Arg2> // Map not in-place, Accumulator
+Arg2 get_result_t(void (*)(const Arg1 &, Arg2 &, RuntimeContext));
+
+template<typename F_t, typename Arg1> // Map in-place
 Arg1 get_result_t(void (F_t::*)(Arg1 &) const);
 
-template<typename F_t, typename Arg1>
+template<typename F_t, typename Arg1> // Map in-place
 Arg1 get_result_t(void (F_t::*)(Arg1 &));
 
-template<typename Arg1>
+template<typename Arg1> // Map in-place
 Arg1 get_result_t(void (*)(Arg1 &));
 
-template<typename F_t, typename Arg1, typename Arg2>
+template<typename F_t, typename Arg1> // Map in-place
+Arg1 get_result_t(void (F_t::*)(Arg1 &, RuntimeContext) const);
+
+template<typename F_t, typename Arg1> // Map in-place
+Arg1 get_result_t(void (F_t::*)(Arg1 &, RuntimeContext));
+
+template<typename Arg1> // Map in-place
+Arg1 get_result_t(void (*)(Arg1 &, RuntimeContext));
+
+template<typename F_t, typename Arg1, typename Arg2> // FlatMap
 Arg2 get_result_t(void (F_t::*)(const Arg1 &, Shipper<Arg2>&) const);
 
-template<typename F_t, typename Arg1, typename Arg2>
+template<typename F_t, typename Arg1, typename Arg2> // FlatMap
 Arg2 get_result_t(void (F_t::*)(const Arg1 &, Shipper<Arg2>&));
 
-template<typename Arg1, typename Arg2>
+template<typename Arg1, typename Arg2> // FlatMap
 Arg2 get_result_t(void (*)(const Arg1 &, Shipper<Arg2>&));
 
-template<typename F_t, typename Ret, typename Arg1, typename Arg2>
+template<typename F_t, typename Arg1, typename Arg2> // FlatMap
+Arg2 get_result_t(void (F_t::*)(const Arg1 &, Shipper<Arg2>&, RuntimeContext) const);
+
+template<typename F_t, typename Arg1, typename Arg2> // FlatMap
+Arg2 get_result_t(void (F_t::*)(const Arg1 &, Shipper<Arg2>&, RuntimeContext));
+
+template<typename Arg1, typename Arg2> // FlatMap
+Arg2 get_result_t(void (*)(const Arg1 &, Shipper<Arg2>&, RuntimeContext));
+
+template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns
 Arg2 get_result_t(Ret (F_t::*)(size_t, uint64_t, Arg1&, Arg2&) const);
 
-template<typename F_t, typename Ret, typename Arg1, typename Arg2>
+template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns
 Arg2 get_result_t(Ret (F_t::*)(size_t, uint64_t, Arg1&, Arg2&));
 
-template<typename Ret, typename Arg1, typename Arg2>
+template<typename Ret, typename Arg1, typename Arg2> // Window-based Patterns
 Arg2 get_result_t(Ret (*)(size_t, uint64_t, Arg1&, Arg2&));
 
-template<typename F_t, typename Ret, typename Arg1, typename Arg2>
+template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (on GPU)
 Arg2 get_result_t(Ret (F_t::*)(size_t, uint64_t, const Arg1*, Arg2*, size_t, char*) const);
 
-template<typename F_t, typename Ret, typename Arg1, typename Arg2>
+template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (on GPU)
 Arg2 get_result_t(Ret (F_t::*)(size_t, uint64_t, const Arg1*, Arg2*, size_t, char*));
 
-template<typename Ret, typename Arg1, typename Arg2>
+template<typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (on GPU)
 Arg2 get_result_t(Ret (*)(size_t, uint64_t, const Arg1*, Arg2*, size_t, char*));
 
 template<typename F_t>

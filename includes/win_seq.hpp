@@ -134,7 +134,7 @@ private:
     double avg_ts_triggering_us = 0;
     double avg_ts_non_triggering_us = 0;
     volatile unsigned long startTD, startTS, endTD, endTS;
-    ofstream logfile;
+    ofstream *logfile = nullptr;
 #endif
 
     // private constructor I (non-incremental queries)
@@ -256,9 +256,10 @@ public:
     int svc_init()
     {
 #if defined(LOG_DIR)
+        logfile = new ofstream();
         name += "_seq_" + to_string(ff_node_t<input_t, result_t>::get_my_id()) + ".log";
         string filename = string(STRINGIFY(LOG_DIR)) + "/" + name;
-        logfile.open(filename);
+        logfile->open(filename);
 #endif
         return 0;
     }
@@ -494,8 +495,9 @@ public:
             stream << "Average inter-departure time: " << avg_td_us << " usec \n";
             stream << "***************************************************************************\n";
         }
-        logfile << stream.str();
-        logfile.close();
+        *logfile << stream.str();
+        logfile->close();
+        delete logfile;
 #endif
     }
 

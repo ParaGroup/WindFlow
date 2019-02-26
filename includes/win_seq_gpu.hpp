@@ -163,16 +163,16 @@ private:
     size_t n_thread_block; // number of threads per block
     size_t tuples_per_batch; // number of tuples per batch (only for CB windows)
     win_F_t winFunction; // function to be executed per window
-    result_t *host_results; // array of results copied back from the GPU
+    result_t *host_results = nullptr; // array of results copied back from the GPU
     // GPU variables
     cudaStream_t cudaStream; // CUDA stream used by this Win_Seq_GPU instance
     size_t no_thread_block; // number of CUDA threads per block
-    tuple_t *Bin; // array of tuples in the micro-batch (allocated on the GPU)
-    result_t *Bout; // array of results of the micro-batch (allocated on the GPU)
-    size_t *gpu_start, *gpu_end; // arrays of the starting/ending positions of each window in the micro-batch (allocated on the GPU)
-    uint64_t *gpu_gwids; // array of the gwids of the windows in the microbatch (allocated on the GPU)
+    tuple_t *Bin = nullptr; // array of tuples in the micro-batch (allocated on the GPU)
+    result_t *Bout = nullptr; // array of results of the micro-batch (allocated on the GPU)
+    size_t *gpu_start, *gpu_end = nullptr; // arrays of the starting/ending positions of each window in the micro-batch (allocated on the GPU)
+    uint64_t *gpu_gwids = nullptr; // array of the gwids of the windows in the microbatch (allocated on the GPU)
     size_t scratchpad_size = 0; // size of the scratchpage memory area on the GPU (one per CUDA thread)
-    char *scratchpad_memory; // scratchpage memory area (allocated on the GPU, one per CUDA thread)
+    char *scratchpad_memory = nullptr; // scratchpage memory area (allocated on the GPU, one per CUDA thread)
 #if defined(LOG_DIR)
     bool isTriggering = false;
     unsigned long rcvTuples = 0;
@@ -182,7 +182,7 @@ private:
     double avg_ts_triggering_us = 0;
     double avg_ts_non_triggering_us = 0;
     volatile unsigned long startTD, startTS, endTD, endTS;
-    ofstream logfile;
+    ofstream *logfile = nullptr;
 #endif
 
     // private constructor
@@ -234,32 +234,6 @@ private:
                 return std::get<2>(t1.getInfo()) < std::get<2>(t2.getInfo());
             };
         }
-        // initialization with count-based windows
-        if (winType == CB) {
-            // compute the fixed number of tuples per batch
-            if (slide_len <= win_len) // sliding or tumbling windows
-                tuples_per_batch = (batch_len - 1) * slide_len + win_len;
-            else // hopping windows
-                tuples_per_batch = win_len * batch_len;
-            // allocate Bin (of fixed size) on the GPU
-            gpuErrChk(cudaMalloc((tuple_t **) &Bin, tuples_per_batch * sizeof(tuple_t)));      // Bin
-        }
-        // initialization with time-based windows
-        else {
-            tuples_per_batch = DEFAULT_BATCH_SIZE_TB;
-            // allocate Bin (with default size) on the GPU
-            gpuErrChk(cudaMalloc((tuple_t **) &Bin, tuples_per_batch * sizeof(tuple_t))); // Bin
-        }
-        // allocate the other arrays on the GPU
-        gpuErrChk(cudaMalloc((size_t **) &gpu_start, batch_len * sizeof(size_t)));             // gpu_start
-        gpuErrChk(cudaMalloc((size_t **) &gpu_end, batch_len * sizeof(size_t)));               // gpu_end
-        gpuErrChk(cudaMalloc((uint64_t **) &gpu_gwids, batch_len * sizeof(uint64_t)));         // gpu_gwids
-        gpuErrChk(cudaMalloc((result_t **) &Bout, batch_len * sizeof(result_t)));              // Bout
-        gpuErrChk(cudaMallocHost((void **) &host_results, batch_len * sizeof(result_t)));      // host_results
-        // allocate the scratchpad on the GPU (if required)
-        if (scratchpad_size > 0) {
-            gpuErrChk(cudaMalloc((char **) &scratchpad_memory, batch_len * scratchpad_size));  // scratchpad_memory
-        }
     }
 
     // method to set the indexes useful if role is MAP
@@ -292,31 +266,42 @@ public:
                 :
                 Win_Seq_GPU(_winFunction, _win_len, _slide_len, _winType, _batch_len, _n_thread_block, _name, _scratchpad_size, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ) {}
 
-    /// Destructor
-    ~Win_Seq_GPU() {
-        // deallocate data structures allocated on the GPU
-        cudaFree(gpu_start);
-        cudaFree(gpu_end);
-        cudaFree(gpu_gwids);
-        cudaFree(Bin);
-        cudaFree(Bout);
-        if (scratchpad_size > 0)
-            cudaFree(scratchpad_memory);
-        // deallocate data structures allocated on the CPU
-        cudaFreeHost(host_results);
-        // destroy the CUDA stream
-        cudaStreamDestroy(cudaStream);
-    }
-
 //@cond DOXY_IGNORE
 
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
     {
+        // initialization with count-based windows
+        if (winType == CB) {
+            // compute the fixed number of tuples per batch
+            if (slide_len <= win_len) // sliding or tumbling windows
+                tuples_per_batch = (batch_len - 1) * slide_len + win_len;
+            else // hopping windows
+                tuples_per_batch = win_len * batch_len;
+            // allocate Bin (of fixed size) on the GPU
+            gpuErrChk(cudaMalloc((tuple_t **) &Bin, tuples_per_batch * sizeof(tuple_t)));      // Bin
+        }
+        // initialization with time-based windows
+        else {
+            tuples_per_batch = DEFAULT_BATCH_SIZE_TB;
+            // allocate Bin (with default size) on the GPU
+            gpuErrChk(cudaMalloc((tuple_t **) &Bin, tuples_per_batch * sizeof(tuple_t))); // Bin
+        }
+        // allocate the other arrays on the GPU
+        gpuErrChk(cudaMalloc((size_t **) &gpu_start, batch_len * sizeof(size_t)));             // gpu_start
+        gpuErrChk(cudaMalloc((size_t **) &gpu_end, batch_len * sizeof(size_t)));               // gpu_end
+        gpuErrChk(cudaMalloc((uint64_t **) &gpu_gwids, batch_len * sizeof(uint64_t)));         // gpu_gwids
+        gpuErrChk(cudaMalloc((result_t **) &Bout, batch_len * sizeof(result_t)));              // Bout
+        gpuErrChk(cudaMallocHost((void **) &host_results, batch_len * sizeof(result_t)));      // host_results
+        // allocate the scratchpad on the GPU (if required)
+        if (scratchpad_size > 0) {
+            gpuErrChk(cudaMalloc((char **) &scratchpad_memory, batch_len * scratchpad_size));  // scratchpad_memory
+        }
 #if defined(LOG_DIR)
+        logfile = new ofstream();
         name += "_seq_" + to_string(ff_node_t<input_t, result_t>::get_my_id()) + ".log";
         string filename = string(STRINGIFY(LOG_DIR)) + "/" + name;
-        logfile.open(filename);
+        logfile->open(filename);
 #endif
         return 0;
     }
@@ -599,6 +584,18 @@ public:
     // svc_end method (utilized by the FastFlow runtime)
     void svc_end()
     {
+        // deallocate data structures allocated on the GPU
+        cudaFree(gpu_start);
+        cudaFree(gpu_end);
+        cudaFree(gpu_gwids);
+        cudaFree(Bin);
+        cudaFree(Bout);
+        if (scratchpad_size > 0)
+            cudaFree(scratchpad_memory);
+        // deallocate data structures allocated on the CPU
+        cudaFreeHost(host_results);
+        // destroy the CUDA stream
+        cudaStreamDestroy(cudaStream);
 #if defined (LOG_DIR)
         ostringstream stream;
         stream << "************************************LOG************************************\n";
@@ -609,8 +606,9 @@ public:
         stream << "Average service time (non triggering): " << avg_ts_non_triggering_us << " usec \n";
         stream << "Average inter-departure time: " << avg_td_us << " usec \n";
         stream << "***************************************************************************\n";
-        logfile << stream.str();
-        logfile.close();
+        *logfile << stream.str();
+        logfile->close();
+        delete logfile;
 #endif
     }
 

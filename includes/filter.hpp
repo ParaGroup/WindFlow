@@ -37,7 +37,7 @@
 #include <string>
 #include <ff/node.hpp>
 #include <ff/farm.hpp>
-#include <builders.hpp>
+#include <context.hpp>
 
 using namespace ff;
 
@@ -55,31 +55,42 @@ class Filter: public ff_farm
 public:
     /// Type of the predicate function
     using filter_func_t = function<bool(tuple_t &)>;
+    /// Type of the rich predicate function
+    using rich_filter_func_t = function<bool(tuple_t &, RuntimeContext)>;
 private:
+    // friendships with other classes in the library
+    friend class Pipe;
     // class Filter_Node
     class Filter_Node: public ff_node_t<tuple_t>
     {
     private:
         filter_func_t filter_func; // filter function (predicate)
+        rich_filter_func_t rich_filter_func; // rich filter function (predicate)
         string name; // string of the unique name of the pattern
+        bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
+        RuntimeContext context; // RuntimeContext instance
 #if defined(LOG_DIR)
         unsigned long rcvTuples = 0;
         double avg_td_us = 0;
         double avg_ts_us = 0;
         volatile unsigned long startTD, startTS, endTD, endTS;
-        ofstream logfile;
+        ofstream *logfile = nullptr;
 #endif
     public:
-        // Constructor
-        Filter_Node(filter_func_t _filter_func, string _name): filter_func(_filter_func), name(_name) {}
+        // Constructor I
+        Filter_Node(filter_func_t _filter_func, string _name): filter_func(_filter_func), name(_name), isRich(false) {}
+
+        // Constructor II
+        Filter_Node(rich_filter_func_t _rich_filter_func, string _name, RuntimeContext _context): rich_filter_func(_rich_filter_func), name(_name), isRich(true), context(_context) {}
 
         // svc_init method (utilized by the FastFlow runtime)
         int svc_init()
         {
 #if defined(LOG_DIR)
+            logfile = new ofstream();
             name += "_node_" + to_string(ff_node_t<tuple_t>::get_my_id()) + ".log";
             string filename = string(STRINGIFY(LOG_DIR)) + "/" + name;
-            logfile.open(filename);
+            logfile->open(filename);
 #endif
             return 0;
         }
@@ -94,7 +105,11 @@ private:
             rcvTuples++;
 #endif
             // evaluate the predicate on the input item
-            bool predicate = filter_func(*t);
+            bool predicate;
+            if (!isRich)
+                predicate = filter_func(*t);
+            else
+                predicate = rich_filter_func(*t, context);
 #if defined(LOG_DIR)
             endTS = current_time_nsecs();
             endTD = current_time_nsecs();
@@ -122,15 +137,16 @@ private:
             stream << "Average service time: " << avg_ts_us << " usec \n";
             stream << "Average inter-departure time: " << avg_td_us << " usec \n";
             stream << "***************************************************************************\n";
-            logfile << stream.str();
-            logfile.close();
+            *logfile << stream.str();
+            logfile->close();
+            delete logfile;
 #endif
         }
     };
 
 public:
     /** 
-     *  \brief Constructor
+     *  \brief Constructor I
      *  
      *  \param _func filter function (boolean predicate)
      *  \param _pardegree parallelism degree of the Filter pattern
@@ -147,6 +163,33 @@ public:
         vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new Filter_Node(_func, _name);
+            w.push_back(seq);
+        }
+        ff_farm::add_workers(w);
+        // add default collector
+        ff_farm::add_collector(nullptr);
+        // when the Filter will be destroyed we need aslo to destroy the emitter, workers and collector
+        ff_farm::cleanup_all();
+    }
+
+    /** 
+     *  \brief Constructor II
+     *  
+     *  \param _func rich filter function (boolean predicate)
+     *  \param _pardegree parallelism degree of the Filter pattern
+     *  \param _name string with the unique name of the Filter pattern
+     */ 
+    Filter(rich_filter_func_t _func, size_t _pardegree, string _name)
+    {
+        // check the validity of the parallelism degree
+        if (_pardegree == 0) {
+            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // vector of Filter_Node instances
+        vector<ff_node *> w;
+        for (size_t i=0; i<_pardegree; i++) {
+            auto *seq = new Filter_Node(_func, _name, RuntimeContext(_pardegree, i));
             w.push_back(seq);
         }
         ff_farm::add_workers(w);

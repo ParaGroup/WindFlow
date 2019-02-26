@@ -195,7 +195,7 @@ int main(int argc, char *argv[])
 		cout << argv[0] << " -r [runs] -l [stream_length] -k [n_keys]" << endl;
 		exit(EXIT_SUCCESS);
 	}
-	while ((option = getopt(argc, argv, "r:l:k:w:s:")) != -1) {
+	while ((option = getopt(argc, argv, "r:l:k:")) != -1) {
 		switch (option) {
 			case 'r': runs = atoi(optarg);
 					 break;

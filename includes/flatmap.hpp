@@ -40,7 +40,7 @@
 #include <ff/node.hpp>
 #include <ff/farm.hpp>
 #include <shipper.hpp>
-#include <builders.hpp>
+#include <context.hpp>
 
 using namespace ff;
 
@@ -58,15 +58,22 @@ class FlatMap: public ff_farm
 public:
     /// type of the flatmap function
     using flatmap_func_t = function<void(const tuple_t &, Shipper<result_t> &)>;
+    /// type of the rich flatmap function
+    using rich_flatmap_func_t = function<void(const tuple_t &, Shipper<result_t> &, RuntimeContext)>;
 private:
+    // friendships with other classes in the library
+    friend class Pipe;
     // class FlatMap_Node
     class FlatMap_Node: public ff_node_t<tuple_t, result_t>
     {
     private:
         flatmap_func_t flatmap_func; // flatmap function
+        rich_flatmap_func_t rich_flatmap_func; // rich flatmap function
         string name; // string of the unique name of the pattern
+        bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
         // shipper object used for the delivery of results
-        Shipper<result_t> shipper;
+        Shipper<result_t> *shipper = nullptr;
+        RuntimeContext context; // RuntimeContext instance
 #if defined(LOG_DIR)
         unsigned long rcvTuples = 0;
         unsigned long delivered = 0;
@@ -74,19 +81,24 @@ private:
         double avg_td_us = 0;
         double avg_ts_us = 0;
         volatile unsigned long startTD, startTS, endTD, endTS;
-        ofstream logfile;
+        ofstream *logfile = nullptr;
 #endif
     public:
-        // Constructor
-        FlatMap_Node(flatmap_func_t _flatmap_func, string _name): flatmap_func(_flatmap_func), name(_name), shipper(*this) {}
+        // Constructor I
+        FlatMap_Node(flatmap_func_t _flatmap_func, string _name): flatmap_func(_flatmap_func), name(_name), isRich(false) {}
+
+        // Constructor II
+        FlatMap_Node(rich_flatmap_func_t _rich_flatmap_func, string _name, RuntimeContext _context): rich_flatmap_func(_rich_flatmap_func), name(_name), isRich(true), context(_context) {}
 
         // svc_init method (utilized by the FastFlow runtime)
         int svc_init()
         {
+            shipper = new Shipper<result_t>(*this);
 #if defined(LOG_DIR)
+            logfile = new ofstream();
             name += "_node_" + to_string(ff_node_t<tuple_t, result_t>::get_my_id()) + ".log";
             string filename = string(STRINGIFY(LOG_DIR)) + "/" + name;
-            logfile.open(filename);
+            logfile->open(filename);
 #endif
             return 0;
         }
@@ -101,11 +113,14 @@ private:
             rcvTuples++;
 #endif
             // call the flatmap function
-            flatmap_func(*t, shipper);
+            if (!isRich)
+                flatmap_func(*t, *shipper);
+            else
+                rich_flatmap_func(*t, *shipper, context);
             delete t;
 #if defined(LOG_DIR)
-            selectivity += (shipper.delivered() - delivered);
-            delivered = shipper.delivered();
+            selectivity += (shipper->delivered() - delivered);
+            delivered = shipper->delivered();
             endTS = current_time_nsecs();
             endTD = current_time_nsecs();
             double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
@@ -120,6 +135,7 @@ private:
         // svc_end method (utilized by the FastFlow runtime)
         void svc_end()
         {
+            delete shipper;
 #if defined (LOG_DIR)
             ostringstream stream;
             stream << "************************************LOG************************************\n";
@@ -128,15 +144,16 @@ private:
             stream << "Average service time: " << avg_ts_us << " usec \n";
             stream << "Average inter-departure time: " << avg_td_us << " usec \n";
             stream << "***************************************************************************\n";
-            logfile << stream.str();
-            logfile.close();
+            *logfile << stream.str();
+            logfile->close();
+            delete logfile;
 #endif
         }
     };
 
 public:
     /** 
-     *  \brief Constructor
+     *  \brief Constructor I
      *  
      *  \param _func flatmap function
      *  \param _pardegree parallelism degree of the FlatMap pattern
@@ -153,6 +170,33 @@ public:
         vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new FlatMap_Node(_func, _name);
+            w.push_back(seq);
+        }
+        ff_farm::add_workers(w);
+        // add default collector
+        ff_farm::add_collector(nullptr);
+        // when the FlatMap will be destroyed we need aslo to destroy the emitter, workers and collector
+        ff_farm::cleanup_all();
+    }
+
+    /** 
+     *  \brief Constructor II
+     *  
+     *  \param _func rich flatmap function
+     *  \param _pardegree parallelism degree of the FlatMap pattern
+     *  \param _name string with the unique name of the FlatMap pattern
+     */ 
+    FlatMap(rich_flatmap_func_t _func, size_t _pardegree, string _name)
+    {
+        // check the validity of the parallelism degree
+        if (_pardegree == 0) {
+            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // vector of FlatMap_Node instances
+        vector<ff_node *> w;
+        for (size_t i=0; i<_pardegree; i++) {
+            auto *seq = new FlatMap_Node(_func, _name, RuntimeContext(_pardegree, i));
             w.push_back(seq);
         }
         ff_farm::add_workers(w);

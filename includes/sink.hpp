@@ -43,7 +43,7 @@
 #endif
 #include <ff/multinode.hpp>
 #include <ff/farm.hpp>
-#include <builders.hpp>
+#include <context.hpp>
 
 using namespace ff;
 
@@ -60,31 +60,42 @@ class Sink: public ff_farm
 public:
     /// type of the sink function
     using sink_func_t = function<void(optional<tuple_t> &)>;
+    /// type of the rich sink function
+    using rich_sink_func_t = function<void(optional<tuple_t> &, RuntimeContext)>;
 private:
+    // friendships with other classes in the library
+    friend class Pipe;
     // class Sink_Node
     class Sink_Node: public ff_monode_t<tuple_t>
     {
     private:
         sink_func_t sink_fun; // sink function
+        rich_sink_func_t rich_sink_func; // rich sink function
         string name; // string of the unique name of the pattern
+        bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
+        RuntimeContext context; // RuntimeContext instance
 #if defined(LOG_DIR)
         unsigned long rcvTuples = 0;
         double avg_td_us = 0;
         double avg_ts_us = 0;
         volatile unsigned long startTD, startTS, endTD, endTS;
-        ofstream logfile;
+        ofstream *logfile = nullptr;
 #endif
     public:
-        // Constructor
-        Sink_Node(sink_func_t _sink_fun, string _name): sink_fun(_sink_fun), name(_name) {}
+        // Constructor I
+        Sink_Node(sink_func_t _sink_fun, string _name): sink_fun(_sink_fun), name(_name), isRich(false) {}
+
+        // Constructor II
+        Sink_Node(rich_sink_func_t _rich_sink_fun, string _name, RuntimeContext _context): rich_sink_func(_rich_sink_fun), name(_name), isRich(true), context(_context) {}
 
         // svc_init method (utilized by the FastFlow runtime)
         int svc_init()
         {
 #if defined(LOG_DIR)
+            logfile = new ofstream();
             name += "_node_" + to_string(ff_monode_t<tuple_t>::get_my_id()) + ".log";
             string filename = string(STRINGIFY(LOG_DIR)) + "/" + name;
-            logfile.open(filename);
+            logfile->open(filename);
 #endif
             return 0;
         }
@@ -101,7 +112,10 @@ private:
             // create optional to the input tuple
             optional<tuple_t> opt = make_optional(move(*t));
             // call the sink function
-            sink_fun(opt);
+            if (!isRich)
+                sink_fun(opt);
+            else
+                rich_sink_func(opt, context);
             // delete the received item
             delete t;
 #if defined(LOG_DIR)
@@ -112,7 +126,7 @@ private:
             double elapsedTD_us = ((double) (endTD - startTD)) / 1000;
             avg_td_us += (1.0 / rcvTuples) * (elapsedTD_us - avg_td_us);
             startTD = current_time_nsecs();
-#endif           
+#endif
             return this->GO_ON;
         }
 
@@ -122,7 +136,10 @@ private:
             // create empty optional
             optional<tuple_t> opt;
             // call the sink function for the last time (empty optional)
-            sink_fun(opt);
+            if (!isRich)
+                sink_fun(opt);
+            else
+                rich_sink_func(opt, context);
         }
 
         // svc_end method (utilized by the FastFlow runtime)
@@ -135,15 +152,16 @@ private:
             stream << "Average service time: " << avg_ts_us << " usec \n";
             stream << "Average inter-departure time: " << avg_td_us << " usec \n";
             stream << "***************************************************************************\n";
-            logfile << stream.str();
-            logfile.close();
+            *logfile << stream.str();
+            logfile->close();
+            delete logfile;
 #endif
         }
     };
 
 public:
     /** 
-     *  \brief Constructor
+     *  \brief Constructor I
      *  
      *  \param _func sink function
      *  \param _pardegree parallelism degree of the Sink pattern
@@ -160,6 +178,31 @@ public:
         vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new Sink_Node(_func, _name);
+            w.push_back(seq);
+        }
+        ff_farm::add_workers(w);
+        // when the Sink will be destroyed we need aslo to destroy the emitter and workers
+        ff_farm::cleanup_all();
+    }
+
+    /** 
+     *  \brief Constructor II
+     *  
+     *  \param _func rich sink function
+     *  \param _pardegree parallelism degree of the Sink pattern
+     *  \param _name string with the unique name of the Sink pattern
+     */ 
+    Sink(rich_sink_func_t _func, size_t _pardegree, string _name)
+    {
+        // check the validity of the parallelism degree
+        if (_pardegree == 0) {
+            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // vector of Sink_Node instances
+        vector<ff_node *> w;
+        for (size_t i=0; i<_pardegree; i++) {
+            auto *seq = new Sink_Node(_func, _name, RuntimeContext(_pardegree, i));
             w.push_back(seq);
         }
         ff_farm::add_workers(w);

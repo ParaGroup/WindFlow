@@ -40,7 +40,7 @@
 #include <ff/node.hpp>
 #include <ff/farm.hpp>
 #include <ff/multinode.hpp>
-#include <builders.hpp>
+#include <context.hpp>
 
 using namespace ff;
 
@@ -100,15 +100,22 @@ class Accumulator: public ff_farm
 public:
     /// reduce/fold function
     using acc_func_t = function<void(const tuple_t &, result_t &)>;
+    /// rich reduce/fold function
+    using rich_acc_func_t = function<void(const tuple_t &, result_t &, RuntimeContext)>;
     /// function type to map the key onto an identifier starting from zero to pardegree-1
     using f_routing_t = function<size_t(size_t, size_t)>;
 private:
+    // friendships with other classes in the library
+    friend class Pipe;
     // class Accumulator_Node
     class Accumulator_Node: public ff_node_t<tuple_t, result_t>
     {
     private:
         acc_func_t acc_func; // reduce/fold function
+        rich_acc_func_t rich_acc_func; // rich reduce/fold function
         string name; // string of the unique name of the pattern
+        bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
+        RuntimeContext context; // RuntimeContext instance
         // inner struct of a key descriptor
         struct Key_Descriptor
         {
@@ -124,19 +131,23 @@ private:
         double avg_td_us = 0;
         double avg_ts_us = 0;
         volatile unsigned long startTD, startTS, endTD, endTS;
-        ofstream logfile;
+        ofstream *logfile = nullptr;
 #endif
     public:
-        // Constructor
-        Accumulator_Node(acc_func_t _acc_func, string _name): acc_func(_acc_func), name(_name) {}
+        // Constructor I
+        Accumulator_Node(acc_func_t _acc_func, string _name): acc_func(_acc_func), name(_name), isRich(false) {}
+
+        // Constructor II
+        Accumulator_Node(rich_acc_func_t _rich_acc_func, string _name, RuntimeContext _context): rich_acc_func(_rich_acc_func), name(_name), isRich(true), context(_context) {}
 
         // svc_init method (utilized by the FastFlow runtime)
         int svc_init()
         {
 #if defined(LOG_DIR)
+            logfile = new ofstream();
             name += "_node_" + to_string(ff_node_t<tuple_t, result_t>::get_my_id()) + ".log";
             string filename = string(STRINGIFY(LOG_DIR)) + "/" + name;
-            logfile.open(filename);
+            logfile->open(filename);
 #endif
             return 0;
         }
@@ -161,7 +172,10 @@ private:
             }
             Key_Descriptor &key_d = (*it).second;
             // call the reduce/fold function on the input
-            acc_func(*t, key_d.result);
+            if (!isRich)
+                acc_func(*t, key_d.result);
+            else
+                rich_acc_func(*t, key_d.result, context);
             // copy the result
             result_t *r = new result_t(key_d.result);
 #if defined(LOG_DIR)
@@ -186,15 +200,16 @@ private:
             stream << "Average service time: " << avg_ts_us << " usec \n";
             stream << "Average inter-departure time: " << avg_td_us << " usec \n";
             stream << "***************************************************************************\n";
-            logfile << stream.str();
-            logfile.close();
+            *logfile << stream.str();
+            logfile->close();
+            delete logfile;
 #endif
         }
     };
 
 public:
     /** 
-     *  \brief Constructor
+     *  \brief Constructor I
      *  
      *  \param _func reduce/fold function
      *  \param _pardegree parallelism degree of the Accumulator pattern
@@ -212,6 +227,35 @@ public:
         vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new Accumulator_Node(_func, _name);
+            w.push_back(seq);
+        }
+        ff_farm::add_emitter(new Accumulator_Emitter<tuple_t>(_routing, _pardegree));
+        ff_farm::add_workers(w);
+        // add default collector
+        ff_farm::add_collector(nullptr);
+        // when the Accumulator will be destroyed we need aslo to destroy the emitter, workers and collector
+        ff_farm::cleanup_all();
+    }
+
+    /** 
+     *  \brief Constructor II
+     *  
+     *  \param _func rich reduce/fold function
+     *  \param _pardegree parallelism degree of the Accumulator pattern
+     *  \param _name string with the unique name of the Accumulator pattern
+     *  \param _routing function to map the key onto an identifier starting from zero to pardegree-1
+     */ 
+    Accumulator(rich_acc_func_t _func, size_t _pardegree, string _name, f_routing_t _routing=[](size_t k, size_t n) { return k%n; })
+    {
+        // check the validity of the parallelism degree
+        if (_pardegree == 0) {
+            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // vector of Accumulator_Node instances
+        vector<ff_node *> w;
+        for (size_t i=0; i<_pardegree; i++) {
+            auto *seq = new Accumulator_Node(_func, _name, RuntimeContext(_pardegree, i));
             w.push_back(seq);
         }
         ff_farm::add_emitter(new Accumulator_Emitter<tuple_t>(_routing, _pardegree));

@@ -40,7 +40,7 @@
 #include <ff/multinode.hpp>
 #include <dummy.hpp>
 #include <shipper.hpp>
-#include <builders.hpp>
+#include <context.hpp>
 
 using namespace ff;
 
@@ -55,41 +55,57 @@ template<typename tuple_t>
 class Source: public ff_a2a
 {
 public:
-    /// type of the generation function (one-to-one version, briefly "o2o")
-    using source_o2o_func_t = function<bool(tuple_t &)>;
-    /// type of the generation function (single-loop version)
-    using source_sloop_func_t = function<void(Shipper<tuple_t>&)>;
+    /// type of the generation function (item-by-item version, briefly "itemized")
+    using source_item_func_t = function<bool(tuple_t &)>;
+    /// type of the rich generation function (item-by-item version, briefly "itemized")
+    using rich_source_item_func_t = function<bool(tuple_t &, RuntimeContext context)>;
+    /// type of the generation function (single-loop version, briefly "loop")
+    using source_loop_func_t = function<void(Shipper<tuple_t>&)>;
+    /// type of the rich generation function (single-loop version, briefly "loop")
+    using rich_source_loop_func_t = function<void(Shipper<tuple_t>&, RuntimeContext context)>;
+private:
     // friendships with other classes in the library
     friend class Pipe;
-private:
     // class Source_Node
     class Source_Node: public ff_node_t<tuple_t>
     {
     private:
-        source_o2o_func_t source_func_o2o; // generation function (one-to-one version)
-        source_sloop_func_t source_func_sloop; // generation function (single-loop version)
+        source_item_func_t source_func_item; // generation function (item-by-item version)
+        rich_source_item_func_t rich_source_func_item; // rich generation function (item-by-item version)
+        source_loop_func_t source_func_loop; // generation function (single-loop version)
+        rich_source_loop_func_t rich_source_func_loop; // rich generation function (single-loop version)
         string name; // string of the unique name of the pattern
-        bool isO2O; // flag stating whether we are using the one-to-one generation function
-        bool isEND; // flag stating whether the Source_Node has completed to generate items (used only for the single-loop generation)
-        Shipper<tuple_t> shipper; // shipper object used for the delivery of results (single-loop generation)
+        bool isItemized; // flag stating whether we are using the item-by-item version of the generation function
+        bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
+        bool isEND; // flag stating whether the Source_Node has completed to generate items
+        Shipper<tuple_t> *shipper = nullptr; // shipper object used for the delivery of results (single-loop version)
+        RuntimeContext context; // RuntimeContext instance
 #if defined(LOG_DIR)
         unsigned long sentTuples = 0;
-        ofstream logfile;
+        ofstream *logfile = nullptr;
 #endif
     public:
-        // Constructor I (one-to-one version)
-        Source_Node(source_o2o_func_t _source_func_o2o, string _name): source_func_o2o(_source_func_o2o), name(_name), isO2O(true), isEND(false), shipper(*this) {}
+        // Constructor I
+        Source_Node(source_item_func_t _source_func_item, string _name): source_func_item(_source_func_item), name(_name), isItemized(true), isRich(false), isEND(false) {}
 
-        // Constructor II (single-loop version)
-        Source_Node(source_sloop_func_t _source_func_sloop, string _name): source_func_sloop(_source_func_sloop), name(_name), isO2O(false), isEND(false), shipper(*this) {}
+        // Constructor II
+        Source_Node(rich_source_item_func_t _rich_source_func_item, string _name, RuntimeContext _context): rich_source_func_item(_rich_source_func_item), name(_name), isItemized(true), isRich(true), isEND(false), context(_context) {}
+
+        // Constructor III
+        Source_Node(source_loop_func_t _source_func_loop, string _name): source_func_loop(_source_func_loop), name(_name), isItemized(false), isRich(false), isEND(false) {}
+
+        // Constructor IV
+        Source_Node(rich_source_loop_func_t _rich_source_func_loop, string _name, RuntimeContext _context): rich_source_func_loop(_rich_source_func_loop), name(_name), isItemized(false), isRich(true), isEND(false), context(_context) {}
 
         // svc_init method (utilized by the FastFlow runtime)
         int svc_init()
         {
+            shipper = new Shipper<tuple_t>(*this);
 #if defined(LOG_DIR)
+            logfile = new ofstream();
             name += "_node_" + to_string(ff_node_t<tuple_t>::get_my_id()) + ".log";
             string filename = string(STRINGIFY(LOG_DIR)) + "/" + name;
-            logfile.open(filename);
+            logfile->open(filename);
 #endif
             return 0;
         }
@@ -97,25 +113,31 @@ private:
         // svc method (utilized by the FastFlow runtime)
         tuple_t *svc(tuple_t *)
         {
-            // tuple-by-tuple version
-            if (isO2O) {
+            // itemized version
+            if (isItemized) {
                 if (isEND)
                     return this->EOS;
                 else {
                     // allocate the new tuple to be sent
                     tuple_t *t = new tuple_t();
-                    isEND = !source_func_o2o(*t); // call the one-to-one generation function
+                    if (!isRich)
+                        isEND = !source_func_item(*t); // call the generation function
+                    else
+                        isEND = !rich_source_func_item(*t, context); // call the generation function
 #if defined (LOG_DIR)
                     sentTuples++;
 #endif
-                    return t;           
+                    return t;
                 }
             }
             // single-loop version
             else {
-                source_func_sloop(shipper); // call the single-loop generation function
+                if (!isRich)
+                    source_func_loop(*shipper); // call the generation function
+                else
+                    rich_source_func_loop(*shipper, context); // call the generation function
 #if defined (LOG_DIR)
-                sentTuples = shipper.delivered();
+                sentTuples = shipper->delivered();
 #endif
                 isEND = true; // not necessary!
                 return this->EOS;
@@ -125,26 +147,28 @@ private:
         // svc_end method (utilized by the FastFlow runtime)
         void svc_end()
         {
+            delete shipper;
 #if defined (LOG_DIR)
             ostringstream stream;
             stream << "************************************LOG************************************\n";
             stream << "Generated tuples: " << sentTuples << "\n";
             stream << "***************************************************************************\n";
-            logfile << stream.str();
-            logfile.close();
+            *logfile << stream.str();
+            logfile->close();
+            delete logfile;
 #endif
         }
     };
 
 public:
     /** 
-     *  \brief Constructor I (one-to-one version)
+     *  \brief Constructor I
      *  
-     *  \param _func generation function (one-to-one version)
+     *  \param _func generation function (item-by-item version)
      *  \param _pardegree parallelism degree of the Source pattern
      *  \param _name string with the unique name of the Source pattern
      */ 
-    Source(source_o2o_func_t _func, size_t _pardegree, string _name)
+    Source(source_item_func_t _func, size_t _pardegree, string _name)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -164,13 +188,39 @@ public:
     }
 
     /** 
-     *  \brief Constructor II (single-loop version)
+     *  \brief Constructor II
+     *  
+     *  \param _func rich generation function (item-by-item version)
+     *  \param _pardegree parallelism degree of the Source pattern
+     *  \param _name string with the unique name of the Source pattern
+     */ 
+    Source(rich_source_item_func_t _func, size_t _pardegree, string _name)
+    {
+        // check the validity of the parallelism degree
+        if (_pardegree == 0) {
+            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // vector of Source_Node instances
+        vector<ff_node *> first_set;
+        for (size_t i=0; i<_pardegree; i++) {
+            auto *seq = new Source_Node(_func, _name, RuntimeContext(_pardegree, i));
+            first_set.push_back(seq);
+        }
+        ff_a2a::add_firstset(first_set, 0, true);
+        vector<ff_node *> second_set;
+        second_set.push_back(new dummy_collector());
+        ff_a2a::add_secondset(second_set, true);
+    }
+
+    /** 
+     *  \brief Constructor III
      *  
      *  \param _func generation function (single-loop version)
      *  \param _pardegree parallelism degree of the Source pattern
      *  \param _name string with the unique name of the Source pattern
      */ 
-    Source(source_sloop_func_t _func, size_t _pardegree, string _name)
+    Source(source_loop_func_t _func, size_t _pardegree, string _name)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -181,6 +231,32 @@ public:
         vector<ff_node *> first_set;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new Source_Node(_func, _name);
+            first_set.push_back(seq);
+        }
+        ff_a2a::add_firstset(first_set, 0, true);
+        vector<ff_node *> second_set;
+        second_set.push_back(new dummy_collector());
+        ff_a2a::add_secondset(second_set, true);
+    }
+
+    /** 
+     *  \brief Constructor IV
+     *  
+     *  \param _func rich generation function (single-loop version)
+     *  \param _pardegree parallelism degree of the Source pattern
+     *  \param _name string with the unique name of the Source pattern
+     */ 
+    Source(rich_source_loop_func_t _func, size_t _pardegree, string _name)
+    {
+        // check the validity of the parallelism degree
+        if (_pardegree == 0) {
+            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // vector of Source_Node instances
+        vector<ff_node *> first_set;
+        for (size_t i=0; i<_pardegree; i++) {
+            auto *seq = new Source_Node(_func, _name, RuntimeContext(_pardegree, i));
             first_set.push_back(seq);
         }
         ff_a2a::add_firstset(first_set, 0, true);

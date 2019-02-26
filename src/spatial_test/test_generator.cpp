@@ -24,9 +24,7 @@
 #include <iomanip>
 #include <iostream>
 #include <getopt.h>
-#include <ff/node.hpp>
-#include <ff/mapper.hpp>
-#include <ff/pipeline.hpp>
+#include <ff/ff.hpp>
 #include "tuple_t.hpp"
 #include "sq_generator.hpp"
 

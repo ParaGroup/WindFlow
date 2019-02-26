@@ -77,7 +77,7 @@ public:
 			tuple_t *t = new tuple_t(i, i);
 			this->ff_send_out(t);
 		}
-		return this->GO_ON;
+		return this->EOS;
 	}
 };
 
@@ -194,7 +194,6 @@ int main(int argc, char *argv[])
 	else {
 		cout << "...end ff_pipe" << endl;
 	}
-
     // TEST 2: flatmap with function
     cout << CYAN << "(Test 2) FlatMap with function" << DEFAULT << endl;
 	Generator generator2(stream_len);
@@ -231,6 +230,5 @@ int main(int argc, char *argv[])
 	else {
 		cout << "...end ff_pipe" << endl;
 	}
-
 	return 0;
 }
