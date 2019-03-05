@@ -23,7 +23,7 @@ INCLUDE_DIR		= ../../includes
 INCLUDES		= -I $(FF_ROOT) -I $(INCLUDE_DIR) -I .
 NCXX			= nvcc
 NCXXFLAGS		= -g -x cu -w -std=c++14 --expt-extended-lambda -gencode arch=compute_35,code=sm_35
-MACROS 			= -DTRACE_FASTFLOW -DLOG_DIR="/home/mencagli/WindFlow/log"
+MACROS 			= # -DTRACE_FASTFLOW -DLOG_DIR="/home/mencagli/WindFlow/log"
 NOPTFLAGS		= -O3
 NLDFLAGS      	= 
 OPT_LEVEL		= -DLEVEL=LEVEL0

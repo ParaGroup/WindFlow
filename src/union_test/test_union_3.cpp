@@ -15,9 +15,9 @@
  */
 
 /*  
- *  First Test Program of the Union between Multi-Pipe instances
+ *  Third Test Program of the Union between Multi-Pipe instances
  *  
- *  Test program of the union between two Multi-Pipe instances
+ *  Test program of the union of union of Multi-Pipe instances
  */
 
 // include
@@ -47,10 +47,10 @@ struct tuple_t
     size_t key;
     uint64_t id;
     uint64_t ts;
-    uint64_t value;
+    int value;
 
     // constructor
-    tuple_t(size_t _key, uint64_t _id, uint64_t _ts, uint64_t _value): key(_key), id(_id), ts(_ts), value(_value) {}
+    tuple_t(size_t _key, uint64_t _id, uint64_t _ts, int _value): key(_key), id(_id), ts(_ts), value(_value) {}
 
     // default constructor
     tuple_t(): key(0), id(0), ts(0), value(0) {}
@@ -136,6 +136,39 @@ public:
     }
 };
 
+// source functor for generating negative numbers
+class Source_Negative_Functor
+{
+private:
+    size_t len; // stream length per key
+    size_t keys; // number of keys
+    vector<int> counters;
+    vector<uint64_t> next_ts;
+
+public:
+    // constructor
+    Source_Negative_Functor(size_t _len, size_t _keys): len(_len), keys(_keys), counters(_keys, 0), next_ts(_keys, 0)
+    {
+        srand(0);
+    }
+
+    // operator()
+    void operator()(Shipper<tuple_t> &shipper)
+    {
+        // generation of the input stream
+        for (size_t i=0; i<len; i++) {
+            for (size_t k=0; k<keys; k++) {
+                tuple_t t(k, i, next_ts[k], counters[k]);
+                double x = (1000 * 0.05) / 1.05;
+                next_ts[k] += ceil(pareto(1.05, x));
+                counters[k] -= 2;
+                //next_ts[k] += 1000;
+                shipper.push(t);
+            }
+        }
+    }
+};
+
 // filter functor
 class Filter_Functor
 {
@@ -177,6 +210,18 @@ public:
 
 // map functor 3
 class Map_Functor3
+{
+public:
+    // operator()
+    void operator()(tuple_t &t)
+    {
+        // double the value
+        t.value = t.value * (-2);
+    }
+};
+
+// map functor 4
+class Map_Functor4
 {
 public:
     // operator()
@@ -246,18 +291,21 @@ int main(int argc, char *argv[])
     size_t min = 1;
     size_t max = 10;
     std::uniform_int_distribution<std::mt19937::result_type> dist6(min, max);
-    int map1_degree, map2_degree, filter_degree, map3_degree;
+    int map1_degree, map2_degree, filter_degree, map3_degree, map4_degree;
     size_t source1_degree = dist6(rng);
     size_t source2_degree = dist6(rng);
+    size_t source3_degree = dist6(rng);
     long last_result = 0;
     // executes the runs
     for (size_t i=0; i<runs; i++) {
         map1_degree = dist6(rng);
         map2_degree = dist6(rng);
         map3_degree = dist6(rng);
+        map4_degree = dist6(rng);
         filter_degree = dist6(rng);
         cout << "Run " << i << " Source1(" << source1_degree <<")->Map(" << map1_degree << ")-|" << endl;
-        cout << "      Source2(" << source2_degree <<")->Filter(" << filter_degree << ")->Map(" << map2_degree << ")-|->Map(" << map3_degree << ")->Sink(1)" << endl;
+        cout << "      Source2(" << source2_degree << ")->Map(" << map2_degree << ")-|" << endl;
+        cout << "      Source3(" << source3_degree <<")->Filter(" << filter_degree << ")->Map(" << map3_degree << ")-|->Map(" << map4_degree << ")->Sink(1)" << endl;
         // prepare the first Multi-Pipe
         Pipe pipe1("pipe1");
         // source 1
@@ -275,27 +323,41 @@ int main(int argc, char *argv[])
         Source_Odd_Functor source_functor2(stream_len, n_keys);
         Source source2 = Source_Builder(source_functor2).withName("pipe2_source").withParallelism(source2_degree).build();
         pipe2.add_source(source2);
-        // filter
-        Filter_Functor filter_functor;
-        Filter filter = Filter_Builder(filter_functor).withName("pipe2_filter").withParallelism(filter_degree).build();
-        pipe2.chain(filter);
         // map 2
         Map_Functor2 map_functor2;
         Map map2 = Map_Builder(map_functor2).withName("pipe2_map").withParallelism(map2_degree).build();
         pipe2.chain(map2);
 
-        // create union
+        // create the first union
         Pipe pipe3 = pipe1.unionPipes("pipe3", pipe2);
+
+        // prepare the fourth Multi-Pipe
+        Pipe pipe4("pipe4");
+        // source 3
+        Source_Negative_Functor source_functor3(stream_len, n_keys);
+        Source source3 = Source_Builder(source_functor3).withName("pipe4_source").withParallelism(source3_degree).build();
+        pipe4.add_source(source3);
+        // filter
+        Filter_Functor filter_functor;
+        Filter filter = Filter_Builder(filter_functor).withName("pipe4_filter").withParallelism(filter_degree).build();
+        pipe4.chain(filter);
         // map 3
         Map_Functor3 map_functor3;
-        Map map3 = Map_Builder(map_functor3).withName("pipe3_map").withParallelism(map3_degree).build();
-        pipe3.chain(map3);
+        Map map3 = Map_Builder(map_functor3).withName("pipe4_map").withParallelism(map3_degree).build();
+        pipe4.chain(map3);
+
+        // create the second union
+        Pipe pipe5 = pipe3.unionPipes("pipe5", pipe4);
+        // map 4
+        Map_Functor4 map_functor4;
+        Map map4 = Map_Builder(map_functor4).withName("pipe5_map").withParallelism(map4_degree).build();
+        pipe5.chain(map4);
         // sink
         Sink_Functor sink_functor(n_keys);
-        Sink sink = Sink_Builder(sink_functor).withName("pipe3_sink").withParallelism(1).build();
-        pipe3.chain_sink(sink);
+        Sink sink = Sink_Builder(sink_functor).withName("pipe5_sink").withParallelism(1).build();
+        pipe5.chain_sink(sink);
         // run the application
-        pipe3.run_and_wait_end();
+        pipe5.run_and_wait_end();
         if (i == 0) {
             last_result = global_sum;
             cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT << endl;

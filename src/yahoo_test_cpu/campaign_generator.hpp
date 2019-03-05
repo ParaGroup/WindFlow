@@ -83,7 +83,6 @@ public:
 			ad_id = relational_table[k].ad_id;
 			map.insert(pair<unsigned long, unsigned int>(ad_id, k));
 		}
-		cout << "HashMap has " << map.size() << " entries" << endl;
 	}
 
 	// destructor

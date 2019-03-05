@@ -16,7 +16,7 @@
 # Author: Gabriele Mencagli <mencagli@di.unipi.it>
 # Date:   June 2017
 
-all: source_test map_test filter_test flatmap_test accumulator_test sum_test_cpu sum_test_gpu sink_test pipe_test_cpu pipe_test_gpu spatial_test yahoo_test_cpu
+all: source_test map_test filter_test flatmap_test accumulator_test sum_test_cpu sum_test_gpu sink_test microbenchmarks union_test pipe_test_cpu pipe_test_gpu spatial_test yahoo_test_cpu
 
 source_test:
 	$(MAKE) -C source_test
@@ -42,11 +42,17 @@ sum_test_gpu:
 sink_test:
 	$(MAKE) -C sink_test
 
+microbenchmarks:
+	$(MAKE) -C microbenchmarks
+
 pipe_test_cpu:
 	$(MAKE) -C pipe_test_cpu
 
 pipe_test_gpu:
 	$(MAKE) -C pipe_test_gpu
+
+union_test:
+	$(MAKE) -C union_test
 
 spatial_test:
 	$(MAKE) -C spatial_test
@@ -63,10 +69,12 @@ clean:
 	$(MAKE) clean -C sum_test_cpu
 	$(MAKE) clean -C sum_test_gpu
 	$(MAKE) clean -C sink_test
+	$(MAKE) clean -C microbenchmarks
 	$(MAKE) clean -C pipe_test_cpu
 	$(MAKE) clean -C pipe_test_gpu
+	$(MAKE) clean -C union_test
 	$(MAKE) clean -C spatial_test
 	$(MAKE) clean -C yahoo_test_cpu
 	
 .DEFAULT_GOAL := all
-.PHONY: all source_test map_test filter_test flatmap_test accumulator_test sum_test_cpu sum_test_gpu sink_test pipe_test_cpu pipe_test_gpu spatial_test yahoo_test_cpu clean
+.PHONY: all source_test map_test filter_test flatmap_test accumulator_test sum_test_cpu sum_test_gpu sink_test microbenchmarks union_test pipe_test_cpu pipe_test_gpu spatial_test yahoo_test_cpu clean

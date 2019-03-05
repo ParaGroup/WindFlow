@@ -17,7 +17,7 @@
 # Date:   January 2019
 
 FF_ROOT			= $(HOME)/fastflow
-OUT_DIR			= ../../bin/filter_test
+OUT_DIR			= ../../bin/microbenchmarks
 INCLUDE_DIR		= ../../includes
 
 CXX 			= /usr/local/gcc-7.2.0/bin/g++

@@ -17,7 +17,7 @@
 /*  
  *  Second Test Program of the Union between Multi-Pipe instances
  *  
- *  Second test program of the union between two Multi-Pipe instances
+ *  Test program of the union between three Multi-Pipe instances
  */
 
 // include
