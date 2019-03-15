@@ -88,6 +88,18 @@ public:
         n_delivered++;
         return node->ff_send_out(out);
     }
+
+    /** 
+     *  \brief Deliver a new result
+     *  
+     *  \param r a pointer to the result to be delivered (it must be allocated in the heap)
+     *  \return delivery status (done -> true, failed -> false)
+     */  
+    bool push(result_t *r)
+    {
+        n_delivered++;
+        return node->ff_send_out(r);
+    }
 };
 
 #endif

@@ -47,6 +47,10 @@ atomic<int> rcvResults;
 // global variable: sum of the latency values
 atomic<int> latency_sum;
 
+// global variable: vector of latency results and its mutex
+vector<long> latency_values;
+mutex mutex_latency;
+
 // Source functor
 class YSBSource
 {
@@ -83,7 +87,7 @@ public:
                 out.ts = current_time_usecs() - start_time_usec;
                 out.user_id = 0; // not meaningful
                 out.page_id = 0; // not meaningful
-                out.ad_id = ads_arrays[(value % 100000) % (100 * adsPerCampaign)][1];
+                out.ad_id = ads_arrays[(value % 100000) % (N_CAMPAIGNS * adsPerCampaign)][1];
                 out.ad_type = (value % 100000) % 5;
                 out.event_type = (value % 100000) % 3;
                 out.ip = 1; // not meaningful
@@ -104,7 +108,7 @@ public:
         event.ts = current_time_usecs() - start_time_usec;
         event.user_id = 0; // not meaningful
         event.page_id = 0; // not meaningful
-        event.ad_id = ads_arrays[(value % 100000) % (100 * adsPerCampaign)][1];
+        event.ad_id = ads_arrays[(value % 100000) % (N_CAMPAIGNS * adsPerCampaign)][1];
         event.ad_type = (value % 100000) % 5;
         event.event_type = (value % 100000) % 3;
         event.ip = 1; // not meaningful
@@ -190,12 +194,12 @@ public:
             return;
         }
         else {
-            joined_event_t out;
-            out.ts = event.ts;
-            out.ad_id = event.ad_id;
+            joined_event_t *out = new joined_event_t();
+            out->ts = event.ts;
+            out->ad_id = event.ad_id;
             campaign_record record = relational_table[(*it).second];
-            out.relational_ad_id = record.ad_id;
-            out.cmp_id = record.cmp_id;
+            out->relational_ad_id = record.ad_id;
+            out->cmp_id = record.cmp_id;
             shipper.push(out);
         }        
     }
@@ -207,6 +211,7 @@ class YSBSink
 private:
     size_t received;
     unsigned long avgLatencyUs;
+    vector<long> local_latencies;
 
 public:
     // constructor
@@ -222,13 +227,22 @@ public:
             received++;
             auto info = (*res).getInfo();
             // update the latency
-            avgLatencyUs += current_time_usecs() - ((*res).lastUpdate + start_time_usec); 
+            long latency = current_time_usecs() - ((*res).lastUpdate + start_time_usec);
+            avgLatencyUs += latency;
+            local_latencies.push_back(latency);
         }
         else {
             //cout << "[Sink] Received " << received << " results, average latency (usec) " << avgLatencyUs/((double) received) << endl;
             int value_lat = (int) avgLatencyUs;
             latency_sum.fetch_add(value_lat);
             rcvResults.fetch_add(received);
+            /*
+            // write latency results in the global vector
+            mutex_latency.lock();
+            for (auto lat: local_latencies) {
+                latency_values.push_back(lat);
+            }
+            mutex_latency.unlock();*/
         }
     }
 };

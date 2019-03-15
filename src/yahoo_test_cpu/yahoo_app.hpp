@@ -119,6 +119,7 @@ struct joined_event_t
 // win_result struct
 struct win_result
 {
+    unsigned long wid; // id
     unsigned long ts; // timestamp
     unsigned long cmp_id; // campaign id
     unsigned long lastUpdate; // MAX(TS)
@@ -133,7 +134,7 @@ struct win_result
     // getInfo method (needed by the WindFlow library)
     tuple<size_t, uint64_t, uint64_t> getInfo() const
     {
-        return tuple<size_t, uint64_t, uint64_t>((size_t) cmp_id, (uint64_t) 0, (uint64_t) ts); // be careful with this cast!
+        return tuple<size_t, uint64_t, uint64_t>((size_t) cmp_id, (uint64_t) wid, (uint64_t) ts); // be careful with this cast!
     }
 
     // setInfo method (needed by the WindFlow library)
@@ -141,6 +142,7 @@ struct win_result
     {
         cmp_id = (long) _key;
         ts = (long) _ts;
+        wid = _id;
     }
 };
 
@@ -150,6 +152,15 @@ size_t aggregateFunctionINC(size_t cmp_id, size_t wid, const joined_event_t &eve
     result.count++;
     if (event.ts > result.lastUpdate)
         result.lastUpdate = event.ts;
+    return 0;
+}
+
+// function for computing the final aggregates on tumbling windows (reduce version)
+size_t reduceFunctionINC(size_t cmp_id, size_t wid, const win_result &r1, win_result &r2)
+{
+    r2.count += r1.count;
+    if (r1.lastUpdate > r2.lastUpdate)
+        r2.lastUpdate = r1.lastUpdate;
     return 0;
 }
 

@@ -57,16 +57,16 @@ public:
 	CampaignGenerator(unsigned int _adsPerCampaign=10): adsPerCampaign(_adsPerCampaign)
 	{
 		// create the arrays
-		arrays = (unsigned long **) malloc(sizeof(unsigned long *) * 100 * adsPerCampaign);
-		for(size_t i=0; i<100*adsPerCampaign; i++)
+		arrays = (unsigned long **) malloc(sizeof(unsigned long *) * N_CAMPAIGNS * adsPerCampaign);
+		for(size_t i=0; i<N_CAMPAIGNS*adsPerCampaign; i++)
 			arrays[i] = (unsigned long *) malloc(sizeof(unsigned long) * 2);
 		// create the relational table
-		relational_table = (campaign_record *) malloc(sizeof(campaign_record) * 100 * adsPerCampaign);
+		relational_table = (campaign_record *) malloc(sizeof(campaign_record) * N_CAMPAIGNS * adsPerCampaign);
 		// initialize the arrays and the relational table
 		int value = 0;
 		int value2 = 0;
 		unsigned long ad_id, cmp_id;
-		for (size_t k=0; k<100; k++) {
+		for (size_t k=0; k<N_CAMPAIGNS; k++) {
 			cmp_id = (value2);
 			value2++;
 			for (size_t i=0; i<adsPerCampaign; i++) {
@@ -79,7 +79,7 @@ public:
 			}
 		}
 		// initialize the hashmap
-		for (unsigned int k=0; k<(100 * adsPerCampaign); k++) {
+		for (unsigned int k=0; k<(N_CAMPAIGNS * adsPerCampaign); k++) {
 			ad_id = relational_table[k].ad_id;
 			map.insert(pair<unsigned long, unsigned int>(ad_id, k));
 		}
@@ -89,7 +89,7 @@ public:
 	~CampaignGenerator()
 	{
 		// delete the arrays
-		for(size_t i=0; i<100*adsPerCampaign; i++)
+		for(size_t i=0; i<N_CAMPAIGNS*adsPerCampaign; i++)
 			delete arrays[i];
 		delete arrays;
 		// delete the relational table
