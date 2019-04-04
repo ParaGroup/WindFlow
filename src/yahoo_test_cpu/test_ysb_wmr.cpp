@@ -45,7 +45,7 @@ extern atomic<int> sentCounter;
 extern atomic<int> rcvResults;
 
 // global variable: sum of the latency values
-extern atomic<int> latency_sum;
+extern atomic<long> latency_sum;
 
 // global variable: vector of latency result and its mutex
 extern vector<long> latency_values;

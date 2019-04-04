@@ -45,7 +45,7 @@ atomic<int> sentCounter;
 atomic<int> rcvResults;
 
 // global variable: sum of the latency values
-atomic<int> latency_sum;
+atomic<long> latency_sum;
 
 // global variable: vector of latency results and its mutex
 vector<long> latency_values;
@@ -224,25 +224,27 @@ public:
     void operator()(optional<win_result> &res)
     {
         if (res) {
-            received++;
-            auto info = (*res).getInfo();
-            // update the latency
-            long latency = current_time_usecs() - ((*res).lastUpdate + start_time_usec);
-            avgLatencyUs += latency;
-            local_latencies.push_back(latency);
+            if ((*res).count > 0) {
+                received++;
+                auto info = (*res).getInfo();
+                // update the latency
+                long latency = current_time_usecs() - ((*res).lastUpdate + start_time_usec);
+                avgLatencyUs += latency;
+                local_latencies.push_back(latency);
+            }
         }
         else {
-            //cout << "[Sink] Received " << received << " results, average latency (usec) " << avgLatencyUs/((double) received) << endl;
             int value_lat = (int) avgLatencyUs;
             latency_sum.fetch_add(value_lat);
             rcvResults.fetch_add(received);
-            /*
             // write latency results in the global vector
+            /*
             mutex_latency.lock();
             for (auto lat: local_latencies) {
                 latency_values.push_back(lat);
             }
-            mutex_latency.unlock();*/
+            mutex_latency.unlock();
+            */
         }
     }
 };

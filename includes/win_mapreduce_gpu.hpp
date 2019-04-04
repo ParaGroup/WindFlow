@@ -181,7 +181,7 @@ private:
             ff_farm *farm_map = new ff_farm(w);
             farm_map->remove_collector();
             farm_map->add_collector(new map_collector_t());
-            farm_map->add_emitter(new map_emitter_t(_map_degree));
+            farm_map->add_emitter(new map_emitter_t(_map_degree, _winType));
             farm_map->cleanup_all();
             map_stage = farm_map;
         }
@@ -285,7 +285,7 @@ private:
             ff_farm *farm_map = new ff_farm(w);
             farm_map->remove_collector();
             farm_map->add_collector(new map_collector_t());
-            farm_map->add_emitter(new map_emitter_t(_map_degree));
+            farm_map->add_emitter(new map_emitter_t(_map_degree, _winType));
             farm_map->cleanup_all();
             map_stage = farm_map;
         }
@@ -389,7 +389,7 @@ private:
             ff_farm *farm_map = new ff_farm(w);
             farm_map->remove_collector();
             farm_map->add_collector(new map_collector_t());
-            farm_map->add_emitter(new map_emitter_t(_map_degree));
+            farm_map->add_emitter(new map_emitter_t(_map_degree, _winType));
             farm_map->cleanup_all();
             map_stage = farm_map;
         }
@@ -493,7 +493,7 @@ private:
             ff_farm *farm_map = new ff_farm(w);
             farm_map->remove_collector();
             farm_map->add_collector(new map_collector_t());
-            farm_map->add_emitter(new map_emitter_t(_map_degree));
+            farm_map->add_emitter(new map_emitter_t(_map_degree, _winType));
             farm_map->cleanup_all();
             map_stage = farm_map;
         }

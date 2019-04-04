@@ -43,11 +43,17 @@ sum_test_gpu:
 sink_test:
 	$(MAKE) sink_test -C src
 
+microbenchmarks:
+	$(MAKE) microbenchmarks -C src
+
 pipe_test_cpu:
 	$(MAKE) pipe_test_cpu -C src
 
 pipe_test_gpu:
 	$(MAKE) pipe_test_gpu -C src
+
+union_test:
+	$(MAKE) union_test -C src
 
 spatial_test:
 	$(MAKE) spatial_test -C src
@@ -59,4 +65,4 @@ clean:
 	$(MAKE) clean -C src
 
 .DEFAULT_GOAL := all
-.PHONY: all source_test map_test filter_test flatmap_test accumulator_test sum_test_cpu sum_test_gpu sink_test pipe_test_cpu pipe_test_gpu spatial_test yahoo_test_cpu clean
+.PHONY: all source_test map_test filter_test flatmap_test accumulator_test sum_test_cpu sum_test_gpu sink_test microbenchmarks pipe_test_cpu pipe_test_gpu union_test spatial_test yahoo_test_cpu clean

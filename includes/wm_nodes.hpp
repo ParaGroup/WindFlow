@@ -48,6 +48,7 @@ private:
     template<typename T1, typename T2, typename T3, typename T4>
     friend class Win_MapReduce_GPU;
     size_t map_degree; // parallelism degree (MAP phase)
+    win_type_t winType; // type of the windows (CB or TB)
     // struct of a key descriptor
     struct Key_Descriptor
     {
@@ -61,7 +62,7 @@ private:
     unordered_map<size_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
 
     // private constructor
-    WinMap_Emitter(size_t _map_degree): map_degree(_map_degree) {}
+    WinMap_Emitter(size_t _map_degree, win_type_t _winType): map_degree(_map_degree), winType(_winType) {}
 
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
@@ -72,9 +73,10 @@ private:
     // svc method (utilized by the FastFlow runtime)
     wrapper_in_t *svc(input_t *wt)
     {
-        // extract the key field from the input tuple
+        // extract the key and id/timestamp fields from the input tuple
         tuple_t *t = extractTuple<tuple_t, input_t>(wt);
         size_t key = std::get<0>(t->getInfo()); // key
+        uint64_t id = (winType == CB) ? std::get<1>(t->getInfo()) : std::get<2>(t->getInfo()); // identifier or timestamp
         // access the descriptor of the input key
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
@@ -83,8 +85,24 @@ private:
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
-        key_d.rcv_counter++;
-        key_d.last_tuple = *t;
+        // check duplicate or out-of-order tuples
+        if (key_d.rcv_counter == 0) {
+            key_d.rcv_counter++;
+            key_d.last_tuple = *t;
+        }
+        else {
+            // tuples can be received only ordered by id/timestamp
+            uint64_t last_id = (winType == CB) ? std::get<1>((key_d.last_tuple).getInfo()) : std::get<2>((key_d.last_tuple).getInfo());
+            if (id < last_id) {
+                // the tuple is immediately deleted
+                deleteTuple<tuple_t, input_t>(wt);
+                return this->GO_ON;
+            }
+            else {
+                key_d.rcv_counter++;
+                key_d.last_tuple = *t;
+            }
+        }
         // prepare the wrapper to be sent
         wrapper_in_t *out = prepareWrapper<input_t, wrapper_in_t>(wt, 1);
         // send the wrapper to the next Win_Seq instance
