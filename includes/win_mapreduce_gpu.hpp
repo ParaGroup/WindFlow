@@ -31,9 +31,9 @@
  *  definition.
  *  
  *  The template arguments tuple_t and result_t must be default constructible, with a copy constructor
- *  and copy assignment operator, and they must provide and implement the setInfo() and
- *  getInfo() methods. The third template argument F_t is the type of the callable object to be used for GPU
- *  processing (either for the MAP or for the REDUCE stage).
+ *  and copy assignment operator, and they must provide and implement the setInfo() and getInfo() methods.
+ *  The third template argument F_t is the type of the callable object to be used for GPU processing
+ *  (either for the MAP or for the REDUCE stage).
  */ 
 
 #ifndef WIN_MAPREDUCE_GPU_H
@@ -700,23 +700,6 @@ public:
      *  \return adopted windowing semantics (count- or time-based)
      */
     win_type_t getWinType() { return winType; }
-
-//@cond DOXY_IGNORE
-
-    // ------------------------- deleted method ---------------------------
-    int  add_stage(ff_node *s)                                    = delete;
-    int  wrap_around(bool multi_input=false)                      = delete;
-    void cleanup_nodes()                                          = delete;
-    bool offload(void * task,
-                 unsigned long retry=((unsigned long)-1),
-                 unsigned long ticks=ff_node::TICKS2WAIT)         = delete;
-    bool load_result(void ** task,
-                     unsigned long retry=((unsigned long)-1),
-                     unsigned long ticks=ff_node::TICKS2WAIT)     = delete;
-    bool load_result_nb(void ** task)                             = delete;
-
-//@endcond
-
 };
 
 #endif

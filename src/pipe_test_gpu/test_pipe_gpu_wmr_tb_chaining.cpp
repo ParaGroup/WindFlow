@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Test of the Pipe construct
+ *  Test of the MultiPipe construct
  *  
  *  Composition: Source(1) -> Filter(*) -> FlatMap(*) -> Map(*) -> WMR_GPU_TB(*) -> Sink(1)
  */ 
@@ -264,7 +264,7 @@ int main(int argc, char *argv[])
     		wmap_degree = 2; // map stage of the WMR must always be parallel
     	cout << "Run " << i << " Source(" << source_degree <<")->Filter(" << degree1 << ")-?->FlatMap(" << degree2 << ")-c->Map(" << degree2 << ")->Win_MapReduce_GPU_TB(" << wmap_degree << "," << reduce_degree << ")->Sink(1)" << endl;
 	    // prepare the test
-	    Pipe application("test_wmr_tb_gpu_ch");
+	    MultiPipe application("test_wmr_tb_gpu_ch");
 	    // source
 	    Source_Functor source_functor(stream_len, n_keys);
 	    auto *source = Source_Builder<decltype(source_functor)>(source_functor).withName("test_wmr_tb_gpu_ch_source").withParallelism(source_degree).build_ptr();

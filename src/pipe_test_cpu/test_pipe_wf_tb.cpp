@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Test of the Pipe construct
+ *  Test of the MultiPipe construct
  *  
  *  Composition: Source(1) -> Filter(*) -> FlatMap(*) -> Map(*) -> WF_TB(*) -> Sink(1)
  */ 
@@ -276,7 +276,7 @@ int main(int argc, char *argv[])
     	wf_degree = dist6(rng);
     	cout << "Run " << i << " Source(" << source_degree <<")->Filter(" << filter_degree << ")->FlatMap(" << flatmap_degree << ")->Map(" << map_degree << ")->Win_Farm_TB(" << wf_degree << ")->Sink(1)" << endl;
 	    // prepare the test
-	    Pipe application("test_wf_tb");
+	    MultiPipe application("test_wf_tb");
 	    // source
 	    Source_Functor source_functor(stream_len, n_keys);
 	    Source source = Source_Builder(source_functor).withName("test_wf_tb_source").withParallelism(source_degree).build();

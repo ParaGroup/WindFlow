@@ -142,8 +142,12 @@ private:
     F_t func;
     // type of the pattern to be created by this builder
     using filter_t = Filter<decltype(get_tuple_t(func))>;
+    // function type of the distribution function
+    using f_routing_t = function<size_t(size_t, size_t)>;
     uint64_t pardegree = 1;
     string name = "anonymous_filter";
+    bool isKeyed = false;
+    f_routing_t routing_F;
 
 public:
     /** 
@@ -177,6 +181,19 @@ public:
         return *this;
     }
 
+    /** 
+     *  \brief Method to enable the key-based routing
+     *  
+     *  \param _routing_F function to perform the key-based distribution
+     *  \return the object itself
+     */ 
+    Filter_Builder<F_t>& keyBy(f_routing_t _routing_F=[](size_t k, size_t n) { return k%n; })
+    {
+        isKeyed = true;
+        routing_F = _routing_F;
+        return *this;
+    }
+
 #if __cplusplus >= 201703L
     /** 
      *  \brief Method to create the Filter pattern (only C++17)
@@ -185,7 +202,10 @@ public:
      */ 
     filter_t build()
     {
-        return filter_t(func, pardegree, name); // copy elision in C++17
+        if (!isKeyed)
+            return filter_t(func, pardegree, name); // copy elision in C++17
+        else
+            return filter_t(func, pardegree, name, routing_F); // copy elision in C++17
     }
 #endif
 
@@ -196,7 +216,10 @@ public:
      */ 
     filter_t *build_ptr()
     {
-        return new filter_t(func, pardegree, name);
+        if (!isKeyed)
+            return new filter_t(func, pardegree, name);
+        else
+            return new filter_t(func, pardegree, name, routing_F);
     }
 
     /** 
@@ -206,7 +229,10 @@ public:
      */ 
     unique_ptr<filter_t> build_unique()
     {
-        return make_unique<filter_t>(func, pardegree, name);
+        if (!isKeyed)
+            return make_unique<filter_t>(func, pardegree, name);
+        else
+            return make_unique<filter_t>(func, pardegree, name, routing_F);
     }
 };
 
@@ -225,8 +251,12 @@ private:
     // type of the pattern to be created by this builder
     using map_t = Map<decltype(get_tuple_t(func)),
                              decltype(get_result_t(func))>;
+    // function type of the distribution function
+    using f_routing_t = function<size_t(size_t, size_t)>;
     uint64_t pardegree = 1;
     string name = "anonymous_map";
+    bool isKeyed = false;
+    f_routing_t routing_F;
 
 public:
     /** 
@@ -260,6 +290,19 @@ public:
         return *this;
     }
 
+    /** 
+     *  \brief Method to enable the key-based routing
+     *  
+     *  \param _routing_F function to perform the key-based distribution
+     *  \return the object itself
+     */ 
+    Map_Builder<F_t>& keyBy(f_routing_t _routing_F=[](size_t k, size_t n) { return k%n; })
+    {
+        isKeyed = true;
+        routing_F = _routing_F;
+        return *this;
+    }
+
 #if __cplusplus >= 201703L
     /** 
      *  \brief Method to create the Map pattern (only C++17)
@@ -268,7 +311,10 @@ public:
      */ 
     map_t build()
     {
-        return map_t(func, pardegree, name); // copy elision in C++17
+        if (!isKeyed)
+            return map_t(func, pardegree, name); // copy elision in C++17
+        else
+            return map_t(func, pardegree, name, routing_F); // copy elision in C++17
     }
 #endif
 
@@ -279,7 +325,10 @@ public:
      */ 
     map_t *build_ptr()
     {
-        return new map_t(func, pardegree, name);
+        if (!isKeyed)
+            return new map_t(func, pardegree, name);
+        else
+            return new map_t(func, pardegree, name, routing_F);
     }
 
     /** 
@@ -289,7 +338,10 @@ public:
      */ 
     unique_ptr<map_t> build_unique()
     {
-        return make_unique<map_t>(func, pardegree, name);
+        if (!isKeyed)
+            return make_unique<map_t>(func, pardegree, name);
+        else
+            return make_unique<map_t>(func, pardegree, name, routing_F);
     }
 };
 
@@ -308,8 +360,12 @@ private:
     // type of the pattern to be created by this builder
     using flatmap_t = FlatMap<decltype(get_tuple_t(func)),
                              decltype(get_result_t(func))>;
+    // function type of the distribution function
+    using f_routing_t = function<size_t(size_t, size_t)>;
     uint64_t pardegree = 1;
     string name = "anonymous_flatmap";
+    bool isKeyed = false;
+    f_routing_t routing_F;
 
 public:
     /** 
@@ -343,6 +399,19 @@ public:
         return *this;
     }
 
+    /** 
+     *  \brief Method to enable the key-based routing
+     *  
+     *  \param _routing_F function to perform the key-based distribution
+     *  \return the object itself
+     */ 
+    FlatMap_Builder<F_t>& keyBy(f_routing_t _routing_F=[](size_t k, size_t n) { return k%n; })
+    {
+        isKeyed = true;
+        routing_F = _routing_F;
+        return *this;
+    }
+
 #if __cplusplus >= 201703L
     /** 
      *  \brief Method to create the FlatMap pattern (only C++17)
@@ -351,7 +420,10 @@ public:
      */ 
     flatmap_t build()
     {
-        return flatmap_t(func, pardegree, name); // copy elision in C++17
+        if (!isKeyed)
+            return flatmap_t(func, pardegree, name); // copy elision in C++17
+        else
+            return flatmap_t(func, pardegree, name, routing_F); // copy elision in C++17
     }
 #endif
 
@@ -362,7 +434,10 @@ public:
      */ 
     flatmap_t *build_ptr()
     {
-        return new flatmap_t(func, pardegree, name);
+        if (!isKeyed)
+            return new flatmap_t(func, pardegree, name);
+        else
+            return new flatmap_t(func, pardegree, name, routing_F);
     }
 
     /** 
@@ -372,7 +447,10 @@ public:
      */ 
     unique_ptr<flatmap_t> build_unique()
     {
-        return make_unique<flatmap_t>(func, pardegree, name);
+        if (!isKeyed)
+            return make_unique<flatmap_t>(func, pardegree, name);
+        else
+            return make_unique<flatmap_t>(func, pardegree, name, routing_F);
     }
 };
 
@@ -391,13 +469,13 @@ private:
     // type of the pattern to be created by this builder
     using accumulator_t = Accumulator<decltype(get_tuple_t(func)), decltype(get_result_t(func))>;
     // type of the routing function
-    using routing_F_t = function<size_t(size_t, size_t)>;
+    using f_routing_t = function<size_t(size_t, size_t)>;
     // type of the result produced by the Accumulator instance
     using result_t = decltype(get_result_t(func));
     uint64_t pardegree = 1;
     string name = "anonymous_accumulator";
     result_t init_value;
-    routing_F_t routing_F = [](size_t k, size_t n) { return k%n; };
+    f_routing_t routing_F = [](size_t k, size_t n) { return k%n; };
 
 public:
     /** 
@@ -451,7 +529,7 @@ public:
      *  \param _routing_F routing function to be used
      *  \return the object itself
      */ 
-    Accumulator_Builder<F_t>& withRouting(routing_F_t _routing_F)
+    Accumulator_Builder<F_t>& withRouting(f_routing_t _routing_F)
     {
         routing_F = _routing_F;
         return *this;
@@ -1119,13 +1197,13 @@ private:
     // type of the pattern to be created by this builder
     using keyfarm_t = decltype(get_KF_nested_type(input));
     // type of the routing function
-    using routing_F_t = function<size_t(size_t, size_t)>;
+    using f_routing_t = function<size_t(size_t, size_t)>;
     uint64_t win_len = 1;
     uint64_t slide_len = 1;
     win_type_t winType = CB;
     size_t pardegree = 1;
     string name = "anonymous_kf";
-    routing_F_t routing_F = [](size_t k, size_t n) { return k%n; };
+    f_routing_t routing_F = [](size_t k, size_t n) { return k%n; };
     opt_level_t opt_level = LEVEL0;
 
     // window parameters initialization (input is a Pane_Farm instance)
@@ -1226,7 +1304,7 @@ public:
      *  \param _routing_F routing function to be used
      *  \return the object itself
      */ 
-    KeyFarm_Builder<T>& withRouting(routing_F_t _routing_F)
+    KeyFarm_Builder<T>& withRouting(f_routing_t _routing_F)
     {
         routing_F = _routing_F;
         return *this;
@@ -1290,7 +1368,7 @@ class KeyFarmGPU_Builder
 private:
     T input;
     // type of the routing function
-    using routing_F_t = function<size_t(size_t, size_t)>;
+    using f_routing_t = function<size_t(size_t, size_t)>;
     // type of the pattern to be created by this builder
     using keyfarm_gpu_t = decltype(get_KF_GPU_nested_type(input));
     uint64_t win_len = 1;
@@ -1301,7 +1379,7 @@ private:
     size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
     string name = "anonymous_wf_gpu";
     size_t scratchpad_size = 0;
-    routing_F_t routing_F = [](size_t k, size_t n) { return k%n; };
+    f_routing_t routing_F = [](size_t k, size_t n) { return k%n; };
     opt_level_t opt_level = LEVEL0;
 
     // window parameters initialization (input is a Pane_Farm_GPU instance)
@@ -1433,7 +1511,7 @@ public:
      *  \param _routing_F routing function to be used
      *  \return the object itself
      */ 
-    KeyFarmGPU_Builder<T>& withRouting(routing_F_t _routing_F)
+    KeyFarmGPU_Builder<T>& withRouting(f_routing_t _routing_F)
     {
         routing_F = _routing_F;
         return *this;

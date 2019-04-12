@@ -15,9 +15,9 @@
  */
 
 /*  
- *  Second Test Program of the Union between Multi-Pipe instances
+ *  Second Test Program of the Union between Multi-MultiPipe instances
  *  
- *  Test program of the union between three Multi-Pipe instances
+ *  Test program of the union between three Multi-MultiPipe instances
  */
 
 // include
@@ -306,8 +306,8 @@ int main(int argc, char *argv[])
         cout << "Run " << i << " Source1(" << source1_degree <<")->Map(" << map1_degree << ")-|" << endl;
         cout << "      Source2(" << source2_degree << ")->Map(" << map2_degree << ")-|" << endl;
         cout << "      Source3(" << source3_degree <<")->Filter(" << filter_degree << ")->Map(" << map3_degree << ")-|->Map(" << map4_degree << ")->Sink(1)" << endl;
-        // prepare the first Multi-Pipe
-        Pipe pipe1("pipe1");
+        // prepare the first Multi-MultiPipe
+        MultiPipe pipe1("pipe1");
         // source 1
         Source_Even_Functor source_functor1(stream_len, n_keys);
         Source source1 = Source_Builder(source_functor1).withName("pipe1_source").withParallelism(source1_degree).build();
@@ -317,8 +317,8 @@ int main(int argc, char *argv[])
         Map map1 = Map_Builder(map_functor1).withName("pipe1_map").withParallelism(map1_degree).build();
         pipe1.chain(map1);
 
-        // prepare the second Multi-Pipe
-        Pipe pipe2("pipe2");
+        // prepare the second Multi-MultiPipe
+        MultiPipe pipe2("pipe2");
         // source 2
         Source_Odd_Functor source_functor2(stream_len, n_keys);
         Source source2 = Source_Builder(source_functor2).withName("pipe2_source").withParallelism(source2_degree).build();
@@ -328,8 +328,8 @@ int main(int argc, char *argv[])
         Map map2 = Map_Builder(map_functor2).withName("pipe2_map").withParallelism(map2_degree).build();
         pipe2.chain(map2);
 
-        // prepare the third Multi-Pipe
-        Pipe pipe3("pipe3");
+        // prepare the third Multi-MultiPipe
+        MultiPipe pipe3("pipe3");
         // source 3
         Source_Negative_Functor source_functor3(stream_len, n_keys);
         Source source3 = Source_Builder(source_functor3).withName("pipe3_source").withParallelism(source3_degree).build();
@@ -344,7 +344,7 @@ int main(int argc, char *argv[])
         pipe3.chain(map3);
 
         // create union
-        Pipe pipe4 = pipe1.unionPipes("pipe4", pipe2, pipe3);
+        MultiPipe pipe4 = pipe1.unionMultiPipes("pipe4", pipe2, pipe3);
         // map 4
         Map_Functor4 map_functor4;
         Map map4 = Map_Builder(map_functor4).withName("pipe4_map").withParallelism(map4_degree).build();

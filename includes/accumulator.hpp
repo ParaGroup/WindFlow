@@ -56,7 +56,7 @@ private:
     // friendships with other classes in the library
     template<typename T1, typename T2>
     friend class Accumulator;
-    friend class Pipe;
+    friend class MultiPipe;
     f_routing_t routing; // routing function
     size_t pardegree; // parallelism degree (number of inner patterns)
 
@@ -106,7 +106,7 @@ public:
     using f_routing_t = function<size_t(size_t, size_t)>;
 private:
     // friendships with other classes in the library
-    friend class Pipe;
+    friend class MultiPipe;
     // class Accumulator_Node
     class Accumulator_Node: public ff_node_t<tuple_t, result_t>
     {
@@ -268,36 +268,6 @@ public:
         // when the Accumulator will be destroyed we need aslo to destroy the emitter, workers and collector
         ff_farm::cleanup_all();
     }
-
-//@cond DOXY_IGNORE
-
-    // -------------------------------------- deleted methods ----------------------------------------
-    template<typename T>
-    int add_emitter(T *e)                                                                    = delete;
-    template<typename T>
-    int add_emitter(const T &e)                                                              = delete;
-    template<typename T>
-    int change_emitter(T *e, bool cleanup=false)                                             = delete;
-    template<typename T>
-    int change_emitter(const T &e, bool cleanup=false)                                       = delete;
-    void set_ordered(const size_t MemoryElements=DEF_OFARM_ONDEMAND_MEMORY)                  = delete;
-    int add_workers(std::vector<ff_node *> &w)                                               = delete;
-    int add_collector(ff_node *c, bool cleanup=false)                                        = delete;
-    int wrap_around(bool multi_input=false)                                                  = delete;
-    int remove_collector()                                                                   = delete;
-    void cleanup_workers()                                                                   = delete;
-    void cleanup_all()                                                                       = delete;
-    bool offload(void *task, unsigned long retry=((unsigned long)-1),
-        unsigned long ticks=ff_loadbalancer::TICKS2WAIT)                                     = delete;
-    bool load_result(void **task, unsigned long retry=((unsigned long)-1),
-        unsigned long ticks=ff_gatherer::TICKS2WAIT)                                         = delete;
-    bool load_result_nb(void **task)                                                         = delete;
-
-private:
-    using ff_farm::set_scheduling_ondemand;
-
-//@endcond
-
 };
 
 #endif

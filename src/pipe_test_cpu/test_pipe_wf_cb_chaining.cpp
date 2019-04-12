@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Test of the Pipe construct ("-c->" means chaining, "-?->" tries chaining, otherwise add)
+ *  Test of the MultiPipe construct ("-c->" means chaining, "-?->" tries chaining, otherwise add)
  *  
  *  Composition: Source(1) -> Filter(*) -?-> FlatMap(*) -c-> Map(*) -> WF_CB(*) -?-> Sink(1)
  */ 
@@ -276,7 +276,7 @@ int main(int argc, char *argv[])
     	wf_degree = dist6(rng);
     	cout << "Run " << i << " Source(" << source_degree <<")->Filter(" << degree1 << ")-?->FlatMap(" << degree2 << ")-c->Map(" << degree2 << ")->Win_Farm_CB(" << wf_degree << ")-?->Sink(1)" << endl;
 	    // prepare the test
-	    Pipe application("test_wf_cb_ch");
+	    MultiPipe application("test_wf_cb_ch");
 	    // source
 	    Source_Functor source_functor(stream_len, n_keys);
 	    Source source = Source_Builder(source_functor).withName("test_wf_cb_ch_source").withParallelism(source_degree).build();

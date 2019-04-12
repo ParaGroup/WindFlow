@@ -38,7 +38,7 @@
 #include <ff/node.hpp>
 #include <ff/all2all.hpp>
 #include <ff/multinode.hpp>
-#include <dummy.hpp>
+#include <standard.hpp>
 #include <shipper.hpp>
 #include <context.hpp>
 
@@ -65,7 +65,7 @@ public:
     using rich_source_loop_func_t = function<void(Shipper<tuple_t>&, RuntimeContext context)>;
 private:
     // friendships with other classes in the library
-    friend class Pipe;
+    friend class MultiPipe;
     // class Source_Node
     class Source_Node: public ff_node_t<tuple_t>
     {
@@ -181,9 +181,11 @@ public:
             auto *seq = new Source_Node(_func, _name);
             first_set.push_back(seq);
         }
+        // add first set
         ff_a2a::add_firstset(first_set, 0, true);
         vector<ff_node *> second_set;
-        second_set.push_back(new dummy_collector());
+        second_set.push_back(new standard_collector());
+        // add second set
         ff_a2a::add_secondset(second_set, true);
     }
 
@@ -207,9 +209,11 @@ public:
             auto *seq = new Source_Node(_func, _name, RuntimeContext(_pardegree, i));
             first_set.push_back(seq);
         }
+        // add first set
         ff_a2a::add_firstset(first_set, 0, true);
         vector<ff_node *> second_set;
-        second_set.push_back(new dummy_collector());
+        second_set.push_back(new standard_collector());
+        // add second set
         ff_a2a::add_secondset(second_set, true);
     }
 
@@ -233,9 +237,11 @@ public:
             auto *seq = new Source_Node(_func, _name);
             first_set.push_back(seq);
         }
+        // add first set
         ff_a2a::add_firstset(first_set, 0, true);
         vector<ff_node *> second_set;
-        second_set.push_back(new dummy_collector());
+        second_set.push_back(new standard_collector());
+        // add second set
         ff_a2a::add_secondset(second_set, true);
     }
 
@@ -259,28 +265,13 @@ public:
             auto *seq = new Source_Node(_func, _name, RuntimeContext(_pardegree, i));
             first_set.push_back(seq);
         }
+        // add first set
         ff_a2a::add_firstset(first_set, 0, true);
         vector<ff_node *> second_set;
-        second_set.push_back(new dummy_collector());
+        second_set.push_back(new standard_collector());
+        // add second set
         ff_a2a::add_secondset(second_set, true);
     }
-
-//@cond DOXY_IGNORE
-
-    // -------------------------------------- deleted methods ----------------------------------------
-    int add_firstset(const std::vector<ff_node *> & w, int ondemand=0, bool cleanup=false)  = delete;
-    int add_secondset(const std::vector<ff_node *> & w, bool cleanup=false)                 = delete;
-    //void skipfirstpop(bool sk)                                                              = delete;
-    //void blocking_mode(bool blk=true)                                                       = delete;
-    //void no_mapping()                                                                       = delete;
-    ///void no_barrier()                                                                       = delete;
-    //int set_output(ff_node *node)                                                           = delete;
-    //void get_out_nodes(svector<ff_node*>&w)                                                 = delete;
-    //virtual void get_in_nodes(svector<ff_node*>&w)                                                  = delete;
-    int wrap_around()                                                                       = delete;
-
-//@endcond
-
 };
 
 #endif

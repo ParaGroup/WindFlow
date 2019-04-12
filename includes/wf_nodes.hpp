@@ -47,7 +47,7 @@ private:
     friend class Win_Farm;
     template<typename T1, typename T2, typename T3, typename T4>
     friend class Win_Farm_GPU;
-    friend class Pipe;
+    friend class MultiPipe;
     win_type_t winType; // type of the windows (CB or TB)
     uint64_t win_len; // window length (in no. of tuples or in time units)
     uint64_t slide_len; // window slide (in no. of tuples or in time units)
@@ -206,7 +206,7 @@ private:
     friend class Win_Farm;
     template<typename T1, typename T2, typename T3, typename T4>
     friend class Win_Farm_GPU;
-    friend class Pipe;
+    friend class MultiPipe;
     win_type_t winType; // type of the windows (CB or TB, used by level 1 and level 2)
     uint64_t win_len; // window length (in no. of tuples or in time units, used by level 1)
     uint64_t slide_len; // window slide (in no. of tuples or in time units, used by level 1)

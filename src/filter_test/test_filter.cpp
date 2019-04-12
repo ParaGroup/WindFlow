@@ -29,20 +29,33 @@
 
 using namespace std;
 
-// struct tuple_t
+// struct of the input tuple
 struct tuple_t
 {
-	int id;
-	int val;
+	size_t key;
+	uint64_t id;
+	uint64_t ts;
+	uint64_t value;
 
-	// constructor I
-	tuple_t() {}
+	// constructor
+	tuple_t(size_t _key, uint64_t _id, uint64_t _ts, uint64_t _value): key(_key), id(_id), ts(_ts), value(_value) {}
 
-	// constructor II
-	tuple_t(int _id, int _val): id(_id), val(_val) {}
+	// default constructor
+	tuple_t(): key(0), id(0), ts(0), value(0) {}
 
-	// destructor
-	~tuple_t() {}
+	// getInfo method
+	tuple<size_t, uint64_t, uint64_t> getInfo() const
+	{
+		return tuple<size_t, uint64_t, uint64_t>(key, id, ts);
+	}
+
+	// setInfo method
+	void setInfo(size_t _key, uint64_t _id, uint64_t _ts)
+	{
+		key = _key;
+		id = _id;
+		ts = _ts;
+	}
 };
 
 // class Generator
@@ -58,7 +71,7 @@ public:
 	tuple_t *svc(tuple_t *)
 	{
 		for(size_t i=1; i<=stream_len; i++) {
-			tuple_t *t = new tuple_t(i, i);
+			tuple_t *t = new tuple_t(0, i, 0, i);
 			this->ff_send_out(t);
 		}
 		return this->EOS;
@@ -79,7 +92,7 @@ public:
 	tuple_t *svc(tuple_t *t)
 	{
 		received++;
-		sum += t->val;
+		sum += t->value;
 		delete t;
 		return this->GO_ON;
 	}
@@ -94,7 +107,7 @@ public:
 // filter function
 bool predicate_function(tuple_t &t)
 {
-	if (t.val % 3 == 0)
+	if (t.value % 3 == 0)
 		return true;
 	else
 		return false;	
@@ -111,7 +124,7 @@ public:
 
 	bool operator()(T &t)
 	{
-	if (t.val % 3 == 0)
+	if (t.value % 3 == 0)
 		return true;
 	else
 		return false;
@@ -146,7 +159,7 @@ int main(int argc, char *argv[])
 	Generator generator1(stream_len);
 	// filter lambda
 	auto predicate_lambda = [](tuple_t &t) {
-		if (t.val % 3 == 0)
+		if (t.value % 3 == 0)
 			return true;
 		else
 			return false;

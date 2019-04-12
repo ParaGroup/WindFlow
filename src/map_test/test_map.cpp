@@ -30,33 +30,62 @@
 using namespace ff;
 using namespace std;
 
-// struct tuple_t
+// struct of the input tuple
 struct tuple_t
 {
-	int id;
-	int val;
+	size_t key;
+	uint64_t id;
+	uint64_t ts;
+	uint64_t value;
 
-	// constructor I
-	tuple_t() {}
+	// constructor
+	tuple_t(size_t _key, uint64_t _id, uint64_t _ts, uint64_t _value): key(_key), id(_id), ts(_ts), value(_value) {}
 
-	// constructor II
-	tuple_t(int _id, int _val): id(_id), val(_val) {}
+	// default constructor
+	tuple_t(): key(0), id(0), ts(0), value(0) {}
 
-	// destructor
-	~tuple_t() {}
+	// getInfo method
+	tuple<size_t, uint64_t, uint64_t> getInfo() const
+	{
+		return tuple<size_t, uint64_t, uint64_t>(key, id, ts);
+	}
+
+	// setInfo method
+	void setInfo(size_t _key, uint64_t _id, uint64_t _ts)
+	{
+		key = _key;
+		id = _id;
+		ts = _ts;
+	}
 };
 
 // struct result_t
 struct result_t
 {
-	int id;
-	int val;
+	size_t key;
+	uint64_t id;
+	uint64_t ts;
+	uint64_t value;
 
 	// constructor
-	result_t() {}
+	result_t(size_t _key, uint64_t _id, uint64_t _ts, uint64_t _value): key(_key), id(_id), ts(_ts), value(_value) {}
 
-	// destructor
-	~result_t() {}
+	// default constructor
+	result_t(): key(0), id(0), ts(0), value(0) {}
+
+	// getInfo method
+	tuple<size_t, uint64_t, uint64_t> getInfo() const
+	{
+		return tuple<size_t, uint64_t, uint64_t>(key, id, ts);
+	}
+
+	// setInfo method
+	void setInfo(size_t _key, uint64_t _id, uint64_t _ts)
+	{
+		key = _key;
+		id = _id;
+		ts = _ts;
+	}
 };
 
 // class Generator
@@ -72,7 +101,7 @@ public:
 	tuple_t *svc(tuple_t *)
 	{
 		for(size_t i=1; i<=stream_len; i++) {
-			tuple_t *t = new tuple_t(i, i);
+			tuple_t *t = new tuple_t(0, i, 0, i);
 			this->ff_send_out(t);
 		}
 		return this->EOS;
@@ -93,7 +122,7 @@ public:
 	tuple_t *svc(tuple_t *t)
 	{
 		received++;
-		sum += t->val;
+		sum += t->value;
 		delete t;
 		return this->GO_ON;
 	}
@@ -119,7 +148,7 @@ public:
 	result_t *svc(result_t *r)
 	{
 		received++;
-		sum += r->val;
+		sum += r->value;
 		delete r;
 		return this->GO_ON;
 	}
@@ -135,13 +164,13 @@ public:
 void map_function_nip(const tuple_t &t, result_t &r)
 {
 	r.id = t.id;
-	r.val = t.val * 2;	
+	r.value = t.value * 2;	
 }
 
 // map function (IP)
 void map_function_ip(tuple_t &t)
 {
-	t.val = t.val * 2;	
+	t.value = t.value * 2;	
 }
 
 // map functor (NIP)
@@ -156,7 +185,7 @@ public:
 	void operator()(const T &t, R &r)
 	{
 		r.id = t.id;
-		r.val = t.val * 2 * state;		
+		r.value = t.value * 2 * state;		
 	}
 };
 
@@ -171,7 +200,7 @@ public:
 
 	void operator()(T &t) {
 	
-		t.val = t.val * 2 * state;
+		t.value = t.value * 2 * state;
 	}
 };
 
@@ -204,7 +233,7 @@ int main(int argc, char *argv[])
 	// map lambda (NIP)
 	auto map_lambda_nip = [](const tuple_t &t, result_t &r) {
 		r.id = t.id;
-		r.val = t.val * 2;
+		r.value = t.value * 2;
 	};
 	// creation of the Map pattern
 	Map map1 = Map_Builder(map_lambda_nip).withParallelism(pardegree)
@@ -263,7 +292,7 @@ int main(int argc, char *argv[])
 	Generator generator4(stream_len);
 	// map lambda (IP)
 	auto map_lambda_ip = [](tuple_t &t) {
-		t.val = t.val * 2;
+		t.value = t.value * 2;
 	};
 	// creation of the Map pattern
 	Map map4 = Map_Builder(map_lambda_ip).withParallelism(pardegree)

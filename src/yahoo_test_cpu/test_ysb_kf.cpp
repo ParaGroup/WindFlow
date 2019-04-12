@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
     // create the campaigns
     CampaignGenerator campaign_gen;
     // create the application pipeline
-    Pipe application("ysb");
+    MultiPipe application("ysb");
     // create source operator
     YSBSource source_functor(exec_time_sec, campaign_gen.getArrays(), campaign_gen.getAdsCompaign());
     Source source = Source_Builder(source_functor).withName("ysb_source").withParallelism(pardegree1).build();

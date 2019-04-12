@@ -41,7 +41,7 @@
 #include <key_farm.hpp>
 #include <pane_farm.hpp>
 #include <win_mapreduce.hpp>
-#include <pipe.hpp>
+#include <multipipe.hpp>
 #include <sink.hpp>
 
 // namespace

@@ -26,8 +26,9 @@
  *  This file implements the Sink pattern in charge of absorbing the items of
  *  a data stream.
  *  
- *  The template argument tuple_t must be default constructible, with a copy constructor and copy assignment
- *  operator, and it must provide and implement the setInfo() and getInfo() methods.
+ *  The template argument tuple_t must be default constructible, with a copy constructor
+ *  and copy assignment operator, and it must provide and implement the setInfo() and
+ *  getInfo() methods.
  */ 
 
 #ifndef SINK_H
@@ -62,9 +63,12 @@ public:
     using sink_func_t = function<void(optional<tuple_t> &)>;
     /// type of the rich sink function
     using rich_sink_func_t = function<void(optional<tuple_t> &, RuntimeContext)>;
+    /// function type to map the key onto an identifier starting from zero to pardegree-1
+    using f_routing_t = function<size_t(size_t, size_t)>;
 private:
     // friendships with other classes in the library
-    friend class Pipe;
+    friend class MultiPipe;
+    bool keyed; // flag stating whether the Sink is configured with keyBy or not
     // class Sink_Node
     class Sink_Node: public ff_monode_t<tuple_t>
     {
@@ -167,7 +171,7 @@ public:
      *  \param _pardegree parallelism degree of the Sink pattern
      *  \param _name string with the unique name of the Sink pattern
      */ 
-    Sink(sink_func_t _func, size_t _pardegree, string _name)
+    Sink(sink_func_t _func, size_t _pardegree, string _name): keyed(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -180,6 +184,9 @@ public:
             auto *seq = new Sink_Node(_func, _name);
             w.push_back(seq);
         }
+        // add emitter
+        ff_farm::add_emitter(new standard_emitter<tuple_t>());
+        // add workers
         ff_farm::add_workers(w);
         // when the Sink will be destroyed we need aslo to destroy the emitter and workers
         ff_farm::cleanup_all();
@@ -188,11 +195,40 @@ public:
     /** 
      *  \brief Constructor II
      *  
+     *  \param _func sink function
+     *  \param _pardegree parallelism degree of the Sink pattern
+     *  \param _name string with the unique name of the Sink pattern
+     *  \param _routing routing function for the key-based distribution
+     */ 
+    Sink(sink_func_t _func, size_t _pardegree, string _name, f_routing_t _routing): keyed(true)
+    {
+        // check the validity of the parallelism degree
+        if (_pardegree == 0) {
+            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // vector of Sink_Node instances
+        vector<ff_node *> w;
+        for (size_t i=0; i<_pardegree; i++) {
+            auto *seq = new Sink_Node(_func, _name);
+            w.push_back(seq);
+        }
+        // add emitter
+        ff_farm::add_emitter(new standard_emitter<tuple_t>(_routing));
+        // add workers
+        ff_farm::add_workers(w);
+        // when the Sink will be destroyed we need aslo to destroy the emitter and workers
+        ff_farm::cleanup_all();
+    }
+
+    /** 
+     *  \brief Constructor III
+     *  
      *  \param _func rich sink function
      *  \param _pardegree parallelism degree of the Sink pattern
      *  \param _name string with the unique name of the Sink pattern
      */ 
-    Sink(rich_sink_func_t _func, size_t _pardegree, string _name)
+    Sink(rich_sink_func_t _func, size_t _pardegree, string _name): keyed(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -205,40 +241,48 @@ public:
             auto *seq = new Sink_Node(_func, _name, RuntimeContext(_pardegree, i));
             w.push_back(seq);
         }
+        // add emitter
+        ff_farm::add_emitter(new standard_emitter<tuple_t>());
+        // add workers
         ff_farm::add_workers(w);
         // when the Sink will be destroyed we need aslo to destroy the emitter and workers
         ff_farm::cleanup_all();
     }
 
-//@cond DOXY_IGNORE
+    /** 
+     *  \brief Constructor IV
+     *  
+     *  \param _func rich sink function
+     *  \param _pardegree parallelism degree of the Sink pattern
+     *  \param _name string with the unique name of the Sink pattern
+     *  \param _routing routing function for the key-based distribution
+     */ 
+    Sink(rich_sink_func_t _func, size_t _pardegree, string _name, f_routing_t _routing): keyed(true)
+    {
+        // check the validity of the parallelism degree
+        if (_pardegree == 0) {
+            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            exit(EXIT_FAILURE);
+        }
+        // vector of Sink_Node instances
+        vector<ff_node *> w;
+        for (size_t i=0; i<_pardegree; i++) {
+            auto *seq = new Sink_Node(_func, _name, RuntimeContext(_pardegree, i));
+            w.push_back(seq);
+        }
+        // add emitter
+        ff_farm::add_emitter(new standard_emitter<tuple_t>(_routing));
+        // add workers
+        ff_farm::add_workers(w);
+        // when the Sink will be destroyed we need aslo to destroy the emitter and workers
+        ff_farm::cleanup_all();
+    }
 
-    // -------------------------------------- deleted methods ----------------------------------------
-    template<typename T>
-    int add_emitter(T *e)                                                                    = delete;
-    template<typename T>
-    int add_emitter(const T &e)                                                              = delete;
-    template<typename T>
-    int change_emitter(T *e, bool cleanup=false)                                             = delete;
-    template<typename T>
-    int change_emitter(const T &e, bool cleanup=false)                                       = delete;
-    void set_ordered(const size_t MemoryElements=DEF_OFARM_ONDEMAND_MEMORY)                  = delete;
-    int add_workers(std::vector<ff_node *> &w)                                               = delete;
-    int add_collector(ff_node *c, bool cleanup=false)                                        = delete;
-    int wrap_around(bool multi_input=false)                                                  = delete;
-    int remove_collector()                                                                   = delete;
-    void cleanup_workers()                                                                   = delete;
-    void cleanup_all()                                                                       = delete;
-    bool offload(void *task, unsigned long retry=((unsigned long)-1),
-        unsigned long ticks=ff_loadbalancer::TICKS2WAIT)                                     = delete;
-    bool load_result(void **task, unsigned long retry=((unsigned long)-1),
-        unsigned long ticks=ff_gatherer::TICKS2WAIT)                                         = delete;
-    bool load_result_nb(void **task)                                                         = delete;
-
-private:
-    using ff_farm::set_scheduling_ondemand;
-
-//@endcond
-
+    /** 
+     *  \brief Check whether the Sink has been instantiated with a key-based distribution or not
+     *  \return true if the Filter is configured with keyBy
+     */
+    bool isKeyed() { return keyed; }
 };
 
 #endif

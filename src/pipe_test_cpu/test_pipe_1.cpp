@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Test of the Pipe construct
+ *  Test of the MultiPipe construct
  *  
  *  Composition: Source(*) -> Sink(*)
  */ 
@@ -127,7 +127,7 @@ int main(int argc, char *argv[])
         }
     }
     // prepare the test
-    Pipe application("test1");
+    MultiPipe application("test1");
     // source
     Source_Functor source_functor(stream_len);
     Source source = Source_Builder(source_functor).withName("test1_source").withParallelism(pardegree_source).build();

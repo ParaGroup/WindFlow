@@ -574,36 +574,6 @@ public:
      *  \return number of emitters
      */
     size_t getNumEmitters() { return num_emitters; }
-
-//@cond DOXY_IGNORE
-
-    // -------------------------------------- deleted methods ----------------------------------------
-    template<typename T>
-    int add_emitter(T *e)                                                                    = delete;
-    template<typename T>
-    int add_emitter(const T &e)                                                              = delete;
-    template<typename T>
-    int change_emitter(T *e, bool cleanup=false)                                             = delete;
-    template<typename T>
-    int change_emitter(const T &e, bool cleanup=false)                                       = delete;
-    void set_ordered(const size_t MemoryElements=DEF_OFARM_ONDEMAND_MEMORY)                  = delete;
-    int add_workers(std::vector<ff_node *> &w)                                               = delete;
-    int add_collector(ff_node *c, bool cleanup=false)                                        = delete;
-    int wrap_around(bool multi_input=false)                                                  = delete;
-    int remove_collector()                                                                   = delete;
-    void cleanup_workers()                                                                   = delete;
-    void cleanup_all()                                                                       = delete;
-    bool offload(void *task, unsigned long retry=((unsigned long)-1),
-        unsigned long ticks=ff_loadbalancer::TICKS2WAIT)                                     = delete;
-    bool load_result(void **task, unsigned long retry=((unsigned long)-1),
-        unsigned long ticks=ff_gatherer::TICKS2WAIT)                                         = delete;
-    bool load_result_nb(void **task)                                                         = delete;
-
-private:
-    using ff_farm::set_scheduling_ondemand;
-
-//@endcond
-
 };
 
 #endif

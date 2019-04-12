@@ -49,7 +49,7 @@ private:
     friend class Key_Farm;
     template<typename T1, typename T2, typename T3, typename T4>
     friend class Key_Farm_GPU;
-    friend class Pipe;
+    friend class MultiPipe;
     f_routing_t routing; // routing function
     size_t pardegree; // parallelism degree (number of inner patterns)
 
@@ -95,7 +95,7 @@ private:
     friend class Key_Farm;
     template<typename T1, typename T2, typename T3, typename T4>
     friend class Key_Farm_GPU;
-    friend class Pipe;
+    friend class MultiPipe;
     f_routing_t routing; // routing function (used by level 1)
     win_type_t winType; // type of the windows (CB or TB, used by level 2)
     uint64_t win_len; // window length (in no. of tuples or in time units, used by level 2)

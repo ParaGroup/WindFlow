@@ -215,7 +215,7 @@ class Win_MapReduce_GPU;
 template<typename tuple_t>
 class Sink;
 
-// forward declaration of the Pipe construct
-class Pipe;
+// forward declaration of the MultiPipe construct
+class MultiPipe;
 
 #endif

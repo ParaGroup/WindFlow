@@ -140,7 +140,7 @@ private:
     // type of the wrapper of input tuples
     using wrapper_in_t = wrapper_tuple_t<tuple_t>;
     // friendships with other classes in the library
-    friend class Pipe;
+    friend class MultiPipe;
     size_t map_degree; // parallelism degree (MAP phase)
     // struct of a key descriptor
     struct Key_Descriptor

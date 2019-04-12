@@ -29,7 +29,7 @@
  *  pane results in the so-called WLQ stage (Window-Level Sub-Query). Panes shared by more than
  *  one window are not recomputed by saving processing time. The pattern supports both a
  *  non-incremental and an incremental query definition in the two stages.
- *   
+ *  
  *  The template arguments tuple_t and result_t must be default constructible, with a copy constructor
  *  and copy assignment operator, and they must provide and implement the setInfo() and
  *  getInfo() methods.
@@ -585,26 +585,6 @@ public:
      *  \return adopted windowing semantics (count- or time-based)
      */
     win_type_t getWinType() { return winType; }
-
-//@cond DOXY_IGNORE
-
-    // ------------------------- deleted methods ---------------------------
-    template<typename T>
-    int  add_stage(T *s, bool cleanup=false)                      = delete;
-    template<typename T>
-    int  add_stage(const T &s)                                    = delete;
-    int  wrap_around(bool multi_input=false)                      = delete;
-    void cleanup_nodes()                                          = delete;
-    bool offload(void * task,
-                 unsigned long retry=((unsigned long)-1),
-                 unsigned long ticks=ff_node::TICKS2WAIT)         = delete;
-    bool load_result(void ** task,
-                     unsigned long retry=((unsigned long)-1),
-                     unsigned long ticks=ff_node::TICKS2WAIT)     = delete;
-    bool load_result_nb(void ** task)                             = delete;
-
-//@endcond
-
 };
 
 #endif

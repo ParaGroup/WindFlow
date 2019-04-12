@@ -15,21 +15,21 @@
  */
 
 /** 
- *  @file    pipe.hpp
+ *  @file    multipipe.hpp
  *  @author  Gabriele Mencagli
  *  @date    14/01/2019
  *  
- *  @brief Multi-Pipe construct to compose a complex pipeline of streaming patterns
+ *  @brief MultiPipe construct to compose a complex pipeline of streaming patterns
  *  
- *  @section Multi-Pipe Construct (Description)
+ *  @section MultiPipe Construct (Description)
  *  
- *  This file implements the Multi-Pipe construct used to build a complex pipeline
- *  of WindFlow patterns. A runnable Multi-Pipe instance (i.e. with a Source, a
+ *  This file implements the MultiPipe construct used to build a complex pipeline
+ *  of WindFlow patterns. A runnable MultiPipe instance (i.e. with a Source, a
  *  sequence of pattern instances, and a Sink) can be executed by the user.
  */ 
 
-#ifndef PIPE_H
-#define PIPE_H
+#ifndef MULTIPIPE_H
+#define MULTIPIPE_H
 
 // includes
 #include <string>
@@ -37,7 +37,7 @@
 #include <math.h>
 #include <ff/ff.hpp>
 #include <basic.hpp>
-#include <dummy.hpp>
+#include <standard.hpp>
 #include <wm_nodes.hpp>
 #include <wf_nodes.hpp>
 #include <kf_nodes.hpp>
@@ -117,25 +117,25 @@ public:
 //@endcond
 
 /** 
- *  \class Pipe
+ *  \class MultiPipe
  *  
- *  \brief Multi-Pipe construct to compose a complex pipeline of streaming patterns
+ *  \brief MultiPipe construct to compose a complex pipeline of streaming patterns
  *  
- *  This class implements the Pipe construct used to build a complex linear composition
+ *  This class implements the MultiPipe construct used to build a complex linear composition
  *  of instances belonging to the patterns available in the WindFlow library.
  */ 
-class Pipe: public ff_pipeline
+class MultiPipe: public ff_pipeline
 {
 private:
     // enumeration of the routing types
     enum routing_types_t { SIMPLE, COMPLEX };
-	string name; // string with the unique name of the Multi-Pipe instance
-	bool has_source; // true if the Multi-Pipe already has a Source instance
-	bool has_sink; // true if the Multi-Pipe ends with a Sink instance
+	string name; // string with the unique name of the MultiPipe instance
+	bool has_source; // true if the MultiPipe has a Source instance
+	bool has_sink; // true if the MultiPipe ends with a Sink instance
 	ff_a2a *last; // pointer to the last matrioska
     ff_a2a *secondToLast; // pointer to the second to last matrioska
-    bool isUnified; // true if the Multi-Pipe is used in a union with other Multi-Pipe instances
-    bool startUnion; // true if we are at the beginning of a unified Multi-Pipe instance
+    bool isUnified; // true if the MultiPipe is used in a union with other MultiPipe instances
+    bool startUnion; // true if we are at the beginning of a unified MultiPipe instance
     // class of the self-killer multi-input node (selfkiller_node)
     class selfkiller_node: public ff_minode
     {
@@ -154,7 +154,7 @@ private:
     };
 
     // private constructor used by union only
-    Pipe(string _name, vector<ff_node *> _init_set): name(_name), has_source(true), has_sink(false), isUnified(false), startUnion(true)
+    MultiPipe(string _name, vector<ff_node *> _init_set): name(_name), has_source(true), has_sink(false), isUnified(false), startUnion(true)
     {
         // create the initial matrioska
         ff_a2a *matrioska = new ff_a2a();
@@ -169,17 +169,17 @@ private:
         this->secondToLast = nullptr;
     }
 
-    // generic method to add an operator to the Multi-Pipe
+    // generic method to add an operator to the MultiPipe
     template<typename emitter_t, typename collector_t>
     void add_operator(ff_farm *_pattern, routing_types_t _type, ordering_mode_t _ordering)
     {
         // check the Source and Sink presence
         if (!this->has_source) {
-            cerr << RED << "WindFlow Error: Source is not defined for the Multi-Pipe [" << name << "]" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: Source is not defined for the MultiPipe [" << name << "]" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         if (this->has_sink) {
-            cerr << RED << "WindFlow Error: Multi-Pipe [" << name << "]" << " is terminated by a Sink" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: MultiPipe [" << name << "]" << " is terminated by a Sink" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         size_t n1 = (last->getFirstSet()).size();
@@ -200,12 +200,16 @@ private:
             auto first_set_m = last->getFirstSet();
             for (size_t i=0; i<first_set_m.size(); i++) {
                 ff_pipeline *stage = static_cast<ff_pipeline *>(first_set_m[i]);
+                emitter_t *tmp_e = static_cast<emitter_t *>(_pattern->getEmitter());
+                combine_with_laststage(*stage, new emitter_t(*tmp_e), true);
+                /*
                 if (_type == COMPLEX) {
                     emitter_t *tmp_e = static_cast<emitter_t *>(_pattern->getEmitter());
                     combine_with_laststage(*stage, new emitter_t(*tmp_e), true);
                 }
                 else
-                    combine_with_laststage(*stage, new dummy_emitter(), true);
+                    combine_with_laststage(*stage, new standard_emitter(), true);
+                */
             }
             // create a new matrioska
             ff_a2a *matrioska = new ff_a2a();
@@ -225,7 +229,7 @@ private:
             second_set.push_back(stage);
             matrioska->add_secondset(second_set, true);
             ff_pipeline *previous = static_cast<ff_pipeline *>((last->getSecondSet())[0]);
-            previous->remove_stage(0);
+            previous->remove_stage(0); // remove the self-killer node
             previous->add_stage(matrioska, true); // Chinese boxes
             secondToLast = last;
             last = matrioska;
@@ -235,22 +239,22 @@ private:
         }
     }
 
-    // generic method to chain an operator with the previous one in the Multi-Pipe (if possible)
+    // generic method to chain an operator with the previous one in the MultiPipe (if it is possible)
     template<typename worker_t>
     bool chain_operator(ff_farm *_pattern)
     {
         // check the Source and Sink presence
         if (!this->has_source) {
-            cerr << RED << "WindFlow Error: Source is not defined for the Multi-Pipe [" << name << "]" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: Source is not defined for the MultiPipe [" << name << "]" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         if (this->has_sink) {
-            cerr << RED << "WindFlow Error: Multi-Pipe [" << name << "]" << " is terminated by a Sink" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: MultiPipe [" << name << "]" << " is terminated by a Sink" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         size_t n1 = (last->getFirstSet()).size();
         size_t n2 = (_pattern->getWorkers()).size();
-        // _pattern is for sure SIMPLE: check additional conditions for doing chaining
+        // _pattern is for sure SIMPLE: check additional conditions for chaining
         if ((n1 == n2) && (!startUnion)) {
             auto first_set = last->getFirstSet();
             auto worker_set = _pattern->getWorkers();
@@ -266,16 +270,16 @@ private:
             return false;
     }
 
-    // method to prepare the Multi-Pipe for the union with other Multi-Pipe instances
+    // method to prepare the MultiPipe for the union with other MultiPipe instances
     vector<ff_node *> prepare4Union()
     {
         // check the Source and Sink presence
         if (!this->has_source) {
-            cerr << RED << "WindFlow Error: Source is not defined for the Multi-Pipe [" << name << "]" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: Source is not defined for the MultiPipe [" << name << "]" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         if (this->has_sink) {
-            cerr << RED << "WindFlow Error: Multi-Pipe [" << name << "]" << " is terminated by a Sink" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: MultiPipe [" << name << "]" << " is terminated by a Sink" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         vector<ff_node *> result;
@@ -306,12 +310,12 @@ private:
     vector<ff_node *> prepareInitSet() { return vector<ff_node *>(); }
 
     // prepareInitSet method: base case 2
-    template<typename PIPE>
-    vector<ff_node *> prepareInitSet(PIPE &_pipe) { return _pipe.prepare4Union(); }
+    template<typename MULTIPIPE>
+    vector<ff_node *> prepareInitSet(MULTIPIPE &_pipe) { return _pipe.prepare4Union(); }
 
     // prepareInitSet method: generic case
-    template<typename PIPE, typename ...PIPES>
-    vector<ff_node *> prepareInitSet(PIPE &_first, PIPES&... _pipes)
+    template<typename MULTIPIPE, typename ...MULTIMULTIPIPES>
+    vector<ff_node *> prepareInitSet(MULTIPIPE &_first, MULTIMULTIPIPES&... _pipes)
     {
         vector<ff_node *> v1 = _first.prepare4Union();
         vector<ff_node *> v2 = prepareInitSet(_pipes...);
@@ -323,21 +327,21 @@ public:
 	/** 
      *  \brief Constructor
      *  
-     *  \param _name string with the unique name of the Multi-Pipe instance
+     *  \param _name string with the unique name of the MultiPipe instance
      */ 
-    Pipe(string _name="anonymous_pipe"): name(_name), has_source(false), has_sink(false), last(nullptr), secondToLast(nullptr), isUnified(false), startUnion(false) {}
+    MultiPipe(string _name="anonymous_pipe"): name(_name), has_source(false), has_sink(false), last(nullptr), secondToLast(nullptr), isUnified(false), startUnion(false) {}
 
 	/** 
-     *  \brief Add a Source to the Multi-Pipe instance
+     *  \brief Add a Source to the MultiPipe instance
      *  \param _source Source pattern to be added
-     *  \return the modified Multi-Pipe instance
+     *  \return the modified MultiPipe instance
      */
     template<typename tuple_t>
-    Pipe &add_source(Source<tuple_t> &_source)
+    MultiPipe &add_source(Source<tuple_t> &_source)
     {
-        // check the Source and Sink presence
+        // check the Source presence
         if (this->has_source) {
-            cerr << RED << "WindFlow Error: Source is already defined for the Multi-Pipe [" << name << "]" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: Source is already defined for the MultiPipe [" << name << "]" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // create the initial matrioska
@@ -362,235 +366,239 @@ public:
     }
 
 	/** 
-     *  \brief Add a Filter to the Multi-Pipe instance
+     *  \brief Add a Filter to the MultiPipe instance
      *  \param _filter Filter pattern to be added
-     *  \return the modified Multi-Pipe instance
+     *  \return the modified MultiPipe instance
      */
     template<typename tuple_t>
-    Pipe &add(Filter<tuple_t> &_filter)
+    MultiPipe &add(Filter<tuple_t> &_filter)
     {
-        // call the generic method to add the operator to the Multi-Pipe
-        add_operator<dummy_emitter, OrderingNode<tuple_t, tuple_t>>(&_filter, SIMPLE, TS);
+        // call the generic method to add the operator to the MultiPipe
+        add_operator<standard_emitter<tuple_t>, OrderingNode<tuple_t, tuple_t>>(&_filter, _filter.isKeyed() ? COMPLEX : SIMPLE, TS);
     	return *this;
     }
 
     /** 
-     *  \brief Chain a Filter to the Multi-Pipe instance (if possible, otherwise add)
+     *  \brief Chain a Filter to the MultiPipe instance (if possible, otherwise add it)
      *  \param _filter Source pattern to be chained
-     *  \return the modified Multi-Pipe instance
+     *  \return the modified MultiPipe instance
      */
     template<typename tuple_t>
-    Pipe &chain(Filter<tuple_t> &_filter)
+    MultiPipe &chain(Filter<tuple_t> &_filter)
     {
-        // try to chain the pattern with the Multi-Pipe
-        bool chained = chain_operator<typename Filter<tuple_t>::Filter_Node>(&_filter);
-        if (!chained) {
-            // add the operator to the Multi-Pipe
-            add(_filter);
+        // try to chain the pattern with the MultiPipe
+        if (!_filter.isKeyed()) {
+            bool chained = chain_operator<typename Filter<tuple_t>::Filter_Node>(&_filter);
+            if (!chained)
+                add(_filter);
         }
+        else
+            add(_filter);
         return *this;
     }
 
 	/** 
-     *  \brief Add a Map to the Multi-Pipe instance
+     *  \brief Add a Map to the MultiPipe instance
      *  \param _map Map pattern to be added
-     *  \return the modified Multi-Pipe instance
+     *  \return the modified MultiPipe instance
      */
     template<typename tuple_t, typename result_t>
-    Pipe &add(Map<tuple_t, result_t> &_map)
+    MultiPipe &add(Map<tuple_t, result_t> &_map)
     {
-        // call the generic method to add the operator to the Multi-Pipe
-        add_operator<dummy_emitter, OrderingNode<tuple_t, tuple_t>>(&_map, SIMPLE, TS);
+        // call the generic method to add the operator to the MultiPipe
+        add_operator<standard_emitter<tuple_t>, OrderingNode<tuple_t, tuple_t>>(&_map, _map.isKeyed() ? COMPLEX : SIMPLE, TS);
     	return *this;
     }
 
     /** 
-     *  \brief Chain a Map to the Multi-Pipe instance (if possible, otherwise add)
+     *  \brief Chain a Map to the MultiPipe instance (if possible, otherwise add it)
      *  \param _map Map pattern to be chained
-     *  \return the modified Multi-Pipe instance
+     *  \return the modified MultiPipe instance
      */
     template<typename tuple_t, typename result_t>
-    Pipe &chain(Map<tuple_t, result_t> &_map)
+    MultiPipe &chain(Map<tuple_t, result_t> &_map)
     {
-        // try to chain the pattern with the Multi-Pipe
-        bool chained = chain_operator<typename Map<tuple_t, result_t>::Map_Node>(&_map);
-        if (!chained) {
-            // add the operator to the Multi-Pipe
-            add(_map);
+        // try to chain the pattern with the MultiPipe
+        if (!_map.isKeyed()) {
+            bool chained = chain_operator<typename Map<tuple_t, result_t>::Map_Node>(&_map);
+            if (!chained)
+                add(_map);
         }
-        return *this;
+        else
+            add(_map);
     }
 
 	/** 
-     *  \brief Add a FlatMap to the Multi-Pipe instance
+     *  \brief Add a FlatMap to the MultiPipe instance
      *  \param _flatmap FlatMap pattern to be added
-     *  \return the modified Multi-Pipe instance
+     *  \return the modified MultiPipe instance
      */
     template<typename tuple_t, typename result_t>
-    Pipe &add(FlatMap<tuple_t, result_t> &_flatmap)
+    MultiPipe &add(FlatMap<tuple_t, result_t> &_flatmap)
     {
         // call the generic method to add the operator
-        add_operator<dummy_emitter, OrderingNode<tuple_t, tuple_t>>(&_flatmap, SIMPLE, TS);
+        add_operator<standard_emitter<tuple_t>, OrderingNode<tuple_t, tuple_t>>(&_flatmap, _flatmap.isKeyed() ? COMPLEX : SIMPLE, TS);
     	return *this;
     }
 
     /** 
-     *  \brief Chain a FlatMap to the Multi-Pipe instance (if possible, otherwise add)
+     *  \brief Chain a FlatMap to the MultiPipe instance (if possible, otherwise add it)
      *  \param _flatmap FlatMap pattern to be chained
-     *  \return the modified Multi-Pipe instance
+     *  \return the modified MultiPipe instance
      */
     template<typename tuple_t, typename result_t>
-    Pipe &chain(FlatMap<tuple_t, result_t> &_flatmap)
+    MultiPipe &chain(FlatMap<tuple_t, result_t> &_flatmap)
     {
-        // try to chain the pattern with the Multi-Pipe
-        bool chained = chain_operator<typename FlatMap<tuple_t, result_t>::FlatMap_Node>(&_flatmap);
-        if (!chained) {
-            // add the operator to the Multi-Pipe
-            add(_flatmap);
+        if (!_flatmap.isKeyed()) {
+            bool chained = chain_operator<typename FlatMap<tuple_t, result_t>::FlatMap_Node>(&_flatmap);
+            if (!chained)
+                add(_flatmap);
         }
+        else
+            add(_flatmap);
         return *this;
     }
 
     /** 
-     *  \brief Add an Accumulator to the Multi-Pipe instance
+     *  \brief Add an Accumulator to the MultiPipe instance
      *  \param _acc Accumulator pattern to be added
-     *  \return the modified Multi-Pipe instance
+     *  \return the modified MultiPipe instance
      */
     template<typename tuple_t, typename result_t>
-    Pipe &add(Accumulator<tuple_t, result_t> &_acc)
+    MultiPipe &add(Accumulator<tuple_t, result_t> &_acc)
     {
-        // call the generic method to add the operator to the Multi-Pipe
+        // call the generic method to add the operator to the MultiPipe
         add_operator<Accumulator_Emitter<tuple_t>, OrderingNode<tuple_t, tuple_t>>(&_acc, COMPLEX, TS);
         return *this;
     }
 
 	/** 
-     *  \brief Add a Win_Farm to the Multi-Pipe instance
+     *  \brief Add a Win_Farm to the MultiPipe instance
      *  \param _wf Win_Farm pattern to be added
-     *  \return the modified Multi-Pipe instance
+     *  \return the modified MultiPipe instance
      */
     template<typename tuple_t, typename result_t>
-    Pipe &add(Win_Farm<tuple_t, result_t> &_wf)
+    MultiPipe &add(Win_Farm<tuple_t, result_t> &_wf)
     {
         // check whether the internal instances of the Win_Farm are complex or not
         if (_wf.useComplexNesting()) {
-            cerr << RED << "WindFlow Error: Multi-Pipe does not support Complex Nested Win_Farm instances yet" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: MultiPipe does not support Complex Nested Win_Farm instances yet" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // check the number of emitters of the Win_Farm
         if (_wf.getNumEmitters() != 1) {
-            cerr << RED << "WindFlow Error: a Win_Farm instance with multiple emitters cannot be added to a Multi-Pipe" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: a Win_Farm instance with multiple emitters cannot be added to a MultiPipe" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // check the type of the windows used by the Win_Farm pattern
         if (_wf.getWinType() == TB) { // time-based windows
-            // call the generic method to add the operator to the Multi-Pipe
+            // call the generic method to add the operator to the MultiPipe
             add_operator<WF_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
         }
         else { // count-based windows
             ff_farm *wf_farm = static_cast<ff_farm *>(&_wf);
             size_t n = (wf_farm->getWorkers()).size();
             wf_farm->change_emitter(new broadcast_node<tuple_t>(n));
-            // call the generic method to add the operator to the Multi-Pipe
+            // call the generic method to add the operator to the MultiPipe
             add_operator<broadcast_node<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
         }
     	return *this;
     }
 
     /** 
-     *  \brief Add a Win_Farm_GPU to the Multi-Pipe instance
+     *  \brief Add a Win_Farm_GPU to the MultiPipe instance
      *  \param _wf Win_Farm_GPU pattern to be added
-     *  \return the modified Multi-Pipe instance
+     *  \return the modified MultiPipe instance
      */
     template<typename tuple_t, typename result_t, typename F_t>
-    Pipe &add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
+    MultiPipe &add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
     {
         // check whether the internal instances of the Win_Farm_GPU are complex or not
         if (_wf.useComplexNesting()) {
-            cerr << RED << "WindFlow Error: Multi-Pipe does not support Complex Nested Win_Farm_GPU instances yet" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: MultiPipe does not support Complex Nested Win_Farm_GPU instances yet" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // check the number of emitters of the Win_Farm_GPU
         if (_wf.getNumEmitters() != 1) {
-            cerr << RED << "WindFlow Error: a Win_Farm_GPU instance with multiple emitters cannot be added to a Multi-Pipe" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: a Win_Farm_GPU instance with multiple emitters cannot be added to a MultiPipe" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // check the type of the windows used by the Win_Farm_GPU pattern
         if (_wf.getWinType() == TB) { // time-based windows
-            // call the generic method to add the operator to the Multi-Pipe
+            // call the generic method to add the operator to the MultiPipe
             add_operator<WF_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
         }
         else { // count-based windows
             ff_farm *wf_farm = static_cast<ff_farm *>(&_wf);
             size_t n = (wf_farm->getWorkers()).size();
             wf_farm->change_emitter(new broadcast_node<tuple_t>(n));
-            // call the generic method to add the operator to the Multi-Pipe
+            // call the generic method to add the operator to the MultiPipe
             add_operator<broadcast_node<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
         }
         return *this;
     }
 
 	/** 
-     *  \brief Add a Key_Farm to the Multi-Pipe instance
+     *  \brief Add a Key_Farm to the MultiPipe instance
      *  \param _kf Key_Farm pattern to be added
-     *  \return the modified Multi-Pipe instance
+     *  \return the modified MultiPipe instance
      */
     template<typename tuple_t, typename result_t>
-    Pipe &add(Key_Farm<tuple_t, result_t> &_kf)
+    MultiPipe &add(Key_Farm<tuple_t, result_t> &_kf)
     {
         // check whether the internal instances of the Key_Farm are complex or not
         if (_kf.useComplexNesting()) {
-            cerr << RED << "WindFlow Error: Multi-Pipe does not support Complex Nested Key_Farm instances yet" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: MultiPipe does not support Complex Nested Key_Farm instances yet" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // check the type of the windows used by the Key_Farm pattern
         if (_kf.getWinType() == TB) { // time-based windows
-            // call the generic method to add the operator to the Multi-Pipe
+            // call the generic method to add the operator to the MultiPipe
             add_operator<KF_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS);
         }
         else { // count-based windows
-            // call the generic method to add the operator to the Multi-Pipe
+            // call the generic method to add the operator to the MultiPipe
             add_operator<KF_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS_RENUMBERING);
         }
     	return *this;
     }
 
     /** 
-     *  \brief Add a Key_Farm_GPU to the Multi-Pipe instance
+     *  \brief Add a Key_Farm_GPU to the MultiPipe instance
      *  \param _kf Key_Farm_GPU pattern to be added
-     *  \return the modified Multi-Pipe instance
+     *  \return the modified MultiPipe instance
      */
     template<typename tuple_t, typename result_t, typename F_t>
-    Pipe &add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
+    MultiPipe &add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
     {
         // check whether the internal instances of the Key_Farm_GPU are complex or not
         if (_kf.useComplexNesting()) {
-            cerr << RED << "WindFlow Error: Multi-Pipe does not support Complex Nested Key_Farm_GPU instances yet" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: MultiPipe does not support Complex Nested Key_Farm_GPU instances yet" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // check the type of the windows used by the Key_Farm_GPU pattern
         if (_kf.getWinType() == TB) { // time-based windows
-            // call the generic method to add the operator to the Multi-Pipe
+            // call the generic method to add the operator to the MultiPipe
             add_operator<KF_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS);
         }
         else { // count-based windows
-            // call the generic method to add the operator to the Multi-Pipe
+            // call the generic method to add the operator to the MultiPipe
             add_operator<KF_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS_RENUMBERING);
         }
         return *this;
     }
 
 	/** 
-     *  \brief Add a Pane_Farm to the Multi-Pipe instance
+     *  \brief Add a Pane_Farm to the MultiPipe instance
      *  \param _pf Pane_Farm pattern to be added
-     *  \return the modified Multi-Pipe instance
+     *  \return the modified MultiPipe instance
      */
     template<typename tuple_t, typename result_t>
-    Pipe &add(Pane_Farm<tuple_t, result_t> &_pf)
+    MultiPipe &add(Pane_Farm<tuple_t, result_t> &_pf)
     {
         // check the optimization level of the Pane_Farm instance
         if (_pf.getOptLevel() != LEVEL0) {
-            cerr << RED << "WindFlow Error: already optimized Pane_Farm instances are not accepted in a Multi-Pipe" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: already optimized Pane_Farm instances are not accepted in a MultiPipe" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         ff_pipeline *pipe = static_cast<ff_pipeline *>(&_pf);
@@ -601,19 +609,19 @@ public:
             plq = new ff_farm();
             vector<ff_node *> w;
             w.push_back(stages[0]); // there is for sure one single worker in the PLQ
-            plq->add_emitter(new dummy_emitter());
+            plq->add_emitter(new standard_emitter<tuple_t>());
             plq->add_workers(w);
             plq->add_collector(nullptr);
             plq->cleanup_emitter(true);
             plq->cleanup_workers(false);
             // check the type of the windows
             if (_pf.getWinType() == TB) { // time-based windows
-                // call the generic method to add the operator (PLQ stage) to the Multi-Pipe
-                add_operator<dummy_emitter, OrderingNode<tuple_t, tuple_t>>(plq, COMPLEX, TS);
+                // call the generic method to add the operator (PLQ stage) to the MultiPipe
+                add_operator<standard_emitter<tuple_t>, OrderingNode<tuple_t, tuple_t>>(plq, COMPLEX, TS);
             }
             else { // count-based windows
-                // call the generic method to add the operator (PLQ stage) to the Multi-Pipe
-                add_operator<dummy_emitter, OrderingNode<tuple_t, tuple_t>>(plq, COMPLEX, TS_RENUMBERING);
+                // call the generic method to add the operator (PLQ stage) to the MultiPipe
+                add_operator<standard_emitter<tuple_t>, OrderingNode<tuple_t, tuple_t>>(plq, COMPLEX, TS_RENUMBERING);
             }
             delete plq;
         }
@@ -621,7 +629,7 @@ public:
             plq = static_cast<ff_farm *>(stages[0]);
             // check the type of the windows
             if (_pf.getWinType() == TB) { // time-based windows
-                // call the generic method to add the operator (PLQ stage) to the Multi-Pipe
+                // call the generic method to add the operator (PLQ stage) to the MultiPipe
                 add_operator<WF_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, COMPLEX, TS);
             }
             else { // count-based windows
@@ -637,34 +645,34 @@ public:
             wlq = new ff_farm();
             vector<ff_node *> w;
             w.push_back(stages[1]); // there is for sure one single worker in the WLQ
-            wlq->add_emitter(new dummy_emitter());
+            wlq->add_emitter(new standard_emitter<result_t>());
             wlq->add_workers(w);
             wlq->add_collector(nullptr);
             wlq->cleanup_emitter(true);
             wlq->cleanup_workers(false);
-            // call the generic method to add the operator (WLQ stage) to the Multi-Pipe
-            add_operator<dummy_emitter, OrderingNode<result_t, result_t>>(wlq, COMPLEX, ID);
+            // call the generic method to add the operator (WLQ stage) to the MultiPipe
+            add_operator<standard_emitter<result_t>, OrderingNode<result_t, result_t>>(wlq, COMPLEX, ID);
             delete wlq;
         }
         else {
             wlq = static_cast<ff_farm *>(stages[1]);
-            // call the generic method to add the operator (WLQ stage) to the Multi-Pipe
+            // call the generic method to add the operator (WLQ stage) to the MultiPipe
             add_operator<WF_Emitter<result_t>, OrderingNode<result_t, wrapper_tuple_t<result_t>>>(wlq, COMPLEX, ID);
         }
     	return *this;
     }
 
     /** 
-     *  \brief Add a Pane_Farm_GPU to the Multi-Pipe instance
+     *  \brief Add a Pane_Farm_GPU to the MultiPipe instance
      *  \param _pf Pane_Farm_GPU pattern to be added
-     *  \return the modified Multi-Pipe instance
+     *  \return the modified MultiPipe instance
      */
     template<typename tuple_t, typename result_t, typename F_t>
-    Pipe &add(Pane_Farm_GPU<tuple_t, result_t, F_t> &_pf)
+    MultiPipe &add(Pane_Farm_GPU<tuple_t, result_t, F_t> &_pf)
     {
         // check the optimization level of the Pane_Farm_GPU instance
         if (_pf.getOptLevel() != LEVEL0) {
-            cerr << RED << "WindFlow Error: already optimized Pane_Farm_GPU instances are not accepted in a Multi-Pipe" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: already optimized Pane_Farm_GPU instances are not accepted in a MultiPipe" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         ff_pipeline *pipe = static_cast<ff_pipeline *>(&_pf);
@@ -675,19 +683,19 @@ public:
             plq = new ff_farm();
             vector<ff_node *> w;
             w.push_back(stages[0]); // there is for sure one single worker in the PLQ
-            plq->add_emitter(new dummy_emitter());
+            plq->add_emitter(new standard_emitter<tuple_t>());
             plq->add_workers(w);
             plq->add_collector(nullptr);
             plq->cleanup_emitter(true);
             plq->cleanup_workers(false);
             // check the type of the windows
             if (_pf.getWinType() == TB) { // time-based windows
-                // call the generic method to add the operator (PLQ stage) to the Multi-Pipe
-                add_operator<dummy_emitter, OrderingNode<tuple_t, tuple_t>>(plq, COMPLEX, TS);
+                // call the generic method to add the operator (PLQ stage) to the MultiPipe
+                add_operator<standard_emitter<tuple_t>, OrderingNode<tuple_t, tuple_t>>(plq, COMPLEX, TS);
             }
             else { // count-based windows
-                // call the generic method to add the operator (PLQ stage) to the Multi-Pipe
-                add_operator<dummy_emitter, OrderingNode<tuple_t, tuple_t>>(plq, COMPLEX, TS_RENUMBERING);
+                // call the generic method to add the operator (PLQ stage) to the MultiPipe
+                add_operator<standard_emitter<tuple_t>, OrderingNode<tuple_t, tuple_t>>(plq, COMPLEX, TS_RENUMBERING);
             }
             delete plq;
         }
@@ -695,7 +703,7 @@ public:
             plq = static_cast<ff_farm *>(stages[0]);
             // check the type of the windows
             if (_pf.getWinType() == TB) { // time-based windows
-                // call the generic method to add the operator (PLQ stage) to the Multi-Pipe
+                // call the generic method to add the operator (PLQ stage) to the MultiPipe
                 add_operator<WF_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, COMPLEX, TS);
             }
             else { // count-based windows
@@ -711,34 +719,34 @@ public:
             wlq = new ff_farm();
             vector<ff_node *> w;
             w.push_back(stages[1]); // there is for sure one single worker in the WLQ
-            wlq->add_emitter(new dummy_emitter());
+            wlq->add_emitter(new standard_emitter<result_t>());
             wlq->add_workers(w);
             wlq->add_collector(nullptr);
             wlq->cleanup_emitter(true);
             wlq->cleanup_workers(false);
-            // call the generic method to add the operator (WLQ stage) to the Multi-Pipe
-            add_operator<dummy_emitter, OrderingNode<result_t, result_t>>(wlq, COMPLEX, ID);
+            // call the generic method to add the operator (WLQ stage) to the MultiPipe
+            add_operator<standard_emitter<result_t>, OrderingNode<result_t, result_t>>(wlq, COMPLEX, ID);
             delete wlq;
         }
         else {
             wlq = static_cast<ff_farm *>(stages[1]);
-            // call the generic method to add the operator (WLQ stage) to the Multi-Pipe
+            // call the generic method to add the operator (WLQ stage) to the MultiPipe
             add_operator<WF_Emitter<result_t>, OrderingNode<result_t, wrapper_tuple_t<result_t>>>(wlq, COMPLEX, ID);
         }
         return *this;
     }
 
 	/** 
-     *  \brief Add a Win_MapReduce to the Multi-Pipe instance
+     *  \brief Add a Win_MapReduce to the MultiPipe instance
      *  \param _wmr Win_MapReduce pattern to be added
-     *  \return the modified Multi-Pipe instance
+     *  \return the modified MultiPipe instance
      */
     template<typename tuple_t, typename result_t>
-    Pipe &add(Win_MapReduce<tuple_t, result_t> &_wmr)
+    MultiPipe &add(Win_MapReduce<tuple_t, result_t> &_wmr)
     {
         // check the optimization level of the Win_MapReduce instance
         if (_wmr.getOptLevel() != LEVEL0) {
-            cerr << RED << "WindFlow Error: already optimized Win_MapReduce instances are not accepted in a Multi-Pipe" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: already optimized Win_MapReduce instances are not accepted in a MultiPipe" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // add the MAP stage
@@ -747,7 +755,7 @@ public:
         ff_farm *map = static_cast<ff_farm *>(stages[0]);
         // check the type of the windows
         if (_wmr.getWinType() == TB) { // time-based windows
-            // call the generic method to add the operator (MAP stage) to the Multi-Pipe
+            // call the generic method to add the operator (MAP stage) to the MultiPipe
             add_operator<WinMap_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(map, COMPLEX, TS);
         }
         else { // count-based windows
@@ -764,7 +772,7 @@ public:
             new_map->add_collector(nullptr);
             new_map->cleanup_emitter(true);
             new_map->cleanup_workers(false);
-            // call the generic method to add the operator (MAP stage) to the Multi-Pipe
+            // call the generic method to add the operator (MAP stage) to the MultiPipe
             add_operator<broadcast_node<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(new_map, COMPLEX, TS_RENUMBERING);
             delete new_map;
         }
@@ -775,34 +783,34 @@ public:
             reduce = new ff_farm();
             vector<ff_node *> w;
             w.push_back(stages[1]);
-            reduce->add_emitter(new dummy_emitter());
+            reduce->add_emitter(new standard_emitter<result_t>());
             reduce->add_workers(w);
             reduce->add_collector(nullptr);
             reduce->cleanup_emitter(true);
             reduce->cleanup_workers(false);
-            // call the generic method to add the operator (REDUCE stage) to the Multi-Pipe
-            add_operator<dummy_emitter, OrderingNode<result_t, result_t>>(reduce, COMPLEX, ID);
+            // call the generic method to add the operator (REDUCE stage) to the MultiPipe
+            add_operator<standard_emitter<result_t>, OrderingNode<result_t, result_t>>(reduce, COMPLEX, ID);
             delete reduce;
         }
         else {
             reduce = static_cast<ff_farm *>(stages[1]);
-            // call the generic method to add the operator (REDUCE stage) to the Multi-Pipe
+            // call the generic method to add the operator (REDUCE stage) to the MultiPipe
             add_operator<WF_Emitter<result_t>, OrderingNode<result_t, wrapper_tuple_t<result_t>>>(reduce, COMPLEX, ID);
         }
         return *this;
     }
 
     /** 
-     *  \brief Add a Win_MapReduce_GPU to the Multi-Pipe instance
+     *  \brief Add a Win_MapReduce_GPU to the MultiPipe instance
      *  \param _wmr Win_MapReduce_GPU pattern to be added
-     *  \return the modified Multi-Pipe instance
+     *  \return the modified MultiPipe instance
      */
     template<typename tuple_t, typename result_t, typename F_t>
-    Pipe &add(Win_MapReduce_GPU<tuple_t, result_t, F_t> &_wmr)
+    MultiPipe &add(Win_MapReduce_GPU<tuple_t, result_t, F_t> &_wmr)
     {
         // check the optimization level of the Win_MapReduce_GPU instance
         if (_wmr.getOptLevel() != LEVEL0) {
-            cerr << RED << "WindFlow Error: already optimized Win_MapReduce_GPU instances are not accepted in a Multi-Pipe" << DEFAULT << endl;
+            cerr << RED << "WindFlow Error: already optimized Win_MapReduce_GPU instances are not accepted in a MultiPipe" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // add the MAP stage
@@ -811,7 +819,7 @@ public:
         ff_farm *map = static_cast<ff_farm *>(stages[0]);
         // check the type of the windows
         if (_wmr.getWinType() == TB) { // time-based windows
-            // call the generic method to add the operator (MAP stage) to the Multi-Pipe
+            // call the generic method to add the operator (MAP stage) to the MultiPipe
             add_operator<WinMap_Emitter<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(map, COMPLEX, TS);
         }
         else { // count-based windows
@@ -828,7 +836,7 @@ public:
             new_map->add_collector(nullptr);
             new_map->cleanup_emitter(true);
             new_map->cleanup_workers(false);
-            // call the generic method to add the operator (MAP stage) to the Multi-Pipe
+            // call the generic method to add the operator (MAP stage) to the MultiPipe
             add_operator<broadcast_node<tuple_t>, OrderingNode<tuple_t, wrapper_tuple_t<tuple_t>>>(new_map, COMPLEX, TS_RENUMBERING);
             delete new_map;
         }
@@ -839,99 +847,100 @@ public:
             reduce = new ff_farm();
             vector<ff_node *> w;
             w.push_back(stages[1]);
-            reduce->add_emitter(new dummy_emitter());
+            reduce->add_emitter(new standard_emitter<result_t>());
             reduce->add_workers(w);
             reduce->add_collector(nullptr);
             reduce->cleanup_emitter(true);
             reduce->cleanup_workers(false);
-            // call the generic method to add the operator (REDUCE stage) to the Multi-Pipe
-            add_operator<dummy_emitter, OrderingNode<result_t, result_t>>(reduce, COMPLEX, ID);
+            // call the generic method to add the operator (REDUCE stage) to the MultiPipe
+            add_operator<standard_emitter<result_t>, OrderingNode<result_t, result_t>>(reduce, COMPLEX, ID);
             delete reduce;
         }
         else {
             reduce = static_cast<ff_farm *>(stages[1]);
-            // call the generic method to add the operator (REDUCE stage) to the Multi-Pipe
+            // call the generic method to add the operator (REDUCE stage) to the MultiPipe
             add_operator<WF_Emitter<result_t>, OrderingNode<result_t, wrapper_tuple_t<result_t>>>(reduce, COMPLEX, ID);
         }
         return *this;
     }
 
 	/** 
-     *  \brief Add a Sink to the Multi-Pipe instance
+     *  \brief Add a Sink to the MultiPipe instance
      *  \param _sink Sink pattern to be added
-     *  \return the modified Multi-Pipe instance
+     *  \return the modified MultiPipe instance
      */
     template<typename tuple_t>
-    Pipe &add_sink(Sink<tuple_t> &_sink)
+    MultiPipe &add_sink(Sink<tuple_t> &_sink)
     {
-        // call the generic method to add the operator to the Multi-Pipe
-        add_operator<dummy_emitter, OrderingNode<tuple_t, tuple_t>>(&_sink, SIMPLE, TS);
+        // call the generic method to add the operator to the MultiPipe
+        add_operator<standard_emitter<tuple_t>, OrderingNode<tuple_t, tuple_t>>(&_sink, _sink.isKeyed() ? COMPLEX : SIMPLE, TS);
     	this->has_sink = true;
     	return *this;
     }
 
     /** 
-     *  \brief Chain a Sink to the Multi-Pipe instance (if possible, otherwise add)
+     *  \brief Chain a Sink to the MultiPipe instance (if possible, otherwise add it)
      *  \param _sink Sink pattern to be chained
-     *  \return the modified Multi-Pipe instance
+     *  \return the modified MultiPipe instance
      */
     template<typename tuple_t>
-    Pipe &chain_sink(Sink<tuple_t> &_sink)
+    MultiPipe &chain_sink(Sink<tuple_t> &_sink)
     {
-        // try to chain the Sink with the Multi-Pipe
-        bool chained = chain_operator<typename Sink<tuple_t>::Sink_Node>(&_sink);
-        if (!chained) {
-            // add the Sink to the Multi-Pipe
-            add_sink(_sink);
+        // try to chain the Sink with the MultiPipe
+        if (!_sink.isKeyed()) {
+            bool chained = chain_operator<typename Sink<tuple_t>::Sink_Node>(&_sink);
+            if (!chained)
+                add_sink(_sink);
         }
         else
-            this->has_sink = true;
+            add_sink(_sink);
+        this->has_sink = true;
         return *this;
     }
 
 #if __cplusplus >= 201703L
     /** 
-     *  \brief Union of the Multi-Pipe with a set of other Multi-Pipe instances (only C++17)
-     *  \param _name string with the unique name of the new Multi-Pipe instance
-     *  \param _pipes sequence of Multi-Pipe instances
-     *  \return a new Multi-Pipe instance (the result of the union between this and _pipes)
+     *  \brief Union of the MultiPipe with a set of other MultiPipe instances (only C++17)
+     *  \param _name string with the unique name of the new MultiPipe instance
+     *  \param _pipes sequence of MultiPipe instances
+     *  \return a new MultiPipe instance (the result of the union between this and _pipes)
      */
-    template<typename ...PIPES>
-    Pipe unionPipes(string _name="anonymous_union_pipe", PIPES&... _pipes)
+    template<typename ...MULTIMULTIPIPES>
+    MultiPipe unionMultiPipes(string _name="anonymous_union_pipe", MULTIMULTIPIPES&... _pipes)
     {
         vector<ff_node *> init_set = prepareInitSet(*this, _pipes...);
-        return Pipe(_name, init_set);
+        return MultiPipe(_name, init_set);
     }
 #endif
 
     /** 
-     *  \brief Union of the Multi-Pipe with a set of other Multi-Pipe instances
-     *  \param _name string with the unique name of the new Multi-Pipe instance
-     *  \param _pipes sequence of Multi-Pipe instances
-     *  \return a pointer to a new Multi-Pipe instance (the result of the union between this and _pipes)
+     *  \brief Union of the MultiPipe with a set of other MultiPipe instances
+     *  \param _name string with the unique name of the new MultiPipe instance
+     *  \param _pipes sequence of MultiPipe instances
+     *  \return a pointer to a new MultiPipe instance (the result of the union between this and _pipes)
      */
-    template<typename ...PIPES>
-    Pipe *unionPipes_ptr(string _name="anonymous_union_pipe", PIPES&... _pipes)
+    template<typename ...MULTIMULTIPIPES>
+    MultiPipe *unionMultiPipes_ptr(string _name="anonymous_union_pipe", MULTIMULTIPIPES&... _pipes)
     {
         vector<ff_node *> init_set = prepareInitSet(*this, _pipes...);
-        return new Pipe(_name, init_set);
+        return new MultiPipe(_name, init_set);
     }
 
     /** 
-     *  \brief Union of the Multi-Pipe with a set of other Multi-Pipe instances
-     *  \param _name string with the unique name of the new Multi-Pipe instance
-     *  \param _pipes sequence of Multi-Pipe instances
-     *  \return a unique pointer to a new Multi-Pipe instance (the result of the union between this and _pipes)
+     *  \brief Union of the MultiPipe with a set of other MultiPipe instances
+     *  \param _name string with the unique name of the new MultiPipe instance
+     *  \param _pipes sequence of MultiPipe instances
+     *  \return a unique pointer to a new MultiPipe instance (the result of the union between this and _pipes)
      */
-    template<typename ...PIPES>
-    unique_ptr<Pipe> unionPipes_unique(string _name="anonymous_union_pipe", PIPES&... _pipes)
+    template<typename ...MULTIMULTIPIPES>
+    unique_ptr<MultiPipe> unionMultiPipes_unique(string _name="anonymous_union_pipe", MULTIMULTIPIPES&... _pipes)
     {
         vector<ff_node *> init_set = prepareInitSet(*this, _pipes...);
-        return make_unique<Pipe>(_name, init_set);
+        return make_unique<MultiPipe>(_name, init_set);
     }
 
 	/** 
-     *  \brief Check whether the Multi-Pipe is runnable (i.e. it has a Source and a Sink instance)
+     *  \brief Check whether the MultiPipe is runnable (i.e. it has a Source and a Sink instance)
      *  \return true if it is runnable, false otherwise
      */
     bool isRunnable() const
@@ -940,7 +949,7 @@ public:
     }
 
 	/** 
-     *  \brief Check whether the Multi-Pipe has a Source
+     *  \brief Check whether the MultiPipe has a Source
      *  \return true if it has a defined Source, false otherwise
      */
     bool hasSource() const
@@ -949,7 +958,7 @@ public:
     }
 
 	/** 
-     *  \brief Check whether the Multi-Pipe has a Sink
+     *  \brief Check whether the MultiPipe has a Sink
      *  \return true if it has a defined Sink, false otherwise
      */
     bool hasSink() const
@@ -958,50 +967,50 @@ public:
     }
 
     /** 
-     *  \brief Return the number of raw threads used by this Multi-Pipe
-     *  \return the number of raw threads used by the FastFlow run-time system to run the Multi-Pipe instance
+     *  \brief Return the number of raw threads used by this MultiPipe
+     *  \return the number of raw threads used by the FastFlow run-time system to run the MultiPipe instance
      */
-    size_t getNumNodes() const
+    size_t getNumThreads() const
     {
         return this->cardinality()-1;
     }
 
 	/** 
-     *  \brief Asynchronous run of the Multi-Pipe instance
+     *  \brief Asynchronous run of the MultiPipe instance
      *  \return zero in case of success, non-zero otherwise
      */
     int run()
     {
         if (!this->isUnified)
-            cout << BOLDGREEN << "WindFlow Status Message: Multi-Pipe [" << name << "] is running with " << this->getNumNodes() << " threads" << DEFAULT << endl;
+            cout << BOLDGREEN << "WindFlow Status Message: MultiPipe [" << name << "] is running with " << this->getNumThreads() << " threads" << DEFAULT << endl;
     	int status = ff_pipeline::run();
     	if (status != 0 && !this->isUnified)
-    		cerr << RED << "WindFlow Error: Multi-Pipe [" << name << "] run failed" << DEFAULT << endl;
+    		cerr << RED << "WindFlow Error: MultiPipe [" << name << "] run failed" << DEFAULT << endl;
     	return status;
     }
 
 	/** 
-     *  \brief Wait the termination of an already running Multi-Pipe instance
+     *  \brief Wait the termination of an already running MultiPipe instance
      *  \return zero in case of success, not-zero otherwise
      */
     int wait()
     {
     	int status = ff_pipeline::wait();
     	if (status == 0 && !this->isUnified)
-    		cout << BOLDGREEN << "WindFlow Status Message: Multi-Pipe [" << name << "] terminated successfully" << DEFAULT << endl;
+    		cout << BOLDGREEN << "WindFlow Status Message: MultiPipe [" << name << "] terminated successfully" << DEFAULT << endl;
     	else if(!this->isUnified)
-    		cerr << RED << "WindFlow Error: Multi-Pipe [" << name << "] terminated with error" << DEFAULT << endl;
+    		cerr << RED << "WindFlow Error: MultiPipe [" << name << "] terminated with error" << DEFAULT << endl;
     }
 
 	/** 
-     *  \brief Synchronous run of the Multi-Pipe instance
+     *  \brief Synchronous run of the MultiPipe instance
      *         (calling thread is blocked until the streaming execution is complete)
      *  \return zero in case of success, non-zero otherwise
      */
     int run_and_wait_end()
     {
         if (!this->isUnified)
-            cout << BOLDGREEN << "WindFlow Status Message: Multi-Pipe [" << name << "] is running with " << this->getNumNodes() << " threads" << DEFAULT << endl;
+            cout << BOLDGREEN << "WindFlow Status Message: MultiPipe [" << name << "] is running with " << this->getNumThreads() << " threads" << DEFAULT << endl;
     	return ff_pipeline::run_and_wait_end();
     }
 };

@@ -62,7 +62,7 @@ private:
     friend class Win_MapReduce;
     template<typename T1, typename T2, typename T3, typename T4>
     friend class Win_MapReduce_GPU;
-    friend class Pipe;
+    friend class MultiPipe;
     // inner struct of a key descriptor
     struct Key_Descriptor
     {

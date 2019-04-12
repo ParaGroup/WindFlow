@@ -28,9 +28,8 @@
  *  offloads on the GPU the parallel processing of the windows within each batch.
  *  
  *  The template arguments tuple_t and result_t must be default constructible, with a copy constructor
- *  and copy assignment operator, and they must provide and implement the setInfo() and
- *  getInfo() methods. The third template argument win_F_t is the type of the callable object to be used for GPU
- *  processing.
+ *  and copy assignment operator, and they must provide and implement the setInfo() and getInfo() methods.
+ *  The third template argument win_F_t is the type of the callable object to be used for GPU processing.
  */ 
 
 #ifndef WIN_FARM_GPU_H
@@ -513,36 +512,6 @@ public:
      *  \return number of emitters
      */
     size_t getNumEmitters() { return num_emitters; }
-
-//@cond DOXY_IGNORE
-
-    // -------------------------------------- deleted methods ----------------------------------------
-    template<typename T>
-    int add_emitter(T *e)                                                                    = delete;
-    template<typename T>
-    int add_emitter(const T &e)                                                              = delete;
-    template<typename T>
-    int change_emitter(T *e, bool cleanup=false)                                             = delete;
-    template<typename T>
-    int change_emitter(const T &e, bool cleanup=false)                                       = delete;
-    void set_ordered(const size_t MemoryElements=DEF_OFARM_ONDEMAND_MEMORY)                  = delete;
-    int add_workers(std::vector<ff_node *> &w)                                               = delete;
-    int add_collector(ff_node *c, bool cleanup=false)                                        = delete;
-    int wrap_around(bool multi_input=false)                                                  = delete;
-    int remove_collector()                                                                   = delete;
-    void cleanup_workers()                                                                   = delete;
-    void cleanup_all()                                                                       = delete;
-    bool offload(void *task, unsigned long retry=((unsigned long)-1),
-        unsigned long ticks=ff_loadbalancer::TICKS2WAIT)                                     = delete;
-    bool load_result(void **task, unsigned long retry=((unsigned long)-1),
-        unsigned long ticks=ff_gatherer::TICKS2WAIT)                                         = delete;
-    bool load_result_nb(void **task)                                                         = delete;
-
-private:
-    using ff_farm::set_scheduling_ondemand;
-
-//@endcond
-
 };
 
 #endif

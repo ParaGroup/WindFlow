@@ -17,7 +17,7 @@
 /*  
  *  First microbenchmark
  *  
- *  Multi-Pipe instance with Source->Map->Filter->FlatMap->Sink operators
+ *  Multi-MultiPipe instance with Source->Map->Filter->FlatMap->Sink operators
  */
 
 // include
@@ -190,8 +190,8 @@ int main(int argc, char *argv[])
             }
         }
     }
-    // prepare the Multi-Pipe
-    Pipe pipe("micro_1");
+    // prepare the Multi-MultiPipe
+    MultiPipe pipe("micro_1");
     // set the starting time of the application
     volatile unsigned long start_time_ns = current_time_nsecs();
     // source

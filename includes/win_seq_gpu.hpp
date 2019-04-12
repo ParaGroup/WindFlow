@@ -28,9 +28,8 @@
  *  offloads on the GPU the parallel processing of the windows within each batch.
  *  
  *  The template arguments tuple_t and result_t must be default constructible, with a copy constructor
- *  and copy assignment operator, and they must provide and implement the setInfo() and
- *  getInfo() methods. The third template argument win_F_t is the type of the callable object to be used for GPU
- *  processing.
+ *  and copy assignment operator, and they must provide and implement the setInfo() and getInfo() methods.
+ *  The third template argument win_F_t is the type of the callable object to be used for GPU processing.
  */ 
 
 #ifndef WIN_SEQ_GPU_H
