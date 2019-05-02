@@ -2189,8 +2189,12 @@ private:
     F_t func;
     // type of the pattern to be created by this builder
     using sink_t = Sink<decltype(get_tuple_t(func))>;
+    // function type of the distribution function
+    using f_routing_t = function<size_t(size_t, size_t)>;
     uint64_t pardegree = 1;
     string name = "anonymous_sink";
+    bool isKeyed = false;
+    f_routing_t routing_F;
 
 public:
     /** 
@@ -2224,6 +2228,19 @@ public:
         return *this;
     }
 
+    /** 
+     *  \brief Method to enable the key-based routing
+     *  
+     *  \param _routing_F function to perform the key-based distribution
+     *  \return the object itself
+     */ 
+    Sink_Builder<F_t>& keyBy(f_routing_t _routing_F=[](size_t k, size_t n) { return k%n; })
+    {
+        isKeyed = true;
+        routing_F = _routing_F;
+        return *this;
+    }
+
 #if __cplusplus >= 201703L
     /** 
      *  \brief Method to create the Sink pattern (only C++17)
@@ -2232,7 +2249,10 @@ public:
      */ 
     sink_t build()
     {
-        return sink_t(func, pardegree, name); // copy elision in C++17
+        if (!isKeyed)
+            return sink_t(func, pardegree, name); // copy elision in C++17
+        else
+            return sink_t(func, pardegree, name, routing_F); // copy elision in C++17
     }
 #endif
 
@@ -2243,7 +2263,10 @@ public:
      */ 
     sink_t *build_ptr()
     {
-        return new sink_t(func, pardegree, name);
+        if (!isKeyed)
+            return new sink_t(func, pardegree, name);
+        else
+            return new sink_t(func, pardegree, name, routing_F);
     }
 
     /** 
@@ -2253,7 +2276,10 @@ public:
      */ 
     unique_ptr<sink_t> build_unique()
     {
-        return make_unique<sink_t>(func, pardegree, name);
+        if (!isKeyed)
+            return make_unique<sink_t>(func, pardegree, name);
+        else
+            return make_unique<sink_t>(func, pardegree, name, routing_F);
     }
 };
 
