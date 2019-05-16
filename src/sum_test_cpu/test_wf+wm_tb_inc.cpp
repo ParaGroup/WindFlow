@@ -73,11 +73,8 @@ int main(int argc, char *argv[])
         }
     }
 	// user-defined map and reduce functions (Incremental Query)
-	auto F = [](size_t key, size_t wid, const tuple_t &t, tuple_t &win_result) {
-		win_result.key = key;
-		win_result.ts = wid;
+	auto F = [](size_t wid, const tuple_t &t, tuple_t &win_result) {
 		win_result.value += t.value;
-		return 0;
 	};
 	// creation of the Win_MapReduce and Win_Farm patterns
 	Win_MapReduce wm = WinMapReduce_Builder(F, F).withTBWindow(microseconds(win_len), microseconds(win_slide))

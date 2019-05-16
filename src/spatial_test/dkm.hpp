@@ -54,14 +54,14 @@ public:
     // destructor
     ~Centroids() {}
 
-    // getInfo method
-    pair<size_t, uint64_t> getInfo() const
+    // getControlFields method
+    pair<size_t, uint64_t> getControlFields() const
     {
         return pair<size_t, uint64_t>(0, wid);
     }
 
-    // setInfo method
-    void setInfo(size_t _key, uint64_t _wid)
+    // setControlFields method
+    void setControlFields(size_t _key, uint64_t _wid)
     {
         wid = _wid;
     }

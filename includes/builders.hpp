@@ -23,8 +23,7 @@
  *  
  *  @section Builders (Description)
  *  
- *  Set of builders based on method chaining to facilitate the creation of
- *  the WindFlow patterns.
+ *  Set of builders to facilitate the creation of the WindFlow patterns.
  */ 
 
 #ifndef BUILDERS_H
@@ -142,7 +141,7 @@ private:
     F_t func;
     // type of the pattern to be created by this builder
     using filter_t = Filter<decltype(get_tuple_t(func))>;
-    // function type of the distribution function
+    // function type to map the key hashcode onto an identifier starting from zero to pardegree-1
     using f_routing_t = function<size_t(size_t, size_t)>;
     uint64_t pardegree = 1;
     string name = "anonymous_filter";
@@ -184,10 +183,10 @@ public:
     /** 
      *  \brief Method to enable the key-based routing
      *  
-     *  \param _routing_F function to perform the key-based distribution
+     *  \param _routing_F function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \return the object itself
      */ 
-    Filter_Builder<F_t>& keyBy(f_routing_t _routing_F=[](size_t k, size_t n) { return k%n; })
+    Filter_Builder<F_t>& enable_KeyBy(f_routing_t _routing_F=[](size_t k, size_t n) { return k%n; })
     {
         isKeyed = true;
         routing_F = _routing_F;
@@ -251,7 +250,7 @@ private:
     // type of the pattern to be created by this builder
     using map_t = Map<decltype(get_tuple_t(func)),
                              decltype(get_result_t(func))>;
-    // function type of the distribution function
+    // function type to map the key hashcode onto an identifier starting from zero to pardegree-1
     using f_routing_t = function<size_t(size_t, size_t)>;
     uint64_t pardegree = 1;
     string name = "anonymous_map";
@@ -293,10 +292,10 @@ public:
     /** 
      *  \brief Method to enable the key-based routing
      *  
-     *  \param _routing_F function to perform the key-based distribution
+     *  \param _routing_F function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \return the object itself
      */ 
-    Map_Builder<F_t>& keyBy(f_routing_t _routing_F=[](size_t k, size_t n) { return k%n; })
+    Map_Builder<F_t>& enable_KeyBy(f_routing_t _routing_F=[](size_t k, size_t n) { return k%n; })
     {
         isKeyed = true;
         routing_F = _routing_F;
@@ -360,7 +359,7 @@ private:
     // type of the pattern to be created by this builder
     using flatmap_t = FlatMap<decltype(get_tuple_t(func)),
                              decltype(get_result_t(func))>;
-    // function type of the distribution function
+    // function type to map the key hashcode onto an identifier starting from zero to pardegree-1
     using f_routing_t = function<size_t(size_t, size_t)>;
     uint64_t pardegree = 1;
     string name = "anonymous_flatmap";
@@ -402,10 +401,10 @@ public:
     /** 
      *  \brief Method to enable the key-based routing
      *  
-     *  \param _routing_F function to perform the key-based distribution
+     *  \param _routing_F function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \return the object itself
      */ 
-    FlatMap_Builder<F_t>& keyBy(f_routing_t _routing_F=[](size_t k, size_t n) { return k%n; })
+    FlatMap_Builder<F_t>& enable_KeyBy(f_routing_t _routing_F=[](size_t k, size_t n) { return k%n; })
     {
         isKeyed = true;
         routing_F = _routing_F;
@@ -468,7 +467,7 @@ private:
     F_t func;
     // type of the pattern to be created by this builder
     using accumulator_t = Accumulator<decltype(get_tuple_t(func)), decltype(get_result_t(func))>;
-    // type of the routing function
+    // function type to map the key hashcode onto an identifier starting from zero to pardegree-1
     using f_routing_t = function<size_t(size_t, size_t)>;
     // type of the result produced by the Accumulator instance
     using result_t = decltype(get_result_t(func));
@@ -526,10 +525,10 @@ public:
     /** 
      *  \brief Method to specify the routing function of input tuples to the internal patterns
      *  
-     *  \param _routing_F routing function to be used
+     *  \param _routing_F function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \return the object itself
      */ 
-    Accumulator_Builder<F_t>& withRouting(f_routing_t _routing_F)
+    Accumulator_Builder<F_t>& set_KeyBy(f_routing_t _routing_F)
     {
         routing_F = _routing_F;
         return *this;
@@ -925,7 +924,7 @@ public:
      *  \param _ordered boolean flag (true for total key-based ordering, false no ordering is provided)
      *  \return the object itself
      */ 
-    WinFarm_Builder<T>& withOrdered(bool _ordered)
+    WinFarm_Builder<T>& withOrdering(bool _ordered)
     {
         ordered = _ordered;
         return *this;
@@ -1143,7 +1142,7 @@ public:
      *  \param _ordered boolean flag (true for total key-based ordering, false no ordering is provided)
      *  \return the object itself
      */ 
-    WinFarmGPU_Builder<T>& withOrdered(bool _ordered)
+    WinFarmGPU_Builder<T>& withOrdering(bool _ordered)
     {
         ordered = _ordered;
         return *this;
@@ -1196,7 +1195,7 @@ private:
     T input;
     // type of the pattern to be created by this builder
     using keyfarm_t = decltype(get_KF_nested_type(input));
-    // type of the routing function
+    // function type to map the key hashcode onto an identifier starting from zero to pardegree-1
     using f_routing_t = function<size_t(size_t, size_t)>;
     uint64_t win_len = 1;
     uint64_t slide_len = 1;
@@ -1301,10 +1300,10 @@ public:
     /** 
      *  \brief Method to specify the routing function of input tuples to the internal patterns
      *  
-     *  \param _routing_F routing function to be used
+     *  \param _routing_F function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \return the object itself
      */ 
-    KeyFarm_Builder<T>& withRouting(f_routing_t _routing_F)
+    KeyFarm_Builder<T>& set_KeyBy(f_routing_t _routing_F)
     {
         routing_F = _routing_F;
         return *this;
@@ -1367,7 +1366,7 @@ class KeyFarmGPU_Builder
 {
 private:
     T input;
-    // type of the routing function
+    // function type to map the key hashcode onto an identifier starting from zero to pardegree-1
     using f_routing_t = function<size_t(size_t, size_t)>;
     // type of the pattern to be created by this builder
     using keyfarm_gpu_t = decltype(get_KF_GPU_nested_type(input));
@@ -1508,10 +1507,10 @@ public:
     /** 
      *  \brief Method to specify the routing function of input tuples to the internal patterns
      *  
-     *  \param _routing_F routing function to be used
+     *  \param _routing_F function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \return the object itself
      */ 
-    KeyFarmGPU_Builder<T>& withRouting(f_routing_t _routing_F)
+    KeyFarmGPU_Builder<T>& set_KeyBy(f_routing_t _routing_F)
     {
         routing_F = _routing_F;
         return *this;
@@ -1645,7 +1644,7 @@ public:
      *  \param _ordered boolean flag (true for total key-based ordering, false no ordering is provided)
      *  \return the object itself
      */ 
-    PaneFarm_Builder<F_t, G_t>& withOrdered(bool _ordered)
+    PaneFarm_Builder<F_t, G_t>& withOrdering(bool _ordered)
     {
         ordered = _ordered;
         return *this;
@@ -1823,7 +1822,7 @@ public:
      *  \param _ordered boolean flag (true for total key-based ordering, false no ordering is provided)
      *  \return the object itself
      */ 
-    PaneFarmGPU_Builder<F_t, G_t>& withOrdered(bool _ordered)
+    PaneFarmGPU_Builder<F_t, G_t>& withOrdering(bool _ordered)
     {
         ordered = _ordered;
         return *this;
@@ -1958,7 +1957,7 @@ public:
      *  \param _ordered boolean flag (true for total key-based ordering, false no ordering is provided)
      *  \return the object itself
      */ 
-    WinMapReduce_Builder<F_t, G_t>& withOrdered(bool _ordered)
+    WinMapReduce_Builder<F_t, G_t>& withOrdering(bool _ordered)
     {
         ordered = _ordered;
         return *this;
@@ -2136,7 +2135,7 @@ public:
      *  \param _ordered boolean flag (true for total key-based ordering, false no ordering is provided)
      *  \return the object itself
      */ 
-    WinMapReduceGPU_Builder<F_t, G_t>& withOrdered(bool _ordered)
+    WinMapReduceGPU_Builder<F_t, G_t>& withOrdering(bool _ordered)
     {
         ordered = _ordered;
         return *this;
@@ -2189,7 +2188,7 @@ private:
     F_t func;
     // type of the pattern to be created by this builder
     using sink_t = Sink<decltype(get_tuple_t(func))>;
-    // function type of the distribution function
+    // function type to map the key hashcode onto an identifier starting from zero to pardegree-1
     using f_routing_t = function<size_t(size_t, size_t)>;
     uint64_t pardegree = 1;
     string name = "anonymous_sink";
@@ -2231,10 +2230,10 @@ public:
     /** 
      *  \brief Method to enable the key-based routing
      *  
-     *  \param _routing_F function to perform the key-based distribution
+     *  \param _routing_F function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \return the object itself
      */ 
-    Sink_Builder<F_t>& keyBy(f_routing_t _routing_F=[](size_t k, size_t n) { return k%n; })
+    Sink_Builder<F_t>& set_KeyBy(f_routing_t _routing_F=[](size_t k, size_t n) { return k%n; })
     {
         isKeyed = true;
         routing_F = _routing_F;

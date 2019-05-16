@@ -80,80 +80,60 @@ int main(int argc, char *argv[])
         }
     }
 	// user-defined window function (Non-Incremental Query)
-	auto seqFNIC = [](size_t key, size_t wid, Iterable<tuple_t> &input, output_t &result) {
+	auto seqFNIC = [](size_t wid, Iterable<tuple_t> &input, output_t &result) {
 		long sum = 0;
 		// print the window content
-		string win = string("Key: ") + to_string(key) + " window " + to_string(wid) + " [";
 		for (auto t : input) {
 			int val = t.value;
-			win += to_string(val) + ", ";
 			sum += val;
 		}
-		win = win + "] -> Sum "+ to_string(sum);
 		result.value = sum;
-		return 0;
 	};
 	// user-defined window function (Incremental Query)
-	auto seqFINC = [](size_t key, size_t wid, const tuple_t &t, output_t &result) {
+	auto seqFINC = [](size_t wid, const tuple_t &t, output_t &result) {
 		result.value += t.value;
-		return 0;
 	};
 	// user-defined pane function (Non-Incremental Query)
-	auto plqFNIC = [](size_t key, size_t pid, Iterable<tuple_t> &input, output_t &pane_result) {
+	auto plqFNIC = [](size_t pid, Iterable<tuple_t> &input, output_t &pane_result) {
 		long sum = 0;
 		// print the window content
-		string pane = string("Key: ") + to_string(key) + " pane " + to_string(pid) + " [";
 		for (auto t : input) {
 			int val = t.value;
-			pane += to_string(val) + ", ";
 			sum += val;
 		}
-		pane = pane + "] -> Sum "+ to_string(sum);
 		pane_result.value = sum;
-		return 0;
 	};
 	// user-defined window function (Non-Incremental Query)
-	auto wlqFNIC = [](size_t key, size_t wid, Iterable<output_t> &input, output_t &win_result) {
+	auto wlqFNIC = [](size_t wid, Iterable<output_t> &input, output_t &win_result) {
 		long sum = 0;
 		// print the window content
-		string pane = string("Key: ") + to_string(key) + " pane " + to_string(wid) + " [";
 		for (auto t : input) {
 			int val = t.value;
-			pane += to_string(val) + ", ";
 			sum += val;
 		}
-		pane = pane + "] -> Sum "+ to_string(sum);
 		win_result.value = sum;
-		return 0;
 	};
     // user-defined pane function (Incremental Query)
-	auto plqFINC = [](size_t key, size_t pid, const tuple_t &t, output_t &pane_result) {
+	auto plqFINC = [](size_t pid, const tuple_t &t, output_t &pane_result) {
 		pane_result.value += t.value;
-		return 0;
 	};
     // user-defined window function (Incremental Query)
-	auto wlqFINC = [](size_t key, size_t wid, const output_t &r, output_t &win_result) {
+	auto wlqFINC = [](size_t wid, const output_t &r, output_t &win_result) {
 		win_result.value += r.value;
-		return 0;
 	};
 	// user-defined map and reduce functions (Non-Incremental Query)
-	auto wmFNIC = [](size_t key, size_t wid, Iterable<tuple_t> &input, tuple_t &win_result) {
+	auto wmFNIC = [](size_t wid, Iterable<tuple_t> &input, tuple_t &win_result) {
 		long sum = 0;
 		// print the window content
-		string window = string("Key: ") + to_string(key) + " window " + to_string(wid) + " [";
 		for (auto t : input) {
 			int val = t.value;
-			window += to_string(val) + ", ";
 			sum += val;
 		}
-		window = window + "] -> Sum "+ to_string(sum);
 		win_result.value = sum;
-		return 0;
 	};
 	// user-defined map and reduce functions (Incremental Query)
-	auto wmFINC = [](size_t key, size_t wid, const tuple_t &t, tuple_t &win_result) {
+	auto wmFINC = [](size_t wid, const tuple_t &t, tuple_t &win_result) {
 		win_result.value += t.value;
-		return 0;
 	};
 	// function routingF used by all the Key_Farm instances
 	auto routingF = [](size_t k, size_t n) { return k%n; };

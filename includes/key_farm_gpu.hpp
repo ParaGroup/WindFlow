@@ -19,19 +19,22 @@
  *  @author  Gabriele Mencagli
  *  @date    21/05/2018
  *  
- *  @brief Key_Farm_GPU pattern executing a windowed transformation in parallel on a CPU+GPU system
+ *  @brief Key_Farm_GPU pattern executing a windowed transformation in parallel
+ *         on a CPU+GPU system
  *  
  *  @section Key_Farm_GPU (Description)
  *  
- *  This file implements the Key_Farm_GPU pattern able to executes windowed queries on a heterogeneous
- *  system (CPU+GPU). The pattern prepares batches of input tuples in parallel on the CPU cores and
- *  offloads on the GPU the parallel processing of the windows within each batch. Batches of different
- *  sub-streams can be executed in parallel while consecutive batches of the same sub-stream are prepared
- *  on the CPU and offloaded on the GPU sequentially.
+ *  This file implements the Key_Farm_GPU pattern able to executes windowed queries
+ *  on a heterogeneous system (CPU+GPU). The pattern prepares batches of input tuples
+ *  in parallel on the CPU cores and offloads on the GPU the parallel processing of the
+ *  windows within each batch. Batches of different sub-streams can be executed in
+ *  parallel while consecutive batches of the same sub-stream are preparel on the CPU and
+ *  offloaded on the GPU sequentially.
  *  
- *  The template arguments tuple_t and result_t must be default constructible, with a copy constructor
- *  and copy assignment operator, and they must provide and implement the setInfo() and getInfo() methods.
- *  The third template argument win_F_t is the type of the callable object to be used for GPU processing.
+ *  The template parameters tuple_t and result_t must be default constructible, with a copy
+ *  constructor and copy assignment operator, and they must provide and implement the setControlFields()
+ *  and getControlFields() methods. The third template argument win_F_t is the type of the callable object
+ *  to be used for GPU processing.
  */ 
 
 #ifndef KEY_FARM_GPU_H
@@ -59,7 +62,7 @@ template<typename tuple_t, typename result_t, typename win_F_t, typename input_t
 class Key_Farm_GPU: public ff_farm
 {
 public:
-    /// function type to map the key onto an identifier starting from zero to pardegree-1
+    /// function type to map the key hashcode onto an identifier starting from zero to pardegree-1
     using f_routing_t = function<size_t(size_t, size_t)>;
     /// type of the Pane_Farm_GPU passed to the proper nesting constructor
     using pane_farm_gpu_t = Pane_Farm_GPU<tuple_t, result_t, win_F_t>;
@@ -113,7 +116,7 @@ public:
      *  \param _n_thread_block number of threads (i.e. windows) per block
      *  \param _name string with the unique name of the pattern
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
-     *  \param _routing function to map the key onto an identifier starting from zero to pardegree-1
+     *  \param _routing function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the pattern
      */ 
     Key_Farm_GPU(win_F_t _winFunction,
@@ -175,7 +178,7 @@ public:
      *  \param _n_thread_block number of threads (i.e. windows) per block
      *  \param _name string with the unique name of the pattern
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
-     *  \param _routing function to map the key onto an identifier starting from zero to pardegree-1
+     *  \param _routing function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the pattern
      */ 
     Key_Farm_GPU(const pane_farm_gpu_t &_pf,
@@ -256,7 +259,7 @@ public:
      *  \param _n_thread_block number of threads (i.e. windows) per block
      *  \param _name string with the unique name of the pattern
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
-     *  \param _routing function to map the key onto an identifier starting from zero to pardegree-1
+     *  \param _routing function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the pattern
      */ 
     Key_Farm_GPU(const win_mapreduce_gpu_t &_wm,

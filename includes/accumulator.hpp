@@ -19,16 +19,16 @@
  *  @author  Gabriele Mencagli
  *  @date    13/02/2019
  *  
- *  @brief Accumulator executing "rolling" reduce/fold functions on a data stream
+ *  @brief Accumulator pattern executing "rolling" reduce/fold functions on data streams
  *  
  *  @section Accumulator (Description)
  *  
  *  This file implements the Accumulator pattern able to execute "rolling" reduce/fold
- *  functions on a data stream.
+ *  functions on data streams.
  *  
- *  The template arguments tuple_t and result_t must be default constructible, with a copy
+ *  The template parameters tuple_t and result_t must be default constructible, with a copy
  *  constructor and copy assignment operator, and thet must provide and implement the
- *  setInfo() and getInfo() methods.
+ *  setControlFields() and getControlFields() methods.
  */ 
 
 #ifndef ACCUMULATOR_H
@@ -43,56 +43,15 @@
 #include <context.hpp>
 
 using namespace ff;
-
-//@cond DOXY_IGNORE
-
-// class Accumulator_Emitter
-template<typename tuple_t>
-class Accumulator_Emitter: public ff_monode_t<tuple_t>
-{
-private:
-    // function type to map the key onto an identifier starting from zero to pardegree-1
-    using f_routing_t = function<size_t(size_t, size_t)>;
-    // friendships with other classes in the library
-    template<typename T1, typename T2>
-    friend class Accumulator;
-    friend class MultiPipe;
-    f_routing_t routing; // routing function
-    size_t pardegree; // parallelism degree (number of inner patterns)
-
-    // private constructor
-    Accumulator_Emitter(f_routing_t _routing, size_t _pardegree):
-                        routing(_routing), pardegree(_pardegree) {}
-
-    // svc_init method (utilized by the FastFlow runtime)
-    int svc_init()
-    {
-        return 0;
-    }
-
-    // svc method (utilized by the FastFlow runtime)
-    tuple_t *svc(tuple_t *t)
-    {
-        // extract the key from the input tuple
-        size_t key = std::get<0>(t->getInfo()); // key
-        // send the tuple to the proper destination
-        this->ff_send_out_to(t, routing(key, pardegree));
-        return this->GO_ON;
-    }
-
-    // svc_end method (FastFlow runtime)
-    void svc_end() {}
-};
-
-//@endcond
+using namespace std;
 
 /** 
  *  \class Accumulator
  *  
- *  \brief Accumulator pattern executing "rolling" reduce/fold functions on a data stream
+ *  \brief Accumulator pattern executing "rolling" reduce/fold functions on data streams
  *  
  *  This class implements the Accumulator pattern able to execute "rolling" reduce/fold
- *  functions on a data stream.
+ *  functions on data streams.
  */ 
 template<typename tuple_t, typename result_t>
 class Accumulator: public ff_farm
@@ -102,9 +61,12 @@ public:
     using acc_func_t = function<void(const tuple_t &, result_t &)>;
     /// rich reduce/fold function
     using rich_acc_func_t = function<void(const tuple_t &, result_t &, RuntimeContext)>;
-    /// function type to map the key onto an identifier starting from zero to pardegree-1
+    /// function type to map the key hashcode onto an identifier starting from zero to pardegree-1
     using f_routing_t = function<size_t(size_t, size_t)>;
 private:
+    tuple_t tmp; // never used
+    // key data type
+    using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
     // friendships with other classes in the library
     friend class MultiPipe;
     // class Accumulator_Node
@@ -125,8 +87,8 @@ private:
             // constructor
             Key_Descriptor(result_t _init_value): result(_init_value) {}
         };
-        // hash table that maps key identifiers onto key descriptors
-        unordered_map<size_t, Key_Descriptor> keyMap;
+        // hash table that maps key values onto key descriptors
+        unordered_map<key_t, Key_Descriptor> keyMap;
 #if defined(LOG_DIR)
         unsigned long rcvTuples = 0;
         double avg_td_us = 0;
@@ -163,7 +125,7 @@ private:
             rcvTuples++;
 #endif
             // extract key from the input tuple
-            size_t key = std::get<0>(t->getInfo()); // key
+            auto key = std::get<0>(t->getControlFields()); // key
             // find the corresponding key descriptor
             auto it = keyMap.find(key);
             if (it == keyMap.end()) {
@@ -216,7 +178,7 @@ public:
      *  \param _init_value initial value to be used by the fold function (for reduce the initial value is the one obtained by the default constructor of result_t)
      *  \param _pardegree parallelism degree of the Accumulator pattern
      *  \param _name string with the unique name of the Accumulator pattern
-     *  \param _routing function to map the key onto an identifier starting from zero to pardegree-1
+     *  \param _routing function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
     Accumulator(acc_func_t _func, result_t _init_value, size_t _pardegree, string _name, f_routing_t _routing=[](size_t k, size_t n) { return k%n; })
     {
@@ -231,7 +193,7 @@ public:
             auto *seq = new Accumulator_Node(_func, _init_value, _name);
             w.push_back(seq);
         }
-        ff_farm::add_emitter(new Accumulator_Emitter<tuple_t>(_routing, _pardegree));
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing));
         ff_farm::add_workers(w);
         // add default collector
         ff_farm::add_collector(nullptr);
@@ -246,7 +208,7 @@ public:
      *  \param _init_value initial value to be used by the fold function (for reduce the initial value is the one obtained by the default constructor of result_t)
      *  \param _pardegree parallelism degree of the Accumulator pattern
      *  \param _name string with the unique name of the Accumulator pattern
-     *  \param _routing function to map the key onto an identifier starting from zero to pardegree-1
+     *  \param _routing function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
     Accumulator(rich_acc_func_t _func, result_t _init_value, size_t _pardegree, string _name, f_routing_t _routing=[](size_t k, size_t n) { return k%n; })
     {
@@ -261,7 +223,7 @@ public:
             auto *seq = new Accumulator_Node(_func, _init_value, _name, RuntimeContext(_pardegree, i));
             w.push_back(seq);
         }
-        ff_farm::add_emitter(new Accumulator_Emitter<tuple_t>(_routing, _pardegree));
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing));
         ff_farm::add_workers(w);
         // add default collector
         ff_farm::add_collector(nullptr);

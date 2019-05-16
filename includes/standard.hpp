@@ -23,8 +23,7 @@
  *  
  *  @section Standard Nodes (Description)
  *  
- *  This file implements a set of nodes used by some of the patterns in the library in their
- *  default configuration.
+ *  This file implements a set of nodes used by some of the patterns in the library.
  */ 
 
 #ifndef STANDARD_H
@@ -35,12 +34,12 @@
 
 using namespace ff;
 
-// class of the standard emitter
+// class Standard_Emitter
 template<typename tuple_t>
-class standard_emitter: public ff_monode_t<tuple_t>
+class Standard_Emitter: public ff_monode_t<tuple_t>
 {
 private:
-    // function type to map the key onto an identifier starting from zero to pardegree-1
+    // function type to map the key hashcode onto an identifier starting from zero to pardegree-1
     using f_routing_t = function<size_t(size_t, size_t)>;
     // friendships with other classes in the library
     template<typename T1>
@@ -51,15 +50,17 @@ private:
     friend class Filter;
     template<typename T1, typename T2>
     friend class FlatMap;
+    template<typename T1, typename T2>
+    friend class Accumulator;
     friend class MultiPipe;
     bool isKeyed; // flag stating whether the key-based distribution is used or not
     f_routing_t routing; // routing function
 
     // private constructor I
-    standard_emitter(): isKeyed(false) {}
+    Standard_Emitter(): isKeyed(false) {}
 
     // private constructor II
-    standard_emitter(f_routing_t _routing): isKeyed(true), routing(_routing) {}
+    Standard_Emitter(f_routing_t _routing): isKeyed(true), routing(_routing) {}
 
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
@@ -72,9 +73,10 @@ private:
     {
     	if (isKeyed) { // keyed-based distribution enabled
 	        // extract the key from the input tuple
-	        size_t key = std::get<0>(t->getInfo()); // key
+	        auto key = std::get<0>(t->getControlFields()); // key
+            size_t hashcode = hash<decltype(key)>()(key); // compute the hashcode of the key
 	        // evaluate the routing function
-	        size_t dest_w = routing(key, this->get_num_outchannels());
+	        size_t dest_w = routing(hashcode, this->get_num_outchannels());
 	        // sent the tuple
 	        this->ff_send_out_to(t, dest_w);
 	        return this->GO_ON;
@@ -87,8 +89,8 @@ private:
     void svc_end() {}
 };
 
-// class of the standard collector
-class standard_collector: public ff_minode
+// class Standard_Collector
+class Standard_Collector: public ff_minode
 {
     void *svc(void *t) { return t; }
 };

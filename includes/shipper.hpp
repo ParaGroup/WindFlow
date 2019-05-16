@@ -26,9 +26,9 @@
  *  This file implements the Shipper class used to send produced output results
  *  to the next stage of the application.
  *  
- *  The template argument of the data items that can be used with the Shipper must be default
+ *  The template parameter of the data items that can be used with the Shipper must be default
  *  constructible, with a copy constructor and copy assignment operator, and they
- *  must provide and implement the setInfo() and getInfo() methods.
+ *  must provide and implement the setControlFields() and getControlFields() methods.
  */ 
 
 #ifndef SHIPPER_H

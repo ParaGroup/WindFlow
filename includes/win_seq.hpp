@@ -27,9 +27,9 @@
  *  multicore. The pattern executes streaming windows in a serial fashion on a CPU
  *  core and supports both a non-incremental and an incremental query definition.
  *  
- *  The template arguments tuple_t and result_t must be default constructible, with a copy constructor
- *  and copy assignment operator, and they must provide and implement the setInfo() and
- *  getInfo() methods.
+ *  The template parameters tuple_t and result_t must be default constructible, with
+ *  a copy constructor and copy assignment operator, and they must provide and implement
+ *  the setControlFields() and getControlFields() methods.
  */ 
 
 #ifndef WIN_SEQ_H
@@ -60,9 +60,9 @@ class Win_Seq: public ff_node_t<input_t, result_t>
 {
 public:
     /// function type of the non-incremental window processing
-    using f_winfunction_t = function<int(size_t, uint64_t, Iterable<tuple_t> &, result_t &)>;
+    using f_winfunction_t = function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
     /// function type of the incremental window processing
-    using f_winupdate_t = function<int(size_t, uint64_t, const tuple_t &, result_t &)>;
+    using f_winupdate_t = function<void(uint64_t, const tuple_t &, result_t &)>;
 private:
     // const iterator type for accessing tuples
     using const_input_iterator_t = typename deque<tuple_t>::const_iterator;
@@ -72,6 +72,9 @@ private:
     using win_t = Window<tuple_t, result_t>;
     // function type to compare two tuples
     using f_compare_t = function<bool(const tuple_t &, const tuple_t &)>;
+    tuple_t tmp; // never used
+    // key data type
+    using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3>
     friend class Win_Farm;
@@ -123,7 +126,7 @@ private:
     bool isNIC; // this flag is true if the pattern is instantiated with a non-incremental query function
     PatternConfig config; // configuration structure of the Win_Seq pattern
     role_t role; // role of the Win_Seq instance
-    unordered_map<size_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
+    unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     pair<size_t, size_t> map_indexes = make_pair(0, 1); // indexes useful is the role is MAP
 #if defined(LOG_DIR)
     bool isTriggering = false;
@@ -163,12 +166,12 @@ private:
         // define the compare function depending on the window type
         if (winType == CB) {
             compare = [](const tuple_t &t1, const tuple_t &t2) {
-                return std::get<1>(t1.getInfo()) < std::get<1>(t2.getInfo());
+                return std::get<1>(t1.getControlFields()) < std::get<1>(t2.getControlFields());
             };
         }
         else {
             compare = [](const tuple_t &t1, const tuple_t &t2) {
-                return std::get<2>(t1.getInfo()) < std::get<2>(t2.getInfo());
+                return std::get<2>(t1.getControlFields()) < std::get<2>(t2.getControlFields());
             };
         }
     }
@@ -199,12 +202,12 @@ private:
         // define the compare function depending on the window type
         if (winType == CB) {
             compare = [](const tuple_t &t1, const tuple_t &t2) {
-                return std::get<1>(t1.getInfo()) < std::get<1>(t2.getInfo());
+                return std::get<1>(t1.getControlFields()) < std::get<1>(t2.getControlFields());
             };
         }
         else {
             compare = [](const tuple_t &t1, const tuple_t &t2) {
-                return std::get<2>(t1.getInfo()) < std::get<2>(t2.getInfo());
+                return std::get<2>(t1.getControlFields()) < std::get<2>(t2.getControlFields());
             };
         }
     }
@@ -275,8 +278,9 @@ public:
 #endif
         // extract the key and id/timestamp fields from the input tuple
         tuple_t *t = extractTuple<tuple_t, input_t>(wt);
-        size_t key = std::get<0>(t->getInfo()); // key
-        uint64_t id = (winType == CB) ? std::get<1>(t->getInfo()) : std::get<2>(t->getInfo()); // identifier or timestamp
+        auto key = std::get<0>(t->getControlFields()); // key
+        size_t hashcode = hash<decltype(key)>()(key); // compute the hashcode of the key
+        uint64_t id = (winType == CB) ? std::get<1>(t->getControlFields()) : std::get<2>(t->getControlFields()); // identifier or timestamp
         // access the descriptor of the input key
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
@@ -292,7 +296,7 @@ public:
         }
         else {
             // tuples can be received only ordered by id/timestamp
-            uint64_t last_id = (winType == CB) ? std::get<1>((key_d.last_tuple).getInfo()) : std::get<2>((key_d.last_tuple).getInfo());
+            uint64_t last_id = (winType == CB) ? std::get<1>((key_d.last_tuple).getControlFields()) : std::get<2>((key_d.last_tuple).getControlFields());
             if (id < last_id) {
                 // the tuple is immediately deleted
                 deleteTuple<tuple_t, input_t>(wt);
@@ -304,10 +308,10 @@ public:
             }
         }
         // gwid of the first window of that key assigned to this Win_Seq instance
-        uint64_t first_gwid_key = ((config.id_inner - (key % config.n_inner) + config.n_inner) % config.n_inner) * config.n_outer + (config.id_outer - (key % config.n_outer) + config.n_outer) % config.n_outer;
+        uint64_t first_gwid_key = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) * config.n_outer + (config.id_outer - (hashcode % config.n_outer) + config.n_outer) % config.n_outer;
         // initial identifer/timestamp of the keyed sub-stream arriving at this Win_Seq instance
-        uint64_t initial_outer = ((config.id_outer - (key % config.n_outer) + config.n_outer) % config.n_outer) * config.slide_outer;
-        uint64_t initial_inner = ((config.id_inner - (key % config.n_inner) + config.n_inner) % config.n_inner) * config.slide_inner;
+        uint64_t initial_outer = ((config.id_outer - (hashcode % config.n_outer) + config.n_outer) % config.n_outer) * config.slide_outer;
+        uint64_t initial_inner = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) * config.slide_inner;
         uint64_t initial_id = initial_outer + initial_inner;
         // special cases: if role is WLQ or REDUCE
         if (role == WLQ || role == REDUCE)
@@ -356,10 +360,7 @@ public:
             if (win.onTuple(*t) == CONTINUE) { // window is not fired yet
                 if (!isNIC && !isEOSMarker<tuple_t, input_t>(*wt)) {
                     // incremental query -> call winUpdate
-                    if (winUpdate(key, win.getGWID(), *t, *(win.getResult())) < 0) {
-                        cerr << RED << "WindFlow Error: winUpdate() call error (negative return value)" << DEFAULT << endl;
-                        exit(EXIT_FAILURE);
-                    }
+                    winUpdate(win.getGWID(), *t, *(win.getResult()));
                 }
             }
             else { // window is fired
@@ -382,10 +383,8 @@ public:
                     else
                         its = (key_d.archive).getWinRange(*t_s, *t_e);
                     Iterable<tuple_t> iter(its.first, its.second);
-                    if (winFunction(key, win.getGWID(), iter, *(win.getResult())) < 0) {
-                        cerr << RED << "WindFlow Error: winFunction() call error (negative return value)" << DEFAULT << endl;
-                        exit(EXIT_FAILURE);
-                    }
+                    // non-incremental query -> call winFunction
+                    winFunction(win.getGWID(), iter, *(win.getResult()));
                 }
                 // purge the tuples from the archive (if the window is not empty)
                 if (t_s)
@@ -395,12 +394,12 @@ public:
                 result_t *out = win.getResult();
                 // special cases: role is PLQ or MAP
                 if (role == MAP) {
-                    out->setInfo(key, key_d.emit_counter, std::get<2>(out->getInfo()));
+                    out->setControlFields(key, key_d.emit_counter, std::get<2>(out->getControlFields()));
                     key_d.emit_counter += map_indexes.second;
                 }
                 else if (role == PLQ) {
-                    uint64_t new_id = ((config.id_inner - (key % config.n_inner) + config.n_inner) % config.n_inner) + (key_d.emit_counter * config.n_inner);
-                    out->setInfo(key, new_id, std::get<2>(out->getInfo()));
+                    uint64_t new_id = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) + (key_d.emit_counter * config.n_inner);
+                    out->setControlFields(key, new_id, std::get<2>(out->getControlFields()));
                     key_d.emit_counter++;
                 }
                 this->ff_send_out(out);
@@ -451,21 +450,20 @@ public:
                     else
                         its = ((k.second).archive).getWinRange(*t_s);
                     Iterable<tuple_t> iter(its.first, its.second);
-                    if (winFunction(k.first, win.getGWID(), iter, *(win.getResult())) < 0) {
-                        cerr << RED << "WindFlow Error: winFunction() call error (negative return value)" << DEFAULT << endl;
-                        exit(EXIT_FAILURE);
-                    }
+                    // non-incremental query -> call winFunction
+                    winFunction(win.getGWID(), iter, *(win.getResult()));
                 }
                 // send the result of the window
                 result_t *out = win.getResult();
                 // special cases: role is PLQ or MAP
                 if (role == MAP) {
-                    out->setInfo(k.first, (k.second).emit_counter, std::get<2>(out->getInfo()));
+                    out->setControlFields(k.first, (k.second).emit_counter, std::get<2>(out->getControlFields()));
                     (k.second).emit_counter += map_indexes.second;
                 }
                 else if (role == PLQ) {
-                    uint64_t new_id = ((config.id_inner - (k.first % config.n_inner) + config.n_inner) % config.n_inner) + ((k.second).emit_counter * config.n_inner);
-                    out->setInfo(k.first, new_id, std::get<2>(out->getInfo()));
+                    size_t hashcode = hash<key_t>()(k.first); // compute the hashcode of the key
+                    uint64_t new_id = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) + ((k.second).emit_counter * config.n_inner);
+                    out->setControlFields(k.first, new_id, std::get<2>(out->getControlFields()));
                     (k.second).emit_counter++;
                 }
                 this->ff_send_out(out);

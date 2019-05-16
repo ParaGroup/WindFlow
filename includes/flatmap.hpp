@@ -27,9 +27,9 @@
  *  on each tuple of the input data stream. The transformation should be stateless and
  *  must produce zero, one or more than one output result for each input tuple consumed.
  *  
- *  The template arguments tuple_t and result_t must be default constructible, with a copy constructor
- *  and copy assignment operator, and they must provide and implement the setInfo() and
- *  getInfo() methods.
+ *  The template parameters tuple_t and result_t must be default constructible, with
+ *  a copy constructor and copy assignment operator, and they must provide and implement
+ *  the setControlFields() and getControlFields() methods.
  */ 
 
 #ifndef FLATMAP_H
@@ -61,7 +61,7 @@ public:
     using flatmap_func_t = function<void(const tuple_t &, Shipper<result_t> &)>;
     /// type of the rich flatmap function
     using rich_flatmap_func_t = function<void(const tuple_t &, Shipper<result_t> &, RuntimeContext)>;
-    /// function type to map the key onto an identifier starting from zero to pardegree-1
+    /// function type to map the key hashcode onto an identifier starting from zero to pardegree-1
     using f_routing_t = function<size_t(size_t, size_t)>;
 private:
     // friendships with other classes in the library
@@ -177,7 +177,7 @@ public:
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new standard_emitter<tuple_t>());
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>());
         // add workers
         ff_farm::add_workers(w);
         // add default collector
@@ -192,7 +192,7 @@ public:
      *  \param _func flatmap function
      *  \param _pardegree parallelism degree of the FlatMap pattern
      *  \param _name string with the unique name of the FlatMap pattern
-     *  \param _routing routing function for the key-based distribution
+     *  \param _routing function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
     FlatMap(flatmap_func_t _func, size_t _pardegree, string _name, f_routing_t _routing): keyed(true)
     {
@@ -208,7 +208,7 @@ public:
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new standard_emitter<tuple_t>(_routing));
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing));
         // add workers
         ff_farm::add_workers(w);
         // add default collector
@@ -238,7 +238,7 @@ public:
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new standard_emitter<tuple_t>());
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>());
         // add workers
         ff_farm::add_workers(w);
         // add default collector
@@ -253,7 +253,7 @@ public:
      *  \param _func rich flatmap function
      *  \param _pardegree parallelism degree of the FlatMap pattern
      *  \param _name string with the unique name of the FlatMap pattern
-     *  \param _routing routing function for the key-based distribution
+     *  \param _routing function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
     FlatMap(rich_flatmap_func_t _func, size_t _pardegree, string _name, f_routing_t _routing): keyed(true)
     {
@@ -269,7 +269,7 @@ public:
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new standard_emitter<tuple_t>(_routing));
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing));
         // add workers
         ff_farm::add_workers(w);
         // add default collector

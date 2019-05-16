@@ -26,8 +26,9 @@
  *  This file implements the Source pattern in charge of generating the items of
  *  a data stream.
  *  
- *  The template argument tuple_t must be default constructible, with a copy constructor and copy assignment
- *  operator, and it must provide and implement the setInfo() and getInfo() methods.
+ *  The template parameter tuple_t must be default constructible, with a copy
+ *  constructor and copy assignment operator, and it must provide and implement
+ *  the setControlFields() and getControlFields() methods.
  */ 
 
 #ifndef SOURCE_H
@@ -184,7 +185,7 @@ public:
         // add first set
         ff_a2a::add_firstset(first_set, 0, true);
         vector<ff_node *> second_set;
-        second_set.push_back(new standard_collector());
+        second_set.push_back(new Standard_Collector());
         // add second set
         ff_a2a::add_secondset(second_set, true);
     }
@@ -212,7 +213,7 @@ public:
         // add first set
         ff_a2a::add_firstset(first_set, 0, true);
         vector<ff_node *> second_set;
-        second_set.push_back(new standard_collector());
+        second_set.push_back(new Standard_Collector());
         // add second set
         ff_a2a::add_secondset(second_set, true);
     }
@@ -240,7 +241,7 @@ public:
         // add first set
         ff_a2a::add_firstset(first_set, 0, true);
         vector<ff_node *> second_set;
-        second_set.push_back(new standard_collector());
+        second_set.push_back(new Standard_Collector());
         // add second set
         ff_a2a::add_secondset(second_set, true);
     }
@@ -268,7 +269,7 @@ public:
         // add first set
         ff_a2a::add_firstset(first_set, 0, true);
         vector<ff_node *> second_set;
-        second_set.push_back(new standard_collector());
+        second_set.push_back(new Standard_Collector());
         // add second set
         ff_a2a::add_secondset(second_set, true);
     }

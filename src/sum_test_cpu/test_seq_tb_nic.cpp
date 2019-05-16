@@ -62,21 +62,14 @@ int main(int argc, char *argv[])
         }
     }
 	// user-defined window function (Non-Incremental Query)
-	auto F = [](size_t key, size_t wid, Iterable<tuple_t> &input, output_t &result) {
+	auto F = [](size_t wid, Iterable<tuple_t> &input, output_t &result) {
 		long sum = 0;
 		// print the window content
-		string win = string("Key: ") + to_string(key) + " window " + to_string(wid) + " [";
 		for (auto t : input) {
 			int val = t.value;
-			win += to_string(val) + ", ";
 			sum += val;
 		}
-		win = win + "] -> Sum "+ to_string(sum);
-		//cout << win << endl;
-		result.key = key;
-		result.id = wid;
 		result.value = sum;
-		return 0;
 	};
 	// creation of the Win_Seq pattern
 	Win_Seq seq = WinSeq_Builder(F).withTBWindow(microseconds(win_len), microseconds(win_slide))

@@ -19,17 +19,20 @@
  *  @author  Gabriele Mencagli
  *  @date    17/04/2018
  *  
- *  @brief Win_Farm_GPU pattern executing a windowed transformation in parallel on a CPU+GPU system
+ *  @brief Win_Farm_GPU pattern executing a windowed transformation in parallel
+ *         on a CPU+GPU system
  *  
  *  @section Win_Farm_GPU (Description)
  *  
- *  This file implements the Win_Farm_GPU pattern able to executes windowed queries on a heterogeneous
- *  system (CPU+GPU). The pattern prepares batches of input tuples in parallel on the CPU cores and
- *  offloads on the GPU the parallel processing of the windows within each batch.
+ *  This file implements the Win_Farm_GPU pattern able to executes windowed queries
+ *  on a heterogeneous system (CPU+GPU). The pattern prepares batches of input tuples
+ *  in parallel on the CPU cores and offloads on the GPU the parallel processing of the
+ *  windows within each batch.
  *  
- *  The template arguments tuple_t and result_t must be default constructible, with a copy constructor
- *  and copy assignment operator, and they must provide and implement the setInfo() and getInfo() methods.
- *  The third template argument win_F_t is the type of the callable object to be used for GPU processing.
+ *  The template parameters tuple_t and result_t must be default constructible, with a
+ *  copy constructor and copy assignment operator, and they must provide and implement
+ *  the setControlFields() and getControlFields() methods. The third template argument win_F_t is the type
+ *  of the callable object to be used for GPU processing.
  */ 
 
 #ifndef WIN_FARM_GPU_H
@@ -46,11 +49,13 @@
 /** 
  *  \class Win_Farm_GPU
  *  
- *  \brief Win_Farm_GPU pattern executing a windowed transformation in parallel on a CPU+GPU system
+ *  \brief Win_Farm_GPU pattern executing a windowed transformation in parallel
+ *         on a CPU+GPU system
  *  
- *  This class implements the Win_Farm_GPU pattern. The pattern prepares in parallel distinct
- *  batches of tuples (on the CPU cores) and offloads the processing of the batches on the GPU
- *  by computing in parallel all the windows within a batch on the CUDA cores of the GPU.
+ *  This class implements the Win_Farm_GPU pattern. The pattern prepares in parallel
+ *  distinct batches of tuples (on the CPU cores) and offloads the processing of the
+ *  batches on the GPU by computing in parallel all the windows within a batch on the
+ *  CUDA cores of the GPU.
  */ 
 template<typename tuple_t, typename result_t, typename win_F_t, typename input_t>
 class Win_Farm_GPU: public ff_farm
@@ -156,7 +161,7 @@ private:
             // create the Win_Seq_GPU nodes composed with an orderingNodes
             vector<ff_node *> seqs(_pardegree);
             for (size_t i = 0; i < _pardegree; i++) {
-                auto *ord = new OrderingNode<tuple_t, wrapper_in_t>(((_winType == CB) ? ID : TS));
+                auto *ord = new Ordering_Node<tuple_t, wrapper_in_t>(((_winType == CB) ? ID : TS));
                 // configuration structure of the Win_Seq_GPU instances
                 PatternConfig configSeq(_config.id_inner, _config.n_inner, _config.slide_inner, i, _pardegree, _slide_len);
                 auto *seq = new win_seq_gpu_t(_winFunction, _win_len, private_slide, _winType, _batch_len, _n_thread_block, _name + "_wf", _scratchpad_size, configSeq, _role);
@@ -318,7 +323,7 @@ public:
             vector<ff_node *> pfs(_pardegree);
             for (size_t i = 0; i < _pardegree; i++) {
                 // an ordering node must be composed before the first node of the Pane_Farm_GPU instance
-                auto *ord = new OrderingNode<tuple_t, wrapper_in_t>(((_winType == CB) ? ID : TS));
+                auto *ord = new Ordering_Node<tuple_t, wrapper_in_t>(((_winType == CB) ? ID : TS));
                 // configuration structure of the Pane_Farm_GPU instances
                 PatternConfig configPF(0, 1, _slide_len, i, _pardegree, _slide_len);
                 // create the correct Pane_Farm_GPU instance
@@ -451,7 +456,7 @@ public:
             vector<ff_node *> wms(_pardegree);
             for (size_t i = 0; i < _pardegree; i++) {
                 // an ordering node must be composed before the first node of the Win_MapReduce instance
-                auto *ord = new OrderingNode<tuple_t, wrapper_in_t>(((_winType == CB) ? ID : TS));
+                auto *ord = new Ordering_Node<tuple_t, wrapper_in_t>(((_winType == CB) ? ID : TS));
                 // configuration structure of the Win_MapReduce_GPU instances
                 PatternConfig configWM(0, 1, _slide_len, i, _pardegree, _slide_len);
                 // create the correct Win_MapReduce_GPU instance

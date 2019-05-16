@@ -63,15 +63,12 @@ int main(int argc, char *argv[])
         }
     }
 	// user-defined window function (Non-Incremental Query on GPU)
-	auto F = [] __host__ __device__ (size_t key, size_t wid, const tuple_t *data, output_t *res, size_t size, char *memory) {
+	auto F = [] __host__ __device__ (size_t wid, const tuple_t *data, output_t *res, size_t size, char *memory) {
 		long sum = 0;
 		for (size_t i=0; i<size; i++) {
 			sum += data[i].value;
 		}
-		//res->key = key;
-		//res->id = wid;
 		res->value = sum;
-		return 0;
 	};
 	// creation of the Win_Seq_GPU pattern
 	auto *seq_gpu = WinSeqGPU_Builder<decltype(F)>(F).withCBWindow(win_len, win_slide)

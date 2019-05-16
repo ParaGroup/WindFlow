@@ -73,18 +73,12 @@ int main(int argc, char *argv[])
         }
     }
     // user-defined pane function (Incremental Query)
-	auto F = [](size_t key, size_t pid, const tuple_t &t, output_t &pane_result) {
-		pane_result.key = key;
-		pane_result.id = pid;
+	auto F = [](size_t pid, const tuple_t &t, output_t &pane_result) {
 		pane_result.value += t.value;
-		return 0;
 	};
     // user-defined window function (Incremental Query)
-	auto G = [](size_t key, size_t wid, const output_t &r, output_t &win_result) {
-		win_result.key = key;
-		win_result.id = wid;
+	auto G = [](size_t wid, const output_t &r, output_t &win_result) {
 		win_result.value += r.value;
-		return 0;
 	};
 	// creation of the Pane_Farm and Key_Farm patterns
 	Pane_Farm pf = PaneFarm_Builder(F, G).withCBWindow(win_len, win_slide)

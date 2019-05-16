@@ -226,7 +226,7 @@ public:
         if (res) {
             if ((*res).count > 0) {
                 received++;
-                auto info = (*res).getInfo();
+                auto info = (*res).getControlFields();
                 // update the latency
                 long latency = current_time_usecs() - ((*res).lastUpdate + start_time_usec);
                 avgLatencyUs += latency;

@@ -23,13 +23,15 @@
  *  
  *  @section Win_Seq_GPU (Description)
  *  
- *  This file implements the Win_Seq_GPU pattern able to execute windowed queries on a heterogeneous
- *  system (CPU+GPU). The pattern prepares batches of input tuples sequentially on a CPU core and
- *  offloads on the GPU the parallel processing of the windows within each batch.
+ *  This file implements the Win_Seq_GPU pattern able to execute windowed queries on
+ *  a heterogeneous system (CPU+GPU). The pattern prepares batches of input tuples
+ *  sequentially on a CPU core and offloads on the GPU the parallel processing of the
+ *  windows within each batch.
  *  
- *  The template arguments tuple_t and result_t must be default constructible, with a copy constructor
- *  and copy assignment operator, and they must provide and implement the setInfo() and getInfo() methods.
- *  The third template argument win_F_t is the type of the callable object to be used for GPU processing.
+ *  The template parameters tuple_t and result_t must be default constructible, with
+ *  a copy constructor and copy assignment operator, and they must provide and implement
+ *  the setControlFields() and getControlFields() methods. The third template argument win_F_t is the type
+ *  of the callable object to be used for GPU processing.
  */ 
 
 #ifndef WIN_SEQ_GPU_H
@@ -51,7 +53,7 @@ using namespace ff;
 
 // CUDA KERNEL: it calls the user-defined function over the windows within a micro-batch
 template<typename win_F_t>
-__global__ void kernelBatch(size_t key, void *input_data, size_t *start, size_t *end,
+__global__ void kernelBatch(void *input_data, size_t *start, size_t *end,
                             uint64_t *gwids, void *results, win_F_t F, size_t batch_len,
                             char *scratchpad_memory, size_t scratchpad_size)
 {
@@ -60,9 +62,9 @@ __global__ void kernelBatch(size_t key, void *input_data, size_t *start, size_t 
     int id = threadIdx.x + blockIdx.x * blockDim.x;
     if (id < batch_len) {
         if (scratchpad_size > 0)
-            F(key, gwids[id], ((input_t *) input_data) + start[id], &((output_t *) results)[id], end[id] - start[id], &scratchpad_memory[id * scratchpad_size]);
+            F(gwids[id], ((input_t *) input_data) + start[id], &((output_t *) results)[id], end[id] - start[id], &scratchpad_memory[id * scratchpad_size]);
         else
-            F(key, gwids[id], ((input_t *) input_data) + start[id], &((output_t *) results)[id], end[id] - start[id], nullptr);
+            F(gwids[id], ((input_t *) input_data) + start[id], &((output_t *) results)[id], end[id] - start[id], nullptr);
     }
 }
 
@@ -98,6 +100,9 @@ private:
     using win_t = Window<tuple_t, result_t>;
     // function type to compare two tuples
     using f_compare_t = function<bool(const tuple_t &, const tuple_t &)>;
+    tuple_t tmp; // never used
+    // key data type
+    using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3, typename T4>
     friend class Win_Farm_GPU;
@@ -156,7 +161,7 @@ private:
     string name; // string of the unique name of the pattern
     PatternConfig config; // configuration structure of the Win_Seq_GPU pattern
     role_t role; // role of the Win_Seq_GPU instance
-    unordered_map<size_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
+    unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     pair<size_t, size_t> map_indexes = make_pair(0, 1); // indexes useful is the role is MAP
     size_t batch_len; // length of the micro-batch in terms of no. of windows (i.e. 1 window mapped onto 1 CUDA thread)
     size_t n_thread_block; // number of threads per block
@@ -225,12 +230,12 @@ private:
         // define the compare function depending on the window type
         if (winType == CB) {
             compare = [](const tuple_t &t1, const tuple_t &t2) {
-                return std::get<1>(t1.getInfo()) < std::get<1>(t2.getInfo());
+                return std::get<1>(t1.getControlFields()) < std::get<1>(t2.getControlFields());
             };
         }
         else {
             compare = [](const tuple_t &t1, const tuple_t &t2) {
-                return std::get<2>(t1.getInfo()) < std::get<2>(t2.getInfo());
+                return std::get<2>(t1.getControlFields()) < std::get<2>(t2.getControlFields());
             };
         }
     }
@@ -316,8 +321,9 @@ public:
 #endif
         // extract the key and id/timestamp fields from the input tuple
         tuple_t *t = extractTuple<tuple_t, input_t>(wt);
-        size_t key = std::get<0>(t->getInfo()); // key
-        uint64_t id = (winType == CB) ? std::get<1>(t->getInfo()) : std::get<2>(t->getInfo()); // identifier or timestamp
+        auto key = std::get<0>(t->getControlFields()); // key
+        size_t hashcode = hash<decltype(key)>()(key); // compute the hashcode of the key
+        uint64_t id = (winType == CB) ? std::get<1>(t->getControlFields()) : std::get<2>(t->getControlFields()); // identifier or timestamp
         // access the descriptor of the input key
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
@@ -333,7 +339,7 @@ public:
         }
         else {
             // tuples can be received only ordered by id/timestamp
-            uint64_t last_id = (winType == CB) ? std::get<1>((key_d.last_tuple).getInfo()) : std::get<2>((key_d.last_tuple).getInfo());
+            uint64_t last_id = (winType == CB) ? std::get<1>((key_d.last_tuple).getControlFields()) : std::get<2>((key_d.last_tuple).getControlFields());
             if (id < last_id) {
                 // the tuple is immediately deleted
                 deleteTuple<tuple_t, input_t>(wt);
@@ -345,10 +351,10 @@ public:
             }
         }
         // gwid of the first window of that key assigned to this Win_Seq_GPU instance
-        uint64_t first_gwid_key = ((config.id_inner - (key % config.n_inner) + config.n_inner) % config.n_inner) * config.n_outer + (config.id_outer - (key % config.n_outer) + config.n_outer) % config.n_outer;
+        uint64_t first_gwid_key = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) * config.n_outer + (config.id_outer - (hashcode % config.n_outer) + config.n_outer) % config.n_outer;
         // initial identifer/timestamp of the keyed sub-stream arriving at this Win_Seq_GPU instance
-        uint64_t initial_outer = ((config.id_outer - (key % config.n_outer) + config.n_outer) % config.n_outer) * config.slide_outer;
-        uint64_t initial_inner = ((config.id_inner - (key % config.n_inner) + config.n_inner) % config.n_inner) * config.slide_inner;
+        uint64_t initial_outer = ((config.id_outer - (hashcode % config.n_outer) + config.n_outer) % config.n_outer) * config.slide_outer;
+        uint64_t initial_inner = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) * config.slide_inner;
         uint64_t initial_id = initial_outer + initial_inner;
         // special cases: if role is WLQ or REDUCE
         if (role == WLQ || role == REDUCE)
@@ -398,7 +404,7 @@ public:
             if (win.onTuple(*t) == FIRED) {
                 key_d.batchedWin++;
                 (key_d.gwids).push_back(win.getGWID());
-                (key_d.tsWin).push_back(std::get<2>((win.getResult())->getInfo()));
+                (key_d.tsWin).push_back(std::get<2>((win.getResult())->getControlFields()));
                 // acquire from the archive the optionals to the first and the last tuple of the window
                 optional<tuple_t> t_s = win.getFirstTuple();
                 optional<tuple_t> t_e = win.getFiringTuple();
@@ -446,7 +452,7 @@ public:
                     }
                     // prepare the host_results
                     for (size_t i=0; i < batch_len; i++)
-                        host_results[i].setInfo(key, key_d.gwids[i], key_d.tsWin[i]);
+                        host_results[i].setControlFields(key, key_d.gwids[i], key_d.tsWin[i]);
                     // copy of the arrays on the GPU
                     gpuErrChk(cudaMemcpyAsync(gpu_start, (key_d.start).data(), batch_len * sizeof(size_t), cudaMemcpyHostToDevice, cudaStream));
                     gpuErrChk(cudaMemcpyAsync(gpu_end, (key_d.end).data(), batch_len * sizeof(size_t), cudaMemcpyHostToDevice, cudaStream));
@@ -476,7 +482,7 @@ public:
                     }
                     // execute the CUDA Kernel on GPU
                     int num_blocks = ceil((double) batch_len / n_thread_block);
-                    kernelBatch<win_F_t><<<num_blocks, n_thread_block, 0, cudaStream>>>(key, Bin, gpu_start, gpu_end, gpu_gwids, Bout, winFunction, batch_len, scratchpad_memory, scratchpad_size);
+                    kernelBatch<win_F_t><<<num_blocks, n_thread_block, 0, cudaStream>>>(Bin, gpu_start, gpu_end, gpu_gwids, Bout, winFunction, batch_len, scratchpad_memory, scratchpad_size);
                     gpuErrChk(cudaMemcpyAsync(host_results, Bout, batch_len * sizeof(result_t), cudaMemcpyDeviceToHost, cudaStream));
                     gpuErrChk(cudaStreamSynchronize(cudaStream));
                     // purge the archive from tuples that are no longer necessary
@@ -489,12 +495,12 @@ public:
                         *res = host_results[i];
                         // special cases: role is PLQ or MAP
                         if (role == MAP) {
-                            res->setInfo(key, key_d.emit_counter, std::get<2>(res->getInfo()));
+                            res->setControlFields(key, key_d.emit_counter, std::get<2>(res->getControlFields()));
                             key_d.emit_counter += map_indexes.second;
                         }
                         else if (role == PLQ) {
-                            uint64_t new_id = ((config.id_inner - (key % config.n_inner) + config.n_inner) % config.n_inner) + (key_d.emit_counter * config.n_inner);
-                            res->setInfo(key, new_id, std::get<2>(res->getInfo()));
+                            uint64_t new_id = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) + (key_d.emit_counter * config.n_inner);
+                            res->setControlFields(key, new_id, std::get<2>(res->getControlFields()));
                             key_d.emit_counter++;
                         }
                         this->ff_send_out(res);
@@ -536,7 +542,7 @@ public:
         char *scratchpad_memory_cpu = (char *) malloc(sizeof(char) * scratchpad_size);
         // iterate over all the keys
         for (auto &k: keyMap) {
-            size_t key = k.first;
+            auto key = k.first;
             Key_Descriptor &key_d = k.second;
             auto &wins = key_d.wins;
             // iterate over all the existing windows of the key and execute them on the CPU
@@ -552,25 +558,22 @@ public:
                         its = (key_d.archive).getWinRange(*t_s);
                     // call the winFunction on the CPU
                     decltype(get_tuple_t(winFunction)) *my_input_data = (decltype(get_tuple_t(winFunction)) *) &(*(its.first));
-                    if (winFunction(key, win.getGWID(), my_input_data, out, distance(its.first, its.second), scratchpad_memory_cpu) < 0) {
-                        cerr << RED << "WindFlow Error: winFunction() call error (negative return value)" << DEFAULT << endl;
-                        exit(EXIT_FAILURE);
-                    }
+                    // call winFunction
+                    winFunction(win.getGWID(), my_input_data, out, distance(its.first, its.second), scratchpad_memory_cpu);
                 }
                 else {// empty window
-                    if (winFunction(key, win.getGWID(), nullptr, out, 0, scratchpad_memory_cpu) < 0) {
-                        cerr << RED << "WindFlow Error: winFunction() call error (negative return value)" << DEFAULT << endl;
-                        exit(EXIT_FAILURE);
-                    }
+                    // call winFunction
+                    winFunction(win.getGWID(), nullptr, out, 0, scratchpad_memory_cpu);
                 }
                 // special cases: role is PLQ or MAP
                 if (role == MAP) {
-                    out->setInfo(k.first, (k.second).emit_counter, std::get<2>(out->getInfo()));
+                    out->setControlFields(k.first, (k.second).emit_counter, std::get<2>(out->getControlFields()));
                     (k.second).emit_counter += map_indexes.second;
                 }
                 else if (role == PLQ) {
-                    uint64_t new_id = ((config.id_inner - (k.first % config.n_inner) + config.n_inner) % config.n_inner) + ((k.second).emit_counter * config.n_inner);
-                    out->setInfo(k.first, new_id, std::get<2>(out->getInfo()));
+                    size_t hashcode = hash<key_t>()(k.first); // compute the hashcode of the key
+                    uint64_t new_id = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) + ((k.second).emit_counter * config.n_inner);
+                    out->setControlFields(k.first, new_id, std::get<2>(out->getControlFields()));
                     (k.second).emit_counter++;
                 }
                 this->ff_send_out(out);

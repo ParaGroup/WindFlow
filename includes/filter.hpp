@@ -26,9 +26,9 @@
  *  This file implements the Filter pattern able to drop all the input items that do not
  *  respect a given predicate given by the user.
  *  
- *  The template argument tuple_t must be default constructible, with a copy constructor
- *  and copy assignment operator, and it must provide and implement the setInfo()
- *  and getInfo() methods.
+ *  The template parameter tuple_t must be default constructible, with a copy constructor
+ *  and copy assignment operator, and it must provide and implement the setControlFields()
+ *  and getControlFields() methods.
  */ 
 
 #ifndef FILTER_H
@@ -59,7 +59,7 @@ public:
     using filter_func_t = function<bool(tuple_t &)>;
     /// Type of the rich predicate function
     using rich_filter_func_t = function<bool(tuple_t &, RuntimeContext)>;
-    /// function type to map the key onto an identifier starting from zero to pardegree-1
+    /// function type to map the key hashcode onto an identifier starting from zero to pardegree-1
     using f_routing_t = function<size_t(size_t, size_t)>;
 private:
     // friendships with other classes in the library
@@ -171,7 +171,7 @@ public:
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new standard_emitter<tuple_t>());
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>());
         // add workers
         ff_farm::add_workers(w);
         // add default collector
@@ -186,7 +186,7 @@ public:
      *  \param _func filter function (boolean predicate)
      *  \param _pardegree parallelism degree of the Filter pattern
      *  \param _name string with the unique name of the Filter pattern
-     *  \param _routing routing function for the key-based distribution
+     *  \param _routing function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
     Filter(filter_func_t _func, size_t _pardegree, string _name, f_routing_t _routing): keyed(true)
     {
@@ -202,7 +202,7 @@ public:
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new standard_emitter<tuple_t>(_routing));
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing));
         // add workers
         ff_farm::add_workers(w);
         // add default collector
@@ -232,7 +232,7 @@ public:
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new standard_emitter<tuple_t>());
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>());
         // add workers
         ff_farm::add_workers(w);
         // add default collector
@@ -247,7 +247,7 @@ public:
      *  \param _func rich filter function (boolean predicate)
      *  \param _pardegree parallelism degree of the Filter pattern
      *  \param _name string with the unique name of the Filter pattern
-     *  \param _routing routing function for the key-based distribution
+     *  \param _routing function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
     Filter(rich_filter_func_t _func, size_t _pardegree, string _name, f_routing_t _routing): keyed(true)
     {
@@ -263,7 +263,7 @@ public:
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new standard_emitter<tuple_t>(_routing));
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing));
         // add workers
         ff_farm::add_workers(w);
         // add default collector

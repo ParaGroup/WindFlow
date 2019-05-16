@@ -42,7 +42,7 @@ class KF_Emitter: public ff_monode_t<input_t, wrapper_tuple_t<tuple_t>>
 private:
     // type of the wrapper of input tuples
     using wrapper_in_t = wrapper_tuple_t<tuple_t>;
-    // function type to map the key onto an identifier starting from zero to pardegree-1
+    // function type to map the key hashcode onto an identifier starting from zero to pardegree-1
     using f_routing_t = function<size_t(size_t, size_t)>;
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3>
@@ -68,9 +68,10 @@ private:
     {
         // extract the key from the input tuple
         tuple_t *t = extractTuple<tuple_t, input_t>(wt);
-        size_t key = std::get<0>(t->getInfo()); // key
+        auto key = std::get<0>(t->getControlFields()); // key
+        size_t hashcode = hash<decltype(key)>()(key); // compute the hashcode of the key
         // evaluate the routing function
-        size_t dest_w = routing(key, pardegree);
+        size_t dest_w = routing(hashcode, pardegree);
         // prepare the wrapper to be sent
         wrapper_in_t *out = prepareWrapper<input_t, wrapper_in_t>(wt, 1);
         this->ff_send_out_to(out, dest_w);
@@ -88,8 +89,11 @@ class KF_NestedEmitter: public ff_monode_t<input_t, wrapper_tuple_t<tuple_t>>
 private:
     // type of the wrapper of input tuples
     using wrapper_in_t = wrapper_tuple_t<tuple_t>;
-    // function type to map the key onto an identifier starting from zero to pardegree1-1
+    // function type to map the key hashcode onto an identifier starting from zero to pardegree1-1
     using f_routing_t = function<size_t(size_t, size_t)>;
+    tuple_t tmp; // never used
+    // key data type
+    using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3>
     friend class Key_Farm;
@@ -114,7 +118,7 @@ private:
         // constructor
         Key_Descriptor(size_t _nextDst): rcv_counter(0), nextDst(_nextDst) {}
     };
-    unordered_map<size_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
+    unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
 
     // private constructor
     KF_NestedEmitter(f_routing_t _routing, win_type_t _winType, uint64_t _win_len, uint64_t _slide_len, size_t _pardegree1, size_t _pardegree2, role_t _role):
@@ -138,13 +142,14 @@ private:
     {
         // extract the key and id/timestamp fields from the input tuple
         tuple_t *t = extractTuple<tuple_t, input_t>(wt);
-        size_t key = std::get<0>(t->getInfo()); // key
-        uint64_t id = (winType == CB) ? std::get<1>(t->getInfo()) : std::get<2>(t->getInfo()); // identifier or timestamp
+        auto key = std::get<0>(t->getControlFields()); // key
+        size_t hashcode = hash<decltype(key)>()(key); // compute the hashcode of the key
+        uint64_t id = (winType == CB) ? std::get<1>(t->getControlFields()) : std::get<2>(t->getControlFields()); // identifier or timestamp
         // access the descriptor of the input key
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
             // create the descriptor of that key
-            keyMap.insert(make_pair(key, Key_Descriptor(key % pardegree2)));
+            keyMap.insert(make_pair(key, Key_Descriptor(hashcode % pardegree2)));
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
@@ -155,7 +160,7 @@ private:
         }
         else {
             // tuples can be received only ordered by id/timestamp
-            uint64_t last_id = (winType == CB) ? std::get<1>((key_d.last_tuple).getInfo()) : std::get<2>((key_d.last_tuple).getInfo());
+            uint64_t last_id = (winType == CB) ? std::get<1>((key_d.last_tuple).getControlFields()) : std::get<2>((key_d.last_tuple).getControlFields());
             if (id < last_id) {
                 // the tuple is immediately deleted
                 deleteTuple<tuple_t, input_t>(wt);
@@ -168,7 +173,7 @@ private:
         }
         // **************************************** KF_Emitter emitter logic (Level 1) **************************************** //
         // evaluate the routing function
-        size_t level1_idx = routing(key, pardegree1);
+        size_t level1_idx = routing(hashcode, pardegree1);
         if (role == PLQ) {
             // **************************************** WF_Emitter emitter logic (Level 2) **************************************** //
             // gwid of the first window of that key assigned to this Win_Farm instance
@@ -208,7 +213,7 @@ private:
             uint64_t countRcv = 0;
             uint64_t i = first_w;
             // the first window of the key is assigned to worker startDstIdx
-            size_t startDstIdx = key % pardegree2;
+            size_t startDstIdx = hashcode % pardegree2;
             while ((i <= last_w) && (countRcv < pardegree2)) {
                 to_workers[countRcv] = (startDstIdx + i) % pardegree2;
                 countRcv++;
@@ -237,10 +242,11 @@ private:
         // iterate over all the keys
         for (auto &k: keyMap) {
             auto key = k.first;
+            size_t hashcode = hash<decltype(key)>()(key); // compute the hashcode of the key
             Key_Descriptor &key_d = k.second;
             if (key_d.rcv_counter > 0) {
                 // evaluate the routing function
-                size_t level1_idx = routing(key, pardegree1);
+                size_t level1_idx = routing(hashcode, pardegree1);
                 // send the last tuple to all the internal patterns as an EOS marker
                 tuple_t *t = new tuple_t();
                 *t = key_d.last_tuple;
@@ -260,6 +266,9 @@ template<typename result_t>
 class KF_NestedCollector: public ff_node_t<result_t, result_t>
 {
 private:
+    result_t tmp; // never used
+    // key data type
+    using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3>
     friend class Key_Farm;
@@ -276,7 +285,7 @@ private:
 
     };
     // hash table that maps key identifiers onto key descriptors
-    unordered_map<size_t, Key_Descriptor> keyMap;
+    unordered_map<key_t, Key_Descriptor> keyMap;
 
     // private constructor
     KF_NestedCollector() {}
@@ -291,8 +300,9 @@ private:
     result_t *svc(result_t *r)
     {
         // extract key and identifier from the result
-        size_t key = std::get<0>(r->getInfo()); // key
-        uint64_t wid = std::get<1>(r->getInfo()); // identifier
+        auto key = std::get<0>(r->getControlFields()); // key
+        size_t hashcode = hash<decltype(key)>()(key); // compute the hashcode of the key
+        uint64_t wid = std::get<1>(r->getControlFields()); // identifier
         // find the corresponding key descriptor
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {

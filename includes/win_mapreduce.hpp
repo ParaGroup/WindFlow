@@ -19,19 +19,20 @@
  *  @author  Gabriele Mencagli
  *  @date    29/10/2017
  *  
- *  @brief Win_MapReduce pattern executing a windowed transformation in parallel on multi-core CPUs
+ *  @brief Win_MapReduce pattern executing a windowed transformation in parallel
+ *         on multi-core CPUs
  *  
  *  @section Win_MapReduce (Description)
  *  
  *  This file implements the Win_MapReduce pattern able to execute windowed queries on a
- *  multicore. The pattern processes (possibly in parallel) partitions of the windows in the
- *  so-called MAP stage, and computes (possibly in parallel) results of the windows out of the
- *  partition results in the REDUCE stage. The pattern supports both a non-incremental and an
- *  incremental query definition in the two stages.
+ *  multicore. The pattern processes (possibly in parallel) partitions of the windows in
+ *  the so-called MAP stage, and computes (possibly in parallel) results of the windows
+ *  out of the partition results in the REDUCE stage. The pattern supports both a non
+ *  incremental and an incremental query definition in the two stages.
  *  
- *  The template arguments tuple_t and result_t must be default constructible, with a copy constructor
- *  and copy assignment operator, and they must provide and implement the setInfo() and
- *  getInfo() methods.
+ *  The template parameters tuple_t and result_t must be default constructible, with a
+ *  copy constructor and copy assignment operator, and they must provide and implement
+ *  the setControlFields() and getControlFields() methods.
  */ 
 
 #ifndef WIN_MAPREDUCE_H
@@ -42,12 +43,13 @@
 #include <ff/pipeline.hpp>
 #include <win_farm.hpp>
 #include <wm_nodes.hpp>
-#include <orderingNode.hpp>
+#include <ordering_node.hpp>
 
 /** 
  *  \class Win_MapReduce
  *  
- *  \brief Win_MapReduce pattern executing a windowed transformation in parallel on multi-core CPUs
+ *  \brief Win_MapReduce pattern executing a windowed transformation in parallel
+ *         on multi-core CPUs
  *  
  *  This class implements the Win_MapReduce pattern executing windowed queries in parallel on
  *  a multicore. The pattern processes (possibly in parallel) window partitions in the MAP
@@ -59,13 +61,13 @@ class Win_MapReduce: public ff_pipeline
 {
 public:
     /// function type of the non-incremental MAP processing
-    using f_mapfunction_t = function<int(size_t, uint64_t, Iterable<tuple_t> &, result_t &)>;
+    using f_mapfunction_t = function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
     /// function type of the incremental MAP processing
-    using f_mapupdate_t = function<int(size_t, uint64_t, const tuple_t &, result_t &)>;
+    using f_mapupdate_t = function<void(uint64_t, const tuple_t &, result_t &)>;
     /// function type of the non-incremental REDUCE processing
-    using f_reducefunction_t = function<int(size_t, uint64_t, Iterable<result_t> &, result_t &)>;
+    using f_reducefunction_t = function<void(uint64_t, Iterable<result_t> &, result_t &)>;
     /// function type of the incremental REDUCE processing
-    using f_reduceupdate_t = function<int(size_t, uint64_t, const result_t &, result_t &)>;
+    using f_reduceupdate_t = function<void(uint64_t, const result_t &, result_t &)>;
 private:
     // type of the wrapper of input tuples
     using wrapper_in_t = wrapper_tuple_t<tuple_t>;
@@ -484,7 +486,7 @@ private:
                 ff_farm *farm_map = static_cast<ff_farm *>(map);
                 ff_farm *farm_reduce = static_cast<ff_farm *>(reduce);
                 emitter_reduce_t *emitter_reduce = static_cast<emitter_reduce_t *>(farm_reduce->getEmitter());
-                OrderingNode<result_t, wrapper_tuple_t<result_t>> *buf_node = new OrderingNode<result_t, wrapper_tuple_t<result_t>>();
+                Ordering_Node<result_t, wrapper_tuple_t<result_t>> *buf_node = new Ordering_Node<result_t, wrapper_tuple_t<result_t>>();
                 const ff_pipeline result = combine_farms(*farm_map, emitter_reduce, *farm_reduce, buf_node, false);
                 delete farm_map;
                 delete farm_reduce;

@@ -19,7 +19,8 @@
  *  @author  Gabriele Mencagli
  *  @date    17/10/2017
  *  
- *  @brief Key_Farm pattern executing a windowed transformation in parallel on multi-core CPUs
+ *  @brief Key_Farm pattern executing a windowed transformation in parallel
+ *         on multi-core CPUs
  *  
  *  @section Key_Farm (Description)
  *  
@@ -29,9 +30,9 @@
  *  windows belonging to different sub-streams can be executed in parallel, while
  *  windows of the same sub-stream are executed rigorously in order.
  *  
- *  The template arguments tuple_t and result_t must be default constructible, with a copy constructor
- *  and copy assignment operator, and they must provide and implement the setInfo() and
- *  getInfo() methods.
+ *  The template parameters tuple_t and result_t must be default constructible, with
+ *  a copy constructor and copy assignment operator, and they must provide and implement
+ *  the setControlFields() and getControlFields() methods.
  */ 
 
 #ifndef KEY_FARM_H
@@ -58,12 +59,12 @@ template<typename tuple_t, typename result_t, typename input_t>
 class Key_Farm: public ff_farm
 {
 public:
-    /// function type to map the key onto an identifier starting from zero to pardegree-1
+    /// function type to map the key hashcode onto an identifier starting from zero to pardegree-1
     using f_routing_t = function<size_t(size_t, size_t)>;
     /// function type of the non-incremental window processing
-    using f_winfunction_t = function<int(size_t, uint64_t, Iterable<tuple_t> &, result_t &)>;
+    using f_winfunction_t = function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
     /// function type of the incremental window processing
-    using f_winupdate_t = function<int(size_t, uint64_t, const tuple_t &, result_t &)>;
+    using f_winupdate_t = function<void(uint64_t, const tuple_t &, result_t &)>;
     /// type of the Pane_Farm used for the nesting constructor
     using pane_farm_t = Pane_Farm<tuple_t, result_t>;
     /// type of the Win_MapReduce used for the nesting constructor
@@ -113,7 +114,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _pardegree parallelism degree of the Key_Farm pattern
      *  \param _name string with the unique name of the pattern
-     *  \param _routing function to map the key onto an identifier starting from zero to pardegree-1
+     *  \param _routing function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the pattern
      */ 
     Key_Farm(f_winfunction_t _winFunction,
@@ -164,7 +165,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _pardegree parallelism degree of the Key_Farm pattern
      *  \param _name string with the unique name of the pattern
-     *  \param _routing function to map the key onto an identifier starting from zero to pardegree-1
+     *  \param _routing function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the pattern
      */ 
     Key_Farm(f_winupdate_t _winUpdate,
@@ -215,7 +216,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _pardegree parallelism degree of the Key_Farm pattern
      *  \param _name string with the unique name of the pattern
-     *  \param _routing function to map the key onto an identifier starting from zero to pardegree-1
+     *  \param _routing function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the pattern
      */ 
     Key_Farm(const pane_farm_t &_pf,
@@ -281,7 +282,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _pardegree parallelism degree of the Key_Farm pattern
      *  \param _name string with the unique name of the pattern
-     *  \param _routing function to map the key onto an identifier starting from zero to pardegree-1
+     *  \param _routing function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the pattern
      */ 
     Key_Farm(const win_mapreduce_t &_wm,

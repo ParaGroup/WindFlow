@@ -62,11 +62,8 @@ int main(int argc, char *argv[])
         }
     }
 	// user-defined window function (Incremental Query)
-	auto F = [](size_t key, size_t wid, const tuple_t &t, output_t &result) {
-		result.key = key;
-		result.id = wid;
+	auto F = [](size_t wid, const tuple_t &t, output_t &result) {
 		result.value += t.value;
-		return 0;
 	};
 	// creation of the Win_Seq pattern
 	Win_Seq seq = WinSeq_Builder(F).withCBWindow(win_len, win_slide)

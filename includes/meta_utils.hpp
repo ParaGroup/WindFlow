@@ -80,23 +80,23 @@ Arg1 get_tuple_t(void (F_t::*)(Arg1 &, RuntimeContext));
 template<typename Arg1> // Map in-place
 Arg1 get_tuple_t(void (*)(Arg1 &, RuntimeContext));
 
-template<typename F_t, typename Arg> // Source item-by-item, filter
+template<typename F_t, typename Arg> // Source item-by-item, Filter
 Arg get_tuple_t(bool (F_t::*)(Arg &) const);
 
-template<typename F_t, typename Arg> // Source item-by-item, filter
+template<typename F_t, typename Arg> // Source item-by-item, Filter
 Arg get_tuple_t(bool (F_t::*)(Arg &));
 
-template<typename Arg> // Source item-by-item, filter
+template<typename Arg> // Source item-by-item, Filter
 Arg get_tuple_t(bool (*)(Arg &));
 
-template<typename F_t, typename Arg> // Source item-by-item, filter
+template<typename F_t, typename Arg> // Source item-by-item, Filter
 Arg get_tuple_t(bool (F_t::*)(Arg &, RuntimeContext) const);
 
-template<typename F_t, typename Arg> // Source item-by-item, filter
+template<typename F_t, typename Arg> // Source item-by-item, Filter
 Arg get_tuple_t(bool (F_t::*)(Arg &, RuntimeContext));
 
 template<typename Arg>
-Arg get_tuple_t(bool (*)(Arg &, RuntimeContext)); // Source item-by-item, filter
+Arg get_tuple_t(bool (*)(Arg &, RuntimeContext)); // Source item-by-item, Filter
 
 template<typename F_t, typename Arg1, typename Arg2> // FlatMap
 Arg1 get_tuple_t(void (F_t::*)(const Arg1 &, Shipper<Arg2>&) const);
@@ -153,31 +153,31 @@ template<typename Arg> // Sink
 Arg get_tuple_t(void (*)(optional<Arg> &, RuntimeContext));
 
 template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (non-incremental)
-Arg1 get_tuple_t(Ret (F_t::*)(size_t, uint64_t, Iterable<Arg1>&, Arg2&) const);
+Arg1 get_tuple_t(Ret (F_t::*)(uint64_t, Iterable<Arg1>&, Arg2&) const);
 
 template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (non-incremental)
-Arg1 get_tuple_t(Ret (F_t::*)(size_t, uint64_t, Iterable<Arg1>&, Arg2&));
+Arg1 get_tuple_t(Ret (F_t::*)(uint64_t, Iterable<Arg1>&, Arg2&));
 
 template<typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (non-incremental)
-Arg1 get_tuple_t(Ret (*)(size_t, uint64_t, Iterable<Arg1>&, Arg2&));
+Arg1 get_tuple_t(Ret (*)(uint64_t, Iterable<Arg1>&, Arg2&));
 
 template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (incremental)
-Arg1 get_tuple_t(Ret (F_t::*)(size_t, uint64_t, const Arg1&, Arg2&) const);
+Arg1 get_tuple_t(Ret (F_t::*)(uint64_t, const Arg1&, Arg2&) const);
 
 template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (incremental)
-Arg1 get_tuple_t(Ret (F_t::*)(size_t, uint64_t, const Arg1&, Arg2&));
+Arg1 get_tuple_t(Ret (F_t::*)(uint64_t, const Arg1&, Arg2&));
 
 template<typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (incremental)
-Arg1 get_tuple_t(Ret (*)(size_t, uint64_t, const Arg1&, Arg2&));
+Arg1 get_tuple_t(Ret (*)(uint64_t, const Arg1&, Arg2&));
 
 template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (non-incremental on GPU)
-Arg1 get_tuple_t(Ret (F_t::*)(size_t, uint64_t, const Arg1*, Arg2*, size_t, char*) const);
+Arg1 get_tuple_t(Ret (F_t::*)(uint64_t, const Arg1*, Arg2*, size_t, char*) const);
 
 template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (non-incremental on GPU)
-Arg1 get_tuple_t(Ret (F_t::*)(size_t, uint64_t, const Arg1*, Arg2*, size_t, char*));
+Arg1 get_tuple_t(Ret (F_t::*)(uint64_t, const Arg1*, Arg2*, size_t, char*));
 
 template<typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (non-incremental on GPU)
-Arg1 get_tuple_t(Ret (*)(size_t, uint64_t, const Arg1*, Arg2*, size_t, char*));
+Arg1 get_tuple_t(Ret (*)(uint64_t, const Arg1*, Arg2*, size_t, char*));
 
 template<typename F_t>
 decltype(get_tuple_t(&F_t::operator())) get_tuple_t(F_t);
@@ -238,22 +238,22 @@ template<typename Arg1, typename Arg2> // FlatMap
 Arg2 get_result_t(void (*)(const Arg1 &, Shipper<Arg2>&, RuntimeContext));
 
 template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns
-Arg2 get_result_t(Ret (F_t::*)(size_t, uint64_t, Arg1&, Arg2&) const);
+Arg2 get_result_t(Ret (F_t::*)(uint64_t, Arg1&, Arg2&) const);
 
 template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns
-Arg2 get_result_t(Ret (F_t::*)(size_t, uint64_t, Arg1&, Arg2&));
+Arg2 get_result_t(Ret (F_t::*)(uint64_t, Arg1&, Arg2&));
 
 template<typename Ret, typename Arg1, typename Arg2> // Window-based Patterns
-Arg2 get_result_t(Ret (*)(size_t, uint64_t, Arg1&, Arg2&));
+Arg2 get_result_t(Ret (*)(uint64_t, Arg1&, Arg2&));
 
 template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (on GPU)
-Arg2 get_result_t(Ret (F_t::*)(size_t, uint64_t, const Arg1*, Arg2*, size_t, char*) const);
+Arg2 get_result_t(Ret (F_t::*)(uint64_t, const Arg1*, Arg2*, size_t, char*) const);
 
 template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (on GPU)
-Arg2 get_result_t(Ret (F_t::*)(size_t, uint64_t, const Arg1*, Arg2*, size_t, char*));
+Arg2 get_result_t(Ret (F_t::*)(uint64_t, const Arg1*, Arg2*, size_t, char*));
 
 template<typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (on GPU)
-Arg2 get_result_t(Ret (*)(size_t, uint64_t, const Arg1*, Arg2*, size_t, char*));
+Arg2 get_result_t(Ret (*)(uint64_t, const Arg1*, Arg2*, size_t, char*));
 
 template<typename F_t>
 decltype(get_result_t(&F_t::operator())) get_result_t(F_t);
@@ -326,28 +326,28 @@ auto get_KF_GPU_nested_type(F_t _f)
 
 // metafunctions to return the callable type to be executed on the GPU (only lambda or functor!)
 template<typename F_t, typename G_t, typename Ret, typename Arg1, typename Arg2>
-F_t get_GPU_F(Ret (F_t::*)(size_t, uint64_t, const Arg1*, Arg2*, size_t, char*) const, Ret (G_t::*)(size_t, uint64_t, Iterable<Arg2>&, Arg2&) const);
+F_t get_GPU_F(Ret (F_t::*)(uint64_t, const Arg1*, Arg2*, size_t, char*) const, Ret (G_t::*)(uint64_t, Iterable<Arg2>&, Arg2&) const);
 
 template<typename F_t, typename Ret, typename Arg1, typename Arg2>
-F_t get_GPU_F(Ret (F_t::*)(size_t, uint64_t, const Arg1*, Arg2*, size_t, char*) const, Ret (*)(size_t, uint64_t, Iterable<Arg2>&, Arg2&));
+F_t get_GPU_F(Ret (F_t::*)(uint64_t, const Arg1*, Arg2*, size_t, char*) const, Ret (*)(uint64_t, Iterable<Arg2>&, Arg2&));
 
 template<typename F_t, typename G_t, typename Ret, typename Arg1, typename Arg2>
-F_t get_GPU_F(Ret (F_t::*)(size_t, uint64_t, const Arg1*, Arg2*, size_t, char*) const, Ret (G_t::*)(size_t, uint64_t, const Arg2&, Arg2&) const);
+F_t get_GPU_F(Ret (F_t::*)(uint64_t, const Arg1*, Arg2*, size_t, char*) const, Ret (G_t::*)(uint64_t, const Arg2&, Arg2&) const);
 
 template<typename F_t, typename Ret, typename Arg1, typename Arg2>
-F_t get_GPU_F(Ret (F_t::*)(size_t, uint64_t, const Arg1*, Arg2*, size_t, char*) const, Ret (*)(size_t, uint64_t, const Arg2&, Arg2&));
+F_t get_GPU_F(Ret (F_t::*)(uint64_t, const Arg1*, Arg2*, size_t, char*) const, Ret (*)(uint64_t, const Arg2&, Arg2&));
 
 template<typename F_t, typename G_t, typename Ret, typename Arg1, typename Arg2>
-G_t get_GPU_F(Ret (F_t::*)(size_t, uint64_t, Iterable<Arg1>&, Arg2&) const, Ret(G_t::*)(size_t, uint64_t, const Arg2*, Arg2*, size_t, char*) const);
+G_t get_GPU_F(Ret (F_t::*)(uint64_t, Iterable<Arg1>&, Arg2&) const, Ret(G_t::*)(uint64_t, const Arg2*, Arg2*, size_t, char*) const);
 
 template<typename G_t, typename Ret, typename Arg1, typename Arg2>
-G_t get_GPU_F(Ret (*)(size_t, uint64_t, Iterable<Arg1>&, Arg2&), Ret(G_t::*)(size_t, uint64_t, const Arg2*, Arg2*, size_t, char*) const);
+G_t get_GPU_F(Ret (*)(uint64_t, Iterable<Arg1>&, Arg2&), Ret(G_t::*)(uint64_t, const Arg2*, Arg2*, size_t, char*) const);
 
 template<typename F_t, typename G_t, typename Ret, typename Arg1, typename Arg2>
-G_t get_GPU_F(Ret (F_t::*)(size_t, uint64_t, const Arg1&, Arg2&) const, Ret(G_t::*)(size_t, uint64_t, const Arg2*, Arg2*, size_t, char*) const);
+G_t get_GPU_F(Ret (F_t::*)(uint64_t, const Arg1&, Arg2&) const, Ret(G_t::*)(uint64_t, const Arg2*, Arg2*, size_t, char*) const);
 
 template<typename G_t, typename Ret, typename Arg1, typename Arg2>
-G_t get_GPU_F(Ret (*)(size_t, uint64_t, const Arg1&, Arg2&), Ret(G_t::*)(size_t, uint64_t, const Arg2*, Arg2*, size_t, char*) const);
+G_t get_GPU_F(Ret (*)(uint64_t, const Arg1&, Arg2&), Ret(G_t::*)(uint64_t, const Arg2*, Arg2*, size_t, char*) const);
 
 // wrapper struct of input tuples
 template<typename tuple_t>

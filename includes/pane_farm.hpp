@@ -19,20 +19,21 @@
  *  @author  Gabriele Mencagli
  *  @date    17/10/2017
  *  
- *  @brief Pane_Farm pattern executing a windowed transformation in parallel on multi-core CPUs
+ *  @brief Pane_Farm pattern executing a windowed transformation in parallel
+ *         on multi-core CPUs
  *  
  *  @section Pane_Farm (Description)
  *  
  *  This file implements the Pane_Farm pattern able to execute windowed queries on a multicore.
  *  The pattern processes (possibly in parallel) panes of the windows in the so-called PLQ stage
- *  (Pane-Level Sub-Query) and computes (possibly in parallel) results of the windows from the
- *  pane results in the so-called WLQ stage (Window-Level Sub-Query). Panes shared by more than
- *  one window are not recomputed by saving processing time. The pattern supports both a
- *  non-incremental and an incremental query definition in the two stages.
+ *  (Pane-Level Sub-Query) and computes (possibly in parallel) results of the windows from the pane
+ *  results in the so-called WLQ stage (Window-Level Sub-Query). Panes shared by more than one window
+ *  are not recomputed by saving processing time. The pattern supports both a non-incremental and an
+ *  incremental query definition in the two stages.
  *  
- *  The template arguments tuple_t and result_t must be default constructible, with a copy constructor
- *  and copy assignment operator, and they must provide and implement the setInfo() and
- *  getInfo() methods.
+ *  The template parameters tuple_t and result_t must be default constructible, with a copy
+ *  constructor and copy assignment operator, and they must provide and implement the setControlFields()
+ *  and getControlFields() methods.
  */ 
 
 #ifndef PANE_FARM_H
@@ -42,7 +43,7 @@
 #include <ff/combine.hpp>
 #include <ff/pipeline.hpp>
 #include <win_farm.hpp>
-#include <orderingNode.hpp>
+#include <ordering_node.hpp>
 
 /** 
  *  \class Pane_Farm
@@ -59,13 +60,13 @@ class Pane_Farm: public ff_pipeline
 {
 public:
     /// function type of the non-incremental pane processing
-    using f_plqfunction_t = function<int(size_t, uint64_t, Iterable<tuple_t> &, result_t &)>;
+    using f_plqfunction_t = function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
     /// function type of the incremental pane processing
-    using f_plqupdate_t = function<int(size_t, uint64_t, const tuple_t &, result_t &)>;
+    using f_plqupdate_t = function<void(uint64_t, const tuple_t &, result_t &)>;
     /// function type of the non-incremental window processing
-    using f_wlqfunction_t = function<int(size_t, uint64_t, Iterable<result_t> &, result_t &)>;
+    using f_wlqfunction_t = function<void(uint64_t, Iterable<result_t> &, result_t &)>;
     /// function type of the incremental window function
-    using f_wlqupdate_t = function<int(size_t, uint64_t, const result_t &, result_t &)>;
+    using f_wlqupdate_t = function<void(uint64_t, const result_t &, result_t &)>;
 private:
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3>
@@ -455,7 +456,7 @@ private:
                 ff_farm *farm_plq = static_cast<ff_farm *>(plq);
                 ff_farm *farm_wlq = static_cast<ff_farm *>(wlq);
                 emitter_wlq_t *emitter_wlq = static_cast<emitter_wlq_t *>(farm_wlq->getEmitter());
-                OrderingNode<result_t, wrapper_tuple_t<result_t>> *buf_node = new OrderingNode<result_t, wrapper_tuple_t<result_t>>();
+                Ordering_Node<result_t, wrapper_tuple_t<result_t>> *buf_node = new Ordering_Node<result_t, wrapper_tuple_t<result_t>>();
                 const ff_pipeline result = combine_farms(*farm_plq, emitter_wlq, *farm_wlq, buf_node, false);
                 delete farm_plq;
                 delete farm_wlq;

@@ -61,14 +61,14 @@ struct tuple_t
 	// default constructor
 	tuple_t(): key(0), id(0), ts(0), value(0) {}
 
-	// getInfo method
-	tuple<size_t, uint64_t, uint64_t> getInfo() const
+	// getControlFields method
+	tuple<size_t, uint64_t, uint64_t> getControlFields() const
 	{
 		return tuple<size_t, uint64_t, uint64_t>(key, id, ts);
 	}
 
-	// setInfo method
-	void setInfo(size_t _key, uint64_t _id, uint64_t _ts)
+	// setControlFields method
+	void setControlFields(size_t _key, uint64_t _id, uint64_t _ts)
 	{
 		key = _key;
 		id = _id;
@@ -87,14 +87,14 @@ struct output_t
 	// default constructor
 	output_t(): key(0), id(0), ts(0), value(0) {}
 
-	// getInfo method
-	tuple<size_t, uint64_t, uint64_t> getInfo() const
+	// getControlFields method
+	tuple<size_t, uint64_t, uint64_t> getControlFields() const
 	{
 		return tuple<size_t, uint64_t, uint64_t>(key, id, ts);
 	}
 
-	// setInfo method
-	void setInfo(size_t _key, uint64_t _id, uint64_t _ts)
+	// setControlFields method
+	void setControlFields(size_t _key, uint64_t _id, uint64_t _ts)
 	{
 		key = _key;
 		id = _id;
@@ -279,15 +279,12 @@ int main(int argc, char *argv[])
 	    Map_Functor map_functor;
 	    auto *map = Map_Builder<decltype(map_functor)>(map_functor).withName("test_kf_cb_gpu_ch_map").withParallelism(degree2).build_ptr();
 	    application.chain(*map);
-		auto kf_function = [] __host__ __device__ (size_t key, size_t wid, const tuple_t *data, output_t *res, size_t size, char *memory) {
+		auto kf_function = [] __host__ __device__ (size_t wid, const tuple_t *data, output_t *res, size_t size, char *memory) {
 			long sum = 0;
 			for (size_t i=0; i<size; i++) {
 				sum += data[i].value;
 			}
-			res->key = key;
-			res->id = wid;
 			res->value = sum;
-			return 0;
 		};
 	    // kf
 	    auto *kf = KeyFarmGPU_Builder<decltype(kf_function)>(kf_function).withName("test_kf_cb_gpu_ch_kf").withParallelism(kf_degree).withCBWindow(win_len, win_slide).withBatch(batch_len).build_ptr();

@@ -73,27 +73,21 @@ int main(int argc, char *argv[])
         }
     }
 	// user-defined pane function (Non-Incremental Query)
-	auto F = [](size_t key, size_t pid, Iterable<tuple_t> &input, output_t &pane_result) {
+	auto F = [](size_t pid, Iterable<tuple_t> &input, output_t &pane_result) {
 		long sum = 0;
 		for (auto t: input) {
 			int val = t.value;
 			sum += val;
 		}
-		pane_result.key = key;
-		pane_result.id = pid;
 		pane_result.value = sum;
-		return 0;
 	};
 	// user-defined window function (Non-Incremental Query on GPU)
-	auto G = [] __host__ __device__ (size_t key, size_t wid, const output_t *data, output_t *res, size_t size, char *memory) {
+	auto G = [] __host__ __device__ (size_t wid, const output_t *data, output_t *res, size_t size, char *memory) {
 		long sum = 0;
 		for (size_t i=0; i<size; i++) {
 			sum += data[i].value;
 		}
-		res->key = key;
-		res->id = wid;
 		res->value = sum;
-		return 0;
 	};
 	// creation of the Pane_Farm_GPU pattern
 	auto *pf_gpu = PaneFarmGPU_Builder<decltype(F), decltype(G)>(F, G).withCBWindow(win_len, win_slide)

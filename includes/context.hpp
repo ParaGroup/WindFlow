@@ -19,13 +19,15 @@
  *  @author  Gabriele Mencagli
  *  @date    23/02/2019
  *  
- *  @brief RuntimeContext class to access the run-time system information used by a pattern's functional logic
+ *  @brief RuntimeContext class to access the run-time system information
+ *         used by a pattern's functional logic
  *  
  *  @section RuntimeContext (Description)
  *  
- *  This file implements the RuntimeContext class used to access the run-time system information used
- *  by the functional logic of a pattern instance (static information such as the parallelism degree
- *  of the operator and which is the current replica invoking the operator's functional logic).
+ *  This file implements the RuntimeContext class used to access the run-time system
+ *  information used by the functional logic of a pattern instance (static information
+ *  such as the parallelism degree of the operator and which is the current replica
+ *  invoking the operator's functional logic).
  */ 
 
 #ifndef CONTEXT_H
@@ -36,11 +38,12 @@ using namespace std;
 /** 
  *  \class RuntimeContext
  *  
- *  \brief RuntimeContext class used to access to run-time system information used by a pattern's functional logic
+ *  \brief RuntimeContext class used to access to run-time system information
+ *         used by a pattern's functional logic
  *  
- *  This class implements the RuntimeContext object used to access the run-time system information
- *  used by the pattern's functiona logic (access to static information like number of replicas
- *  and identifier of the replica which is invoking the functional logic).
+ *  This class implements the RuntimeContext object used to access the run-time system
+ *  information used by the pattern's functiona logic (access to static information like
+ *  number of replicas and identifier of the replica which is invoking the functional logic).
  */ 
 class RuntimeContext
 {

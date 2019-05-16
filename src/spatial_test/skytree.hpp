@@ -74,14 +74,14 @@ public:
     // destructor
     ~Skyline() {}
 
-    // getInfo method
-    tuple<size_t, uint64_t, uint64_t> getInfo() const
+    // getControlFields method
+    tuple<size_t, uint64_t, uint64_t> getControlFields() const
     {
         return tuple<size_t, uint64_t, uint64_t>(key, wid, ts);
     }
 
-    // setInfo method
-    void setInfo(size_t _key, uint64_t _wid, uint64_t _ts)
+    // setControlFields method
+    void setControlFields(size_t _key, uint64_t _wid, uint64_t _ts)
     {
         key = _key;
         wid = _wid;
@@ -591,7 +591,7 @@ private:
 };
 
 // user-defined function to compute the skyline of a set of tuples
-size_t SkyLineFunction(size_t key, size_t wid, Iterable<tuple_t> &win, Skyline &skyline) {
+void SkyLineFunction(size_t wid, Iterable<tuple_t> &win, Skyline &skyline) {
     // prepare the input set of tuples
     size_t i=0;
     vector<tuple_t> inputSet;
@@ -612,11 +612,10 @@ size_t SkyLineFunction(size_t key, size_t wid, Iterable<tuple_t> &win, Skyline &
             outputSet.push_back(_t);
     }
     skyline.setContent(move(outputSet));
-    return 0;
 };
 
 // user-defined function to merge different skylines non-incrementally
-size_t SkyLineMergeNIC(size_t key, size_t wid, Iterable<Skyline> &win, Skyline &skyline) {
+void SkyLineMergeNIC(size_t wid, Iterable<Skyline> &win, Skyline &skyline) {
     // prepare the input set of tuples
     size_t i=0;
     vector<tuple_t> inputSet;
@@ -639,11 +638,10 @@ size_t SkyLineMergeNIC(size_t key, size_t wid, Iterable<Skyline> &win, Skyline &
             outputSet.push_back(_t);
     }
     skyline.setContent(move(outputSet));
-    return 0;
 };
 
 // user-defined function to merge different skylines incrementally
-size_t SkyLineMergeINC(size_t key, size_t wid, const Skyline &newS, Skyline &skyline) {
+void SkyLineMergeINC(size_t wid, const Skyline &newS, Skyline &skyline) {
     // prepare the input set of tuples
     size_t i=0;
     vector<tuple_t> inputSet;
@@ -669,7 +667,6 @@ size_t SkyLineMergeINC(size_t key, size_t wid, const Skyline &newS, Skyline &sky
             outputSet.push_back(_t);
     }
     skyline.setContent(move(outputSet));
-    return 0;
 };
 
 #endif

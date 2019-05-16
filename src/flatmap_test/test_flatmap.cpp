@@ -46,14 +46,14 @@ struct tuple_t
 	// default constructor
 	tuple_t(): key(0), id(0), ts(0), value(0) {}
 
-	// getInfo method
-	tuple<size_t, uint64_t, uint64_t> getInfo() const
+	// getControlFields method
+	tuple<size_t, uint64_t, uint64_t> getControlFields() const
 	{
 		return tuple<size_t, uint64_t, uint64_t>(key, id, ts);
 	}
 
-	// setInfo method
-	void setInfo(size_t _key, uint64_t _id, uint64_t _ts)
+	// setControlFields method
+	void setControlFields(size_t _key, uint64_t _id, uint64_t _ts)
 	{
 		key = _key;
 		id = _id;
@@ -75,14 +75,14 @@ struct result_t
 	// default constructor
 	result_t(): key(0), id(0), ts(0), value(0) {}
 
-	// getInfo method
-	tuple<size_t, uint64_t, uint64_t> getInfo() const
+	// getControlFields method
+	tuple<size_t, uint64_t, uint64_t> getControlFields() const
 	{
 		return tuple<size_t, uint64_t, uint64_t>(key, id, ts);
 	}
 
-	// setInfo method
-	void setInfo(size_t _key, uint64_t _id, uint64_t _ts)
+	// setControlFields method
+	void setControlFields(size_t _key, uint64_t _id, uint64_t _ts)
 	{
 		key = _key;
 		id = _id;

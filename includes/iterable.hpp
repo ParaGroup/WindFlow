@@ -27,9 +27,9 @@
  *  to a window to be processed. This is used by queries instantiated with the
  *  non-incremental interface for patterns implemented on the CPU.
  *  
- *  The template argument of the data items that can be used with the Iterable must be default
+ *  The template parameter of the data items that can be used with the Iterable must be default
  *  constructible, with a copy constructor and copy assignment operator, and they
- *  must provide and implement the setInfo() and getInfo() methods.
+ *  must provide and implement the setControlFields() and getControlFields() methods.
  */ 
 
 #ifndef ITERABLE_H
@@ -47,7 +47,7 @@ using namespace std;
  *  \brief Iterable class providing access to the tuples within a streaming window
  *  
  *  An Iterable object gives to the user a read-only view of the tuples belonging to a
- *  given window to be processed. The template argument is the type of the items used
+ *  given window to be processed. The template parameter is the type of the items used
  *  by the Iterable.
  */ 
 template<typename tuple_t>

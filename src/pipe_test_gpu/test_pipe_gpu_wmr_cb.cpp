@@ -61,14 +61,14 @@ struct tuple_t
 	// default constructor
 	tuple_t(): key(0), id(0), ts(0), value(0) {}
 
-	// getInfo method
-	tuple<size_t, uint64_t, uint64_t> getInfo() const
+	// getControlFields method
+	tuple<size_t, uint64_t, uint64_t> getControlFields() const
 	{
 		return tuple<size_t, uint64_t, uint64_t>(key, id, ts);
 	}
 
-	// setInfo method
-	void setInfo(size_t _key, uint64_t _id, uint64_t _ts)
+	// setControlFields method
+	void setControlFields(size_t _key, uint64_t _id, uint64_t _ts)
 	{
 		key = _key;
 		id = _id;
@@ -87,14 +87,14 @@ struct output_t
 	// default constructor
 	output_t(): key(0), id(0), ts(0), value(0) {}
 
-	// getInfo method
-	tuple<size_t, uint64_t, uint64_t> getInfo() const
+	// getControlFields method
+	tuple<size_t, uint64_t, uint64_t> getControlFields() const
 	{
 		return tuple<size_t, uint64_t, uint64_t>(key, id, ts);
 	}
 
-	// setInfo method
-	void setInfo(size_t _key, uint64_t _id, uint64_t _ts)
+	// setControlFields method
+	void setControlFields(size_t _key, uint64_t _id, uint64_t _ts)
 	{
 		key = _key;
 		id = _id;
@@ -284,27 +284,21 @@ int main(int argc, char *argv[])
 	    auto *map = Map_Builder<decltype(map_functor)>(map_functor).withName("test_wmr_cb_gpu_map").withParallelism(map_degree).build_ptr();
 	    application.add(*map);
 		// user-defined map function (Non-Incremental Query on GPU)
-		auto map_function = [] __host__ __device__ (size_t key, size_t pid, const tuple_t *data, output_t *res, size_t size, char *memory) {
+		auto map_function = [] __host__ __device__ (size_t pid, const tuple_t *data, output_t *res, size_t size, char *memory) {
 			long sum = 0;
 			for (size_t i=0; i<size; i++) {
 				sum += data[i].value;
 			}
-			res->key = key;
-			res->id = pid;
 			res->value = sum;
-			return 0;
 		};
 		// user-defined reduce function (Non-Incremental Query)
-		auto reduce_function = [](size_t key, size_t wid, Iterable<output_t> &input, output_t &win_result) {
+		auto reduce_function = [](size_t wid, Iterable<output_t> &input, output_t &win_result) {
 			long sum = 0;
 			for (auto t: input) {
 				int val = t.value;
 				sum += val;
 			}
-			win_result.key = key;
-			win_result.id = wid;
 			win_result.value = sum;
-			return 0;
 		};
 	    // wmr
 	    auto *wmr = WinMapReduceGPU_Builder<decltype(map_function), decltype(reduce_function)>(map_function, reduce_function).withName("test_wmr_cb_wmr").withParallelism(wmap_degree, reduce_degree).withCBWindow(win_len, win_slide).withBatch(batch_len).build_ptr();

@@ -60,14 +60,14 @@ struct tuple_t
 	// default constructor
 	tuple_t(): key(0), id(0), ts(0), value(0) {}
 
-	// getInfo method
-	tuple<size_t, uint64_t, uint64_t> getInfo() const
+	// getControlFields method
+	tuple<size_t, uint64_t, uint64_t> getControlFields() const
 	{
 		return tuple<size_t, uint64_t, uint64_t>(key, id, ts);
 	}
 
-	// setInfo method
-	void setInfo(size_t _key, uint64_t _id, uint64_t _ts)
+	// setControlFields method
+	void setControlFields(size_t _key, uint64_t _id, uint64_t _ts)
 	{
 		key = _key;
 		id = _id;
@@ -86,14 +86,14 @@ struct output_t
 	// default constructor
 	output_t(): key(0), id(0), ts(0), value(0) {}
 
-	// getInfo method
-	tuple<size_t, uint64_t, uint64_t> getInfo() const
+	// getControlFields method
+	tuple<size_t, uint64_t, uint64_t> getControlFields() const
 	{
 		return tuple<size_t, uint64_t, uint64_t>(key, id, ts);
 	}
 
-	// setInfo method
-	void setInfo(size_t _key, uint64_t _id, uint64_t _ts)
+	// setControlFields method
+	void setControlFields(size_t _key, uint64_t _id, uint64_t _ts)
 	{
 		key = _key;
 		id = _id;
@@ -177,39 +177,25 @@ public:
 };
 
 // Pane_Farm (PLQ) function (non-incremental)
-int plq_function(size_t key, size_t pid, Iterable<tuple_t> &input, output_t &pane_result) {
+void plq_function(size_t pid, Iterable<tuple_t> &input, output_t &pane_result) {
 	long sum = 0;
 	// print the window content
-	string pane = string("Key: ") + to_string(key) + " pane " + to_string(pid) + " [";
 	for (auto t : input) {
 		int val = t.value;
-		pane += to_string(val) + ", ";
 		sum += val;
 	}
-	pane = pane + "] -> Sum "+ to_string(sum);
-	//cout << pane << endl;
-	pane_result.key = key;
-	pane_result.id = pid;
 	pane_result.value = sum;
-	return 0;
 };
 
 // Pane_Farm (WLQ) function (non-incremental)
-int wlq_function(size_t key, size_t wid, Iterable<output_t> &input, output_t &win_result) {
+void wlq_function(size_t wid, Iterable<output_t> &input, output_t &win_result) {
 	long sum = 0;
 	// print the window content
-	string window = string("Key: ") + to_string(key) + " Window " + to_string(wid) + " [";
 	for (auto t : input) {
 		int val = t.value;
-		window += to_string(val) + ", ";
 		sum += val;
 	}
-	window = window + "] -> Sum "+ to_string(sum);
-	//cout << window << endl;
-	win_result.key = key;
-	win_result.id = wid;
 	win_result.value = sum;
-	return 0;
 };
 
 // sink functor

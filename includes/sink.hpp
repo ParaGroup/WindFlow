@@ -26,9 +26,9 @@
  *  This file implements the Sink pattern in charge of absorbing the items of
  *  a data stream.
  *  
- *  The template argument tuple_t must be default constructible, with a copy constructor
- *  and copy assignment operator, and it must provide and implement the setInfo() and
- *  getInfo() methods.
+ *  The template parameter tuple_t must be default constructible, with a copy constructor
+ *  and copy assignment operator, and it must provide and implement the setControlFields() and
+ *  getControlFields() methods.
  */ 
 
 #ifndef SINK_H
@@ -63,7 +63,7 @@ public:
     using sink_func_t = function<void(optional<tuple_t> &)>;
     /// type of the rich sink function
     using rich_sink_func_t = function<void(optional<tuple_t> &, RuntimeContext)>;
-    /// function type to map the key onto an identifier starting from zero to pardegree-1
+    /// function type to map the key hashcode onto an identifier starting from zero to pardegree-1
     using f_routing_t = function<size_t(size_t, size_t)>;
 private:
     // friendships with other classes in the library
@@ -185,7 +185,7 @@ public:
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new standard_emitter<tuple_t>());
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>());
         // add workers
         ff_farm::add_workers(w);
         // when the Sink will be destroyed we need aslo to destroy the emitter and workers
@@ -198,7 +198,7 @@ public:
      *  \param _func sink function
      *  \param _pardegree parallelism degree of the Sink pattern
      *  \param _name string with the unique name of the Sink pattern
-     *  \param _routing routing function for the key-based distribution
+     *  \param _routing function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
     Sink(sink_func_t _func, size_t _pardegree, string _name, f_routing_t _routing): keyed(true)
     {
@@ -214,7 +214,7 @@ public:
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new standard_emitter<tuple_t>(_routing));
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing));
         // add workers
         ff_farm::add_workers(w);
         // when the Sink will be destroyed we need aslo to destroy the emitter and workers
@@ -242,7 +242,7 @@ public:
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new standard_emitter<tuple_t>());
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>());
         // add workers
         ff_farm::add_workers(w);
         // when the Sink will be destroyed we need aslo to destroy the emitter and workers
@@ -255,7 +255,7 @@ public:
      *  \param _func rich sink function
      *  \param _pardegree parallelism degree of the Sink pattern
      *  \param _name string with the unique name of the Sink pattern
-     *  \param _routing routing function for the key-based distribution
+     *  \param function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
     Sink(rich_sink_func_t _func, size_t _pardegree, string _name, f_routing_t _routing): keyed(true)
     {
@@ -271,7 +271,7 @@ public:
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new standard_emitter<tuple_t>(_routing));
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing));
         // add workers
         ff_farm::add_workers(w);
         // when the Sink will be destroyed we need aslo to destroy the emitter and workers

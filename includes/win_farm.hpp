@@ -19,7 +19,8 @@
  *  @author  Gabriele Mencagli
  *  @date    03/10/2017
  *  
- *  @brief Win_Farm pattern executing a windowed transformation in parallel on multi-core CPUs
+ *  @brief Win_Farm pattern executing a windowed transformation in parallel on
+ *         multi-core CPUs
  *  
  *  @section Win_Farm (Description)
  *  
@@ -27,9 +28,9 @@
  *  multicore. The pattern executes streaming windows in parallel on the CPU cores
  *  and supports both a non-incremental and an incremental query definition.
  *  
- *  The template arguments tuple_t and result_t must be default constructible, with a copy constructor
- *  and copy assignment operator, and they must provide and implement the setInfo() and
- *  getInfo() methods.
+ *  The template parameters tuple_t and result_t must be default constructible, with a
+ *  copy constructor and copy assignment operator, and they must provide and implement
+ *  the setControlFields() and getControlFields() methods.
  */ 
 
 #ifndef WIN_FARM_H
@@ -56,9 +57,9 @@ class Win_Farm: public ff_farm
 {
 public:
     /// function type of the non-incremental window processing
-    using f_winfunction_t = function<int(size_t, uint64_t, Iterable<tuple_t> &, result_t &)>;
+    using f_winfunction_t = function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
     /// function type of the incremental window processing
-    using f_winupdate_t = function<int(size_t, uint64_t, const tuple_t &, result_t &)>;
+    using f_winupdate_t = function<void(uint64_t, const tuple_t &, result_t &)>;
     /// type of the Pane_Farm passed to the proper nesting constructor
     using pane_farm_t = Pane_Farm<tuple_t, result_t>;
     /// type of the Win_MapReduce passed to the proper nesting constructor
@@ -155,7 +156,7 @@ private:
             // create the Win_Seq nodes composed with an orderingNodes
             vector<ff_node *> seqs(_pardegree);
             for (size_t i = 0; i < _pardegree; i++) {
-                auto *ord = new OrderingNode<tuple_t, wrapper_in_t>(((_winType == CB) ? ID : TS));
+                auto *ord = new Ordering_Node<tuple_t, wrapper_in_t>(((_winType == CB) ? ID : TS));
                 // configuration structure of the Win_Seq instances
                 PatternConfig configSeq(_config.id_inner, _config.n_inner, _config.slide_inner, i, _pardegree, _slide_len);
                 auto *seq = new win_seq_t(_winFunction, _win_len, private_slide, _winType, _name + "_wf", configSeq, _role);
@@ -237,7 +238,7 @@ private:
             // create the Win_Seq nodes composed with an orderingNodes
             vector<ff_node *> seqs(_pardegree);
             for (size_t i = 0; i < _pardegree; i++) {
-                auto *ord = new OrderingNode<tuple_t, wrapper_in_t>(((_winType == CB) ? ID : TS));
+                auto *ord = new Ordering_Node<tuple_t, wrapper_in_t>(((_winType == CB) ? ID : TS));
                 // configuration structure of the Win_Seq instances
                 PatternConfig configSeq(_config.id_inner, _config.n_inner, _config.slide_inner, i, _pardegree, _slide_len);
                 auto *seq = new win_seq_t(_winUpdate, _win_len, private_slide, _winType, _name + "_wf", configSeq, _role);
@@ -403,7 +404,7 @@ public:
             vector<ff_node *> pfs(_pardegree);
             for (size_t i = 0; i < _pardegree; i++) {
                 // an ordering node must be composed before the first node of the Pane_Farm instance
-                auto *ord = new OrderingNode<tuple_t, wrapper_in_t>(((_winType == CB) ? ID : TS));
+                auto *ord = new Ordering_Node<tuple_t, wrapper_in_t>(((_winType == CB) ? ID : TS));
                 // configuration structure of the Pane_Farm instances
                 PatternConfig configPF(0, 1, _slide_len, i, _pardegree, _slide_len);
                 // create the correct Pane_Farm instance
@@ -517,7 +518,7 @@ public:
             vector<ff_node *> wms(_pardegree);
             for (size_t i = 0; i < _pardegree; i++) {
                 // an ordering node must be composed before the first node of the Win_MapReduce instance
-                auto *ord = new OrderingNode<tuple_t, wrapper_in_t>(((_winType == CB) ? ID : TS));
+                auto *ord = new Ordering_Node<tuple_t, wrapper_in_t>(((_winType == CB) ? ID : TS));
                 // configuration structure of the Win_MapReduce instances
                 PatternConfig configWM(0, 1, _slide_len, i, _pardegree, _slide_len);
                 // create the correct Win_MapReduce instance

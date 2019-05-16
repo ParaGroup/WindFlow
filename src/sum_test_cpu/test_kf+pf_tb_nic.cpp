@@ -73,38 +73,24 @@ int main(int argc, char *argv[])
         }
     }
 	// user-defined pane function (Non-Incremental Query)
-	auto F = [](size_t key, size_t pid, Iterable<tuple_t> &input, output_t &pane_result) {
+	auto F = [](size_t pid, Iterable<tuple_t> &input, output_t &pane_result) {
 		long sum = 0;
 		// print the window content
-		string pane = string("Key: ") + to_string(key) + " pane " + to_string(pid) + " [";
 		for (auto t : input) {
 			int val = t.value;
-			pane += to_string(val) + ", ";
 			sum += val;
 		}
-		pane = pane + "] -> Sum "+ to_string(sum);
-		//cout << pane << endl;
-		pane_result.key = key;
-		pane_result.id = pid;
 		pane_result.value = sum;
-		return 0;
 	};
 	// user-defined window function (Non-Incremental Query)
-	auto G = [](size_t key, size_t wid, Iterable<output_t> &input, output_t &win_result) {
+	auto G = [](size_t wid, Iterable<output_t> &input, output_t &win_result) {
 		long sum = 0;
 		// print the window content
-		string pane = string("Key: ") + to_string(key) + " pane " + to_string(wid) + " [";
 		for (auto t : input) {
 			int val = t.value;
-			pane += to_string(val) + ", ";
 			sum += val;
 		}
-		pane = pane + "] -> Sum "+ to_string(sum);
-		//cout << pane << endl;
-		win_result.key = key;
-		win_result.id = wid;
 		win_result.value = sum;
-		return 0;
 	};
 	// creation of the Pane_Farm and Key_Farm patterns
 	Pane_Farm pf = PaneFarm_Builder(F, G).withTBWindow(microseconds(win_len), microseconds(win_slide))

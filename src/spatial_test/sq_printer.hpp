@@ -87,7 +87,7 @@ public:
 
 	// svc method (utilized by the FastFlow runtime)
 	result_t *svc(result_t *r) {
-		if (received != std::get<1>(r->getInfo())) {
+		if (received != std::get<1>(r->getControlFields())) {
 			cout << RED << "Result received out-of-order: something is wrong!" << DEFAULT << endl;
 			exit(1);
 		}

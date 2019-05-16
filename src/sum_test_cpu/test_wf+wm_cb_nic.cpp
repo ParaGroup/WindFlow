@@ -73,21 +73,14 @@ int main(int argc, char *argv[])
         }
     }
 	// user-defined map and reduce functions (Non-Incremental Query)
-	auto F = [](size_t key, size_t wid, Iterable<tuple_t> &input, tuple_t &win_result) {
+	auto F = [](size_t wid, Iterable<tuple_t> &input, tuple_t &win_result) {
 		long sum = 0;
 		// print the window content
-		string window = string("Key: ") + to_string(key) + " window " + to_string(wid) + " [";
 		for (auto t : input) {
 			int val = t.value;
-			window += to_string(val) + ", ";
 			sum += val;
 		}
-		window = window + "] -> Sum "+ to_string(sum);
-		//cout << window << endl;
-		win_result.key = key;
-		win_result.id = wid;
 		win_result.value = sum;
-		return 0;
 	};
 	// creation of the Win_MapReduce and Win_Farm patterns
 	Win_MapReduce wm = WinMapReduce_Builder(F, F).withCBWindow(win_len, win_slide)

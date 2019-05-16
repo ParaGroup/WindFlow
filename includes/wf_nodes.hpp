@@ -42,6 +42,9 @@ class WF_Emitter: public ff_monode_t<input_t, wrapper_tuple_t<tuple_t>>
 private:
     // type of the wrapper of input tuples
     using wrapper_in_t = wrapper_tuple_t<tuple_t>;
+    tuple_t tmp; // never used
+    // key data type
+    using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3>
     friend class Win_Farm;
@@ -66,7 +69,7 @@ private:
         // constructor
         Key_Descriptor(): rcv_counter(0) {}
     };
-    unordered_map<size_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
+    unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
 
     // private constructor
     WF_Emitter(win_type_t _winType, uint64_t _win_len, uint64_t _slide_len, size_t _pardegree, size_t _id_outer, size_t _n_outer, uint64_t _slide_outer, role_t _role):
@@ -91,8 +94,9 @@ private:
     {
         // extract the key and id/timestamp fields from the input tuple
         tuple_t *t = extractTuple<tuple_t, input_t>(wt);
-        size_t key = std::get<0>(t->getInfo()); // key
-        uint64_t id = (winType == CB) ? std::get<1>(t->getInfo()) : std::get<2>(t->getInfo()); // identifier or timestamp
+        auto key = std::get<0>(t->getControlFields()); // key
+        size_t hashcode = hash<decltype(key)>()(key); // compute the hashcode of the key
+        uint64_t id = (winType == CB) ? std::get<1>(t->getControlFields()) : std::get<2>(t->getControlFields()); // identifier or timestamp
         // access the descriptor of the input key
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
@@ -108,7 +112,7 @@ private:
         }
         else {
             // tuples can be received only ordered by id/timestamp
-            uint64_t last_id = (winType == CB) ? std::get<1>((key_d.last_tuple).getInfo()) : std::get<2>((key_d.last_tuple).getInfo());
+            uint64_t last_id = (winType == CB) ? std::get<1>((key_d.last_tuple).getControlFields()) : std::get<2>((key_d.last_tuple).getControlFields());
             if (id < last_id) {
                 // the tuple is immediately deleted
                 deleteTuple<tuple_t, input_t>(wt);
@@ -120,7 +124,7 @@ private:
             }
         }
         // gwid of the first window of that key assigned to this Win_Farm instance
-        uint64_t first_gwid_key = (id_outer - (key % n_outer) + n_outer) % n_outer;
+        uint64_t first_gwid_key = (id_outer - (hashcode % n_outer) + n_outer) % n_outer;
         // initial identifer/timestamp of the keyed sub-stream arriving at this Win_Farm instance
         uint64_t initial_id = first_gwid_key * slide_outer;
         // special cases: role is WLQ or REDUCE
@@ -159,7 +163,7 @@ private:
         uint64_t countRcv = 0;
         uint64_t i = first_w;
         // the first window of the key is assigned to worker startDstIdx
-        size_t startDstIdx = key % pardegree;
+        size_t startDstIdx = hashcode % pardegree;
         while ((i <= last_w) && (countRcv < pardegree)) {
             to_workers[countRcv] = (startDstIdx + i) % pardegree;
             countRcv++;
@@ -201,6 +205,9 @@ class WF_NestedEmitter: public ff_monode_t<input_t, wrapper_tuple_t<tuple_t>>
 private:
     // type of the wrapper of input tuples
     using wrapper_in_t = wrapper_tuple_t<tuple_t>;
+    tuple_t tmp; // never used
+    // key data type
+    using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3>
     friend class Win_Farm;
@@ -226,7 +233,7 @@ private:
         // constructor
         Key_Descriptor(size_t _nextDst): rcv_counter(0), nextDst(_nextDst) {}
     };
-    unordered_map<size_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
+    unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
 
     // private constructor
     WF_NestedEmitter(win_type_t _winType, uint64_t _win_len, uint64_t _slide_len, uint64_t _pane_len, size_t _pardegree1, size_t _pardegree2, role_t _role):
@@ -251,13 +258,14 @@ private:
     {
         // extract the key and id/timestamp fields from the input tuple
         tuple_t *t = extractTuple<tuple_t, input_t>(wt);
-        size_t key = std::get<0>(t->getInfo()); // key
-        uint64_t id = (winType == CB) ? std::get<1>(t->getInfo()) : std::get<2>(t->getInfo()); // identifier or timestamp
+        auto key = std::get<0>(t->getControlFields()); // key
+        size_t hashcode = hash<decltype(key)>()(key); // compute the hashcode of the key
+        uint64_t id = (winType == CB) ? std::get<1>(t->getControlFields()) : std::get<2>(t->getControlFields()); // identifier or timestamp
         // access the descriptor of the input key
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
             // create the descriptor of that key
-            keyMap.insert(make_pair(key, Key_Descriptor(key % pardegree2)));
+            keyMap.insert(make_pair(key, Key_Descriptor(hashcode % pardegree2)));
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
@@ -268,7 +276,7 @@ private:
         }
         else {
             // tuples can be received only ordered by id/timestamp
-            uint64_t last_id = (winType == CB) ? std::get<1>((key_d.last_tuple).getInfo()) : std::get<2>((key_d.last_tuple).getInfo());
+            uint64_t last_id = (winType == CB) ? std::get<1>((key_d.last_tuple).getControlFields()) : std::get<2>((key_d.last_tuple).getControlFields());
             if (id < last_id) {
                 // the tuple is immediately deleted
                 deleteTuple<tuple_t, input_t>(wt);
@@ -317,7 +325,7 @@ private:
         uint64_t countRcv_l1 = 0;
         uint64_t i_l1 = first_w_l1;
         // the first window of the key is assigned to worker startDstIdx
-        size_t startDstIdx_l1 = key % pardegree1;
+        size_t startDstIdx_l1 = hashcode % pardegree1;
         while ((i_l1 <= last_w_l1) && (countRcv_l1 < pardegree1)) {
             to_workers_l1[countRcv_l1] = (startDstIdx_l1 + i_l1) % pardegree1;
             countRcv_l1++;
@@ -331,7 +339,7 @@ private:
             if (role == PLQ) {
                 // **************************************** WF_Emitter emitter logic (Level 2) **************************************** //
                 // gwid of the first window of that key assigned to this Win_Farm instance
-                uint64_t first_gwid_key_l2 = (id_outer - (key % pardegree1) + pardegree1) % pardegree1;
+                uint64_t first_gwid_key_l2 = (id_outer - (hashcode % pardegree1) + pardegree1) % pardegree1;
                 // initial identifer/timestamp of the keyed sub-stream arriving at this Win_Farm instance
                 uint64_t initial_id_l2 = first_gwid_key_l2 * slide_len;
                 // if the id/timestamp of the tuple is smaller than the initial one, it must be discarded
@@ -351,7 +359,7 @@ private:
                 uint64_t countRcv_l2 = 0;
                 uint64_t i = first_w_l2;
                 // the first window of the key is assigned to worker startDstIdx
-                size_t startDstIdx_l2 = key % pardegree2;
+                size_t startDstIdx_l2 = hashcode % pardegree2;
                 while ((i <= last_w_l2) && (countRcv_l2 < pardegree2)) {
                     to_workers_l2[countRcv_l2] = (startDstIdx_l2 + i) % pardegree2;
                     countRcv_l2++;
@@ -401,6 +409,9 @@ template<typename result_t>
 class WF_Collector: public ff_node_t<result_t, result_t>
 {
 private:
+    result_t tmp; // never used
+    // key data type
+    using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3>
     friend class Win_Farm;
@@ -416,7 +427,7 @@ private:
         Key_Descriptor(): next_win(0) {}
     };
     // hash table that maps key identifiers onto key descriptors
-    unordered_map<size_t, Key_Descriptor> keyMap;
+    unordered_map<key_t, Key_Descriptor> keyMap;
 
     // private constructor
     WF_Collector() {}
@@ -431,8 +442,8 @@ private:
     result_t *svc(result_t *r)
     {
         // extract key and identifier from the result
-        size_t key = std::get<0>(r->getInfo()); // key
-        uint64_t wid = std::get<1>(r->getInfo()); // identifier
+        auto key = std::get<0>(r->getControlFields()); // key
+        uint64_t wid = std::get<1>(r->getControlFields()); // identifier
         // find the corresponding key descriptor
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {

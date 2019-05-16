@@ -42,6 +42,9 @@ class WinMap_Emitter: public ff_monode_t<input_t, wrapper_tuple_t<tuple_t>>
 private:
     // type of the wrapper of input tuples
     using wrapper_in_t = wrapper_tuple_t<tuple_t>;
+    tuple_t tmp; // never used
+    // key data type
+    using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3>
     friend class Win_MapReduce;
@@ -59,7 +62,7 @@ private:
         // constructor
         Key_Descriptor(size_t _nextDst): rcv_counter(0), nextDst(_nextDst) {}
     };
-    unordered_map<size_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
+    unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
 
     // private constructor
     WinMap_Emitter(size_t _map_degree, win_type_t _winType): map_degree(_map_degree), winType(_winType) {}
@@ -75,13 +78,14 @@ private:
     {
         // extract the key and id/timestamp fields from the input tuple
         tuple_t *t = extractTuple<tuple_t, input_t>(wt);
-        size_t key = std::get<0>(t->getInfo()); // key
-        uint64_t id = (winType == CB) ? std::get<1>(t->getInfo()) : std::get<2>(t->getInfo()); // identifier or timestamp
+        auto key = std::get<0>(t->getControlFields()); // key
+        size_t hashcode = hash<decltype(key)>()(key); // compute the hashcode of the key
+        uint64_t id = (winType == CB) ? std::get<1>(t->getControlFields()) : std::get<2>(t->getControlFields()); // identifier or timestamp
         // access the descriptor of the input key
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
             // create the descriptor of that key
-            keyMap.insert(make_pair(key, Key_Descriptor(key % map_degree)));
+            keyMap.insert(make_pair(key, Key_Descriptor(hashcode % map_degree)));
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
@@ -92,7 +96,7 @@ private:
         }
         else {
             // tuples can be received only ordered by id/timestamp
-            uint64_t last_id = (winType == CB) ? std::get<1>((key_d.last_tuple).getInfo()) : std::get<2>((key_d.last_tuple).getInfo());
+            uint64_t last_id = (winType == CB) ? std::get<1>((key_d.last_tuple).getControlFields()) : std::get<2>((key_d.last_tuple).getControlFields());
             if (id < last_id) {
                 // the tuple is immediately deleted
                 deleteTuple<tuple_t, input_t>(wt);
@@ -139,6 +143,9 @@ class WinMap_Dropper: public ff_node_t<wrapper_tuple_t<tuple_t>, wrapper_tuple_t
 private:
     // type of the wrapper of input tuples
     using wrapper_in_t = wrapper_tuple_t<tuple_t>;
+    tuple_t tmp; // never used
+    // key data type
+    using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
     // friendships with other classes in the library
     friend class MultiPipe;
     size_t map_degree; // parallelism degree (MAP phase)
@@ -152,7 +159,7 @@ private:
         // constructor
         Key_Descriptor(size_t _nextDst): rcv_counter(0), nextDst(_nextDst) {}
     };
-    unordered_map<size_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
+    unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     size_t my_id; // identifier of the Win_Seq instance associated with this WinMap_Dropper istance
 
     // private constructor
@@ -169,12 +176,13 @@ private:
     {
         // extract the key field from the input tuple
         tuple_t *t = extractTuple<tuple_t, wrapper_in_t>(wt);
-        size_t key = std::get<0>(t->getInfo()); // key
+        auto key = std::get<0>(t->getControlFields()); // key
+        size_t hashcode = hash<decltype(key)>()(key); // compute the hashcode of the key
         // access the descriptor of the input key
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
             // create the descriptor of that key
-            keyMap.insert(make_pair(key, Key_Descriptor(key % map_degree)));
+            keyMap.insert(make_pair(key, Key_Descriptor(hashcode % map_degree)));
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
@@ -218,6 +226,9 @@ template<typename result_t>
 class WinMap_Collector: public ff_node_t<result_t, result_t>
 {
 private:
+    result_t tmp; // never used
+    // key data type
+    using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3>
     friend class Win_MapReduce;
@@ -233,7 +244,7 @@ private:
         Key_Descriptor(): next_win(0) {}
     };
     // hash table that maps key identifiers onto key descriptors
-    unordered_map<size_t, Key_Descriptor> keyMap;
+    unordered_map<key_t, Key_Descriptor> keyMap;
 
     // private constructor
     WinMap_Collector() {}
@@ -248,8 +259,8 @@ private:
     result_t *svc(result_t *r)
     {
         // extract key and identifier from the result
-        size_t key = std::get<0>(r->getInfo()); // key
-        uint64_t wid = std::get<1>(r->getInfo()); // identifier
+        auto key = std::get<0>(r->getControlFields()); // key
+        uint64_t wid = std::get<1>(r->getControlFields()); // identifier
         // find the corresponding key descriptor
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {

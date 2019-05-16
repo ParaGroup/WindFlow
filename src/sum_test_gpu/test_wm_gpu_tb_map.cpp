@@ -73,27 +73,21 @@ int main(int argc, char *argv[])
         }
     }
 	// user-defined map function (Non-Incremental Query on GPU)
-	auto F = [] __host__ __device__ (size_t key, size_t wid, const tuple_t *data, tuple_t *res, size_t size, char *memory) {
+	auto F = [] __host__ __device__ (size_t wid, const tuple_t *data, tuple_t *res, size_t size, char *memory) {
 		long sum = 0;
 		for (size_t i=0; i<size; i++) {
 			sum += data[i].value;
 		}
-		res->key = key;
-		res->ts = wid;
 		res->value = sum;
-		return 0;
 	};
 	// user-defined reduce function (Non-Incremental Query)
-	auto G = [](size_t key, size_t wid, Iterable<tuple_t> &input, tuple_t &win_result) {
+	auto G = [](size_t wid, Iterable<tuple_t> &input, tuple_t &win_result) {
 		long sum = 0;
 		for (auto t: input) {
 			int val = t.value;
 			sum += val;
 		}
-		win_result.key = key;
-		win_result.ts = wid;
 		win_result.value = sum;
-		return 0;
 	};
 	// creation of the Win_MapReduce_GPU pattern
 	auto *wm_gpu = WinMapReduceGPU_Builder<decltype(F), decltype(G)>(F, G).withTBWindow(microseconds(win_len), microseconds(win_slide))

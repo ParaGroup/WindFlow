@@ -84,109 +84,96 @@ int main(int argc, char *argv[])
         }
     }
 	// user-defined window function (Non-Incremental Query on GPU)
-	auto seqFGPU = [] __host__ __device__ (size_t key, size_t wid, const tuple_t *data, output_t *res, size_t size, char *memory) {
+	auto seqFGPU = [] __host__ __device__ (size_t wid, const tuple_t *data, output_t *res, size_t size, char *memory) {
 		long sum = 0;
 		for (size_t i=0; i<size; i++) {
 			sum += data[i].value;
 		}
 		res->value = sum;
-		return 0;
 	};
 	// user-defined pane function (Non-Incremental Query on GPU)
-	auto plqFGPU = [] __host__ __device__ (size_t key, size_t pid, const tuple_t *data, output_t *res, size_t size, char *memory) {
+	auto plqFGPU = [] __host__ __device__ (size_t pid, const tuple_t *data, output_t *res, size_t size, char *memory) {
 		long sum = 0;
 		for (size_t i=0; i<size; i++) {
 			sum += data[i].value;
 		}
 		res->value = sum;
-		return 0;
 	};
 	// user-defined pane function (Non-Incremental Query on CPU)
-	auto plqFNIC = [](size_t key, size_t pid, Iterable<tuple_t> &input, output_t &pane_result) {
+	auto plqFNIC = [](size_t pid, Iterable<tuple_t> &input, output_t &pane_result) {
 		long sum = 0;
 		for (auto t: input) {
 			int val = t.value;
 			sum += val;
 		}
 		pane_result.value = sum;
-		return 0;
 	};
     // user-defined pane function (Incremental Query on CPU)
-	auto plqFINC = [](size_t key, size_t pid, const tuple_t &t, output_t &pane_result) {
+	auto plqFINC = [](size_t pid, const tuple_t &t, output_t &pane_result) {
 		pane_result.value += t.value;
-		return 0;
 	};
 	// user-defined window function (Non-Incremental Query on GPU)
-	auto wlqFGPU = [] __host__ __device__ (size_t key, size_t wid, const output_t *data, output_t *res, size_t size, char *memory) {
+	auto wlqFGPU = [] __host__ __device__ (size_t wid, const output_t *data, output_t *res, size_t size, char *memory) {
 		long sum = 0;
 		for (size_t i=0; i<size; i++) {
 			sum += data[i].value;
 		}
 		res->value = sum;
-		return 0;
 	};
 	// user-defined window function (Non-Incremental Query on CPU)
-	auto wlqFNIC = [](size_t key, size_t wid, Iterable<output_t> &input, output_t &win_result) {
+	auto wlqFNIC = [](size_t wid, Iterable<output_t> &input, output_t &win_result) {
 		long sum = 0;
 		for (auto t: input) {
 			int val = t.value;
 			sum += val;
 		}
 		win_result.value = sum;
-		return 0;
 	};
 	// user-defined window function (Incremental Query on CPU)
-	auto wlqFINC = [](size_t key, size_t wid, const output_t &r, output_t &win_result) {
+	auto wlqFINC = [](size_t wid, const output_t &r, output_t &win_result) {
 		win_result.value += r.value;
-		return 0;
 	};
 	// user-defined map function (Non-Incremental Query on GPU)
-	auto mapFGPU = [] __host__ __device__ (size_t key, size_t wid, const tuple_t *data, tuple_t *res, size_t size, char *memory) {
+	auto mapFGPU = [] __host__ __device__ (size_t wid, const tuple_t *data, tuple_t *res, size_t size, char *memory) {
 		long sum = 0;
 		for (size_t i=0; i<size; i++) {
 			sum += data[i].value;
 		}
 		res->value = sum;
-		return 0;
 	};
 	// user-defined map function (Non-Incremental Query on CPU)
-	auto mapFNIC = [](size_t key, size_t wid, Iterable<tuple_t> &input, tuple_t &win_result) {
+	auto mapFNIC = [](size_t wid, Iterable<tuple_t> &input, tuple_t &win_result) {
 		long sum = 0;
 		for (auto t: input) {
 			int val = t.value;
 			sum += val;
 		}
 		win_result.value = sum;
-		return 0;
 	};
 	// user-defined map functions (Incremental Query on CPU)
-	auto mapFINC = [](size_t key, size_t wid, const tuple_t &t, tuple_t &win_result) {
+	auto mapFINC = [](size_t wid, const tuple_t &t, tuple_t &win_result) {
 		win_result.value += t.value;
-		return 0;
 	};
 	// user-defined reduce function (Non-Incremental Query on GPU)
-	auto reduceFGPU = [] __host__ __device__ (size_t key, size_t wid, const tuple_t *data, tuple_t *res, size_t size, char *memory) {
+	auto reduceFGPU = [] __host__ __device__ (size_t wid, const tuple_t *data, tuple_t *res, size_t size, char *memory) {
 		long sum = 0;
 		for (size_t i=0; i<size; i++) {
 			sum += data[i].value;
 		}
 		res->value = sum;
-		return 0;
 	};
 	// user-defined reduce function (Non-Incremental Query on CPU)
-	auto reduceFNIC = [](size_t key, size_t wid, Iterable<tuple_t> &input, tuple_t &win_result) {
+	auto reduceFNIC = [](size_t wid, Iterable<tuple_t> &input, tuple_t &win_result) {
 		long sum = 0;
 		for (auto t: input) {
 			int val = t.value;
 			sum += val;
 		}
 		win_result.value = sum;
-		return 0;
 	};
 	// user-defined reduce functions (Incremental Query on CPU)
-	auto reduceFINC = [](size_t key, size_t wid, const tuple_t &t, tuple_t &win_result) {
+	auto reduceFINC = [](size_t wid, const tuple_t &t, tuple_t &win_result) {
 		win_result.value += t.value;
-		return 0;
 	};
 	// function routingF used by all the Key_Farm_GPU instances
 	auto routingF = [](size_t k, size_t n) { return k%n; };
@@ -229,7 +216,7 @@ int main(int argc, char *argv[])
 	auto *kf3 = KeyFarmGPU_Builder<decltype(seqFGPU)>(seqFGPU).withTBWindow(microseconds(win_len), microseconds(win_slide))
 																.withBatch(batch_len)
 										   					    .withParallelism(degree1)
-										   					    .withRouting(routingF)
+										   					    .set_KeyBy(routingF)
 										   						.withName("kf_gpu")
 										   						.build_ptr();
 	ff_Pipe<tuple_t, output_t> pipe3(generator3, *kf3, consumer3);

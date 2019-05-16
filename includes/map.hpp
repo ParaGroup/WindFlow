@@ -27,9 +27,9 @@
  *  on each tuple of the input data stream. The transformation should be stateless and
  *  must produce one output result for each input tuple consumed.
  *  
- *  The template arguments tuple_t and result_t must be default constructible, with a copy constructor
- *  and copy assignment operator, and they must provide and implement the setInfo() and
- *  getInfo() methods.
+ *  The template parameters tuple_t and result_t must be default constructible, with a
+ *  copy constructor and copy assignment operator, and they must provide and implement
+ *  the setControlFields() and getControlFields() methods.
  */ 
 
 #ifndef MAP_H
@@ -64,7 +64,7 @@ public:
     using map_func_nip_t = function<void(const tuple_t &, result_t &)>;
     /// type of the rich map function (not in-place version)
     using rich_map_func_nip_t = function<void(const tuple_t &, result_t &, RuntimeContext)>;
-    /// function type to map the key onto an identifier starting from zero to pardegree-1
+    /// function type to map the key hashcode onto an identifier starting from zero to pardegree-1
     using f_routing_t = function<size_t(size_t, size_t)>;
 private:
     // friendships with other classes in the library
@@ -200,7 +200,7 @@ public:
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new standard_emitter<tuple_t>());
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>());
         // add workers
         ff_farm::add_workers(w);
         // add default collector
@@ -215,7 +215,7 @@ public:
      *  \param _func function to be executed on each input tuple (in-place version)
      *  \param _pardegree parallelism degree of the Map pattern
      *  \param _name string with the unique name of the Map pattern
-     *  \param _routing routing function for the key-based distribution
+     *  \param _routing function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
     template <typename T=size_t>
     Map(typename enable_if<is_same<T,T>::value && is_same<tuple_t,result_t>::value, map_func_ip_t>::type _func, T _pardegree, string _name, f_routing_t _routing): keyed(true)
@@ -232,7 +232,7 @@ public:
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new standard_emitter<tuple_t>(_routing));
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing));
         // add workers
         ff_farm::add_workers(w);
         // add default collector
@@ -263,7 +263,7 @@ public:
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new standard_emitter<tuple_t>());
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>());
         // add workers
         ff_farm::add_workers(w);
         // add default collector
@@ -278,7 +278,7 @@ public:
      *  \param _func rich function to be executed on each input tuple (in-place version)
      *  \param _pardegree parallelism degree of the Map pattern
      *  \param _name string with the unique name of the Map pattern
-     *  \param _routing routing function for the key-based distribution
+     *  \param _routing function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
     template <typename T=size_t>
     Map(typename enable_if<is_same<T,T>::value && is_same<tuple_t,result_t>::value, rich_map_func_ip_t>::type _func, T _pardegree, string _name, f_routing_t _routing): keyed(true)
@@ -295,7 +295,7 @@ public:
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new standard_emitter<tuple_t>(_routing));
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing));
         // add workers
         ff_farm::add_workers(w);
         // add default collector
@@ -326,7 +326,7 @@ public:
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new standard_emitter<tuple_t>());
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>());
         // add workers
         ff_farm::add_workers(w);
         // add default collector
@@ -341,7 +341,7 @@ public:
      *  \param _func function to be executed on each input tuple (not in-place version)
      *  \param _pardegree parallelism degree of the Map pattern
      *  \param _name string with the unique name of the Map pattern
-     *  \param _routing routing function for the key-based distribution
+     *  \param _routing function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
     template <typename T=size_t>
     Map(typename enable_if<is_same<T,T>::value && !is_same<tuple_t,result_t>::value, map_func_nip_t>::type _func, T _pardegree, string _name, f_routing_t _routing): keyed(true)
@@ -358,7 +358,7 @@ public:
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new standard_emitter<tuple_t>(_routing));
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing));
         // add workers
         ff_farm::add_workers(w);
         // add default collector
@@ -389,7 +389,7 @@ public:
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new standard_emitter<tuple_t>());
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>());
         // add workers
         ff_farm::add_workers(w);
         // add default collector
@@ -404,7 +404,7 @@ public:
      *  \param _func rich function to be executed on each input tuple (not in-place version)
      *  \param _pardegree parallelism degree of the Map pattern
      *  \param _name string with the unique name of the Map pattern
-     *  \param _routing routing function for the key-based distribution
+     *  \param _routing function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
     template <typename T=size_t>
     Map(typename enable_if<is_same<T,T>::value && !is_same<tuple_t,result_t>::value, rich_map_func_nip_t>::type _func, T _pardegree, string _name, f_routing_t _routing): keyed(true)
@@ -421,7 +421,7 @@ public:
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new standard_emitter<tuple_t>(_routing));
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing));
         // add workers
         ff_farm::add_workers(w);
         // add default collector

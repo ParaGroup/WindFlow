@@ -71,35 +71,22 @@ inline unsigned long current_time_nsecs()
     return (t.tv_sec)*1000000000L + t.tv_nsec;
 }
 
-/** 
- *  \brief Window Type
- *  
- *  Enumeration of supported window types:
- *  -CB for count-based windows;
- *  -TB for time-based windows.
- */ 
+/// utility macros
+#define DEFAULT_VECTOR_CAPACITY 500 //< default capacity of vectors used internally by the library
+#define DEFAULT_BATCH_SIZE_TB 100 //< inital batch size (in no. of tuples) used by GPU patterns with time-based windows
+#define DEFAULT_CUDA_NUM_THREAD_BLOCK 256 //< default number of threads per block used by GPU patterns
+#define gpuErrChk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+
+//@cond DOXY_IGNORE
+
+// window types
 enum win_type_t { CB, TB };
 
 // supported roles of the Win_Seq pattern
 enum role_t { SEQ, PLQ, WLQ, MAP, REDUCE };
 
-/** 
- *  \brief Supported optimization levels
- *  
- *  Enumeration of supported optimization levels:
- *  -LEVEL0: no optimization used;
- *  -LEVEL1: first optimization level;
- *  -LEVEL2: second optimization level.
- */ 
+// optimization levels
 enum opt_level_t { LEVEL0, LEVEL1, LEVEL2 };
-
-// utility macros
-#define DEFAULT_VECTOR_CAPACITY 500 //< default capacity of vectors used internally by the library
-
-// macros used by the GPU patterns
-#define DEFAULT_BATCH_SIZE_TB 100 //< inital batch size (in no. of tuples) used by GPU patterns with time-based windows
-#define DEFAULT_CUDA_NUM_THREAD_BLOCK 256 //< default number of threads per block
-#define gpuErrChk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 
 // macros for the linux terminal colors
 #define DEFAULT 	"\033[0m"
@@ -151,71 +138,73 @@ struct PatternConfig {
                   slide_inner(_slide_inner) {}
 };
 
-// forward declaration of the Source pattern
+//@endcond
+
+/// forward declaration of the Source pattern
 template<typename tuple_t>
 class Source;
 
-// forward declaration of the Map pattern
+/// forward declaration of the Map pattern
 template<typename tuple_t, typename result_t>
 class Map;
 
-// forward declaration of the Filter pattern
+/// forward declaration of the Filter pattern
 template<typename tuple_t>
 class Filter;
 
-// forward declaration of the FlatMap pattern
+/// forward declaration of the FlatMap pattern
 template<typename tuple_t, typename result_t>
 class FlatMap;
 
-// forward declaration of the Accumulator pattern
+/// forward declaration of the Accumulator pattern
 template<typename tuple_t, typename result_t>
 class Accumulator;
 
-// forward declaration of the Win_Seq pattern
+/// forward declaration of the Win_Seq pattern
 template<typename tuple_t, typename result_t, typename input_t=tuple_t>
 class Win_Seq;
 
-// forward declaration of the Win_Farm pattern
+/// forward declaration of the Win_Farm pattern
 template<typename tuple_t, typename result_t, typename input_t=tuple_t>
 class Win_Farm;
 
-// forward declaration of the Key_Farm pattern
+/// forward declaration of the Key_Farm pattern
 template<typename tuple_t, typename result_t, typename input_t=tuple_t>
 class Key_Farm;
 
-// forward declaration of the Pane_Farm pattern
+/// forward declaration of the Pane_Farm pattern
 template<typename tuple_t, typename result_t, typename input_t=tuple_t>
 class Pane_Farm;
 
-// forward declaration of the Win_MapReduce pattern
+/// forward declaration of the Win_MapReduce pattern
 template<typename tuple_t, typename result_t, typename input_t=tuple_t>
 class Win_MapReduce;
 
-// forward declaration of the Win_Seq_GPU pattern
+/// forward declaration of the Win_Seq_GPU pattern
 template<typename tuple_t, typename result_t, typename fun_t, typename input_t=tuple_t>
 class Win_Seq_GPU;
 
-// forward declaration of the Win_Farm_GPU pattern
+/// forward declaration of the Win_Farm_GPU pattern
 template<typename tuple_t, typename result_t, typename fun_, typename input_t=tuple_t>
 class Win_Farm_GPU;
 
-// forward declaration of the Key_Farm_GPU pattern
+/// forward declaration of the Key_Farm_GPU pattern
 template<typename tuple_t, typename result_t, typename fun_t, typename input_t=tuple_t>
 class Key_Farm_GPU;
 
-// forward declaration of the Pane_Farm_GPU pattern
+/// forward declaration of the Pane_Farm_GPU pattern
 template<typename tuple_t, typename result_t, typename fun_t, typename input_t=tuple_t>
 class Pane_Farm_GPU;
 
-// forward declaration of the Win_MapReduce_GPU pattern
+/// forward declaration of the Win_MapReduce_GPU pattern
 template<typename tuple_t, typename result_t, typename fun_t, typename input_t=tuple_t>
 class Win_MapReduce_GPU;
 
-// forward declaration of the Sink pattern
+/// forward declaration of the Sink pattern
 template<typename tuple_t>
 class Sink;
 
-// forward declaration of the MultiPipe construct
+/// forward declaration of the MultiPipe construct
 class MultiPipe;
 
 #endif

@@ -19,22 +19,24 @@
  *  @author  Gabriele Mencagli
  *  @date    22/05/2018
  *  
- *  @brief Pane_Farm_GPU pattern executing a windowed transformation in parallel on a CPU+GPU system
+ *  @brief Pane_Farm_GPU pattern executing a windowed transformation in parallel
+ *         on a CPU+GPU system
  *  
  *  @section Pane_Farm_GPU (Description)
  *  
- *  This file implements the Pane_Farm_GPU pattern able to execute windowed queries on a heterogeneous
- *  system (CPU+GPU). The pattern processes (possibly in parallel) panes of the windows in the so-called
- *  PLQ stage (Pane-Level Sub-Query) and computes (possibly in parallel) results of tne windows from the
- *  pane results in the so-called WLQ stage (Window-Level Sub-Query). Panes shared by more than one window
- *  are not recomputed by saving processing time. The pattern allows the user to offload either the PLQ
- *  or the WLQ processing on the GPU while the other stage is executed on the CPU with either a non-incremental
- *  or an incremental query definition.
+ *  This file implements the Pane_Farm_GPU pattern able to execute windowed queries on a
+ *  heterogeneous system (CPU+GPU). The pattern processes (possibly in parallel) panes of
+ *  the windows in the so-called PLQ stage (Pane-Level Sub-Query) and computes (possibly
+ *  in parallel) results of tne windows from the pane results in the so-called WLQ stage
+ *  (Window-Level Sub-Query). Panes shared by more than one window are not recomputed by
+ *  saving processing time. The pattern allows the user to offload either the PLQ or the WLQ
+ *  processing on the GPU while the other stage is executed on the CPU with either a non
+ *  incremental or an incremental query definition.
  *  
- *  The template arguments tuple_t and result_t must be default constructible, with a copy constructor
- *  and copy assignment operator, and they must provide and implement the setInfo() and getInfo() methods.
- *  The third template argument F_t is the type of the callable object to be used for GPU processing
- *  (either for the PLQ or for the WLQ stage).
+ *  The template parameters tuple_t and result_t must be default constructible, with a
+ *  copy constructor and copy assignment operator, and they must provide and implement
+ *  the setControlFields() and getControlFields() methods. The third template argument F_t is the type of
+ *  the callable object to be used for GPU processing (either for the PLQ or for the WLQ).
  */ 
 
 #ifndef PANE_FARM_GPU_H
@@ -45,31 +47,33 @@
 #include <ff/pipeline.hpp>
 #include <win_farm.hpp>
 #include <win_farm_gpu.hpp>
-#include <orderingNode.hpp>
+#include <ordering_node.hpp>
 
 /** 
  *  \class Pane_Farm_GPU
  *  
- *  \brief Pane_Farm_GPU pattern executing a windowed transformation in parallel on a CPU+GPU system
+ *  \brief Pane_Farm_GPU pattern executing a windowed transformation in parallel
+ *         on a CPU+GPU system
  *  
- *  This class implements the Pane_Farm_GPU pattern executing windowed queries in parallel on
- *  a heterogeneous system (CPU+GPU). The pattern processes (possibly in parallel) panes in the
- *  PLQ stage while window results are built out from the pane results (possibly in parallel)
- *  in the WLQ stage. Either the PLQ or the WLQ stage are executed on the GPU device while the
- *  others is executed on the CPU as in the Pane_Farm pattern.
+ *  This class implements the Pane_Farm_GPU pattern executing windowed queries in
+ *  parallel on a heterogeneous system (CPU+GPU). The pattern processes (possibly
+ *  in parallel) panes in the PLQ stage while window results are built out from the
+ *  pane results (possibly in parallel) in the WLQ stage. Either the PLQ or the WLQ
+ *  stage are executed on the GPU device while the others is executed on the CPU as
+ *  in the Pane_Farm pattern.
  */ 
 template<typename tuple_t, typename result_t, typename F_t, typename input_t>
 class Pane_Farm_GPU: public ff_pipeline
 {
 public:
     /// function type of the non-incremental pane processing
-    using f_plqfunction_t = function<int(size_t, uint64_t, Iterable<tuple_t> &, result_t &)>;
+    using f_plqfunction_t = function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
     /// Function type of the incremental pane processing
-    using f_plqupdate_t = function<int(size_t, uint64_t, const tuple_t &, result_t &)>;
+    using f_plqupdate_t = function<void(uint64_t, const tuple_t &, result_t &)>;
     /// function type of the non-incremental window processing
-    using f_wlqfunction_t = function<int(size_t, uint64_t, Iterable<result_t> &, result_t &)>;
+    using f_wlqfunction_t = function<void(uint64_t, Iterable<result_t> &, result_t &)>;
     /// function type of the incremental window function
-    using f_wlqupdate_t = function<int(size_t, uint64_t, const result_t &, result_t &)>;
+    using f_wlqupdate_t = function<void(uint64_t, const result_t &, result_t &)>;
 private:
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3, typename T4>
@@ -517,7 +521,7 @@ private:
                 ff_farm *farm_plq = static_cast<ff_farm *>(plq);
                 ff_farm *farm_wlq = static_cast<ff_farm *>(wlq);
                 emitter_wlq_t *emitter_wlq = static_cast<emitter_wlq_t *>(farm_wlq->getEmitter());
-                OrderingNode<result_t, wrapper_tuple_t<result_t>> *buf_node = new OrderingNode<result_t, wrapper_tuple_t<result_t>>();
+                Ordering_Node<result_t, wrapper_tuple_t<result_t>> *buf_node = new Ordering_Node<result_t, wrapper_tuple_t<result_t>>();
                 const ff_pipeline result = combine_farms(*farm_plq, emitter_wlq, *farm_wlq, buf_node, false);
                 delete farm_plq;
                 delete farm_wlq;

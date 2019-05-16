@@ -48,14 +48,14 @@ struct event_t
     // destructor
     ~event_t() {}
 
-    // getInfo method (needed by the WindFlow library)
-    tuple<size_t, uint64_t, uint64_t> getInfo() const
+    // getControlFields method (needed by the WindFlow library)
+    tuple<size_t, uint64_t, uint64_t> getControlFields() const
     {
         return tuple<size_t, uint64_t, uint64_t>((size_t) event_type, (uint64_t) 0, (uint64_t) ts); // be careful with this cast!
     }
 
-    // setInfo method (needed by the WindFlow library)
-    void setInfo(size_t _key, uint64_t _id, uint64_t _ts)
+    // setControlFields method (needed by the WindFlow library)
+    void setControlFields(size_t _key, uint64_t _id, uint64_t _ts)
     {
         event_type = (long) _key;
         ts = (long) _ts;
@@ -74,14 +74,14 @@ struct projected_event_t
     // destructor
     ~projected_event_t() {}
 
-    // getInfo method (needed by the WindFlow library)
-    tuple<size_t, uint64_t, uint64_t> getInfo() const
+    // getControlFields method (needed by the WindFlow library)
+    tuple<size_t, uint64_t, uint64_t> getControlFields() const
     {
         return tuple<size_t, uint64_t, uint64_t>((size_t) 0, (uint64_t) ad_id, (uint64_t) ts); // be careful with this cast!
     }
 
-    // setInfo method (needed by the WindFlow library)
-    void setInfo(size_t _key, uint64_t _id, uint64_t _ts)
+    // setControlFields method (needed by the WindFlow library)
+    void setControlFields(size_t _key, uint64_t _id, uint64_t _ts)
     {
         ad_id = (long) _id;
         ts = (long) _ts;
@@ -102,14 +102,14 @@ struct joined_event_t
     // destructor
     ~joined_event_t() {}
 
-    // getInfo method (needed by the WindFlow library)
-    tuple<size_t, uint64_t, uint64_t> getInfo() const
+    // getControlFields method (needed by the WindFlow library)
+    tuple<size_t, uint64_t, uint64_t> getControlFields() const
     {
         return tuple<size_t, uint64_t, uint64_t>((size_t) cmp_id, (uint64_t) 0, (uint64_t) ts); // be careful with this cast!
     }
 
-    // setInfo method (needed by the WindFlow library)
-    void setInfo(size_t _key, uint64_t _id, uint64_t _ts)
+    // setControlFields method (needed by the WindFlow library)
+    void setControlFields(size_t _key, uint64_t _id, uint64_t _ts)
     {
         cmp_id = (long) _key;
         ts = (long) _ts;
@@ -131,14 +131,14 @@ struct win_result
     // destructor
     ~win_result() {}
 
-    // getInfo method (needed by the WindFlow library)
-    tuple<size_t, uint64_t, uint64_t> getInfo() const
+    // getControlFields method (needed by the WindFlow library)
+    tuple<size_t, uint64_t, uint64_t> getControlFields() const
     {
         return tuple<size_t, uint64_t, uint64_t>((size_t) cmp_id, (uint64_t) wid, (uint64_t) ts); // be careful with this cast!
     }
 
-    // setInfo method (needed by the WindFlow library)
-    void setInfo(size_t _key, uint64_t _id, uint64_t _ts)
+    // setControlFields method (needed by the WindFlow library)
+    void setControlFields(size_t _key, uint64_t _id, uint64_t _ts)
     {
         cmp_id = (long) _key;
         ts = (long) _ts;
@@ -147,32 +147,29 @@ struct win_result
 };
 
 // function for computing the final aggregates on tumbling windows (INCremental version)
-size_t aggregateFunctionINC(size_t cmp_id, size_t wid, const joined_event_t &event, win_result &result)
+size_t aggregateFunctionINC(size_t wid, const joined_event_t &event, win_result &result)
 {
     result.count++;
     if (event.ts > result.lastUpdate)
         result.lastUpdate = event.ts;
-    return 0;
 }
 
 // function for computing the final aggregates on tumbling windows (reduce version)
-size_t reduceFunctionINC(size_t cmp_id, size_t wid, const win_result &r1, win_result &r2)
+size_t reduceFunctionINC(size_t wid, const win_result &r1, win_result &r2)
 {
     r2.count += r1.count;
     if (r1.lastUpdate > r2.lastUpdate)
         r2.lastUpdate = r1.lastUpdate;
-    return 0;
 }
 
 // function for computing the final aggregates on tumbling windows (Non InCremental version)
-size_t aggregateFunctionNIC(size_t cmp_id, size_t wid, Iterable<joined_event_t> &win, win_result &result)
+void aggregateFunctionNIC(size_t wid, Iterable<joined_event_t> &win, win_result &result)
 {
     result.count = win.size();
     for (auto t : win) {
         if (t.ts > result.lastUpdate)
             result.lastUpdate = t.ts;
     }
-    return 0;
 }
 
 #endif

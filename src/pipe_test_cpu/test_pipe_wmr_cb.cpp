@@ -60,14 +60,14 @@ struct tuple_t
 	// default constructor
 	tuple_t(): key(0), id(0), ts(0), value(0) {}
 
-	// getInfo method
-	tuple<size_t, uint64_t, uint64_t> getInfo() const
+	// getControlFields method
+	tuple<size_t, uint64_t, uint64_t> getControlFields() const
 	{
 		return tuple<size_t, uint64_t, uint64_t>(key, id, ts);
 	}
 
-	// setInfo method
-	void setInfo(size_t _key, uint64_t _id, uint64_t _ts)
+	// setControlFields method
+	void setControlFields(size_t _key, uint64_t _id, uint64_t _ts)
 	{
 		key = _key;
 		id = _id;
@@ -86,14 +86,14 @@ struct output_t
 	// default constructor
 	output_t(): key(0), id(0), ts(0), value(0) {}
 
-	// getInfo method
-	tuple<size_t, uint64_t, uint64_t> getInfo() const
+	// getControlFields method
+	tuple<size_t, uint64_t, uint64_t> getControlFields() const
 	{
 		return tuple<size_t, uint64_t, uint64_t>(key, id, ts);
 	}
 
-	// setInfo method
-	void setInfo(size_t _key, uint64_t _id, uint64_t _ts)
+	// setControlFields method
+	void setControlFields(size_t _key, uint64_t _id, uint64_t _ts)
 	{
 		key = _key;
 		id = _id;
@@ -177,39 +177,25 @@ public:
 };
 
 // Win_MapReduce (MAP) function (non-incremental)
-int wmap_function(size_t key, size_t wid, Iterable<tuple_t> &input, output_t &result) {
+void wmap_function(size_t wid, Iterable<tuple_t> &input, output_t &result) {
 	long sum = 0;
 	// print the window content
-	string window = string("Key: ") + to_string(key) + " window " + to_string(wid) + " [";
 	for (auto t : input) {
 		int val = t.value;
-		window += to_string(val) + ", ";
 		sum += val;
 	}
-	window = window + "] -> Sum "+ to_string(sum);
-	//cout << window << endl;
-	result.key = key;
-	result.id = wid;
 	result.value = sum;
-	return 0;
 };
 
 // Win_MapReduce (REDUCE) function (non-incremental)
-int reduce_function(size_t key, size_t wid, Iterable<output_t> &input, output_t &win_result) {
+void reduce_function(size_t wid, Iterable<output_t> &input, output_t &win_result) {
 	long sum = 0;
 	// print the window content
-	string window = string("Key: ") + to_string(key) + " Window " + to_string(wid) + " [";
 	for (auto t : input) {
 		int val = t.value;
-		window += to_string(val) + ", ";
 		sum += val;
 	}
-	window = window + "] -> Sum "+ to_string(sum);
-	//cout << window << endl;
-	win_result.key = key;
-	win_result.id = wid;
 	win_result.value = sum;
-	return 0;
 };
 
 // sink functor
