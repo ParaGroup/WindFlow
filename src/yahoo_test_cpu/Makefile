@@ -16,7 +16,7 @@
 # Author: Gabriele Mencagli <mencagli@di.unipi.it>
 # Date:   December 2018
 
-FF_ROOT			= $(HOME)/fastflow
+FF_ROOT			= ../../fastflow
 OUT_DIR			= ../../bin/yahoo_test_cpu
 INCLUDE_DIR		= ../../includes
 

@@ -16,7 +16,7 @@
 # Author: Gabriele Mencagli <mencagli@di.unipi.it>
 # Date:   June 2017
 
-FF_ROOT			= $(HOME)/fastflow
+FF_ROOT			= ../../fastflow
 OUT_DIR			= ../../bin/sum_test_cpu
 INCLUDE_DIR		= ../../includes
 

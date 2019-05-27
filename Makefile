@@ -16,50 +16,60 @@
 # Author: Gabriele Mencagli <mencagli@di.unipi.it>
 # Date:   June 2017
 
-all:
+FF_ROOT	= fastflow
+FF_REPO	= https://github.com/fastflow/fastflow
+
+all: fastflow
 	$(MAKE) -C src
 
-source_test:
+source_test: fastflow
 	$(MAKE) source_test -C src
 
-map_test:
+map_test: fastflow
 	$(MAKE) map_test -C src
 
-filter_test:
+filter_test: fastflow
 	$(MAKE) filter_test -C src
 
-flatmap_test:
+flatmap_test: fastflow
 	$(MAKE) flatmap_test -C src
 
-accumulator_test:
+accumulator_test: fastflow
 	$(MAKE) accumulator_test -C src
 
-sum_test_cpu:
+sum_test_cpu: fastflow
 	$(MAKE) sum_test_cpu -C src
 
-sum_test_gpu:
+sum_test_gpu: fastflow
 	$(MAKE) sum_test_gpu -C src
 
-sink_test:
+sink_test: fastflow
 	$(MAKE) sink_test -C src
 
-microbenchmarks:
+microbenchmarks: fastflow
 	$(MAKE) microbenchmarks -C src
 
-pipe_test_cpu:
+pipe_test_cpu: fastflow
 	$(MAKE) pipe_test_cpu -C src
 
-pipe_test_gpu:
+pipe_test_gpu: fastflow
 	$(MAKE) pipe_test_gpu -C src
 
-union_test:
+union_test: fastflow
 	$(MAKE) union_test -C src
 
-spatial_test:
+spatial_test: fastflow
 	$(MAKE) spatial_test -C src
 
-yahoo_test_cpu:
+yahoo_test_cpu: fastflow
 	$(MAKE) yahoo_test_cpu -C src
+
+fastflow:
+	@if [ ! -d $(FF_ROOT) ] ;\
+	then \
+	  echo "FastFlow does not exist, fetching"; \
+	  git clone $(FF_REPO); \
+fi
 
 clean:
 	$(MAKE) clean -C src
