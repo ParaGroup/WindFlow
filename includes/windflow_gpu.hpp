@@ -30,11 +30,15 @@
 #ifndef WINDFLOW_GPU_H
 #define WINDFLOW_GPU_H
 
-// includes
+/// includes
+#include <ff/ff.hpp>
 #include <win_seq_gpu.hpp>
 #include <win_farm_gpu.hpp>
 #include <key_farm_gpu.hpp>
 #include <pane_farm_gpu.hpp>
 #include <win_mapreduce_gpu.hpp>
+
+/// namespace
+using namespace ff;
 
 #endif

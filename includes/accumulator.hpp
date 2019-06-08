@@ -57,12 +57,14 @@ template<typename tuple_t, typename result_t>
 class Accumulator: public ff_farm
 {
 public:
-    /// reduce/fold function
+    /// type of the reduce/fold function
     using acc_func_t = function<void(const tuple_t &, result_t &)>;
-    /// rich reduce/fold function
-    using rich_acc_func_t = function<void(const tuple_t &, result_t &, RuntimeContext)>;
-    /// function type to map the key hashcode onto an identifier starting from zero to pardegree-1
-    using f_routing_t = function<size_t(size_t, size_t)>;
+    /// type of the rich reduce/fold function
+    using rich_acc_func_t = function<void(const tuple_t &, result_t &, RuntimeContext &)>;
+    /// type of the closing function
+    using closing_func_t = function<void(RuntimeContext &)>;
+    /// type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
+    using routing_func_t = function<size_t(size_t, size_t)>;
 private:
     tuple_t tmp; // never used
     // key data type
@@ -75,6 +77,7 @@ private:
     private:
         acc_func_t acc_func; // reduce/fold function
         rich_acc_func_t rich_acc_func; // rich reduce/fold function
+        closing_func_t closing_func; // closing function
         string name; // string of the unique name of the pattern
         bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
         RuntimeContext context; // RuntimeContext instance
@@ -98,10 +101,10 @@ private:
 #endif
     public:
         // Constructor I
-        Accumulator_Node(acc_func_t _acc_func, result_t _init_value, string _name): acc_func(_acc_func), init_value(_init_value), name(_name), isRich(false) {}
+        Accumulator_Node(acc_func_t _acc_func, result_t _init_value, string _name, RuntimeContext _context, closing_func_t _closing_func): acc_func(_acc_func), init_value(_init_value), name(_name), isRich(false), context(_context), closing_func(_closing_func) {}
 
         // Constructor II
-        Accumulator_Node(rich_acc_func_t _rich_acc_func, result_t _init_value, string _name, RuntimeContext _context): rich_acc_func(_rich_acc_func), init_value(_init_value), name(_name), isRich(true), context(_context) {}
+        Accumulator_Node(rich_acc_func_t _rich_acc_func, result_t _init_value, string _name, RuntimeContext _context, closing_func_t _closing_func): rich_acc_func(_rich_acc_func), init_value(_init_value), name(_name), isRich(true), context(_context), closing_func(_closing_func) {}
 
         // svc_init method (utilized by the FastFlow runtime)
         int svc_init()
@@ -156,6 +159,8 @@ private:
         // svc_end method (utilized by the FastFlow runtime)
         void svc_end()
         {
+            // call the closing function
+            closing_func(context);
 #if defined (LOG_DIR)
             ostringstream stream;
             stream << "************************************LOG************************************\n";
@@ -178,9 +183,10 @@ public:
      *  \param _init_value initial value to be used by the fold function (for reduce the initial value is the one obtained by the default constructor of result_t)
      *  \param _pardegree parallelism degree of the Accumulator pattern
      *  \param _name string with the unique name of the Accumulator pattern
-     *  \param _routing function to map the key hashcode onto an identifier starting from zero to pardegree-1
+     *  \param _closing_func closing function
+     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
-    Accumulator(acc_func_t _func, result_t _init_value, size_t _pardegree, string _name, f_routing_t _routing=[](size_t k, size_t n) { return k%n; })
+    Accumulator(acc_func_t _func, result_t _init_value, size_t _pardegree, string _name, closing_func_t _closing_func, routing_func_t _routing_func)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -190,10 +196,10 @@ public:
         // vector of Accumulator_Node instances
         vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
-            auto *seq = new Accumulator_Node(_func, _init_value, _name);
+            auto *seq = new Accumulator_Node(_func, _init_value, _name, RuntimeContext(_pardegree, i), _closing_func);
             w.push_back(seq);
         }
-        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing));
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func));
         ff_farm::add_workers(w);
         // add default collector
         ff_farm::add_collector(nullptr);
@@ -208,9 +214,10 @@ public:
      *  \param _init_value initial value to be used by the fold function (for reduce the initial value is the one obtained by the default constructor of result_t)
      *  \param _pardegree parallelism degree of the Accumulator pattern
      *  \param _name string with the unique name of the Accumulator pattern
-     *  \param _routing function to map the key hashcode onto an identifier starting from zero to pardegree-1
+     *  \param _closing_func closing function
+     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
-    Accumulator(rich_acc_func_t _func, result_t _init_value, size_t _pardegree, string _name, f_routing_t _routing=[](size_t k, size_t n) { return k%n; })
+    Accumulator(rich_acc_func_t _func, result_t _init_value, size_t _pardegree, string _name, closing_func_t _closing_func, routing_func_t _routing_func)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -220,10 +227,10 @@ public:
         // vector of Accumulator_Node instances
         vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
-            auto *seq = new Accumulator_Node(_func, _init_value, _name, RuntimeContext(_pardegree, i));
+            auto *seq = new Accumulator_Node(_func, _init_value, _name, RuntimeContext(_pardegree, i), _closing_func);
             w.push_back(seq);
         }
-        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing));
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func));
         ff_farm::add_workers(w);
         // add default collector
         ff_farm::add_collector(nullptr);

@@ -29,7 +29,8 @@
 #ifndef WINDFLOW_H
 #define WINDFLOW_H
 
-// includes
+/// includes
+#include <ff/ff.hpp>
 #include <builders.hpp>
 #include <source.hpp>
 #include <map.hpp>
@@ -44,7 +45,7 @@
 #include <multipipe.hpp>
 #include <sink.hpp>
 
-// namespace
+/// namespace
 using namespace ff;
 
 #endif

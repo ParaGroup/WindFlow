@@ -81,11 +81,11 @@ int main(int argc, char *argv[])
 	Win_MapReduce wm = WinMapReduce_Builder(F, F).withTBWindow(microseconds(win_len), microseconds(win_slide))
 									.withParallelism(map_degree, reduce_degree)
 									.withName("test_sum")
-									.withOpt(LEVEL)
+									.withOptLevel(LEVEL)
 									.build();
 	Key_Farm kf = KeyFarm_Builder(wm).withParallelism(kf_degree)
 									.withName("test_sum")
-									.withOpt(LEVEL)
+									.withOptLevel(LEVEL)
 									.build();
 	// creation of the pipeline
 	Generator generator(stream_len, num_keys);

@@ -94,7 +94,7 @@ int main(int argc, char *argv[])
 													     .withParallelism(plq_degree, wlq_degree)
 													     .withBatch(batch_len)
 													     .withName("test_sum")
-													     .withOpt(LEVEL)
+													     .withOptLevel(LEVEL)
 													     .build_ptr();
 	// creation of the pipeline
 	Generator generator(stream_len, num_keys);

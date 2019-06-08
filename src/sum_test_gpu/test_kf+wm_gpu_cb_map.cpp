@@ -98,12 +98,12 @@ int main(int argc, char *argv[])
 													     .withParallelism(map_degree, reduce_degree)
 													     .withBatch(batch_len)
 													     .withName("test_sum")
-													     .withOpt(LEVEL)
+													     .withOptLevel(LEVEL)
 													     .build_ptr();
 	// creation of the Win_Farm_GPU pattern
 	auto *kf_gpu = KeyFarmGPU_Builder<decltype(*wm_gpu)>(*wm_gpu).withParallelism(kf_degree)
 													             .withName("test_sum")
-													             .withOpt(LEVEL)
+													             .withOptLevel(LEVEL)
 													             .build_ptr();
 	// creation of the pipeline
 	Generator generator(stream_len, num_keys);

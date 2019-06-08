@@ -30,8 +30,8 @@
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with
  *  a copy constructor and copy assignment operator, and they must provide and implement
- *  the setControlFields() and getControlFields() methods. The third template argument win_F_t is the type
- *  of the callable object to be used for GPU processing.
+ *  the setControlFields() and getControlFields() methods. The third template argument
+ *  win_F_t is the type of the callable object to be used for GPU processing.
  */ 
 
 #ifndef WIN_SEQ_GPU_H
@@ -99,7 +99,7 @@ private:
     // window type used by the Win_Seq_GPU pattern
     using win_t = Window<tuple_t, result_t>;
     // function type to compare two tuples
-    using f_compare_t = function<bool(const tuple_t &, const tuple_t &)>;
+    using compare_func_t = function<bool(const tuple_t &, const tuple_t &)>;
     tuple_t tmp; // never used
     // key data type
     using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
@@ -128,8 +128,8 @@ private:
         optional<tuple_t> start_tuple; // optional to the first tuple of the current micro-batch
 
         // constructor
-        Key_Descriptor(f_compare_t _compare, uint64_t _emit_counter=0):
-                       archive(_compare),
+        Key_Descriptor(compare_func_t _compare_func, uint64_t _emit_counter=0):
+                       archive(_compare_func),
                        emit_counter(_emit_counter),
                        rcv_counter(0),
                        next_lwid(0),
@@ -154,7 +154,7 @@ private:
                        start_tuple(_k.start_tuple) {}
     };
     // CPU variables
-    f_compare_t compare; // function to compare two tuples
+    compare_func_t compare_func; // function to compare two tuples
     uint64_t win_len; // window length (no. of tuples or in time units)
     uint64_t slide_len; // slide length (no. of tuples or in time units)
     win_type_t winType; // window type (CB or TB)
@@ -166,7 +166,7 @@ private:
     size_t batch_len; // length of the micro-batch in terms of no. of windows (i.e. 1 window mapped onto 1 CUDA thread)
     size_t n_thread_block; // number of threads per block
     size_t tuples_per_batch; // number of tuples per batch (only for CB windows)
-    win_F_t winFunction; // function to be executed per window
+    win_F_t win_func; // function to be executed per window
     result_t *host_results = nullptr; // array of results copied back from the GPU
     // GPU variables
     cudaStream_t cudaStream; // CUDA stream used by this Win_Seq_GPU instance
@@ -190,7 +190,7 @@ private:
 #endif
 
     // private constructor
-    Win_Seq_GPU(win_F_t _winFunction,
+    Win_Seq_GPU(win_F_t _win_func,
                 uint64_t _win_len,
                 uint64_t _slide_len,
                 win_type_t _winType,
@@ -201,7 +201,7 @@ private:
                 PatternConfig _config,
                 role_t _role)
                 :
-                winFunction(_winFunction),
+                win_func(_win_func),
                 win_len(_win_len),
                 slide_len(_slide_len),
                 winType(_winType),
@@ -229,12 +229,12 @@ private:
         }
         // define the compare function depending on the window type
         if (winType == CB) {
-            compare = [](const tuple_t &t1, const tuple_t &t2) {
+            compare_func = [](const tuple_t &t1, const tuple_t &t2) {
                 return std::get<1>(t1.getControlFields()) < std::get<1>(t2.getControlFields());
             };
         }
         else {
-            compare = [](const tuple_t &t1, const tuple_t &t2) {
+            compare_func = [](const tuple_t &t1, const tuple_t &t2) {
                 return std::get<2>(t1.getControlFields()) < std::get<2>(t2.getControlFields());
             };
         }
@@ -250,7 +250,7 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _winFunction the non-incremental window processing function (CPU/GPU function)
+     *  \param _win_func the non-incremental window processing function (CPU/GPU function)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
@@ -259,16 +259,16 @@ public:
      *  \param _name string with the unique name of the pattern
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      */ 
-    Win_Seq_GPU(win_F_t _winFunction,
+    Win_Seq_GPU(win_F_t _win_func,
                 uint64_t _win_len,
                 uint64_t _slide_len,
                 win_type_t _winType,
                 size_t _batch_len,
                 size_t _n_thread_block,
                 string _name,
-                size_t _scratchpad_size=0)
-                :
-                Win_Seq_GPU(_winFunction, _win_len, _slide_len, _winType, _batch_len, _n_thread_block, _name, _scratchpad_size, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ) {}
+                size_t _scratchpad_size):
+                Win_Seq_GPU(_win_func, _win_len, _slide_len, _winType, _batch_len, _n_thread_block, _name, _scratchpad_size, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
+    {}
 
 //@cond DOXY_IGNORE
 
@@ -328,7 +328,7 @@ public:
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
             // create the descriptor of that key
-            keyMap.insert(make_pair(key, Key_Descriptor(compare, role == MAP ? map_indexes.first : 0)));
+            keyMap.insert(make_pair(key, Key_Descriptor(compare_func, role == MAP ? map_indexes.first : 0)));
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
@@ -482,7 +482,7 @@ public:
                     }
                     // execute the CUDA Kernel on GPU
                     int num_blocks = ceil((double) batch_len / n_thread_block);
-                    kernelBatch<win_F_t><<<num_blocks, n_thread_block, 0, cudaStream>>>(Bin, gpu_start, gpu_end, gpu_gwids, Bout, winFunction, batch_len, scratchpad_memory, scratchpad_size);
+                    kernelBatch<win_F_t><<<num_blocks, n_thread_block, 0, cudaStream>>>(Bin, gpu_start, gpu_end, gpu_gwids, Bout, win_func, batch_len, scratchpad_memory, scratchpad_size);
                     gpuErrChk(cudaMemcpyAsync(host_results, Bout, batch_len * sizeof(result_t), cudaMemcpyDeviceToHost, cudaStream));
                     gpuErrChk(cudaStreamSynchronize(cudaStream));
                     // purge the archive from tuples that are no longer necessary
@@ -556,14 +556,14 @@ public:
                         its = (key_d.archive).getWinRange(*t_s, *t_e);
                     else // not-FIRED window
                         its = (key_d.archive).getWinRange(*t_s);
-                    // call the winFunction on the CPU
-                    decltype(get_tuple_t(winFunction)) *my_input_data = (decltype(get_tuple_t(winFunction)) *) &(*(its.first));
-                    // call winFunction
-                    winFunction(win.getGWID(), my_input_data, out, distance(its.first, its.second), scratchpad_memory_cpu);
+                    // call the win_func on the CPU
+                    decltype(get_tuple_t(win_func)) *my_input_data = (decltype(get_tuple_t(win_func)) *) &(*(its.first));
+                    // call win_func
+                    win_func(win.getGWID(), my_input_data, out, distance(its.first, its.second), scratchpad_memory_cpu);
                 }
                 else {// empty window
-                    // call winFunction
-                    winFunction(win.getGWID(), nullptr, out, 0, scratchpad_memory_cpu);
+                    // call win_func
+                    win_func(win.getGWID(), nullptr, out, 0, scratchpad_memory_cpu);
                 }
                 // special cases: role is PLQ or MAP
                 if (role == MAP) {

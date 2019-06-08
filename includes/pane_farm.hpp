@@ -24,16 +24,17 @@
  *  
  *  @section Pane_Farm (Description)
  *  
- *  This file implements the Pane_Farm pattern able to execute windowed queries on a multicore.
- *  The pattern processes (possibly in parallel) panes of the windows in the so-called PLQ stage
- *  (Pane-Level Sub-Query) and computes (possibly in parallel) results of the windows from the pane
- *  results in the so-called WLQ stage (Window-Level Sub-Query). Panes shared by more than one window
- *  are not recomputed by saving processing time. The pattern supports both a non-incremental and an
- *  incremental query definition in the two stages.
+ *  This file implements the Pane_Farm pattern able to execute windowed queries
+ *  on a multicore. The pattern processes (possibly in parallel) panes of the
+ *  windows in the so-called PLQ stage (Pane-Level Sub-Query) and computes
+ *  (possibly in parallel) results of the windows from the pane results in the
+ *  so-called WLQ stage (Window-Level Sub-Query). Panes shared by more than one window
+ *  are not recomputed by saving processing time. The pattern supports both a
+ *  non-incremental and an incremental query definition in the two stages.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with a copy
- *  constructor and copy assignment operator, and they must provide and implement the setControlFields()
- *  and getControlFields() methods.
+ *  constructor and copy assignment operator, and they must provide and implement the
+ *  setControlFields() and getControlFields() methods.
  */ 
 
 #ifndef PANE_FARM_H
@@ -42,6 +43,7 @@
 // includes
 #include <ff/combine.hpp>
 #include <ff/pipeline.hpp>
+#include <context.hpp>
 #include <win_farm.hpp>
 #include <ordering_node.hpp>
 
@@ -59,14 +61,24 @@ template<typename tuple_t, typename result_t, typename input_t>
 class Pane_Farm: public ff_pipeline
 {
 public:
-    /// function type of the non-incremental pane processing
-    using f_plqfunction_t = function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
-    /// function type of the incremental pane processing
-    using f_plqupdate_t = function<void(uint64_t, const tuple_t &, result_t &)>;
-    /// function type of the non-incremental window processing
-    using f_wlqfunction_t = function<void(uint64_t, Iterable<result_t> &, result_t &)>;
-    /// function type of the incremental window function
-    using f_wlqupdate_t = function<void(uint64_t, const result_t &, result_t &)>;
+    /// type of the non-incremental pane processing function
+    using plq_func_t = function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
+    /// type of the rich non-incremental pane processing function
+    using rich_plq_func_t = function<void(uint64_t, Iterable<tuple_t> &, result_t &, RuntimeContext &)>;
+    /// type of the incremental pane processing function
+    using plqupdate_funct_t = function<void(uint64_t, const tuple_t &, result_t &)>;
+    /// type of the rich incremental pane processing function
+    using rich_plqupdate_funct_t = function<void(uint64_t, const tuple_t &, result_t &, RuntimeContext &)>;
+    /// type of the non-incremental window processing function
+    using wlq_func_t = function<void(uint64_t, Iterable<result_t> &, result_t &)>;
+    /// type of the rich non-incremental window processing function
+    using rich_wlq_func_t = function<void(uint64_t, Iterable<result_t> &, result_t &, RuntimeContext &)>;
+    /// type of the incremental window processing function
+    using wlqupdate_func_t = function<void(uint64_t, const result_t &, result_t &)>;
+    /// type of the rich incremental window processing function
+    using rich_wlqupdate_func_t = function<void(uint64_t, const result_t &, result_t &, RuntimeContext &)>;
+    /// type of the closing function
+    using closing_func_t = function<void(RuntimeContext &)>;
 private:
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3>
@@ -87,12 +99,19 @@ private:
         return u;
     };
     // configuration variables of the Pane_Farm
-    f_plqfunction_t plqFunction;
-    f_plqupdate_t plqUpdate;
-    f_wlqfunction_t wlqFunction;
-    f_wlqupdate_t wlqUpdate;
+    plq_func_t plq_func;
+    rich_plq_func_t rich_plq_func;
+    plqupdate_funct_t plqupdate_func;
+    rich_plqupdate_funct_t rich_plqupdate_func;
+    wlq_func_t wlq_func;
+    rich_wlq_func_t rich_wlq_func;
+    wlqupdate_func_t wlqupdate_func;
+    rich_wlqupdate_func_t rich_wlqupdate_func;
+    closing_func_t closing_func;
     bool isNICPLQ;
     bool isNICWLQ;
+    bool isRichPLQ;
+    bool isRichWLQ;
     uint64_t win_len;
     uint64_t slide_len;
     win_type_t winType;
@@ -103,32 +122,20 @@ private:
     opt_level_t opt_level;
     PatternConfig config;
 
-    // private constructor I (non-incremental PLQ stage and non-incremental WLQ stage)
-    Pane_Farm(f_plqfunction_t _plqFunction,
-              f_wlqfunction_t _wlqFunction,
+    // private constructor
+    template<typename F_t, typename G_t>
+    Pane_Farm(F_t _func_PLQ,
+              G_t _func_WLQ,
               uint64_t _win_len,
               uint64_t _slide_len,
               win_type_t _winType,
               size_t _plq_degree,
               size_t _wlq_degree,
               string _name,
+              closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level,
               PatternConfig _config)
-              :
-              plqFunction(_plqFunction),
-              wlqFunction(_wlqFunction),
-              isNICPLQ(true),
-              isNICWLQ(true),
-              win_len(_win_len),
-              slide_len(_slide_len),
-              winType(_winType),
-              plq_degree(_plq_degree),
-              wlq_degree(_wlq_degree),
-              name(_name),
-              ordered(_ordered),
-              opt_level(_opt_level),
-              config(_config)
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -153,271 +160,31 @@ private:
         if (_plq_degree > 1) {
             // configuration structure of the Win_Farm instance (PLQ)
             PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqFunction, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", true, LEVEL0, configWFPLQ, PLQ);
+            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_func_PLQ, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", _closing_func, true, LEVEL0, configWFPLQ, PLQ);
             plq_stage = plq_wf;
         }
         else {
             // configuration structure of the Win_Seq instance (PLQ)
             PatternConfig configSeqPLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _pane_len);
-            auto *plq_seq = new Win_Seq<tuple_t, result_t, input_t>(_plqFunction, _pane_len, _pane_len, _winType, _name + "_plq", configSeqPLQ, PLQ);
+            auto *plq_seq = new Win_Seq<tuple_t, result_t, input_t>(_func_PLQ, _pane_len, _pane_len, _winType, _name + "_plq", _closing_func, RuntimeContext(1, 0), configSeqPLQ, PLQ);
             plq_stage = plq_seq;
         }
         // create the second stage WLQ (Window Level Query)
         if (_wlq_degree > 1) {
             // configuration structure of the Win_Farm instance (WLQ)
             PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqFunction, (_win_len/_pane_len), (_slide_len/_pane_len), CB, 1, _wlq_degree, _name + "_wlq", _ordered, LEVEL0, configWFWLQ, WLQ);
+            auto *wlq_wf = new Win_Farm<result_t, result_t>(_func_WLQ, (_win_len/_pane_len), (_slide_len/_pane_len), CB, 1, _wlq_degree, _name + "_wlq", _closing_func, _ordered, LEVEL0, configWFWLQ, WLQ);
             wlq_stage = wlq_wf;
         }
         else {
             // configuration structure of the Win_Seq instance (WLQ)
             PatternConfig configSeqWLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, (_slide_len/_pane_len));
-            auto *wlq_seq = new Win_Seq<result_t, result_t>(_wlqFunction, (_win_len/_pane_len), (_slide_len/_pane_len), CB, _name + "_wlq", configSeqWLQ, WLQ);
+            auto *wlq_seq = new Win_Seq<result_t, result_t>(_func_WLQ, (_win_len/_pane_len), (_slide_len/_pane_len), CB, _name + "_wlq", _closing_func, RuntimeContext(1, 0), configSeqWLQ, WLQ);
             wlq_stage = wlq_seq;
         }
         // add to this the pipeline optimized according to the provided optimization level
         ff_pipeline::add_stage(optimize_PaneFarm(plq_stage, wlq_stage, _opt_level));
         // when the Pane_Farm will be destroyed we need also to destroy the two stages
-        ff_pipeline::cleanup_nodes();
-        // flatten the pipeline
-        ff_pipeline::flatten();
-    }
-
-    // private constructor II (incremental PLQ stage and incremental WLQ stage)
-    Pane_Farm(f_plqupdate_t _plqUpdate,
-              f_wlqupdate_t _wlqUpdate,
-              uint64_t _win_len,
-              uint64_t _slide_len,
-              win_type_t _winType,
-              size_t _plq_degree,
-              size_t _wlq_degree,
-              string _name,
-              bool _ordered,
-              opt_level_t _opt_level,
-              PatternConfig _config)
-              :
-              plqUpdate(_plqUpdate),
-              wlqUpdate(_wlqUpdate),
-              isNICPLQ(false),
-              isNICWLQ(false),
-              win_len(_win_len),
-              slide_len(_slide_len),
-              winType(_winType),
-              plq_degree(_plq_degree),
-              wlq_degree(_wlq_degree),
-              name(_name),
-              ordered(_ordered),
-              opt_level(_opt_level),
-              config(_config)
-    {
-        // check the validity of the windowing parameters
-        if (_win_len == 0 || _slide_len == 0) {
-            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
-            exit(EXIT_FAILURE);
-        }
-        // check the validity of the parallelism degrees
-        if (_plq_degree == 0 || _wlq_degree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degrees cannot be zero" << DEFAULT << endl;
-            exit(EXIT_FAILURE);
-        }
-        // the Pane_Farm can be utilized with sliding windows only
-        if (_win_len <= _slide_len) {
-            cerr << RED << "WindFlow Error: Pane_Farm can be used with sliding windows only (s<w)" << DEFAULT << endl;
-            exit(EXIT_FAILURE);
-        }
-        // compute the pane length (no. of tuples or in time units)
-        uint64_t _pane_len = gcd(_win_len, _slide_len);
-        // general fastflow pointers to the PLQ and WLQ stages
-        ff_node *plq_stage, *wlq_stage;
-        // create the first stage PLQ
-        if (_plq_degree > 1) {
-            // configuration structure of the Win_Farm instance (PLQ)
-            PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqUpdate, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", true, LEVEL0, configWFPLQ, PLQ);
-            plq_stage = plq_wf;
-        }
-        else {
-            // configuration structure of the Win_Seq instance (PLQ)
-            PatternConfig configSeqPLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _pane_len);
-            auto *plq_seq = new Win_Seq<tuple_t, result_t, input_t>(_plqUpdate, _pane_len, _pane_len, _winType, _name + "_plq", configSeqPLQ, PLQ);
-            plq_stage = plq_seq;
-        }
-        // create the second stage WLQ
-        if (_wlq_degree > 1) {
-            // configuration structure of the Win_Farm instance (WLQ)
-            PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqUpdate, _win_len/_pane_len, _slide_len/_pane_len, CB, 1, _wlq_degree, _name + "_wlq", _ordered, LEVEL0, configWFWLQ, WLQ);
-            wlq_stage = wlq_wf;
-        }
-        else {
-            // configuration structure of the Win_Seq instance (WLQ)
-            PatternConfig configSeqWLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, (_slide_len/_pane_len));
-            auto *wlq_seq = new Win_Seq<result_t, result_t>(_wlqUpdate, _win_len/_pane_len, _slide_len/_pane_len, CB, _name + "_wlq", configSeqWLQ, WLQ);
-            wlq_stage = wlq_seq;
-        }
-        // add to this the pipeline optimized according to the provided optimization level
-        ff_pipeline::add_stage(optimize_PaneFarm(plq_stage, wlq_stage, _opt_level));
-        // when the Pane_Farm will be destroyed we need aslo to destroy the two stages
-        ff_pipeline::cleanup_nodes();
-        // flatten the pipeline
-        ff_pipeline::flatten();
-    }
-
-    // private constructor III (non-incremental PLQ stage and incremental WLQ stage)
-    Pane_Farm(f_plqfunction_t _plqFunction,
-              f_wlqupdate_t _wlqUpdate,
-              uint64_t _win_len,
-              uint64_t _slide_len,
-              win_type_t _winType,
-              size_t _plq_degree,
-              size_t _wlq_degree,
-              string _name,
-              bool _ordered,
-              opt_level_t _opt_level,
-              PatternConfig _config)
-              :
-              plqFunction(_plqFunction),
-              wlqUpdate(_wlqUpdate),
-              isNICPLQ(true),
-              isNICWLQ(false),
-              win_len(_win_len),
-              slide_len(_slide_len),
-              winType(_winType),
-              plq_degree(_plq_degree),
-              wlq_degree(_wlq_degree),
-              name(_name),
-              ordered(_ordered),
-              opt_level(_opt_level),
-              config(_config)
-    {
-        // check the validity of the windowing parameters
-        if (_win_len == 0 || _slide_len == 0) {
-            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
-            exit(EXIT_FAILURE);
-        }
-        // check the validity of the parallelism degrees
-        if (_plq_degree == 0 || _wlq_degree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degrees cannot be zero" << DEFAULT << endl;
-            exit(EXIT_FAILURE);
-        }
-        // the Pane_Farm can be utilized with sliding windows only
-        if (_win_len <= _slide_len) {
-            cerr << RED << "WindFlow Error: Pane_Farm can be used with sliding windows only (s<w)" << DEFAULT << endl;
-            exit(EXIT_FAILURE);
-        }
-        // compute the pane length (no. of tuples or in time units)
-        uint64_t _pane_len = gcd(_win_len, _slide_len);
-        // general fastflow pointers to the PLQ and WLQ stages
-        ff_node *plq_stage, *wlq_stage;
-        // create the first stage PLQ (Pane Level Query)
-        if (_plq_degree > 1) {
-            // configuration structure of the Win_Farm instance (PLQ)
-            PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqFunction, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", true, LEVEL0, configWFPLQ, PLQ);
-            plq_stage = plq_wf;
-        }
-        else {
-            // configuration structure of the Win_Seq instance (PLQ)
-            PatternConfig configSeqPLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _pane_len);
-            auto *plq_seq = new Win_Seq<tuple_t, result_t, input_t>(_plqFunction, _pane_len, _pane_len, _winType, _name + "_plq", configSeqPLQ, PLQ);
-            plq_stage = plq_seq;
-        }
-        // create the second stage WLQ (Window Level Query)
-        if (_wlq_degree > 1) {
-            // configuration structure of the Win_Farm instance (WLQ)
-            PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqUpdate, _win_len/_pane_len, _slide_len/_pane_len, CB, 1, _wlq_degree, _name + "_wlq", _ordered, LEVEL0, configWFWLQ, WLQ);
-            wlq_stage = wlq_wf;
-        }
-        else {
-            // configuration structure of the Win_Seq instance (WLQ)
-            PatternConfig configSeqWLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, (_slide_len/_pane_len));
-            auto *wlq_seq = new Win_Seq<result_t, result_t>(_wlqUpdate, _win_len/_pane_len, _slide_len/_pane_len, CB, _name + "_wlq", configSeqWLQ, WLQ);
-            wlq_stage = wlq_seq;
-        }
-        // add to this the pipeline optimized according to the provided optimization level
-        ff_pipeline::add_stage(optimize_PaneFarm(plq_stage, wlq_stage, _opt_level));
-        // when the Pane_Farm will be destroyed we need aslo to destroy the two stages
-        ff_pipeline::cleanup_nodes();
-        // flatten the pipeline
-        ff_pipeline::flatten();
-    }
-
-    // private constructor IV (incremental PLQ stage and non-incremental WLQ stage)
-    Pane_Farm(f_plqupdate_t _plqUpdate,
-              f_wlqfunction_t _wlqFunction,
-              uint64_t _win_len,
-              uint64_t _slide_len,
-              win_type_t _winType,
-              size_t _plq_degree,
-              size_t _wlq_degree,
-              string _name,
-              bool _ordered,
-              opt_level_t _opt_level,
-              PatternConfig _config)
-              :
-              plqUpdate(_plqUpdate),
-              wlqFunction(_wlqFunction),
-              isNICPLQ(false),
-              isNICWLQ(true),
-              win_len(_win_len),
-              slide_len(_slide_len),
-              winType(_winType),
-              plq_degree(_plq_degree),
-              wlq_degree(_wlq_degree),
-              name(_name),
-              ordered(_ordered),
-              opt_level(_opt_level),
-              config(_config)
-    {
-        // check the validity of the windowing parameters
-        if (_win_len == 0 || _slide_len == 0) {
-            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
-            exit(EXIT_FAILURE);
-        }
-        // check the validity of the parallelism degrees
-        if (_plq_degree == 0 || _wlq_degree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degrees cannot be zero" << DEFAULT << endl;
-            exit(EXIT_FAILURE);
-        }
-        // the Pane_Farm can be utilized with sliding windows only
-        if (_win_len <= _slide_len) {
-            cerr << RED << "WindFlow Error: Pane_Farm can be used with sliding windows only (s<w)" << DEFAULT << endl;
-            exit(EXIT_FAILURE);
-        }
-        // compute the pane length (no. of tuples or in time units)
-        uint64_t _pane_len = gcd(_win_len, _slide_len);
-        // general fastflow pointers to the PLQ and WLQ stages
-        ff_node *plq_stage, *wlq_stage;
-        // create the first stage PLQ (Pane Level Query)
-        if (_plq_degree > 1) {
-            // configuration structure of the Win_Farm instance (PLQ)
-            PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqUpdate, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", true, LEVEL0, configWFPLQ, PLQ);
-            plq_stage = plq_wf;
-        }
-        else {
-            // configuration structure of the Win_Seq instance (PLQ)
-            PatternConfig configSeqPLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _pane_len);
-            auto *plq_seq = new Win_Seq<tuple_t, result_t, input_t>(_plqUpdate, _pane_len, _pane_len, _winType, _name + "_plq", configSeqPLQ, PLQ);
-            plq_stage = plq_seq;
-        }
-        // create the second stage WLQ (Window Level Query)
-        if (_wlq_degree > 1) {
-            // configuration structure of the Win_Farm instance (WLQ)
-            PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqFunction, _win_len/_pane_len, _slide_len/_pane_len, CB, 1, _wlq_degree, _name + "_wlq", _ordered, LEVEL0, configWFWLQ, WLQ);
-            wlq_stage = wlq_wf;
-        }
-        else {
-            // configuration structure of the Win_Seq instance (WLQ)
-            PatternConfig configSeqWLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, (_slide_len/_pane_len));
-            auto *wlq_seq = new Win_Seq<result_t, result_t>(_wlqFunction, _win_len/_pane_len, _slide_len/_pane_len, CB, _name + "_wlq", configSeqWLQ, WLQ);
-            wlq_stage = wlq_seq;
-        }
-        // add to this the pipeline optimized according to the provided optimization level
-        ff_pipeline::add_stage(optimize_PaneFarm(plq_stage, wlq_stage, _opt_level));
-        // when the Pane_Farm will be destroyed we need aslo to destroy the two stages
         ff_pipeline::cleanup_nodes();
         // flatten the pipeline
         ff_pipeline::flatten();
@@ -468,112 +235,740 @@ private:
 
 public:
     /** 
-     *  \brief Constructor I (Non-Incremental PLQ stage and Non-Incremental WLQ stage)
+     *  \brief Constructor I
      *  
-     *  \param _plqFunction the non-incremental pane processing function (PLQ)
-     *  \param _wlqFunction the non-incremental window processing function (WLQ)
+     *  \param _plq_func the non-incremental pane processing function (PLQ)
+     *  \param _wlq_func the non-incremental window processing function (WLQ)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
      *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Pane_Farm(f_plqfunction_t _plqFunction,
-              f_wlqfunction_t _wlqFunction,
+    Pane_Farm(plq_func_t _plq_func,
+              wlq_func_t _wlq_func,
               uint64_t _win_len,
               uint64_t _slide_len,
               win_type_t _winType,
               size_t _plq_degree,
               size_t _wlq_degree,
               string _name,
-              bool _ordered=true,
-              opt_level_t _opt_level=LEVEL0)
-              :
-              Pane_Farm(_plqFunction, _wlqFunction, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _name, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
+              closing_func_t _closing_func,
+              bool _ordered,
+              opt_level_t _opt_level):
+              Pane_Farm(_plq_func, _wlq_func, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        plq_func = _plq_func;
+        wlq_func = _wlq_func;
+        isNICPLQ = true;
+        isNICWLQ = true;
+        isRichPLQ = false;
+        isRichWLQ = false;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        plq_degree = _plq_degree;
+        wlq_degree = _wlq_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
 
     /** 
-     *  \brief Constructor II (Incremental PLQ stage and Incremental WLQ stage)
+     *  \brief Constructor II
      *  
-     *  \param _plqUpdate the incremental pane processing function (PLQ)
-     *  \param _wlqUpdate the incremental window processing function (WLQ)
+     *  \param _rich_plq_func the rich non-incremental pane processing function (PLQ)
+     *  \param _wlq_func the non-incremental window processing function (WLQ)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
      *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Pane_Farm(f_plqupdate_t _plqUpdate,
-              f_wlqupdate_t _wlqUpdate,
+    Pane_Farm(rich_plq_func_t _rich_plq_func,
+              wlq_func_t _wlq_func,
               uint64_t _win_len,
               uint64_t _slide_len,
               win_type_t _winType,
               size_t _plq_degree,
               size_t _wlq_degree,
               string _name,
-              bool _ordered=true,
-              opt_level_t _opt_level=LEVEL0)
-              :
-              Pane_Farm(_plqUpdate, _wlqUpdate, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _name, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
+              closing_func_t _closing_func,
+              bool _ordered,
+              opt_level_t _opt_level):
+              Pane_Farm(_rich_plq_func, _wlq_func, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        rich_plq_func = _rich_plq_func;
+        wlq_func = _wlq_func;
+        isNICPLQ = true;
+        isNICWLQ = true;
+        isRichPLQ = true;
+        isRichWLQ = false;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        plq_degree = _plq_degree;
+        wlq_degree = _wlq_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
 
     /** 
-     *  \brief Constructor III (Non-Incremental PLQ stage and Incremental WLQ stage)
+     *  \brief Constructor III
      *  
-     *  \param _plqFunction the non-incremental pane processing function (PLQ)
-     *  \param _wlqUpdate the incremental window processing function (WLQ)
+     *  \param _plq_func the non-incremental pane processing function (PLQ)
+     *  \param _rich_wlq_func the rich non-incremental window processing function (WLQ)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
      *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Pane_Farm(f_plqfunction_t _plqFunction,
-              f_wlqupdate_t _wlqUpdate,
+    Pane_Farm(plq_func_t _plq_func,
+              rich_wlq_func_t _rich_wlq_func,
               uint64_t _win_len,
               uint64_t _slide_len,
               win_type_t _winType,
               size_t _plq_degree,
               size_t _wlq_degree,
               string _name,
-              bool _ordered=true,
-              opt_level_t _opt_level=LEVEL0)
-              :
-              Pane_Farm(_plqFunction, _wlqUpdate, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _name, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
+              closing_func_t _closing_func,
+              bool _ordered,
+              opt_level_t _opt_level):
+              Pane_Farm(_plq_func, _rich_wlq_func, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        plq_func = _plq_func;
+        rich_wlq_func = _rich_wlq_func;
+        isNICPLQ = true;
+        isNICWLQ = true;
+        isRichPLQ = false;
+        isRichWLQ = true;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        plq_degree = _plq_degree;
+        wlq_degree = _wlq_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
 
     /** 
-     *  \brief Constructor IV (Incremental PLQ stage and Non-Incremental WLQ stage)
+     *  \brief Constructor IV
      *  
-     *  \param _plqUpdate the incremental pane processing function (PLQ)
-     *  \param _wlqFunction the non-incremental window processing function (WLQ)
+     *  \param _rich_plq_func the rich non-incremental pane processing function (PLQ)
+     *  \param _rich_wlq_func the rich non-incremental window processing function (WLQ)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
      *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Pane_Farm(f_plqupdate_t _plqUpdate,
-              f_wlqfunction_t _wlqFunction,
+    Pane_Farm(rich_plq_func_t _rich_plq_func,
+              rich_wlq_func_t _rich_wlq_func,
               uint64_t _win_len,
               uint64_t _slide_len,
               win_type_t _winType,
               size_t _plq_degree,
               size_t _wlq_degree,
               string _name,
-              bool _ordered=true,
-              opt_level_t _opt_level=LEVEL0)
-              :
-              Pane_Farm(_plqUpdate, _wlqFunction, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _name, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
+              closing_func_t _closing_func,
+              bool _ordered,
+              opt_level_t _opt_level):
+              Pane_Farm(_rich_plq_func, _rich_wlq_func, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        rich_plq_func = _rich_plq_func;
+        rich_wlq_func = _rich_wlq_func;
+        isNICPLQ = true;
+        isNICWLQ = true;
+        isRichPLQ = true;
+        isRichWLQ = true;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        plq_degree = _plq_degree;
+        wlq_degree = _wlq_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
+
+    /** 
+     *  \brief Constructor V
+     *  
+     *  \param _plqupdate_func the incremental pane processing function (PLQ)
+     *  \param _wlqupdate_func the incremental window processing function (WLQ)
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _plq_degree parallelism degree of the PLQ stage
+     *  \param _wlq_degree parallelism degree of the WLQ stage
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
+     *  \param _opt_level optimization level used to build the pattern
+     */ 
+    Pane_Farm(plqupdate_funct_t _plqupdate_func,
+              wlqupdate_func_t _wlqupdate_func,
+              uint64_t _win_len,
+              uint64_t _slide_len,
+              win_type_t _winType,
+              size_t _plq_degree,
+              size_t _wlq_degree,
+              string _name,
+              closing_func_t _closing_func,
+              bool _ordered,
+              opt_level_t _opt_level):
+              Pane_Farm(_plqupdate_func, _wlqupdate_func, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        plqupdate_func = _plqupdate_func;
+        wlqupdate_func = _wlqupdate_func;
+        isNICPLQ = false;
+        isNICWLQ = false;
+        isRichPLQ = false;
+        isRichWLQ = false;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        plq_degree = _plq_degree;
+        wlq_degree = _wlq_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
+
+    /** 
+     *  \brief Constructor VI
+     *  
+     *  \param _rich_plqupdate_func the rich incremental pane processing function (PLQ)
+     *  \param _wlqupdate_func the incremental window processing function (WLQ)
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _plq_degree parallelism degree of the PLQ stage
+     *  \param _wlq_degree parallelism degree of the WLQ stage
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
+     *  \param _opt_level optimization level used to build the pattern
+     */ 
+    Pane_Farm(rich_plqupdate_funct_t _rich_plqupdate_func,
+              wlqupdate_func_t _wlqupdate_func,
+              uint64_t _win_len,
+              uint64_t _slide_len,
+              win_type_t _winType,
+              size_t _plq_degree,
+              size_t _wlq_degree,
+              string _name,
+              closing_func_t _closing_func,
+              bool _ordered,
+              opt_level_t _opt_level):
+              Pane_Farm(_rich_plqupdate_func, _wlqupdate_func, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        rich_plqupdate_func = _rich_plqupdate_func;
+        wlqupdate_func = _wlqupdate_func;
+        isNICPLQ = false;
+        isNICWLQ = false;
+        isRichPLQ = true;
+        isRichWLQ = false;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        plq_degree = _plq_degree;
+        wlq_degree = _wlq_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
+
+    /** 
+     *  \brief Constructor VII
+     *  
+     *  \param _plqupdate_func the incremental pane processing function (PLQ)
+     *  \param _rich_wlqupdate_func the rich incremental window processing function (WLQ)
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _plq_degree parallelism degree of the PLQ stage
+     *  \param _wlq_degree parallelism degree of the WLQ stage
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
+     *  \param _opt_level optimization level used to build the pattern
+     */ 
+    Pane_Farm(plqupdate_funct_t _plqupdate_func,
+              rich_wlqupdate_func_t _rich_wlqupdate_func,
+              uint64_t _win_len,
+              uint64_t _slide_len,
+              win_type_t _winType,
+              size_t _plq_degree,
+              size_t _wlq_degree,
+              string _name,
+              closing_func_t _closing_func,
+              bool _ordered,
+              opt_level_t _opt_level):
+              Pane_Farm(_plqupdate_func, _rich_wlqupdate_func, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        plqupdate_func = _plqupdate_func;
+        rich_wlqupdate_func = _rich_wlqupdate_func;
+        isNICPLQ = false;
+        isNICWLQ = false;
+        isRichPLQ = false;
+        isRichWLQ = true;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        plq_degree = _plq_degree;
+        wlq_degree = _wlq_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
+
+    /** 
+     *  \brief Constructor VIII
+     *  
+     *  \param _rich_plqupdate_func the rich incremental pane processing function (PLQ)
+     *  \param _rich_wlqupdate_func the rich incremental window processing function (WLQ)
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _plq_degree parallelism degree of the PLQ stage
+     *  \param _wlq_degree parallelism degree of the WLQ stage
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
+     *  \param _opt_level optimization level used to build the pattern
+     */ 
+    Pane_Farm(rich_plqupdate_funct_t _rich_plqupdate_func,
+              rich_wlqupdate_func_t _rich_wlqupdate_func,
+              uint64_t _win_len,
+              uint64_t _slide_len,
+              win_type_t _winType,
+              size_t _plq_degree,
+              size_t _wlq_degree,
+              string _name,
+              closing_func_t _closing_func,
+              bool _ordered,
+              opt_level_t _opt_level):
+              Pane_Farm(_rich_plqupdate_func, _rich_wlqupdate_func, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        rich_plqupdate_func = rich_plqupdate_func;
+        rich_wlqupdate_func = _rich_wlqupdate_func;
+        isNICPLQ = false;
+        isNICWLQ = false;
+        isRichPLQ = true;
+        isRichWLQ = true;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        plq_degree = _plq_degree;
+        wlq_degree = _wlq_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
+
+    /** 
+     *  \brief Constructor IX
+     *  
+     *  \param _plq_func the non-incremental pane processing function (PLQ)
+     *  \param _wlqupdate_func the incremental window processing function (WLQ)
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _plq_degree parallelism degree of the PLQ stage
+     *  \param _wlq_degree parallelism degree of the WLQ stage
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
+     *  \param _opt_level optimization level used to build the pattern
+     */ 
+    Pane_Farm(plq_func_t _plq_func,
+              wlqupdate_func_t _wlqupdate_func,
+              uint64_t _win_len,
+              uint64_t _slide_len,
+              win_type_t _winType,
+              size_t _plq_degree,
+              size_t _wlq_degree,
+              string _name,
+              closing_func_t _closing_func,
+              bool _ordered,
+              opt_level_t _opt_level):
+              Pane_Farm(_plq_func, _wlqupdate_func, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        plq_func = _plq_func;
+        wlqupdate_func = _wlqupdate_func;
+        isNICPLQ = true;
+        isNICWLQ = false;
+        isRichPLQ = false;
+        isRichWLQ = false;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        plq_degree = _plq_degree;
+        wlq_degree = _wlq_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
+
+    /** 
+     *  \brief Constructor X
+     *  
+     *  \param _rich_plq_func the rich non-incremental pane processing function (PLQ)
+     *  \param _wlqupdate_func the incremental window processing function (WLQ)
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _plq_degree parallelism degree of the PLQ stage
+     *  \param _wlq_degree parallelism degree of the WLQ stage
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
+     *  \param _opt_level optimization level used to build the pattern
+     */ 
+    Pane_Farm(rich_plq_func_t _rich_plq_func,
+              wlqupdate_func_t _wlqupdate_func,
+              uint64_t _win_len,
+              uint64_t _slide_len,
+              win_type_t _winType,
+              size_t _plq_degree,
+              size_t _wlq_degree,
+              string _name,
+              closing_func_t _closing_func,
+              bool _ordered,
+              opt_level_t _opt_level):
+              Pane_Farm(_rich_plq_func, _wlqupdate_func, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        rich_plq_func = _rich_plq_func;
+        wlqupdate_func = _wlqupdate_func;
+        isNICPLQ = true;
+        isNICWLQ = false;
+        isRichPLQ = true;
+        isRichWLQ = false;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        plq_degree = _plq_degree;
+        wlq_degree = _wlq_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
+
+    /** 
+     *  \brief Constructor XI
+     *  
+     *  \param _plq_func the non-incremental pane processing function (PLQ)
+     *  \param _rich_wlqupdate_func the rich incremental window processing function (WLQ)
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _plq_degree parallelism degree of the PLQ stage
+     *  \param _wlq_degree parallelism degree of the WLQ stage
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
+     *  \param _opt_level optimization level used to build the pattern
+     */ 
+    Pane_Farm(plq_func_t _plq_func,
+              rich_wlqupdate_func_t _rich_wlqupdate_func,
+              uint64_t _win_len,
+              uint64_t _slide_len,
+              win_type_t _winType,
+              size_t _plq_degree,
+              size_t _wlq_degree,
+              string _name,
+              closing_func_t _closing_func,
+              bool _ordered,
+              opt_level_t _opt_level):
+              Pane_Farm(_plq_func, _rich_wlqupdate_func, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        plq_func = _plq_func;
+        rich_wlqupdate_func = _rich_wlqupdate_func;
+        isNICPLQ = true;
+        isNICWLQ = false;
+        isRichPLQ = false;
+        isRichWLQ = true;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        plq_degree = _plq_degree;
+        wlq_degree = _wlq_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
+
+    /** 
+     *  \brief Constructor XII
+     *  
+     *  \param _rich_plq_func the rich non-incremental pane processing function (PLQ)
+     *  \param _rich_wlqupdate_func the rich incremental window processing function (WLQ)
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _plq_degree parallelism degree of the PLQ stage
+     *  \param _wlq_degree parallelism degree of the WLQ stage
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
+     *  \param _opt_level optimization level used to build the pattern
+     */ 
+    Pane_Farm(rich_plq_func_t _rich_plq_func,
+              rich_wlqupdate_func_t _rich_wlqupdate_func,
+              uint64_t _win_len,
+              uint64_t _slide_len,
+              win_type_t _winType,
+              size_t _plq_degree,
+              size_t _wlq_degree,
+              string _name,
+              closing_func_t _closing_func,
+              bool _ordered,
+              opt_level_t _opt_level):
+              Pane_Farm(_rich_plq_func, _rich_wlqupdate_func, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        rich_plq_func = _rich_plq_func;
+        rich_wlqupdate_func = _rich_wlqupdate_func;
+        isNICPLQ = true;
+        isNICWLQ = false;
+        isRichPLQ = true;
+        isRichWLQ = true;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        plq_degree = _plq_degree;
+        wlq_degree = _wlq_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
+
+    /** 
+     *  \brief Constructor XIII
+     *  
+     *  \param _plqupdate_func the incremental pane processing function (PLQ)
+     *  \param _wlq_func the non-incremental window processing function (WLQ)
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _plq_degree parallelism degree of the PLQ stage
+     *  \param _wlq_degree parallelism degree of the WLQ stage
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
+     *  \param _opt_level optimization level used to build the pattern
+     */ 
+    Pane_Farm(plqupdate_funct_t _plqupdate_func,
+              wlq_func_t _wlq_func,
+              uint64_t _win_len,
+              uint64_t _slide_len,
+              win_type_t _winType,
+              size_t _plq_degree,
+              size_t _wlq_degree,
+              string _name,
+              closing_func_t _closing_func,
+              bool _ordered,
+              opt_level_t _opt_level):
+              Pane_Farm(_plqupdate_func, _wlq_func, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        plqupdate_func = _plqupdate_func;
+        wlq_func = _wlq_func;
+        isNICPLQ = false;
+        isNICWLQ = true;
+        isRichPLQ = false;
+        isRichWLQ = false;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        plq_degree = _plq_degree;
+        wlq_degree = _wlq_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
+
+    /** 
+     *  \brief Constructor XIV
+     *  
+     *  \param _rich_plqupdate_func the rich incremental pane processing function (PLQ)
+     *  \param _wlq_func the non-incremental window processing function (WLQ)
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _plq_degree parallelism degree of the PLQ stage
+     *  \param _wlq_degree parallelism degree of the WLQ stage
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
+     *  \param _opt_level optimization level used to build the pattern
+     */ 
+    Pane_Farm(rich_plqupdate_funct_t _rich_plqupdate_func,
+              wlq_func_t _wlq_func,
+              uint64_t _win_len,
+              uint64_t _slide_len,
+              win_type_t _winType,
+              size_t _plq_degree,
+              size_t _wlq_degree,
+              string _name,
+              closing_func_t _closing_func,
+              bool _ordered,
+              opt_level_t _opt_level):
+              Pane_Farm(_rich_plqupdate_func, _wlq_func, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        rich_plqupdate_func = _rich_plqupdate_func;
+        wlq_func = _wlq_func;
+        isNICPLQ = false;
+        isNICWLQ = true;
+        isRichPLQ = true;
+        isRichWLQ = false;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        plq_degree = _plq_degree;
+        wlq_degree = _wlq_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
+
+    /** 
+     *  \brief Constructor XV
+     *  
+     *  \param _plqupdate_func the incremental pane processing function (PLQ)
+     *  \param _rich_wlq_func the rich non-incremental window processing function (WLQ)
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _plq_degree parallelism degree of the PLQ stage
+     *  \param _wlq_degree parallelism degree of the WLQ stage
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
+     *  \param _opt_level optimization level used to build the pattern
+     */ 
+    Pane_Farm(plqupdate_funct_t _plqupdate_func,
+              rich_wlq_func_t _rich_wlq_func,
+              uint64_t _win_len,
+              uint64_t _slide_len,
+              win_type_t _winType,
+              size_t _plq_degree,
+              size_t _wlq_degree,
+              string _name,
+              closing_func_t _closing_func,
+              bool _ordered,
+              opt_level_t _opt_level):
+              Pane_Farm(_plqupdate_func, _rich_wlq_func, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        plqupdate_func = _plqupdate_func;
+        rich_wlq_func = _rich_wlq_func;
+        isNICPLQ = false;
+        isNICWLQ = true;
+        isRichPLQ = false;
+        isRichWLQ = true;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        plq_degree = _plq_degree;
+        wlq_degree = _wlq_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
+
+    /** 
+     *  \brief Constructor XVI
+     *  
+     *  \param _rich_plqupdate_func the rich_incremental pane processing function (PLQ)
+     *  \param _rich_wlq_func the rich non-incremental window processing function (WLQ)
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _plq_degree parallelism degree of the PLQ stage
+     *  \param _wlq_degree parallelism degree of the WLQ stage
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
+     *  \param _opt_level optimization level used to build the pattern
+     */ 
+    Pane_Farm(rich_plqupdate_funct_t _rich_plqupdate_func,
+              rich_wlq_func_t _rich_wlq_func,
+              uint64_t _win_len,
+              uint64_t _slide_len,
+              win_type_t _winType,
+              size_t _plq_degree,
+              size_t _wlq_degree,
+              string _name,
+              closing_func_t _closing_func,
+              bool _ordered,
+              opt_level_t _opt_level):
+              Pane_Farm(_rich_plqupdate_func, _rich_wlq_func, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        rich_plqupdate_func = _rich_plqupdate_func;
+        rich_wlq_func = _rich_wlq_func;
+        isNICPLQ = false;
+        isNICWLQ = true;
+        isRichPLQ = true;
+        isRichWLQ = true;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        plq_degree = _plq_degree;
+        wlq_degree = _wlq_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
 
     /** 
      *  \brief Get the optimization level used to build the pattern

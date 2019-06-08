@@ -55,12 +55,14 @@ template<typename tuple_t>
 class Filter: public ff_farm
 {
 public:
-    /// Type of the predicate function
+    /// type of the predicate function
     using filter_func_t = function<bool(tuple_t &)>;
-    /// Type of the rich predicate function
-    using rich_filter_func_t = function<bool(tuple_t &, RuntimeContext)>;
-    /// function type to map the key hashcode onto an identifier starting from zero to pardegree-1
-    using f_routing_t = function<size_t(size_t, size_t)>;
+    /// type of the rich predicate function
+    using rich_filter_func_t = function<bool(tuple_t &, RuntimeContext &)>;
+    /// type of the closing function
+    using closing_func_t = function<void(RuntimeContext &)>;
+    /// type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
+    using routing_func_t = function<size_t(size_t, size_t)>;
 private:
     // friendships with other classes in the library
     friend class MultiPipe;
@@ -71,6 +73,7 @@ private:
     private:
         filter_func_t filter_func; // filter function (predicate)
         rich_filter_func_t rich_filter_func; // rich filter function (predicate)
+        closing_func_t closing_func; // closing function
         string name; // string of the unique name of the pattern
         bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
         RuntimeContext context; // RuntimeContext instance
@@ -83,10 +86,10 @@ private:
 #endif
     public:
         // Constructor I
-        Filter_Node(filter_func_t _filter_func, string _name): filter_func(_filter_func), name(_name), isRich(false) {}
+        Filter_Node(filter_func_t _filter_func, string _name, RuntimeContext _context, closing_func_t _closing_func): filter_func(_filter_func), name(_name), isRich(false), context(_context), closing_func(_closing_func) {}
 
         // Constructor II
-        Filter_Node(rich_filter_func_t _rich_filter_func, string _name, RuntimeContext _context): rich_filter_func(_rich_filter_func), name(_name), isRich(true), context(_context) {}
+        Filter_Node(rich_filter_func_t _rich_filter_func, string _name, RuntimeContext _context, closing_func_t _closing_func): rich_filter_func(_rich_filter_func), name(_name), isRich(true), context(_context), closing_func(_closing_func) {}
 
         // svc_init method (utilized by the FastFlow runtime)
         int svc_init()
@@ -135,6 +138,8 @@ private:
         // svc_end method (utilized by the FastFlow runtime)
         void svc_end()
         {
+            // call the closing function
+            closing_func(context);
 #if defined (LOG_DIR)
             ostringstream stream;
             stream << "************************************LOG************************************\n";
@@ -156,8 +161,9 @@ public:
      *  \param _func filter function (boolean predicate)
      *  \param _pardegree parallelism degree of the Filter pattern
      *  \param _name string with the unique name of the Filter pattern
+     *  \param _closing_func closing function
      */ 
-    Filter(filter_func_t _func, size_t _pardegree, string _name): keyed(false)
+    Filter(filter_func_t _func, size_t _pardegree, string _name, closing_func_t _closing_func): keyed(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -167,7 +173,7 @@ public:
         // vector of Filter_Node instances
         vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
-            auto *seq = new Filter_Node(_func, _name);
+            auto *seq = new Filter_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             w.push_back(seq);
         }
         // add emitter
@@ -186,9 +192,10 @@ public:
      *  \param _func filter function (boolean predicate)
      *  \param _pardegree parallelism degree of the Filter pattern
      *  \param _name string with the unique name of the Filter pattern
-     *  \param _routing function to map the key hashcode onto an identifier starting from zero to pardegree-1
+     *  \param _closing_func closing function
+     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
-    Filter(filter_func_t _func, size_t _pardegree, string _name, f_routing_t _routing): keyed(true)
+    Filter(filter_func_t _func, size_t _pardegree, string _name, closing_func_t _closing_func, routing_func_t _routing_func): keyed(true)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -198,11 +205,11 @@ public:
         // vector of Filter_Node instances
         vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
-            auto *seq = new Filter_Node(_func, _name);
+            auto *seq = new Filter_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing));
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func));
         // add workers
         ff_farm::add_workers(w);
         // add default collector
@@ -217,8 +224,9 @@ public:
      *  \param _func rich filter function (boolean predicate)
      *  \param _pardegree parallelism degree of the Filter pattern
      *  \param _name string with the unique name of the Filter pattern
+     *  \param _closing_func closing function
      */ 
-    Filter(rich_filter_func_t _func, size_t _pardegree, string _name): keyed(false)
+    Filter(rich_filter_func_t _func, size_t _pardegree, string _name, closing_func_t _closing_func): keyed(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -228,7 +236,7 @@ public:
         // vector of Filter_Node instances
         vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
-            auto *seq = new Filter_Node(_func, _name, RuntimeContext(_pardegree, i));
+            auto *seq = new Filter_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             w.push_back(seq);
         }
         // add emitter
@@ -247,9 +255,10 @@ public:
      *  \param _func rich filter function (boolean predicate)
      *  \param _pardegree parallelism degree of the Filter pattern
      *  \param _name string with the unique name of the Filter pattern
-     *  \param _routing function to map the key hashcode onto an identifier starting from zero to pardegree-1
+     *  \param _closing_func closing function
+     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
-    Filter(rich_filter_func_t _func, size_t _pardegree, string _name, f_routing_t _routing): keyed(true)
+    Filter(rich_filter_func_t _func, size_t _pardegree, string _name, closing_func_t _closing_func, routing_func_t _routing_func): keyed(true)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -259,11 +268,11 @@ public:
         // vector of Filter_Node instances
         vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
-            auto *seq = new Filter_Node(_func, _name, RuntimeContext(_pardegree, i));
+            auto *seq = new Filter_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing));
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func));
         // add workers
         ff_farm::add_workers(w);
         // add default collector

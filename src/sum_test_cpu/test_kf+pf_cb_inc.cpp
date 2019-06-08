@@ -84,11 +84,11 @@ int main(int argc, char *argv[])
 	Pane_Farm pf = PaneFarm_Builder(F, G).withCBWindow(win_len, win_slide)
 									.withParallelism(plq_degree, wlq_degree)
 									.withName("test_sum")
-									.withOpt(LEVEL)
+									.withOptLevel(LEVEL)
 									.build();
 	Key_Farm kf = KeyFarm_Builder(pf).withParallelism(kf_degree)
 									.withName("test_sum")
-									.withOpt(LEVEL)
+									.withOptLevel(LEVEL)
 									.build();
 	// creation of the pipeline
 	Generator generator(stream_len, num_keys);

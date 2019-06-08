@@ -101,7 +101,7 @@ int main(int argc, char *argv[])
 	Pane_Farm sky_pf = PaneFarm_Builder(SkyLineFunction, SkyLineMergeNIC).withTBWindow(milliseconds(win_len), milliseconds(slide_len))
 					   													 .withParallelism(skyline_plq_degree, skyline_wlq_degree)
 					   													 .withName("skyline")
-					   													 .withOpt(opt_level)
+					   													 .withOptLevel(opt_level)
 					   													 .build();
 	pipe.add_stage(&sky_pf);
 	// create the consumer stage (printing statistics every second)

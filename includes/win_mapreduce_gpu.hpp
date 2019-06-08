@@ -34,9 +34,9 @@
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with a
  *  copy constructor and copy assignment operator, and they must provide and implement
- *  the setControlFields() and getControlFields() methods. The third template argument F_t is the type of
- *  the callable object to be used for GPU processing (either for the MAP or for the
- *  REDUCE stage).
+ *  the setControlFields() and getControlFields() methods. The third template argument
+ *  F_t is the type of the callable object to be used for GPU processing (either for
+ *  the MAP or for the REDUCE stage).
  */ 
 
 #ifndef WIN_MAPREDUCE_GPU_H
@@ -45,6 +45,7 @@
 // includes
 #include <ff/combine.hpp>
 #include <ff/pipeline.hpp>
+#include <context.hpp>
 #include <win_farm.hpp>
 #include <wm_nodes.hpp>
 #include <win_farm_gpu.hpp>
@@ -67,13 +68,13 @@ class Win_MapReduce_GPU: public ff_pipeline
 {
 public:
     /// function type of the non-incremental MAP processing
-    using f_mapfunction_t = function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
+    using map_func_t = function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
     /// function type of the incremental MAP processing
-    using f_mapupdate_t = function<void(uint64_t, const tuple_t &, result_t &)>;
+    using mapupdate_func_t = function<void(uint64_t, const tuple_t &, result_t &)>;
     /// function type of the non-incremental REDUCE processing
-    using f_reducefunction_t = function<void(uint64_t, Iterable<result_t> &, result_t &)>;
+    using reduce_func_t = function<void(uint64_t, Iterable<result_t> &, result_t &)>;
     /// function type of the incremental REDUCE processing
-    using f_reduceupdate_t = function<void(uint64_t, const result_t &, result_t &)>;
+    using reduceupdate_func_t = function<void(uint64_t, const result_t &, result_t &)>;
 private:
     // type of the wrapper of input tuples
     using wrapper_in_t = wrapper_tuple_t<tuple_t>;  
@@ -92,10 +93,10 @@ private:
     friend class KeyFarmGPU_Builder;
     // configuration variables of the Win_MapReduce_GPU
     F_t gpuFunction;
-    f_mapfunction_t mapFunction;
-    f_mapupdate_t mapUpdate;
-    f_reducefunction_t reduceFunction;
-    f_reduceupdate_t reduceUpdate;
+    map_func_t map_func;
+    mapupdate_func_t mapupdate_func;
+    reduce_func_t reduce_func;
+    reduceupdate_func_t reduceupdate_func;
     bool isGPUMAP;
     bool isGPUREDUCE;
     bool isNICMAP;
@@ -113,9 +114,9 @@ private:
     opt_level_t opt_level;
     PatternConfig config;
 
-    // private constructor I (MAP stage on the GPU and REDUCE stage on the CPU with non-incremental query definition)
+    // private constructor I
     Win_MapReduce_GPU(F_t _gpuFunction,
-                      f_reducefunction_t _reduceFunction,
+                      reduce_func_t _reduce_func,
                       uint64_t _win_len,
                       uint64_t _slide_len,
                       win_type_t _winType,
@@ -130,7 +131,7 @@ private:
                       PatternConfig _config)
                       :
                       gpuFunction(_gpuFunction),
-                      reduceFunction(_reduceFunction),
+                      reduce_func(_reduce_func),
                       isGPUMAP(true),
                       isGPUREDUCE(false),
                       isNICMAP(true),
@@ -170,6 +171,7 @@ private:
         }
         // general fastflow pointers to the MAP and REDUCE stages
         ff_node *map_stage, *reduce_stage;
+        auto closing_func = [] (RuntimeContext &) { return; };
         // create the MAP phase
         if (_map_degree > 1) {
             // vector of Win_Seq_GPU instances
@@ -200,13 +202,13 @@ private:
         if (_reduce_degree > 1) {
             // configuration structure of the Win_Farm instance (REDUCE)
             PatternConfig configWFREDUCE(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceFunction, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", _ordered, LEVEL0, configWFREDUCE, REDUCE);
+            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduce_func, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", closing_func, _ordered, LEVEL0, configWFREDUCE, REDUCE);
             reduce_stage = farm_reduce;
         }
         else {
             // configuration structure of the Win_Seq instance (REDUCE)
             PatternConfig configSeqREDUCE(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _map_degree);
-            auto *seq_reduce = new Win_Seq<result_t, result_t>(_reduceFunction, _map_degree, _map_degree, CB, _name + "_reduce", configSeqREDUCE, REDUCE);
+            auto *seq_reduce = new Win_Seq<result_t, result_t>(_reduce_func, _map_degree, _map_degree, CB, _name + "_reduce", closing_func, RuntimeContext(1, 0), configSeqREDUCE, REDUCE);
             reduce_stage = seq_reduce;
         }
         // add to this the pipeline optimized according to the provided optimization level
@@ -217,9 +219,9 @@ private:
         ff_pipeline::flatten();
     }
 
-    // private constructor II (MAP stage on the GPU and REDUCE stage on the CPU with incremental query definition)
+    // private constructor II
     Win_MapReduce_GPU(F_t _gpuFunction,
-                      f_reduceupdate_t _reduceUpdate,
+                      reduceupdate_func_t _reduceupdate_func,
                       uint64_t _win_len,
                       uint64_t _slide_len,
                       win_type_t _winType,
@@ -234,7 +236,7 @@ private:
                       PatternConfig _config)
                       :
                       gpuFunction(_gpuFunction),
-                      reduceUpdate(_reduceUpdate),
+                      reduceupdate_func(_reduceupdate_func),
                       isGPUMAP(true),
                       isGPUREDUCE(false),
                       isNICMAP(true),
@@ -274,6 +276,7 @@ private:
         }
         // general fastflow pointers to the MAP and REDUCE stages
         ff_node *map_stage, *reduce_stage;
+        auto closing_func = [] (RuntimeContext &) { return; };
         // create the MAP phase
         if (_map_degree > 1) {
             // vector of Win_Seq_GPU instances
@@ -304,13 +307,13 @@ private:
         if (_reduce_degree > 1) {
             // configuration structure of the Win_Farm instance (REDUCE)
             PatternConfig configWFREDUCE(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceUpdate, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", _ordered, LEVEL0, configWFREDUCE, REDUCE);
+            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceupdate_func, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", closing_func, _ordered, LEVEL0, configWFREDUCE, REDUCE);
             reduce_stage = farm_reduce;
         }
         else {
             // configuration structure of the Win_Seq instance (REDUCE)
             PatternConfig configSeqREDUCE(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _map_degree);
-            auto *seq_reduce = new Win_Seq<result_t, result_t>(_reduceUpdate, _map_degree, _map_degree, CB, _name + "_reduce", configSeqREDUCE, REDUCE);
+            auto *seq_reduce = new Win_Seq<result_t, result_t>(_reduceupdate_func, _map_degree, _map_degree, CB, _name + "_reduce", closing_func, RuntimeContext(1, 0), configSeqREDUCE, REDUCE);
             reduce_stage = seq_reduce;
         }
         // add to this the pipeline optimized according to the provided optimization level
@@ -321,8 +324,8 @@ private:
         ff_pipeline::flatten();
     }
 
-    // private constructor III (MAP stage on the CPU with non-incremental query definition and REDUCE stage on the GPU)
-    Win_MapReduce_GPU(f_mapfunction_t _mapFunction,
+    // private constructor III
+    Win_MapReduce_GPU(map_func_t _map_func,
                       F_t _gpuFunction,
                       uint64_t _win_len,
                       uint64_t _slide_len,
@@ -337,7 +340,7 @@ private:
                       opt_level_t _opt_level,
                       PatternConfig _config)
                       :
-                      mapFunction(_mapFunction),
+                      map_func(_map_func),
                       gpuFunction(_gpuFunction),
                       isGPUMAP(false),
                       isGPUREDUCE(true),
@@ -378,6 +381,7 @@ private:
         }
         // general fastflow pointers to the MAP and REDUCE stages
         ff_node *map_stage, *reduce_stage;
+        auto closing_func = [] (RuntimeContext &) { return; };
         // create the MAP phase
         if (_map_degree > 1) {
             // vector of Win_Seq instances
@@ -386,7 +390,7 @@ private:
             for (size_t i = 0; i < _map_degree; i++) {
                 // configuration structure of the Win_Seq instance (MAP)
                 PatternConfig configSeqMAP(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _slide_len);
-                auto *seq = new Win_Seq<tuple_t, result_t, wrapper_in_t>(_mapFunction, _win_len, _slide_len, _winType, _name + "_map_wf", configSeqMAP, MAP);
+                auto *seq = new Win_Seq<tuple_t, result_t, wrapper_in_t>(_map_func, _win_len, _slide_len, _winType, _name + "_map_wf", closing_func, RuntimeContext(1, 0), configSeqMAP, MAP);
                 seq->setMapIndexes(i, _map_degree);
                 w[i] = seq;
             }
@@ -400,7 +404,7 @@ private:
         else {
             // configuration structure of the Win_Seq_GPU instance (MAP)
             PatternConfig configSeqMAP(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _slide_len);
-            auto *seq_map = new Win_Seq<tuple_t, result_t, wrapper_in_t>(_mapFunction, _win_len, _slide_len, _winType, _name + "_map", configSeqMAP, MAP);
+            auto *seq_map = new Win_Seq<tuple_t, result_t, wrapper_in_t>(_map_func, _win_len, _slide_len, _winType, _name + "_map", closing_func, RuntimeContext(1, 0), configSeqMAP, MAP);
             seq_map->setMapIndexes(0, 1);
             map_stage = seq_map;
         }
@@ -425,8 +429,8 @@ private:
         ff_pipeline::flatten();
     }
 
-    // private constructor IV (MAP stage on the CPU with incremental query definition and REDUCE stage on the GPU)
-    Win_MapReduce_GPU(f_mapupdate_t _mapUpdate,
+    // private constructor IV
+    Win_MapReduce_GPU(mapupdate_func_t _mapupdate_func,
                       F_t _gpuFunction,
                       uint64_t _win_len,
                       uint64_t _slide_len,
@@ -441,7 +445,7 @@ private:
                       opt_level_t _opt_level,
                       PatternConfig _config)
                       :
-                      mapUpdate(_mapUpdate),
+                      mapupdate_func(_mapupdate_func),
                       gpuFunction(_gpuFunction),
                       isGPUMAP(false),
                       isGPUREDUCE(true),
@@ -482,6 +486,7 @@ private:
         }
         // general fastflow pointers to the MAP and REDUCE stages
         ff_node *map_stage, *reduce_stage;
+        auto closing_func = [] (RuntimeContext &) { return; };
         // create the MAP phase
         if (_map_degree > 1) {
             // vector of Win_Seq instances
@@ -490,7 +495,7 @@ private:
             for (size_t i = 0; i < _map_degree; i++) {
                 // configuration structure of the Win_Seq instance (MAP)
                 PatternConfig configSeqMAP(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _slide_len);
-                auto *seq = new Win_Seq<tuple_t, result_t, wrapper_in_t>(_mapUpdate, _win_len, _slide_len, _winType, _name + "_map_wf", configSeqMAP, MAP);
+                auto *seq = new Win_Seq<tuple_t, result_t, wrapper_in_t>(_mapupdate_func, _win_len, _slide_len, _winType, _name + "_map_wf", closing_func, RuntimeContext(1, 0), configSeqMAP, MAP);
                 seq->setMapIndexes(i, _map_degree);
                 w[i] = seq;
             }
@@ -504,7 +509,7 @@ private:
         else {
             // configuration structure of the Win_Seq_GPU instance (MAP)
             PatternConfig configSeqMAP(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _slide_len);
-            auto *seq_map = new Win_Seq<tuple_t, result_t, wrapper_in_t>(_mapUpdate, _win_len, _slide_len, _winType, _name + "_map", configSeqMAP, MAP);
+            auto *seq_map = new Win_Seq<tuple_t, result_t, wrapper_in_t>(_mapupdate_func, _win_len, _slide_len, _winType, _name + "_map", closing_func, RuntimeContext(1, 0), configSeqMAP, MAP);
             seq_map->setMapIndexes(0, 1);
             map_stage = seq_map;
         }
@@ -562,10 +567,10 @@ private:
 
 public:
     /** 
-     *  \brief Constructor I (MAP stage on GPU and Non-Incremental REDUCE stage on CPU)
+     *  \brief Constructor I
      *  
-     *  \param _mapFunction the non-incremental map processing function (CPU/GPU function)
-     *  \param _reduceFunction the non-incremental window reduce processing function (CPU function)
+     *  \param _map_func the non-incremental map processing function (CPU/GPU function)
+     *  \param _reduce_func the non-incremental window reduce processing function (CPU function)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
@@ -578,8 +583,8 @@ public:
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Win_MapReduce_GPU(F_t _mapFunction,
-                      f_reducefunction_t _reduceFunction,
+    Win_MapReduce_GPU(F_t _map_func,
+                      reduce_func_t _reduce_func,
                       uint64_t _win_len,
                       uint64_t _slide_len,
                       win_type_t _winType,
@@ -588,17 +593,17 @@ public:
                       size_t _batch_len,
                       size_t _n_thread_block,
                       string _name,
-                      size_t _scratchpad_size=0,
-                      bool _ordered=true,
-                      opt_level_t _opt_level=LEVEL0)
-                      :
-                      Win_MapReduce_GPU(_mapFunction, _reduceFunction, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
+                      size_t _scratchpad_size,
+                      bool _ordered,
+                      opt_level_t _opt_level):
+                      Win_MapReduce_GPU(_map_func, _reduce_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {}
 
     /** 
-     *  \brief Constructor II (MAP stage on GPU and Incremental REDUCE stage on CPU)
+     *  \brief Constructor II
      *  
-     *  \param _mapFunction the non-incremental map processing function (CPU/GPU function)
-     *  \param _reduceUpdate the incremental window reduce processing function (CPU function)
+     *  \param _map_func the non-incremental map processing function (CPU/GPU function)
+     *  \param _reduceupdate_func the incremental window reduce processing function (CPU function)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
@@ -611,8 +616,8 @@ public:
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Win_MapReduce_GPU(F_t _mapFunction,
-                      f_reduceupdate_t _reduceUpdate,
+    Win_MapReduce_GPU(F_t _map_func,
+                      reduceupdate_func_t _reduceupdate_func,
                       uint64_t _win_len,
                       uint64_t _slide_len,
                       win_type_t _winType,
@@ -621,17 +626,17 @@ public:
                       size_t _batch_len,
                       size_t _n_thread_block,
                       string _name,
-                      size_t _scratchpad_size=0,
-                      bool _ordered=true,
-                      opt_level_t _opt_level=LEVEL0)
-                      :
-                      Win_MapReduce_GPU(_mapFunction, _reduceUpdate, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
+                      size_t _scratchpad_size,
+                      bool _ordered,
+                      opt_level_t _opt_level):
+                      Win_MapReduce_GPU(_map_func, _reduceupdate_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {}
 
     /** 
-     *  \brief Constructor III (Non-incremental MAP stage on CPU and REDUCE stage on GPU)
+     *  \brief Constructor III
      *  
-     *  \param _mapFunction the non-incremental map processing function (CPU function)
-     *  \param _reduceFunction the non-incremental window reduce processing function (CPU/GPU function)
+     *  \param _map_func the non-incremental map processing function (CPU function)
+     *  \param _reduce_func the non-incremental window reduce processing function (CPU/GPU function)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
@@ -644,8 +649,8 @@ public:
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Win_MapReduce_GPU(f_mapfunction_t _mapFunction,
-                      F_t _reduceFunction,
+    Win_MapReduce_GPU(map_func_t _map_func,
+                      F_t _reduce_func,
                       uint64_t _win_len,
                       uint64_t _slide_len,
                       win_type_t _winType,
@@ -654,17 +659,17 @@ public:
                       size_t _batch_len,
                       size_t _n_thread_block,
                       string _name,
-                      size_t _scratchpad_size=0,
-                      bool _ordered=true,
-                      opt_level_t _opt_level=LEVEL0)
-                      :
-                      Win_MapReduce_GPU(_mapFunction, _reduceFunction, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
+                      size_t _scratchpad_size,
+                      bool _ordered,
+                      opt_level_t _opt_level):
+                      Win_MapReduce_GPU(_map_func, _reduce_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {}
 
     /** 
-     *  \brief Constructor IV (Incremental MAP stage on CPU and REDUCE stage on GPU)
+     *  \brief Constructor IV
      *  
-     *  \param _mapUpdate the incremental map processing function (CPU function)
-     *  \param _reduceUpdate the incremental window reduce processing function (CPU/GPU function)
+     *  \param _mapupdate_func the incremental map processing function (CPU function)
+     *  \param _reduceupdate_func the incremental window reduce processing function (CPU/GPU function)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
@@ -677,8 +682,8 @@ public:
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Win_MapReduce_GPU(f_mapupdate_t _mapUpdate,
-                      F_t _reduceUpdate,
+    Win_MapReduce_GPU(mapupdate_func_t _mapupdate_func,
+                      F_t _reduceupdate_func,
                       uint64_t _win_len,
                       uint64_t _slide_len,
                       win_type_t _winType,
@@ -687,11 +692,11 @@ public:
                       size_t _batch_len,
                       size_t _n_thread_block,
                       string _name,
-                      size_t _scratchpad_size=0,
-                      bool _ordered=true,
-                      opt_level_t _opt_level=LEVEL0)
-                      :
-                      Win_MapReduce_GPU(_mapUpdate, _reduceUpdate, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
+                      size_t _scratchpad_size,
+                      bool _ordered,
+                      opt_level_t _opt_level):
+                      Win_MapReduce_GPU(_mapupdate_func, _reduceupdate_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {}
 
     /** 
      *  \brief Get the optimization level used to build the pattern

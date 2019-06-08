@@ -42,6 +42,7 @@
 #include <math.h>
 #include <ff/node.hpp>
 #include <window.hpp>
+#include <context.hpp>
 #include <builders.hpp>
 #include <stream_archive.hpp>
 
@@ -59,10 +60,16 @@ template<typename tuple_t, typename result_t, typename input_t>
 class Win_Seq: public ff_node_t<input_t, result_t>
 {
 public:
-    /// function type of the non-incremental window processing
-    using f_winfunction_t = function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
-    /// function type of the incremental window processing
-    using f_winupdate_t = function<void(uint64_t, const tuple_t &, result_t &)>;
+    /// type of the non-incremental window processing function
+    using win_func_t = function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
+    /// type of the rich non-incremental window processing function
+    using rich_win_func_t = function<void(uint64_t, Iterable<tuple_t> &, result_t &, RuntimeContext &)>;
+    /// type of the incremental window processing function
+    using winupdate_func_t = function<void(uint64_t, const tuple_t &, result_t &)>;
+    /// type of the rich incremental window processing function
+    using rich_winupdate_func_t = function<void(uint64_t, const tuple_t &, result_t &, RuntimeContext &)>;
+    /// type of the closing function
+    using closing_func_t = function<void(RuntimeContext &)>;
 private:
     // const iterator type for accessing tuples
     using const_input_iterator_t = typename deque<tuple_t>::const_iterator;
@@ -71,7 +78,7 @@ private:
     // window type used by the Win_Seq pattern
     using win_t = Window<tuple_t, result_t>;
     // function type to compare two tuples
-    using f_compare_t = function<bool(const tuple_t &, const tuple_t &)>;
+    using compare_func_t = function<bool(const tuple_t &, const tuple_t &)>;
     tuple_t tmp; // never used
     // key data type
     using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
@@ -99,8 +106,8 @@ private:
         uint64_t next_lwid; // next window to be opened of this key (lwid)
 
         // constructor
-        Key_Descriptor(f_compare_t _compare, uint64_t _emit_counter=0):
-                       archive(_compare),
+        Key_Descriptor(compare_func_t _compare_func, uint64_t _emit_counter=0):
+                       archive(_compare_func),
                        emit_counter(_emit_counter),
                        rcv_counter(0),
                        next_lwid(0)
@@ -116,14 +123,19 @@ private:
                        rcv_counter(_k.rcv_counter),
                        next_lwid(_k.next_lwid) {}
     };
-    f_winfunction_t winFunction; // function of the non-incremental window processing
-    f_winupdate_t winUpdate; // function of the incremental window processing
-    f_compare_t compare; // function to compare two tuples
+    win_func_t win_func; // function for the non-incremental window processing
+    rich_win_func_t rich_win_func; // rich function for the non-incremental window processing
+    winupdate_func_t winupdate_func; // function for the incremental window processing
+    rich_winupdate_func_t rich_winupdate_func; // rich function for the incremental window processing
+    closing_func_t closing_func; // closing function
+    compare_func_t compare_func; // function to compare two tuples
     uint64_t win_len; // window length (no. of tuples or in time units)
     uint64_t slide_len; // slide length (no. of tuples or in time units)
     win_type_t winType; // window type (CB or TB)
     string name; // string of the unique name of the pattern
     bool isNIC; // this flag is true if the pattern is instantiated with a non-incremental query function
+    bool isRich; // flag stating whether the function to be used is rich
+    RuntimeContext context; // RuntimeContext instance
     PatternConfig config; // configuration structure of the Win_Seq pattern
     role_t role; // role of the Win_Seq instance
     unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
@@ -140,73 +152,22 @@ private:
     ofstream *logfile = nullptr;
 #endif
 
-    // private constructor I (non-incremental queries)
-    Win_Seq(f_winfunction_t _winFunction,
-            uint64_t _win_len,
-            uint64_t _slide_len,
-            win_type_t _winType,
-            string _name,
-            PatternConfig _config,
-            role_t _role)
-            :
-            winFunction(_winFunction),
-            win_len(_win_len),
-            slide_len(_slide_len),
-            winType(_winType),
-            isNIC(true),
-            name(_name),
-            config(_config),
-            role(_role)
+    // private initialization method
+    void init()
     {
         // check the validity of the windowing parameters
-        if (_win_len == 0 || _slide_len == 0) {
+        if (win_len == 0 || slide_len == 0) {
             cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
         // define the compare function depending on the window type
         if (winType == CB) {
-            compare = [](const tuple_t &t1, const tuple_t &t2) {
+            compare_func = [](const tuple_t &t1, const tuple_t &t2) {
                 return std::get<1>(t1.getControlFields()) < std::get<1>(t2.getControlFields());
             };
         }
         else {
-            compare = [](const tuple_t &t1, const tuple_t &t2) {
-                return std::get<2>(t1.getControlFields()) < std::get<2>(t2.getControlFields());
-            };
-        }
-    }
-
-    // private constructor II (incremental queries)
-    Win_Seq(f_winupdate_t _winUpdate,
-            uint64_t _win_len,
-            uint64_t _slide_len,
-            win_type_t _winType,
-            string _name,
-            PatternConfig _config,
-            role_t _role)
-            :
-            winUpdate(_winUpdate),
-            win_len(_win_len),
-            slide_len(_slide_len),
-            winType(_winType),
-            isNIC(false),
-            name(_name),
-            config(_config),
-            role(_role)
-    {
-        // check the validity of the windowing parameters
-        if (_win_len == 0 || _slide_len == 0) {
-            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
-            exit(EXIT_FAILURE);
-        }
-        // define the compare function depending on the window type
-        if (winType == CB) {
-            compare = [](const tuple_t &t1, const tuple_t &t2) {
-                return std::get<1>(t1.getControlFields()) < std::get<1>(t2.getControlFields());
-            };
-        }
-        else {
-            compare = [](const tuple_t &t1, const tuple_t &t2) {
+            compare_func = [](const tuple_t &t1, const tuple_t &t2) {
                 return std::get<2>(t1.getControlFields()) < std::get<2>(t2.getControlFields());
             };
         }
@@ -220,38 +181,156 @@ private:
 
 public:
     /** 
-     *  \brief Constructor I (Non-Incremental Queries)
+     *  \brief Constructor I
      *  
-     *  \param _winFunction the non-incremental window processing function
+     *  \param _win_func the non-incremental window processing function
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _context RuntimeContext object to be used
+     *  \param _config configuration of the pattern
+     *  \param _role role of the pattern
      */ 
-    Win_Seq(f_winfunction_t _winFunction,
+    Win_Seq(win_func_t _win_func,
             uint64_t _win_len,
             uint64_t _slide_len,
             win_type_t _winType,
-            string _name)
+            string _name,
+            closing_func_t _closing_func,
+            RuntimeContext _context,
+            PatternConfig _config,
+            role_t _role)
             :
-            Win_Seq(_winFunction, _win_len, _slide_len, _winType, _name, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ) {}
+            win_func(_win_func),
+            win_len(_win_len),
+            slide_len(_slide_len),
+            winType(_winType),
+            name(_name),
+            closing_func(_closing_func),
+            context(_context),
+            config(_config),
+            role(_role),
+            isNIC(true),
+            isRich(false)
+    {
+        init();
+    }
 
     /** 
-     *  \brief Constructor II (Incremental Queries)
+     *  \brief Constructor II
      *  
-     *  \param _winUpdate the incremental window processing function
+     *  \param _rich_win_func the rich non-incremental window processing function
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _context RuntimeContext object to be used
+     *  \param _config configuration of the pattern
+     *  \param _role role of the pattern
      */ 
-    Win_Seq(f_winupdate_t _winUpdate,
+    Win_Seq(rich_win_func_t _rich_win_func,
             uint64_t _win_len,
             uint64_t _slide_len,
             win_type_t _winType,
-            string _name)
+            string _name,
+            closing_func_t _closing_func,
+            RuntimeContext _context,
+            PatternConfig _config,
+            role_t _role)
             :
-            Win_Seq(_winUpdate, _win_len, _slide_len, _winType, _name, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ) {}
+            rich_win_func(_rich_win_func),
+            win_len(_win_len),
+            slide_len(_slide_len),
+            winType(_winType),
+            name(_name),
+            closing_func(_closing_func),
+            context(_context),
+            config(_config),
+            role(_role),
+            isNIC(true),
+            isRich(true)
+    {
+        init();
+    }
+
+    /** 
+     *  \brief Constructor III
+     *  
+     *  \param _winupdate_func the incremental window processing function
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _context RuntimeContext object to be used
+     *  \param _config configuration of the pattern
+     *  \param _role role of the pattern
+     */ 
+    Win_Seq(winupdate_func_t _winupdate_func,
+            uint64_t _win_len,
+            uint64_t _slide_len,
+            win_type_t _winType,
+            string _name,
+            closing_func_t _closing_func,
+            RuntimeContext _context,
+            PatternConfig _config,
+            role_t _role)
+            :
+            winupdate_func(_winupdate_func),
+            win_len(_win_len),
+            slide_len(_slide_len),
+            winType(_winType),
+            name(_name),
+            closing_func(_closing_func),
+            context(_context),
+            config(_config),
+            role(_role),
+            isNIC(false),
+            isRich(false)
+    {
+        init();
+    }
+
+    /** 
+     *  \brief Constructor IV
+     *  
+     *  \param _rich_winupdate_func the rich incremental window processing function
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _context RuntimeContext object to be used
+     *  \param _config configuration of the pattern
+     *  \param _role role of the pattern
+     */ 
+    Win_Seq(rich_winupdate_func_t _rich_winupdate_func,
+            uint64_t _win_len,
+            uint64_t _slide_len,
+            win_type_t _winType,
+            string _name,
+            closing_func_t _closing_func,
+            RuntimeContext _context,
+            PatternConfig _config,
+            role_t _role)
+            :
+            rich_winupdate_func(_rich_winupdate_func),
+            win_len(_win_len),
+            slide_len(_slide_len),
+            winType(_winType),
+            name(_name),
+            closing_func(_closing_func),
+            context(_context),
+            config(_config),
+            role(_role),
+            isNIC(false),
+            isRich(true)
+    {
+        init();
+    }
 
 //@cond DOXY_IGNORE
 
@@ -285,7 +364,7 @@ public:
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
             // create the descriptor of that key
-            keyMap.insert(make_pair(key, Key_Descriptor(compare, role == MAP ? map_indexes.first : 0)));
+            keyMap.insert(make_pair(key, Key_Descriptor(compare_func, role == MAP ? map_indexes.first : 0)));
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
@@ -359,15 +438,18 @@ public:
         for (auto &win: wins) {
             if (win.onTuple(*t) == CONTINUE) { // window is not fired yet
                 if (!isNIC && !isEOSMarker<tuple_t, input_t>(*wt)) {
-                    // incremental query -> call winUpdate
-                    winUpdate(win.getGWID(), *t, *(win.getResult()));
+                    // incremental query -> call rich_/winupdate_func
+                    if (!isRich)
+                        winupdate_func(win.getGWID(), *t, *(win.getResult()));
+                    else
+                        rich_winupdate_func(win.getGWID(), *t, *(win.getResult()), context);
                 }
             }
             else { // window is fired
                 // acquire from the archive the optionals to the first and the last tuple of the window
                 optional<tuple_t> t_s = win.getFirstTuple();
                 optional<tuple_t> t_e = win.getFiringTuple();
-                // non-incremental query -> call winFunction
+                // non-incremental query -> call win_func
                 if (isNIC) {
 #if defined(LOG_DIR)
                     rcvTuplesTriggering++;
@@ -383,8 +465,11 @@ public:
                     else
                         its = (key_d.archive).getWinRange(*t_s, *t_e);
                     Iterable<tuple_t> iter(its.first, its.second);
-                    // non-incremental query -> call winFunction
-                    winFunction(win.getGWID(), iter, *(win.getResult()));
+                    // non-incremental query -> call rich_/win_func
+                    if (!isRich)
+                        win_func(win.getGWID(), iter, *(win.getResult()));
+                    else
+                        rich_win_func(win.getGWID(), iter, *(win.getResult()), context);
                 }
                 // purge the tuples from the archive (if the window is not empty)
                 if (t_s)
@@ -450,8 +535,11 @@ public:
                     else
                         its = ((k.second).archive).getWinRange(*t_s);
                     Iterable<tuple_t> iter(its.first, its.second);
-                    // non-incremental query -> call winFunction
-                    winFunction(win.getGWID(), iter, *(win.getResult()));
+                    // non-incremental query -> call rich_/win_func
+                    if (!isRich)
+                        win_func(win.getGWID(), iter, *(win.getResult()));
+                    else
+                        rich_win_func(win.getGWID(), iter, *(win.getResult()), context);
                 }
                 // send the result of the window
                 result_t *out = win.getResult();
@@ -474,6 +562,8 @@ public:
     // svc_end method (utilized by the FastFlow runtime)
     void svc_end()
     {
+        // call the closing function
+        closing_func(context);
 #if defined (LOG_DIR)
         ostringstream stream;
         if (!isNIC) {

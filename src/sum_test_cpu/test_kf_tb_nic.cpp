@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
 	Key_Farm kf = KeyFarm_Builder(F).withTBWindow(microseconds(win_len), microseconds(win_slide))
 									.withParallelism(pardegree)
 									.withName("test_sum")
-									.withOpt(LEVEL)
+									.withOptLevel(LEVEL)
 									.build();
 	// creation of the pipeline
 	Generator generator(stream_len, num_keys);

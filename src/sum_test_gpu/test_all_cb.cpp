@@ -236,7 +236,7 @@ int main(int argc, char *argv[])
 																								.withBatch(batch_len)
 										   														.withParallelism(degree2, degree3)
 										   														.withName("pf_gpu_nic")
-										   														.withOpt(opt_level)
+										   														.withOptLevel(opt_level)
 										   														.build_ptr();
 	ff_Pipe<tuple_t, output_t> pipe4(generator4, *pf4, consumer4);
 	cout << "Run Test 4 PF(PLQ_GPU, WLQ(NIC)): number of threads " << pipe4.cardinality() << endl;
@@ -255,7 +255,7 @@ int main(int argc, char *argv[])
 																								.withBatch(batch_len)
 										   														.withParallelism(degree2, degree3)
 										   														.withName("pf_gpu_inc")
-										   														.withOpt(opt_level)
+										   														.withOptLevel(opt_level)
 										   														.build_ptr();
 	ff_Pipe<tuple_t, output_t> pipe5(generator5, *pf5, consumer5);
 	cout << "Run Test 5 PF(PLQ_GPU, WLQ(INC)): number of threads " << pipe5.cardinality() << endl;
@@ -274,7 +274,7 @@ int main(int argc, char *argv[])
 																								.withBatch(batch_len)
 										   														.withParallelism(degree2, degree3)
 										   														.withName("pf_nic_gpu")
-										   														.withOpt(opt_level)
+										   														.withOptLevel(opt_level)
 										   														.build_ptr();
 	ff_Pipe<tuple_t, output_t> pipe6(generator6, *pf6, consumer6);
 	cout << "Run Test 6 PF(PLQ(NIC), WLQ_GPU): number of threads " << pipe6.cardinality() << endl;
@@ -293,7 +293,7 @@ int main(int argc, char *argv[])
 																								.withBatch(batch_len)
 										   														.withParallelism(degree2, degree3)
 										   														.withName("pf_inc_gpu")
-										   														.withOpt(opt_level)
+										   														.withOptLevel(opt_level)
 										   														.build_ptr();
 	ff_Pipe<tuple_t, output_t> pipe7(generator7, *pf7, consumer7);
 	cout << "Run Test 7 PF(PLQ(INC), WLQ_GPU): number of threads " << pipe7.cardinality() << endl;
@@ -312,7 +312,7 @@ int main(int argc, char *argv[])
 																										  .withBatch(batch_len)
 										   																  .withParallelism(max<size_t>(degree2, 2), degree3)
 										   															      .withName("wm_gpu_nic")
-										   																  .withOpt(opt_level)
+										   																  .withOptLevel(opt_level)
 										   																  .build_ptr();
 	ff_Pipe<tuple_t, output_t> pipe8(generator8, *wm8, consumer8);
 	if (degree2 > 1) {
@@ -333,7 +333,7 @@ int main(int argc, char *argv[])
 																										  .withBatch(batch_len)
 										   																  .withParallelism(max<size_t>(degree2, 2), degree3)
 										   																  .withName("wm_gpu_inc")
-										   																  .withOpt(opt_level)
+										   																  .withOptLevel(opt_level)
 										   																  .build_ptr();
 	ff_Pipe<tuple_t, output_t> pipe9(generator9, *wm9, consumer9);
 	if (degree2 > 1) {
@@ -354,7 +354,7 @@ int main(int argc, char *argv[])
 																										  .withBatch(batch_len)
 										   																  .withParallelism(max<size_t>(degree2, 2), degree3)
 										   																  .withName("wm_nic_gpu")
-										   															      .withOpt(opt_level)
+										   															      .withOptLevel(opt_level)
 										   																  .build_ptr();
 	ff_Pipe<tuple_t, output_t> pipe10(generator10, *wm10, consumer10);
 	if (degree2 > 1) {
@@ -375,7 +375,7 @@ int main(int argc, char *argv[])
 																										  .withBatch(batch_len)
 										   																  .withParallelism(max<size_t>(degree2, 2), degree3)
 										   																  .withName("wm_inc_gpu")
-										   															      .withOpt(opt_level)
+										   															      .withOptLevel(opt_level)
 										   																  .build_ptr();
 	ff_Pipe<tuple_t, output_t> pipe11(generator11, *wm11, consumer11);
 	if (degree2 > 1) {
@@ -396,11 +396,11 @@ int main(int argc, char *argv[])
 																							    .withBatch(batch_len)
 										   														.withParallelism(degree2, degree3)
 										   														.withName("pf_gpu_nic")
-										   														.withOpt(opt_level)
+										   														.withOptLevel(opt_level)
 										   														.build_ptr();
 	auto *wf12 = WinFarmGPU_Builder<decltype(*pf12)>(*pf12).withParallelism(degree1)
 										   			 		     .withName("wf_pf_gpu_nic")
-										   			 			 .withOpt(opt_level)
+										   			 			 .withOptLevel(opt_level)
 										   			 			 .build_ptr();
 	ff_Pipe<tuple_t, output_t> pipe12(generator12, *wf12, consumer12);
 	cout << "Run Test 12 WF(PF(PLQ_GPU, WLQ(NIC))): number of threads " << pipe12.cardinality() << endl;
@@ -419,11 +419,11 @@ int main(int argc, char *argv[])
 																								.withBatch(batch_len)
 										   														.withParallelism(degree2, degree3)
 										   														.withName("pf_gpu_inc")
-										   														.withOpt(opt_level)
+										   														.withOptLevel(opt_level)
 										   														.build_ptr();
 	auto *wf13 = WinFarmGPU_Builder<decltype(*fp13)>(*fp13).withParallelism(degree1)
 										   			 		     .withName("wf_pf_gpu_inc")
-										   			 			 .withOpt(opt_level)
+										   			 			 .withOptLevel(opt_level)
 										   			 			 .build_ptr();
 	ff_Pipe<tuple_t, output_t> pipe13(generator13, *wf13, consumer13);
 	cout << "Run Test 13 WF(PF(PLQ_GPU, WLQ(INC))): number of threads " << pipe13.cardinality() << endl;
@@ -442,11 +442,11 @@ int main(int argc, char *argv[])
 																								.withBatch(batch_len)
 										   														.withParallelism(degree2, degree3)
 										   														.withName("pf_nic_gpu")
-										   														.withOpt(opt_level)
+										   														.withOptLevel(opt_level)
 										   														.build_ptr();
 	auto *wf14 = WinFarmGPU_Builder<decltype(*pf14)>(*pf14).withParallelism(degree1)
 										   			 		     .withName("wf_pf_nic_gpu")
-										   			 			 .withOpt(opt_level)
+										   			 			 .withOptLevel(opt_level)
 										   			 			 .build_ptr();
 	ff_Pipe<tuple_t, output_t> pipe14(generator14, *wf14, consumer14);
 	cout << "Run Test 14 WF(PF(PLQ(NIC), WLQ_GPU)): number of threads " << pipe14.cardinality() << endl;
@@ -465,11 +465,11 @@ int main(int argc, char *argv[])
 																								.withBatch(batch_len)
 										   														.withParallelism(degree2, degree3)
 										   														.withName("pf_inc_gpu")
-										   														.withOpt(opt_level)
+										   														.withOptLevel(opt_level)
 										   														.build_ptr();
 	auto *wf15 = WinFarmGPU_Builder<decltype(*pf15)>(*pf15).withParallelism(degree1)
 										   			 		     .withName("wf_pf_inc_gpu")
-										   			 			 .withOpt(opt_level)
+										   			 			 .withOptLevel(opt_level)
 										   			 			 .build_ptr();
 	ff_Pipe<tuple_t, output_t> pipe15(generator15, *wf15, consumer15);
 	cout << "Run Test 15 WF(PF(PLQ(INC), WLQ_GPU)): number of threads " << pipe15.cardinality() << endl;
@@ -488,11 +488,11 @@ int main(int argc, char *argv[])
 																										  .withBatch(batch_len)
 										   																  .withParallelism(max<size_t>(degree2, 2), degree3)
 										   																  .withName("wm_gpu_nic")
-										   																  .withOpt(opt_level)
+										   																  .withOptLevel(opt_level)
 										   																  .build_ptr();
 	auto *wf16 = WinFarmGPU_Builder<decltype(*wm16)>(*wm16).withParallelism(degree1)
 										   			 		     .withName("wf_wm_gpu_nic")
-										   			 			 .withOpt(opt_level)
+										   			 			 .withOptLevel(opt_level)
 										   			 			 .build_ptr();
 	ff_Pipe<tuple_t, output_t> pipe16(generator16, *wf16, consumer16);
 	if (degree2 > 1) {
@@ -513,11 +513,11 @@ int main(int argc, char *argv[])
 																										  .withBatch(batch_len)
 										   																  .withParallelism(max<size_t>(degree2, 2), degree3)
 										   																  .withName("wm_gpu_nic")
-										   																  .withOpt(opt_level)
+										   																  .withOptLevel(opt_level)
 										   																  .build_ptr();
 	auto *wf17 = WinFarmGPU_Builder<decltype(*wm17)>(*wm17).withParallelism(degree1)
 										   			 		     .withName("wf_wm_gpu_nic")
-										   			 			 .withOpt(opt_level)
+										   			 			 .withOptLevel(opt_level)
 										   			 			 .build_ptr();
 	ff_Pipe<tuple_t, output_t> pipe17(generator17, *wf17, consumer17);
 	if (degree2 > 1) {
@@ -538,11 +538,11 @@ int main(int argc, char *argv[])
 																									  .withBatch(batch_len)
 										   															  .withParallelism(max<size_t>(degree2, 2), degree3)
 										   															  .withName("wm_nic_gpu")
-										   															  .withOpt(opt_level)
+										   															  .withOptLevel(opt_level)
 										   															  .build_ptr();
 	auto *wf18 = WinFarmGPU_Builder<decltype(*wm18)>(*wm18).withParallelism(degree1)
 										   			 		     .withName("wf_wn_nic_gpu")
-										   			 			 .withOpt(opt_level)
+										   			 			 .withOptLevel(opt_level)
 										   			 			 .build_ptr();
 	ff_Pipe<tuple_t, output_t> pipe18(generator18, *wf18, consumer18);
 	if (degree2 > 1) {
@@ -563,11 +563,11 @@ int main(int argc, char *argv[])
 																									  .withBatch(batch_len)
 										   														      .withParallelism(max<size_t>(degree2, 2), degree3)
 										   														      .withName("wm_inc_gpu")
-										   														      .withOpt(opt_level)
+										   														      .withOptLevel(opt_level)
 										   														      .build_ptr();
 	auto *wf19 = WinFarmGPU_Builder<decltype(*wm19)>(*wm19).withParallelism(degree1)
 										   			 		     .withName("wf_wn_inc_gpu")
-										   			 			 .withOpt(opt_level)
+										   			 			 .withOptLevel(opt_level)
 										   			 			 .build_ptr();
 	ff_Pipe<tuple_t, output_t> pipe19(generator19, *wf19, consumer19);
 	if (degree2 > 1) {
@@ -588,11 +588,11 @@ int main(int argc, char *argv[])
 																								.withBatch(batch_len)
 										   														.withParallelism(degree2, degree3)
 										   														.withName("pf_gpu_nic")
-										   														.withOpt(opt_level)
+										   														.withOptLevel(opt_level)
 										   														.build_ptr();
 	auto *kf20 = KeyFarmGPU_Builder<decltype(*pf20)>(*pf20).withParallelism(degree1)
 										   			 		     .withName("kf_pf_gpu_nic")
-										   			 			 .withOpt(opt_level)
+										   			 			 .withOptLevel(opt_level)
 										   			 			 .build_ptr();
 	ff_Pipe<tuple_t, output_t> pipe20(generator20, *kf20, consumer20);
 	cout << "Run Test 20 KF(PF(PLQ_GPU, WLQ(NIC))): number of threads " << pipe20.cardinality() << endl;
@@ -611,11 +611,11 @@ int main(int argc, char *argv[])
 																								.withBatch(batch_len)
 										   														.withParallelism(degree2, degree3)
 										   														.withName("pf_gpu_inc")
-										   														.withOpt(opt_level)
+										   														.withOptLevel(opt_level)
 										   														.build_ptr();
 	auto *kf21 = KeyFarmGPU_Builder<decltype(*pf21)>(*pf21).withParallelism(degree1)
 										   			 		     .withName("kf_pf_gpu_inc")
-										   			 			 .withOpt(opt_level)
+										   			 			 .withOptLevel(opt_level)
 										   			 			 .build_ptr();
 	ff_Pipe<tuple_t, output_t> pipe21(generator21, *kf21, consumer21);
 	cout << "Run Test 21 KF(PF(PLQ_GPU, WLQ(INC))): number of threads " << pipe21.cardinality() << endl;
@@ -634,11 +634,11 @@ int main(int argc, char *argv[])
 																								.withBatch(batch_len)
 										   														.withParallelism(degree2, degree3)
 										   														.withName("pf_nic_gpu")
-										   														.withOpt(opt_level)
+										   														.withOptLevel(opt_level)
 										   														.build_ptr();
 	auto *kf22 = KeyFarmGPU_Builder<decltype(*pf22)>(*pf22).withParallelism(degree1)
 										   			 		     .withName("kf_pf_nic_gpu")
-										   			 			 .withOpt(opt_level)
+										   			 			 .withOptLevel(opt_level)
 										   			 			 .build_ptr();
 	ff_Pipe<tuple_t, output_t> pipe22(generator22, *kf22, consumer22);
 	cout << "Run Test 22 KF(PF(PLQ(NIC), WLQ_GPU)): number of threads " << pipe22.cardinality() << endl;
@@ -657,11 +657,11 @@ int main(int argc, char *argv[])
 																								.withBatch(batch_len)
 										   														.withParallelism(degree2, degree3)
 										   														.withName("pf_inc_gpu")
-										   														.withOpt(opt_level)
+										   														.withOptLevel(opt_level)
 										   														.build_ptr();
 	auto *kf23 = KeyFarmGPU_Builder<decltype(*pf23)>(*pf23).withParallelism(degree1)
 										   			 		     .withName("kf_pf_inc_gpu")
-										   			 			 .withOpt(opt_level)
+										   			 			 .withOptLevel(opt_level)
 										   			 			 .build_ptr();
 	ff_Pipe<tuple_t, output_t> pipe23(generator23, *kf23, consumer23);
 	cout << "Run Test 23 KF(PF(PLQ(INC), WLQ_GPU)): number of threads " << pipe23.cardinality() << endl;
@@ -681,11 +681,11 @@ int main(int argc, char *argv[])
 																										  .withBatch(batch_len)
 										   																  .withParallelism(max<size_t>(degree2, 2), degree3)
 										   																  .withName("wm_gpu_nic")
-										   																  .withOpt(opt_level)
+										   																  .withOptLevel(opt_level)
 										   																  .build_ptr();
 	auto *kf24 = KeyFarmGPU_Builder<decltype(*wm24)>(*wm24).withParallelism(degree1)
 										   			 		     .withName("kf_wm_gpu_nic")
-										   			 			 .withOpt(opt_level)
+										   			 			 .withOptLevel(opt_level)
 										   			 			 .build_ptr();
 	ff_Pipe<tuple_t, output_t> pipe24(generator24, *kf24, consumer24);
 	if (degree2 > 1) {
@@ -706,11 +706,11 @@ int main(int argc, char *argv[])
 																										  .withBatch(batch_len)
 										   														          .withParallelism(max<size_t>(degree2, 2), degree3)
 										   														          .withName("wm_gpu_inc")
-										   														          .withOpt(opt_level)
+										   														          .withOptLevel(opt_level)
 										   														          .build_ptr();
 	auto *kf25 = KeyFarmGPU_Builder<decltype(*wm25)>(*wm25).withParallelism(degree1)
 										   			 		     .withName("kf_wm_gpu_inc")
-										   			 			 .withOpt(opt_level)
+										   			 			 .withOptLevel(opt_level)
 										   			 			 .build_ptr();
 	ff_Pipe<tuple_t, output_t> pipe25(generator25, *kf25, consumer25);
 	if (degree2 > 1) {
@@ -731,11 +731,11 @@ int main(int argc, char *argv[])
 																									  .withBatch(batch_len)
 										   														      .withParallelism(max<size_t>(degree2, 2), degree3)
 										   														      .withName("wm_nic_gpu")
-										   														      .withOpt(opt_level)
+										   														      .withOptLevel(opt_level)
 										   														      .build_ptr();
 	auto *kf26 = KeyFarmGPU_Builder<decltype(*wm26)>(*wm26).withParallelism(degree1)
 										   			 		     .withName("kf_wn_nic_gpu")
-										   			 			 .withOpt(opt_level)
+										   			 			 .withOptLevel(opt_level)
 										   			 			 .build_ptr();
 	ff_Pipe<tuple_t, output_t> pipe26(generator26, *kf26, consumer26);
 	if (degree2 > 1) {
@@ -756,11 +756,11 @@ int main(int argc, char *argv[])
 																									  .withBatch(batch_len)
 										   														      .withParallelism(max<size_t>(degree2, 2), degree3)
 										   														      .withName("wm_inc_gpu")
-										   														      .withOpt(opt_level)
+										   														      .withOptLevel(opt_level)
 										   														      .build_ptr();
 	auto *kf27 = KeyFarmGPU_Builder<decltype(*wm27)>(*wm27).withParallelism(degree1)
 										   			 		     .withName("kf_wn_inc_gpu")
-										   			 			 .withOpt(opt_level)
+										   			 			 .withOptLevel(opt_level)
 										   			 			 .build_ptr();
 	ff_Pipe<tuple_t, output_t> pipe27(generator27, *kf27, consumer27);
 	if (degree2 > 1) {

@@ -43,18 +43,18 @@ private:
     // type of the wrapper of input tuples
     using wrapper_in_t = wrapper_tuple_t<tuple_t>;
     // function type to map the key hashcode onto an identifier starting from zero to pardegree-1
-    using f_routing_t = function<size_t(size_t, size_t)>;
+    using routing_func_t = function<size_t(size_t, size_t)>;
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3>
     friend class Key_Farm;
     template<typename T1, typename T2, typename T3, typename T4>
     friend class Key_Farm_GPU;
     friend class MultiPipe;
-    f_routing_t routing; // routing function
+    routing_func_t routing; // routing function
     size_t pardegree; // parallelism degree (number of inner patterns)
 
     // private constructor
-    KF_Emitter(f_routing_t _routing, size_t _pardegree):
+    KF_Emitter(routing_func_t _routing, size_t _pardegree):
                routing(_routing), pardegree(_pardegree) {}
 
     // svc_init method (utilized by the FastFlow runtime)
@@ -90,7 +90,7 @@ private:
     // type of the wrapper of input tuples
     using wrapper_in_t = wrapper_tuple_t<tuple_t>;
     // function type to map the key hashcode onto an identifier starting from zero to pardegree1-1
-    using f_routing_t = function<size_t(size_t, size_t)>;
+    using routing_func_t = function<size_t(size_t, size_t)>;
     tuple_t tmp; // never used
     // key data type
     using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
@@ -100,7 +100,7 @@ private:
     template<typename T1, typename T2, typename T3, typename T4>
     friend class Key_Farm_GPU;
     friend class MultiPipe;
-    f_routing_t routing; // routing function (used by level 1)
+    routing_func_t routing; // routing function (used by level 1)
     win_type_t winType; // type of the windows (CB or TB, used by level 2)
     uint64_t win_len; // window length (in no. of tuples or in time units, used by level 2)
     uint64_t slide_len; // window slide (in no. of tuples or in time units, used by level 2)
@@ -121,7 +121,7 @@ private:
     unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
 
     // private constructor
-    KF_NestedEmitter(f_routing_t _routing, win_type_t _winType, uint64_t _win_len, uint64_t _slide_len, size_t _pardegree1, size_t _pardegree2, role_t _role):
+    KF_NestedEmitter(routing_func_t _routing, win_type_t _winType, uint64_t _win_len, uint64_t _slide_len, size_t _pardegree1, size_t _pardegree2, role_t _role):
                      routing(_routing),
                      winType(_winType),
                      win_len(_win_len),

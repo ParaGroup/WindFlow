@@ -35,6 +35,9 @@
 
 using namespace std;
 
+// includes
+#include <local_storage.hpp>
+
 /** 
  *  \class RuntimeContext
  *  
@@ -50,6 +53,7 @@ class RuntimeContext
 private:
     size_t parallelism; // parallelism degree of the pattern
     size_t index; // index of the replica
+    LocalStorage storage; // local storage
 
 public:
     /// Constructor I
@@ -81,6 +85,17 @@ public:
     size_t getReplicaIndex() const
     {
         return index;
+    }
+
+    /** 
+     *  \brief Return a reference to the local storage used by the operator replica
+     *         accessing this instance of RuntimeContext
+     *  
+     *  \return reference to the local storage
+     */ 
+    LocalStorage &getLocalStorage()
+    {
+        return storage;
     }
 };
 

@@ -59,11 +59,13 @@ public:
     /// type of the generation function (item-by-item version, briefly "itemized")
     using source_item_func_t = function<bool(tuple_t &)>;
     /// type of the rich generation function (item-by-item version, briefly "itemized")
-    using rich_source_item_func_t = function<bool(tuple_t &, RuntimeContext context)>;
+    using rich_source_item_func_t = function<bool(tuple_t &, RuntimeContext &)>;
     /// type of the generation function (single-loop version, briefly "loop")
     using source_loop_func_t = function<void(Shipper<tuple_t>&)>;
     /// type of the rich generation function (single-loop version, briefly "loop")
-    using rich_source_loop_func_t = function<void(Shipper<tuple_t>&, RuntimeContext context)>;
+    using rich_source_loop_func_t = function<void(Shipper<tuple_t>&, RuntimeContext &)>;
+    /// type of the closing function
+    using closing_func_t = function<void(RuntimeContext &)>;
 private:
     // friendships with other classes in the library
     friend class MultiPipe;
@@ -75,6 +77,7 @@ private:
         rich_source_item_func_t rich_source_func_item; // rich generation function (item-by-item version)
         source_loop_func_t source_func_loop; // generation function (single-loop version)
         rich_source_loop_func_t rich_source_func_loop; // rich generation function (single-loop version)
+        closing_func_t closing_func; // closing function
         string name; // string of the unique name of the pattern
         bool isItemized; // flag stating whether we are using the item-by-item version of the generation function
         bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
@@ -87,16 +90,16 @@ private:
 #endif
     public:
         // Constructor I
-        Source_Node(source_item_func_t _source_func_item, string _name): source_func_item(_source_func_item), name(_name), isItemized(true), isRich(false), isEND(false) {}
+        Source_Node(source_item_func_t _source_func_item, string _name, RuntimeContext _context, closing_func_t _closing_func): source_func_item(_source_func_item), name(_name), isItemized(true), isRich(false), isEND(false), context(_context), closing_func(_closing_func) {}
 
         // Constructor II
-        Source_Node(rich_source_item_func_t _rich_source_func_item, string _name, RuntimeContext _context): rich_source_func_item(_rich_source_func_item), name(_name), isItemized(true), isRich(true), isEND(false), context(_context) {}
+        Source_Node(rich_source_item_func_t _rich_source_func_item, string _name, RuntimeContext _context, closing_func_t _closing_func): rich_source_func_item(_rich_source_func_item), name(_name), isItemized(true), isRich(true), isEND(false), context(_context), closing_func(_closing_func) {}
 
         // Constructor III
-        Source_Node(source_loop_func_t _source_func_loop, string _name): source_func_loop(_source_func_loop), name(_name), isItemized(false), isRich(false), isEND(false) {}
+        Source_Node(source_loop_func_t _source_func_loop, string _name, RuntimeContext _context, closing_func_t _closing_func): source_func_loop(_source_func_loop), name(_name), isItemized(false), isRich(false), isEND(false), context(_context), closing_func(_closing_func) {}
 
         // Constructor IV
-        Source_Node(rich_source_loop_func_t _rich_source_func_loop, string _name, RuntimeContext _context): rich_source_func_loop(_rich_source_func_loop), name(_name), isItemized(false), isRich(true), isEND(false), context(_context) {}
+        Source_Node(rich_source_loop_func_t _rich_source_func_loop, string _name, RuntimeContext _context, closing_func_t _closing_func): rich_source_func_loop(_rich_source_func_loop), name(_name), isItemized(false), isRich(true), isEND(false), context(_context), closing_func(_closing_func) {}
 
         // svc_init method (utilized by the FastFlow runtime)
         int svc_init()
@@ -148,6 +151,8 @@ private:
         // svc_end method (utilized by the FastFlow runtime)
         void svc_end()
         {
+            // call the closing function
+            closing_func(context);
             delete shipper;
 #if defined (LOG_DIR)
             ostringstream stream;
@@ -168,8 +173,9 @@ public:
      *  \param _func generation function (item-by-item version)
      *  \param _pardegree parallelism degree of the Source pattern
      *  \param _name string with the unique name of the Source pattern
+     *  \param _closing_func closing function
      */ 
-    Source(source_item_func_t _func, size_t _pardegree, string _name)
+    Source(source_item_func_t _func, size_t _pardegree, string _name, closing_func_t _closing_func)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -179,7 +185,7 @@ public:
         // vector of Source_Node instances
         vector<ff_node *> first_set;
         for (size_t i=0; i<_pardegree; i++) {
-            auto *seq = new Source_Node(_func, _name);
+            auto *seq = new Source_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             first_set.push_back(seq);
         }
         // add first set
@@ -196,8 +202,9 @@ public:
      *  \param _func rich generation function (item-by-item version)
      *  \param _pardegree parallelism degree of the Source pattern
      *  \param _name string with the unique name of the Source pattern
+     *  \param _closing_func closing function
      */ 
-    Source(rich_source_item_func_t _func, size_t _pardegree, string _name)
+    Source(rich_source_item_func_t _func, size_t _pardegree, string _name, closing_func_t _closing_func)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -207,7 +214,7 @@ public:
         // vector of Source_Node instances
         vector<ff_node *> first_set;
         for (size_t i=0; i<_pardegree; i++) {
-            auto *seq = new Source_Node(_func, _name, RuntimeContext(_pardegree, i));
+            auto *seq = new Source_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             first_set.push_back(seq);
         }
         // add first set
@@ -224,8 +231,9 @@ public:
      *  \param _func generation function (single-loop version)
      *  \param _pardegree parallelism degree of the Source pattern
      *  \param _name string with the unique name of the Source pattern
+     *  \param _closing_func closing function
      */ 
-    Source(source_loop_func_t _func, size_t _pardegree, string _name)
+    Source(source_loop_func_t _func, size_t _pardegree, string _name, closing_func_t _closing_func)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -235,7 +243,7 @@ public:
         // vector of Source_Node instances
         vector<ff_node *> first_set;
         for (size_t i=0; i<_pardegree; i++) {
-            auto *seq = new Source_Node(_func, _name);
+            auto *seq = new Source_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             first_set.push_back(seq);
         }
         // add first set
@@ -252,8 +260,9 @@ public:
      *  \param _func rich generation function (single-loop version)
      *  \param _pardegree parallelism degree of the Source pattern
      *  \param _name string with the unique name of the Source pattern
+     *  \param _closing_func closing function
      */ 
-    Source(rich_source_loop_func_t _func, size_t _pardegree, string _name)
+    Source(rich_source_loop_func_t _func, size_t _pardegree, string _name, closing_func_t _closing_func)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -263,7 +272,7 @@ public:
         // vector of Source_Node instances
         vector<ff_node *> first_set;
         for (size_t i=0; i<_pardegree; i++) {
-            auto *seq = new Source_Node(_func, _name, RuntimeContext(_pardegree, i));
+            auto *seq = new Source_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             first_set.push_back(seq);
         }
         // add first set

@@ -41,6 +41,7 @@
 // includes
 #include <ff/combine.hpp>
 #include <ff/pipeline.hpp>
+#include <context.hpp>
 #include <win_farm.hpp>
 #include <wm_nodes.hpp>
 #include <ordering_node.hpp>
@@ -61,13 +62,23 @@ class Win_MapReduce: public ff_pipeline
 {
 public:
     /// function type of the non-incremental MAP processing
-    using f_mapfunction_t = function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
+    using map_func_t = function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
+    /// function type of the rich non-incremental MAP processing
+    using rich_map_func_t = function<void(uint64_t, Iterable<tuple_t> &, result_t &, RuntimeContext &)>;
     /// function type of the incremental MAP processing
-    using f_mapupdate_t = function<void(uint64_t, const tuple_t &, result_t &)>;
+    using mapupdate_func_t = function<void(uint64_t, const tuple_t &, result_t &)>;
+    /// function type of the rich incremental MAP processing
+    using rich_mapupdate_func_t = function<void(uint64_t, const tuple_t &, result_t &, RuntimeContext &)>;
     /// function type of the non-incremental REDUCE processing
-    using f_reducefunction_t = function<void(uint64_t, Iterable<result_t> &, result_t &)>;
+    using reduce_func_t = function<void(uint64_t, Iterable<result_t> &, result_t &)>;
+    /// function type of the rich non-incremental REDUCE processing
+    using rich_reduce_func_t = function<void(uint64_t, Iterable<result_t> &, result_t &, RuntimeContext &)>;
     /// function type of the incremental REDUCE processing
-    using f_reduceupdate_t = function<void(uint64_t, const result_t &, result_t &)>;
+    using reduceupdate_func_t = function<void(uint64_t, const result_t &, result_t &)>;
+    /// function type of the rich incremental REDUCE processing
+    using rich_reduceupdate_func_t = function<void(uint64_t, const result_t &, result_t &, RuntimeContext &)>;
+    /// type of the closing function
+    using closing_func_t = function<void(RuntimeContext &)>;
 private:
     // type of the wrapper of input tuples
     using wrapper_in_t = wrapper_tuple_t<tuple_t>;
@@ -85,12 +96,19 @@ private:
     template<typename T>
     friend class KeyFarm_Builder;
     // configuration variables of the Win_MapReduce
-    f_mapfunction_t mapFunction;
-    f_mapupdate_t mapUpdate;
-    f_reducefunction_t reduceFunction;
-    f_reduceupdate_t reduceUpdate;
+    map_func_t map_func;
+    rich_map_func_t rich_map_func;
+    mapupdate_func_t mapupdate_func;
+    rich_mapupdate_func_t rich_mapupdate_func;
+    reduce_func_t reduce_func;
+    rich_reduce_func_t rich_reduce_func;
+    reduceupdate_func_t reduceupdate_func;
+    rich_reduceupdate_func_t rich_reduceupdate_func;
+    closing_func_t closing_func;
     bool isNICMAP;
     bool isNICREDUCE;
+    bool isRichMAP;
+    bool isRichREDUCE;
     uint64_t win_len;
     uint64_t slide_len;
     win_type_t winType;
@@ -101,32 +119,20 @@ private:
     opt_level_t opt_level;
     PatternConfig config;
 
-    // private constructor I (non-incremental MAP phase and non-incremental REDUCE phase)
-    Win_MapReduce(f_mapfunction_t _mapFunction,
-                  f_reducefunction_t _reduceFunction,
+    // private constructor
+    template <typename F_t, typename G_t>
+    Win_MapReduce(F_t _func_MAP,
+                  G_t _func_REDUCE,
                   uint64_t _win_len,
                   uint64_t _slide_len,
                   win_type_t _winType,
                   size_t _map_degree,
                   size_t _reduce_degree,
                   string _name,
+                  closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level,
-                  PatternConfig _config)
-                  :
-                  mapFunction(_mapFunction),
-                  reduceFunction(_reduceFunction),
-                  isNICMAP(true),
-                  isNICREDUCE(true),
-                  win_len(_win_len),
-                  slide_len(_slide_len),
-                  winType(_winType),
-                  map_degree(_map_degree),
-                  reduce_degree(_reduce_degree),
-                  name(_name),
-                  ordered(_ordered),
-                  opt_level(_opt_level),
-                  config(_config)    
+                  PatternConfig _config)  
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -153,7 +159,7 @@ private:
             for (size_t i = 0; i < _map_degree; i++) {
                 // configuration structure of the Win_Seq instance (MAP)
                 PatternConfig configSeqMAP(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _slide_len);
-                auto *seq = new Win_Seq<tuple_t, result_t, wrapper_in_t>(_mapFunction, _win_len, _slide_len, _winType, _name + "_map_wf", configSeqMAP, MAP);
+                auto *seq = new Win_Seq<tuple_t, result_t, wrapper_in_t>(_func_MAP, _win_len, _slide_len, _winType, _name + "_map_wf", _closing_func, RuntimeContext(_map_degree, i), configSeqMAP, MAP);
                 seq->setMapIndexes(i, _map_degree);
                 w[i] = seq;
             }
@@ -167,7 +173,7 @@ private:
         else {
             // configuration structure of the Win_Seq instance (MAP)
             PatternConfig configSeqMAP(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _slide_len);
-            auto *seq_map = new Win_Seq<tuple_t, result_t, wrapper_in_t>(_mapFunction, _win_len, _slide_len, _winType, _name + "_map", configSeqMAP, MAP);
+            auto *seq_map = new Win_Seq<tuple_t, result_t, wrapper_in_t>(_func_MAP, _win_len, _slide_len, _winType, _name + "_map", _closing_func, RuntimeContext(1, 0), configSeqMAP, MAP);
             seq_map->setMapIndexes(0, 1);
             map_stage = seq_map;
         }
@@ -175,286 +181,13 @@ private:
         if (_reduce_degree > 1) {
             // configuration structure of the Win_Farm instance (REDUCE)
             PatternConfig configWFREDUCE(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceFunction, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", _ordered, LEVEL0, configWFREDUCE, REDUCE);
+            auto *farm_reduce = new Win_Farm<result_t, result_t>(_func_REDUCE, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", _closing_func, _ordered, LEVEL0, configWFREDUCE, REDUCE);
             reduce_stage = farm_reduce;
         }
         else {
             // configuration structure of the Win_Seq instance (REDUCE)
             PatternConfig configSeqREDUCE(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _map_degree);
-            auto *seq_reduce = new Win_Seq<result_t, result_t>(_reduceFunction, _map_degree, _map_degree, CB, _name + "_reduce", configSeqREDUCE, REDUCE);
-            reduce_stage = seq_reduce;
-        }
-        // add to this the pipeline optimized according to the provided optimization level
-        ff_pipeline::add_stage(optimize_WinMapReduce(map_stage, reduce_stage, _opt_level));
-        // when the Win_MapReduce will be destroyed we need aslo to destroy the two internal stages
-        ff_pipeline::cleanup_nodes();
-        // flatten the pipeline
-        ff_pipeline::flatten();
-    }
-
-    // private constructor II (incremental MAP phase and incremental REDUCE phase)
-    Win_MapReduce(f_mapupdate_t _mapUpdate,
-                  f_reduceupdate_t _reduceUpdate,
-                  uint64_t _win_len,
-                  uint64_t _slide_len,
-                  win_type_t _winType,
-                  size_t _map_degree,
-                  size_t _reduce_degree,
-                  string _name,
-                  bool _ordered,
-                  opt_level_t _opt_level,
-                  PatternConfig _config)
-                  :
-                  mapUpdate(_mapUpdate),
-                  reduceUpdate(_reduceUpdate),
-                  isNICMAP(false),
-                  isNICREDUCE(false),
-                  win_len(_win_len),
-                  slide_len(_slide_len),
-                  winType(_winType),
-                  map_degree(_map_degree),
-                  reduce_degree(_reduce_degree),
-                  name(_name),
-                  ordered(_ordered),
-                  opt_level(_opt_level),
-                  config(_config)   
-    {
-        // check the validity of the windowing parameters
-        if (_win_len == 0 || _slide_len == 0) {
-            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
-            exit(EXIT_FAILURE);
-        }
-        // the Win_MapReduce must have a parallel MAP stage
-        if (_map_degree < 2) {
-            cerr << RED << "WindFlow Error: Win_MapReduce must have a parallel MAP stage" << DEFAULT << endl;
-            exit(EXIT_FAILURE);
-        }
-        // check the validity of the reduce parallelism degree
-        if (_reduce_degree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degree of the REDUCE cannot be zero" << DEFAULT << endl;
-            exit(EXIT_FAILURE);
-        }
-        // general fastflow pointers to the MAP and REDUCE stages
-        ff_node *map_stage, *reduce_stage;
-        // create the MAP phase
-        if (_map_degree > 1) {
-            // vector of Win_Seq instances
-            vector<ff_node *> w(_map_degree);
-            // create the Win_Seq instances
-            for (size_t i = 0; i < _map_degree; i++) {
-                // configuration structure of the Win_Seq instance (MAP)
-                PatternConfig configSeqMAP(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _slide_len);
-                auto *seq = new Win_Seq<tuple_t, result_t, wrapper_in_t>(_mapUpdate, _win_len, _slide_len, _winType, _name + "_map_wf", configSeqMAP, MAP);
-                seq->setMapIndexes(i, _map_degree);
-                w[i] = seq;
-            }
-            ff_farm *farm_map = new ff_farm(w);
-            farm_map->remove_collector();
-            farm_map->add_collector(new map_collector_t());
-            farm_map->add_emitter(new map_emitter_t(_map_degree, _winType));
-            farm_map->cleanup_all();
-            map_stage = farm_map;
-        }
-        else {
-            // configuration structure of the Win_Seq instance (MAP)
-            PatternConfig configSeqMAP(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _slide_len);
-            auto *seq_map = new Win_Seq<tuple_t, result_t, wrapper_in_t>(_mapUpdate, _win_len, _slide_len, _winType, _name + "_map", configSeqMAP, MAP);
-            seq_map->setMapIndexes(0, 1);
-            map_stage = seq_map;
-        }
-        // create the REDUCE phase
-        if (_reduce_degree > 1) {
-            // configuration structure of the Win_Farm instance (REDUCE)
-            PatternConfig configWFREDUCE(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceUpdate, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", _ordered, LEVEL0, configWFREDUCE, REDUCE);
-            reduce_stage = farm_reduce;
-        }
-        else {
-            // configuration structure of the Win_Seq instance (REDUCE)
-            PatternConfig configSeqREDUCE(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _map_degree);
-            auto *seq_reduce = new Win_Seq<result_t, result_t>(_reduceUpdate, _map_degree, _map_degree, CB, _name + "_reduce", configSeqREDUCE, REDUCE);
-            reduce_stage = seq_reduce;
-        }
-        // add to this the pipeline optimized according to the provided optimization level
-        ff_pipeline::add_stage(optimize_WinMapReduce(map_stage, reduce_stage, _opt_level));
-        // when the Win_MapReduce will be destroyed we need aslo to destroy the two internal stages
-        ff_pipeline::cleanup_nodes();
-        // flatten the pipeline
-        ff_pipeline::flatten();
-    }
-
-    // private constructor III (non-incremental MAP phase and incremental REDUCE phase)
-    Win_MapReduce(f_mapfunction_t _mapFunction,
-                  f_reduceupdate_t _reduceUpdate,
-                  uint64_t _win_len,
-                  uint64_t _slide_len,
-                  win_type_t _winType,
-                  size_t _map_degree,
-                  size_t _reduce_degree,
-                  string _name,
-                  bool _ordered,
-                  opt_level_t _opt_level,
-                  PatternConfig _config)
-                  :
-                  mapFunction(_mapFunction),
-                  reduceUpdate(_reduceUpdate),
-                  isNICMAP(true),
-                  isNICREDUCE(false),
-                  win_len(_win_len),
-                  slide_len(_slide_len),
-                  winType(_winType),
-                  map_degree(_map_degree),
-                  reduce_degree(_reduce_degree),
-                  name(_name),
-                  ordered(_ordered),
-                  opt_level(_opt_level),
-                  config(_config) 
-    {
-        // check the validity of the windowing parameters
-        if (_win_len == 0 || _slide_len == 0) {
-            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
-            exit(EXIT_FAILURE);
-        }
-        // the Win_MapReduce must have a parallel MAP stage
-        if (_map_degree < 2) {
-            cerr << RED << "WindFlow Error: Win_MapReduce must have a parallel MAP stage" << DEFAULT << endl;
-            exit(EXIT_FAILURE);
-        }
-        // check the validity of the reduce parallelism degree
-        if (_reduce_degree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degree of the REDUCE cannot be zero" << DEFAULT << endl;
-            exit(EXIT_FAILURE);
-        }
-        // general fastflow pointers to the MAP and REDUCE stages
-        ff_node *map_stage, *reduce_stage;
-        // create the MAP phase
-        if (_map_degree > 1) {
-            // vector of Win_Seq instances
-            vector<ff_node *> w(_map_degree);
-            // create the Win_Seq instances
-            for (size_t i = 0; i < _map_degree; i++) {
-                // configuration structure of the Win_Seq instance (MAP)
-                PatternConfig configSeqMAP(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _slide_len);
-                auto *seq = new Win_Seq<tuple_t, result_t, wrapper_in_t>(_mapFunction, _win_len, _slide_len, _winType, _name + "_map_wf", configSeqMAP, MAP);
-                seq->setMapIndexes(i, _map_degree);
-                w[i] = seq;
-            }
-            ff_farm *farm_map = new ff_farm(w);
-            farm_map->remove_collector();
-            farm_map->add_collector(new map_collector_t());
-            farm_map->add_emitter(new map_emitter_t(_map_degree, _winType));
-            farm_map->cleanup_all();
-            map_stage = farm_map;
-        }
-        else {
-            // configuration structure of the Win_Seq instance (MAP)
-            PatternConfig configSeqMAP(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _slide_len);
-            auto *seq_map = new Win_Seq<tuple_t, result_t, wrapper_in_t>(_mapFunction, _win_len, _slide_len, _winType, _name + "_map", configSeqMAP, MAP);
-            seq_map->setMapIndexes(0, 1);
-            map_stage = seq_map;
-        }
-        // create the REDUCE phase
-        if (_reduce_degree > 1) {
-            // configuration structure of the Win_Farm instance (REDUCE)
-            PatternConfig configWFREDUCE(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceUpdate, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", _ordered, LEVEL0, configWFREDUCE, REDUCE);
-            reduce_stage = farm_reduce;
-        }
-        else {
-            // configuration structure of the Win_Seq instance (REDUCE)
-            PatternConfig configSeqREDUCE(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _map_degree);
-            auto *seq_reduce = new Win_Seq<result_t, result_t>(_reduceUpdate, _map_degree, _map_degree, CB, _name + "_reduce", configSeqREDUCE, REDUCE);
-            reduce_stage = seq_reduce;
-        }
-        // add to this the pipeline optimized according to the provided optimization level
-        ff_pipeline::add_stage(optimize_WinMapReduce(map_stage, reduce_stage, _opt_level));
-        // when the Win_MapReduce will be destroyed we need aslo to destroy the two internal stages
-        ff_pipeline::cleanup_nodes();
-        // flatten the pipeline
-        ff_pipeline::flatten();
-    }
-
-    // private constructor IV (incremental MAP phase and non-incremental REDUCE phase)
-    Win_MapReduce(f_mapupdate_t _mapUpdate,
-                  f_reducefunction_t _reduceFunction,
-                  uint64_t _win_len,
-                  uint64_t _slide_len,
-                  win_type_t _winType,
-                  size_t _map_degree,
-                  size_t _reduce_degree,
-                  string _name,
-                  bool _ordered,
-                  opt_level_t _opt_level,
-                  PatternConfig _config)
-                  :
-                  mapUpdate(_mapUpdate),
-                  reduceFunction(_reduceFunction),
-                  isNICMAP(false),
-                  isNICREDUCE(true),
-                  win_len(_win_len),
-                  slide_len(_slide_len),
-                  winType(_winType),
-                  map_degree(_map_degree),
-                  reduce_degree(_reduce_degree),
-                  name(_name),
-                  ordered(_ordered),
-                  opt_level(_opt_level),
-                  config(_config) 
-    {
-        // check the validity of the windowing parameters
-        if (_win_len == 0 || _slide_len == 0) {
-            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
-            exit(EXIT_FAILURE);
-        }
-        // the Win_MapReduce must have a parallel MAP stage
-        if (_map_degree < 2) {
-            cerr << RED << "WindFlow Error: Win_MapReduce must have a parallel MAP stage" << DEFAULT << endl;
-            exit(EXIT_FAILURE);
-        }
-        // check the validity of the reduce parallelism degree
-        if (_reduce_degree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degree of the REDUCE cannot be zero" << DEFAULT << endl;
-            exit(EXIT_FAILURE);
-        }
-        // general fastflow pointers to the MAP and REDUCE stages
-        ff_node *map_stage, *reduce_stage;
-        // create the MAP phase
-        if (_map_degree > 1) {
-            // vector of Win_Seq instances
-            vector<ff_node *> w(_map_degree);
-            // create the Win_Seq instances
-            for (size_t i = 0; i < _map_degree; i++) {
-                // configuration structure of the Win_Seq instance (MAP)
-                PatternConfig configSeqMAP(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _slide_len);
-                auto *seq = new Win_Seq<tuple_t, result_t, wrapper_in_t>(_mapUpdate, _win_len, _slide_len, _winType, _name + "_map_wf", configSeqMAP, MAP);
-                seq->setMapIndexes(i, _map_degree);
-                w[i] = seq;
-            }
-            ff_farm *farm_map = new ff_farm(w);
-            farm_map->remove_collector();
-            farm_map->add_collector(new map_collector_t());
-            farm_map->add_emitter(new map_emitter_t(_map_degree, _winType));
-            farm_map->cleanup_all();
-            map_stage = farm_map;
-        }
-        else {
-            // configuration structure of the Win_Seq instance (MAP)
-            PatternConfig configSeqMAP(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _slide_len);
-            auto *seq_map = new Win_Seq<tuple_t, result_t, wrapper_in_t>(_mapUpdate, _win_len, _slide_len, _winType, _name + "_map", configSeqMAP, MAP);
-            seq_map->setMapIndexes(0, 1);
-            map_stage = seq_map;
-        }
-        // create the REDUCE phase
-        if (_reduce_degree > 1) {
-            // configuration structure of the Win_Farm instance (REDUCE)
-            PatternConfig configWFREDUCE(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *farm_reduce = new Win_Farm<result_t, result_t>(_reduceFunction, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", _ordered, LEVEL0, configWFREDUCE, REDUCE);
-            reduce_stage = farm_reduce;
-        }
-        else {
-            // configuration structure of the Win_Seq instance (REDUCE)
-            PatternConfig configSeqREDUCE(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _map_degree);
-            auto *seq_reduce = new Win_Seq<result_t, result_t>(_reduceFunction, _map_degree, _map_degree, CB, _name + "_reduce", configSeqREDUCE, REDUCE);
+            auto *seq_reduce = new Win_Seq<result_t, result_t>(_func_REDUCE, _map_degree, _map_degree, CB, _name + "_reduce", _closing_func, RuntimeContext(1, 0), configSeqREDUCE, REDUCE);
             reduce_stage = seq_reduce;
         }
         // add to this the pipeline optimized according to the provided optimization level
@@ -498,112 +231,740 @@ private:
 
 public:
     /** 
-     *  \brief Constructor I (Non-Incremental MAP phase and Non-Incremental REDUCE phase)
+     *  \brief Constructor I
      *  
-     *  \param _mapFunction the non-incremental window map processing function (MAP)
-     *  \param _reduceFunction the non-incremental window reduce processing function (REDUCE)
+     *  \param _map_func the non-incremental window map processing function (MAP)
+     *  \param _reduce_func the non-incremental window reduce processing function (REDUCE)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
-     *  \param _name string with the unique name of the pattern
      *  \param _reduce_degree parallelism degree of the REDUCE stage
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Win_MapReduce(f_mapfunction_t _mapFunction,
-                  f_reducefunction_t _reduceFunction,
+    Win_MapReduce(map_func_t _map_func,
+                  reduce_func_t _reduce_func,
                   uint64_t _win_len,
                   uint64_t _slide_len,
                   win_type_t _winType,
                   size_t _map_degree,
                   size_t _reduce_degree,
                   string _name,
-                  bool _ordered=true,
-                  opt_level_t _opt_level=LEVEL0)
-                  :
-                  Win_MapReduce(_mapFunction, _reduceFunction, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _name, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
+                  closing_func_t _closing_func,
+                  bool _ordered,
+                  opt_level_t _opt_level):
+                  Win_MapReduce(_map_func, _reduce_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        map_func = _map_func;
+        reduce_func = _reduce_func;
+        isNICMAP = true;
+        isNICREDUCE = true;
+        isRichMAP = false;
+        isRichREDUCE = false;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        map_degree = _map_degree;
+        reduce_degree = _reduce_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
 
     /** 
-     *  \brief Constructor II (Incremental MAP phase and Incremental REDUCE phase)
+     *  \brief Constructor II
      *  
-     *  \param _mapUpdate the incremental window MAP processing function
-     *  \param _reduceUpdate the incremental window REDUCE processing function
+     *  \param _rich_map_func the rich non-incremental window map processing function (MAP)
+     *  \param _reduce_func the non-incremental window reduce processing function (REDUCE)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
      *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Win_MapReduce(f_mapupdate_t _mapUpdate,
-                  f_reduceupdate_t _reduceUpdate,
+    Win_MapReduce(rich_map_func_t _rich_map_func,
+                  reduce_func_t _reduce_func,
                   uint64_t _win_len,
                   uint64_t _slide_len,
                   win_type_t _winType,
                   size_t _map_degree,
                   size_t _reduce_degree,
                   string _name,
-                  bool _ordered=true,
-                  opt_level_t _opt_level=LEVEL0)
-                  :
-                  Win_MapReduce(_mapUpdate, _reduceUpdate, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _name, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
+                  closing_func_t _closing_func,
+                  bool _ordered,
+                  opt_level_t _opt_level):
+                  Win_MapReduce(_rich_map_func, _reduce_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        rich_map_func = _rich_map_func;
+        reduce_func = _reduce_func;
+        isNICMAP = true;
+        isNICREDUCE = true;
+        isRichMAP = true;
+        isRichREDUCE = false;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        map_degree = _map_degree;
+        reduce_degree = _reduce_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
 
     /** 
-     *  \brief Constructor III (Non-Incremental MAP phase and Incremental REDUCE phase)
+     *  \brief Constructor III
      *  
-     *  \param _mapFunction the non-incremental window map processing function
-     *  \param _reduceUpdate the incremental window reduce processing function
+     *  \param _map_func the non-incremental window map processing function (MAP)
+     *  \param _rich_reduce_func the rich non-incremental window reduce processing function (REDUCE)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
      *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Win_MapReduce(f_mapfunction_t _mapFunction,
-                  f_reduceupdate_t _reduceUpdate,
+    Win_MapReduce(map_func_t _map_func,
+                  rich_reduce_func_t _rich_reduce_func,
                   uint64_t _win_len,
                   uint64_t _slide_len,
                   win_type_t _winType,
                   size_t _map_degree,
                   size_t _reduce_degree,
                   string _name,
-                  bool _ordered=true,
-                  opt_level_t _opt_level=LEVEL0)
-                  :
-                  Win_MapReduce(_mapFunction, _reduceUpdate, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _name, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
+                  closing_func_t _closing_func,
+                  bool _ordered,
+                  opt_level_t _opt_level):
+                  Win_MapReduce(_map_func, _rich_reduce_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        map_func = _map_func;
+        rich_reduce_func = _rich_reduce_func;
+        isNICMAP = true;
+        isNICREDUCE = true;
+        isRichMAP = false;
+        isRichREDUCE = true;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        map_degree = _map_degree;
+        reduce_degree = _reduce_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
 
     /** 
-     *  \brief Constructor IV (Incremental MAP phase and Non-Incremental REDUCE phase)
+     *  \brief Constructor IV
      *  
-     *  \param _mapUpdate the incremental window map processing function
-     *  \param _reduceFunction the non-incremental window reduce processing function
+     *  \param _rich_map_func the rich non-incremental window map processing function (MAP)
+     *  \param _rich_reduce_func the rich non-incremental window reduce processing function (REDUCE)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
      *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Win_MapReduce(f_mapupdate_t _mapUpdate,
-                  f_reducefunction_t _reduceFunction,
+    Win_MapReduce(rich_map_func_t _rich_map_func,
+                  rich_reduce_func_t _rich_reduce_func,
                   uint64_t _win_len,
                   uint64_t _slide_len,
                   win_type_t _winType,
                   size_t _map_degree,
                   size_t _reduce_degree,
                   string _name,
-                  bool _ordered=true,
-                  opt_level_t _opt_level=LEVEL0)
-                  :
-                  Win_MapReduce(_mapUpdate, _reduceFunction, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _name, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len)) {}
+                  closing_func_t _closing_func,
+                  bool _ordered,
+                  opt_level_t _opt_level):
+                  Win_MapReduce(_rich_map_func, _rich_reduce_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        rich_map_func = _rich_map_func;
+        rich_reduce_func = _rich_reduce_func;
+        isNICMAP = true;
+        isNICREDUCE = true;
+        isRichMAP = true;
+        isRichREDUCE = true;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        map_degree = _map_degree;
+        reduce_degree = _reduce_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
+
+    /** 
+     *  \brief Constructor V
+     *  
+     *  \param _mapupdate_func the incremental window MAP processing function
+     *  \param _reduceupdate_func the incremental window REDUCE processing function
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _map_degree parallelism degree of the MAP stage
+     *  \param _reduce_degree parallelism degree of the REDUCE stage
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
+     *  \param _opt_level optimization level used to build the pattern
+     */ 
+    Win_MapReduce(mapupdate_func_t _mapupdate_func,
+                  reduceupdate_func_t _reduceupdate_func,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType,
+                  size_t _map_degree,
+                  size_t _reduce_degree,
+                  string _name,
+                  closing_func_t _closing_func,
+                  bool _ordered,
+                  opt_level_t _opt_level):
+                  Win_MapReduce(_mapupdate_func, _reduceupdate_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        mapupdate_func = _mapupdate_func;
+        reduceupdate_func = _reduceupdate_func;
+        isNICMAP = false;
+        isNICREDUCE = false;
+        isRichMAP = false;
+        isRichREDUCE = false;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        map_degree = _map_degree;
+        reduce_degree = _reduce_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
+
+    /** 
+     *  \brief Constructor VI
+     *  
+     *  \param _rich_mapupdate_func the rich incremental window MAP processing function
+     *  \param _reduceupdate_func the incremental window REDUCE processing function
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _map_degree parallelism degree of the MAP stage
+     *  \param _reduce_degree parallelism degree of the REDUCE stage
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
+     *  \param _opt_level optimization level used to build the pattern
+     */ 
+    Win_MapReduce(rich_mapupdate_func_t _rich_mapupdate_func,
+                  reduceupdate_func_t _reduceupdate_func,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType,
+                  size_t _map_degree,
+                  size_t _reduce_degree,
+                  string _name,
+                  closing_func_t _closing_func,
+                  bool _ordered,
+                  opt_level_t _opt_level):
+                  Win_MapReduce(_rich_mapupdate_func, _reduceupdate_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        rich_mapupdate_func = _rich_mapupdate_func;
+        reduceupdate_func = _reduceupdate_func;
+        isNICMAP = false;
+        isNICREDUCE = false;
+        isRichMAP = true;
+        isRichREDUCE = false;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        map_degree = _map_degree;
+        reduce_degree = _reduce_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
+
+    /** 
+     *  \brief Constructor VII
+     *  
+     *  \param _mapupdate_func the incremental window MAP processing function
+     *  \param _rich_reduceupdate_func the rich incremental window REDUCE processing function
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _map_degree parallelism degree of the MAP stage
+     *  \param _reduce_degree parallelism degree of the REDUCE stage
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
+     *  \param _opt_level optimization level used to build the pattern
+     */ 
+    Win_MapReduce(mapupdate_func_t _mapupdate_func,
+                  rich_reduceupdate_func_t _rich_reduceupdate_func,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType,
+                  size_t _map_degree,
+                  size_t _reduce_degree,
+                  string _name,
+                  closing_func_t _closing_func,
+                  bool _ordered,
+                  opt_level_t _opt_level):
+                  Win_MapReduce(_mapupdate_func, _rich_reduceupdate_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        mapupdate_func = _mapupdate_func;
+        rich_reduceupdate_func = _rich_reduceupdate_func;
+        isNICMAP = false;
+        isNICREDUCE = false;
+        isRichMAP = false;
+        isRichREDUCE = true;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        map_degree = _map_degree;
+        reduce_degree = _reduce_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
+
+    /** 
+     *  \brief Constructor VIII
+     *  
+     *  \param _rich_mapupdate_func the rich incremental window MAP processing function
+     *  \param _rich_reduceupdate_func the rich incremental window REDUCE processing function
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _map_degree parallelism degree of the MAP stage
+     *  \param _reduce_degree parallelism degree of the REDUCE stage
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
+     *  \param _opt_level optimization level used to build the pattern
+     */ 
+    Win_MapReduce(rich_mapupdate_func_t _rich_mapupdate_func,
+                  rich_reduceupdate_func_t _rich_reduceupdate_func,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType,
+                  size_t _map_degree,
+                  size_t _reduce_degree,
+                  string _name,
+                  closing_func_t _closing_func,
+                  bool _ordered,
+                  opt_level_t _opt_level):
+                  Win_MapReduce(_rich_mapupdate_func, _rich_reduceupdate_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        rich_mapupdate_func = _rich_mapupdate_func;
+        rich_reduceupdate_func = _rich_reduceupdate_func;
+        isNICMAP = false;
+        isNICREDUCE = false;
+        isRichMAP = true;
+        isRichREDUCE = true;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        map_degree = _map_degree;
+        reduce_degree = _reduce_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
+
+    /** 
+     *  \brief Constructor IX
+     *  
+     *  \param _map_func the non-incremental window map processing function
+     *  \param _reduceupdate_func the incremental window reduce processing function
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _map_degree parallelism degree of the MAP stage
+     *  \param _reduce_degree parallelism degree of the REDUCE stage
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
+     *  \param _opt_level optimization level used to build the pattern
+     */ 
+    Win_MapReduce(map_func_t _map_func,
+                  reduceupdate_func_t _reduceupdate_func,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType,
+                  size_t _map_degree,
+                  size_t _reduce_degree,
+                  string _name,
+                  closing_func_t _closing_func,
+                  bool _ordered,
+                  opt_level_t _opt_level):
+                  Win_MapReduce(_map_func, _reduceupdate_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        map_func = _map_func;
+        reduceupdate_func = _reduceupdate_func;
+        isNICMAP = true;
+        isNICREDUCE = false;
+        isRichMAP = false;
+        isRichREDUCE = false;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        map_degree = _map_degree;
+        reduce_degree = _reduce_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
+
+    /** 
+     *  \brief Constructor X
+     *  
+     *  \param _rich_map_func the rich non-incremental window map processing function
+     *  \param _reduceupdate_func the incremental window reduce processing function
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _map_degree parallelism degree of the MAP stage
+     *  \param _reduce_degree parallelism degree of the REDUCE stage
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
+     *  \param _opt_level optimization level used to build the pattern
+     */ 
+    Win_MapReduce(rich_map_func_t _rich_map_func,
+                  reduceupdate_func_t _reduceupdate_func,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType,
+                  size_t _map_degree,
+                  size_t _reduce_degree,
+                  string _name,
+                  closing_func_t _closing_func,
+                  bool _ordered,
+                  opt_level_t _opt_level):
+                  Win_MapReduce(_rich_map_func, _reduceupdate_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        rich_map_func = _rich_map_func;
+        reduceupdate_func = _reduceupdate_func;
+        isNICMAP = true;
+        isNICREDUCE = false;
+        isRichMAP = true;
+        isRichREDUCE = false;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        map_degree = _map_degree;
+        reduce_degree = _reduce_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
+
+    /** 
+     *  \brief Constructor XI
+     *  
+     *  \param _map_func the non-incremental window map processing function
+     *  \param _rich_reduceupdate_func the rich incremental window reduce processing function
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _map_degree parallelism degree of the MAP stage
+     *  \param _reduce_degree parallelism degree of the REDUCE stage
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
+     *  \param _opt_level optimization level used to build the pattern
+     */ 
+    Win_MapReduce(map_func_t _map_func,
+                  rich_reduceupdate_func_t _rich_reduceupdate_func,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType,
+                  size_t _map_degree,
+                  size_t _reduce_degree,
+                  string _name,
+                  closing_func_t _closing_func,
+                  bool _ordered,
+                  opt_level_t _opt_level):
+                  Win_MapReduce(_map_func, _rich_reduceupdate_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        map_func = _map_func;
+        rich_reduceupdate_func = _rich_reduceupdate_func;
+        isNICMAP = true;
+        isNICREDUCE = false;
+        isRichMAP = false;
+        isRichREDUCE = true;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        map_degree = _map_degree;
+        reduce_degree = _reduce_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
+
+    /** 
+     *  \brief Constructor XII
+     *  
+     *  \param _rich_map_func the rich_non-incremental window map processing function
+     *  \param _rich_reduceupdate_func the rich incremental window reduce processing function
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _map_degree parallelism degree of the MAP stage
+     *  \param _reduce_degree parallelism degree of the REDUCE stage
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
+     *  \param _opt_level optimization level used to build the pattern
+     */ 
+    Win_MapReduce(rich_map_func_t _rich_map_func,
+                  rich_reduceupdate_func_t _rich_reduceupdate_func,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType,
+                  size_t _map_degree,
+                  size_t _reduce_degree,
+                  string _name,
+                  closing_func_t _closing_func,
+                  bool _ordered,
+                  opt_level_t _opt_level):
+                  Win_MapReduce(_rich_map_func, _rich_reduceupdate_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        rich_map_func = _rich_map_func;
+        rich_reduceupdate_func = _rich_reduceupdate_func;
+        isNICMAP = true;
+        isNICREDUCE = false;
+        isRichMAP = true;
+        isRichREDUCE = true;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        map_degree = _map_degree;
+        reduce_degree = _reduce_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
+
+    /** 
+     *  \brief Constructor XIII
+     *  
+     *  \param _mapupdate_func the incremental window map processing function
+     *  \param _reduce_func the non-incremental window reduce processing function
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _map_degree parallelism degree of the MAP stage
+     *  \param _reduce_degree parallelism degree of the REDUCE stage
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
+     *  \param _opt_level optimization level used to build the pattern
+     */ 
+    Win_MapReduce(mapupdate_func_t _mapupdate_func,
+                  reduce_func_t _reduce_func,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType,
+                  size_t _map_degree,
+                  size_t _reduce_degree,
+                  string _name,
+                  closing_func_t _closing_func,
+                  bool _ordered,
+                  opt_level_t _opt_level):
+                  Win_MapReduce(_mapupdate_func, _reduce_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        mapupdate_func = _mapupdate_func;
+        reduce_func = _reduce_func;
+        isNICMAP = false;
+        isNICREDUCE = true;
+        isRichMAP = false;
+        isRichREDUCE = false;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        map_degree = _map_degree;
+        reduce_degree = _reduce_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
+
+    /** 
+     *  \brief Constructor XIV
+     *  
+     *  \param _rich_mapupdate_func the rich incremental window map processing function
+     *  \param _reduce_func the non-incremental window reduce processing function
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _map_degree parallelism degree of the MAP stage
+     *  \param _reduce_degree parallelism degree of the REDUCE stage
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
+     *  \param _opt_level optimization level used to build the pattern
+     */ 
+    Win_MapReduce(rich_mapupdate_func_t _rich_mapupdate_func,
+                  reduce_func_t _reduce_func,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType,
+                  size_t _map_degree,
+                  size_t _reduce_degree,
+                  string _name,
+                  closing_func_t _closing_func,
+                  bool _ordered,
+                  opt_level_t _opt_level):
+                  Win_MapReduce(_rich_mapupdate_func, _reduce_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        rich_mapupdate_func = _rich_mapupdate_func;
+        reduce_func = _reduce_func;
+        isNICMAP = false;
+        isNICREDUCE = true;
+        isRichMAP = true;
+        isRichREDUCE = false;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        map_degree = _map_degree;
+        reduce_degree = _reduce_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
+
+    /** 
+     *  \brief Constructor XV
+     *  
+     *  \param _mapupdate_func the incremental window map processing function
+     *  \param _rich_reduce_func the rich non-incremental window reduce processing function
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _map_degree parallelism degree of the MAP stage
+     *  \param _reduce_degree parallelism degree of the REDUCE stage
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
+     *  \param _opt_level optimization level used to build the pattern
+     */ 
+    Win_MapReduce(mapupdate_func_t _mapupdate_func,
+                  rich_reduce_func_t _rich_reduce_func,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType,
+                  size_t _map_degree,
+                  size_t _reduce_degree,
+                  string _name,
+                  closing_func_t _closing_func,
+                  bool _ordered,
+                  opt_level_t _opt_level):
+                  Win_MapReduce(_mapupdate_func, _rich_reduce_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        mapupdate_func = _mapupdate_func;
+        rich_reduce_func = _rich_reduce_func;
+        isNICMAP = false;
+        isNICREDUCE = true;
+        isRichMAP = false;
+        isRichREDUCE = true;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        map_degree = _map_degree;
+        reduce_degree = _reduce_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
+
+    /** 
+     *  \brief Constructor XVI
+     *  
+     *  \param _rich_mapupdate_func the rich incremental window map processing function
+     *  \param _rich_reduce_func the rich non-incremental window reduce processing function
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _map_degree parallelism degree of the MAP stage
+     *  \param _reduce_degree parallelism degree of the REDUCE stage
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
+     *  \param _opt_level optimization level used to build the pattern
+     */ 
+    Win_MapReduce(rich_mapupdate_func_t _rich_mapupdate_func,
+                  rich_reduce_func_t _rich_reduce_func,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  win_type_t _winType,
+                  size_t _map_degree,
+                  size_t _reduce_degree,
+                  string _name,
+                  closing_func_t _closing_func,
+                  bool _ordered,
+                  opt_level_t _opt_level):
+                  Win_MapReduce(_rich_mapupdate_func, _rich_reduce_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+    {
+        rich_mapupdate_func = _rich_mapupdate_func;
+        rich_reduce_func = _rich_reduce_func;
+        isNICMAP = false;
+        isNICREDUCE = true;
+        isRichMAP = true;
+        isRichREDUCE = true;
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = _winType;
+        map_degree = _map_degree;
+        reduce_degree = _reduce_degree;
+        name = _name;
+        closing_func = _closing_func;
+        ordered = _ordered;
+        opt_level = _opt_level;
+        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
+    }
 
     /** 
      *  \brief Get the optimization level used to build the pattern

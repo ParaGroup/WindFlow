@@ -31,8 +31,8 @@
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with a
  *  copy constructor and copy assignment operator, and they must provide and implement
- *  the setControlFields() and getControlFields() methods. The third template argument win_F_t is the type
- *  of the callable object to be used for GPU processing.
+ *  the setControlFields() and getControlFields() methods. The third template argument
+ *  win_F_t is the type of the callable object to be used for GPU processing.
  */ 
 
 #ifndef WIN_FARM_GPU_H
@@ -94,7 +94,7 @@ private:
     Win_Farm_GPU() {}
 
     // private constructor II
-    Win_Farm_GPU(win_F_t _winFunction,
+    Win_Farm_GPU(win_F_t _win_func,
                  uint64_t _win_len,
                  uint64_t _slide_len,
                  win_type_t _winType,
@@ -144,7 +144,7 @@ private:
             for (size_t i = 0; i < _pardegree; i++) {
                 // configuration structure of the Win_Seq_GPU instances
                 PatternConfig configSeq(_config.id_inner, _config.n_inner, _config.slide_inner, i, _pardegree, _slide_len);
-                auto *seq = new win_seq_gpu_t(_winFunction, _win_len, private_slide, _winType, _batch_len, _n_thread_block, _name + "_wf", _scratchpad_size, configSeq, _role);
+                auto *seq = new win_seq_gpu_t(_win_func, _win_len, private_slide, _winType, _batch_len, _n_thread_block, _name + "_wf", _scratchpad_size, configSeq, _role);
                 w.push_back(seq);
             }
         }
@@ -164,7 +164,7 @@ private:
                 auto *ord = new Ordering_Node<tuple_t, wrapper_in_t>(((_winType == CB) ? ID : TS));
                 // configuration structure of the Win_Seq_GPU instances
                 PatternConfig configSeq(_config.id_inner, _config.n_inner, _config.slide_inner, i, _pardegree, _slide_len);
-                auto *seq = new win_seq_gpu_t(_winFunction, _win_len, private_slide, _winType, _batch_len, _n_thread_block, _name + "_wf", _scratchpad_size, configSeq, _role);
+                auto *seq = new win_seq_gpu_t(_win_func, _win_len, private_slide, _winType, _batch_len, _n_thread_block, _name + "_wf", _scratchpad_size, configSeq, _role);
                 auto *comb = new ff_comb(ord, seq, true, true);
                 seqs[i] = comb;
             }
@@ -200,7 +200,7 @@ public:
     /** 
      *  \brief Constructor I
      *  
-     *  \param _winFunction the host/device window processing function
+     *  \param _win_func the host/device window processing function
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
@@ -213,7 +213,7 @@ public:
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Win_Farm_GPU(win_F_t _winFunction,
+    Win_Farm_GPU(win_F_t _win_func,
                  uint64_t _win_len,
                  uint64_t _slide_len,
                  win_type_t _winType,
@@ -222,11 +222,11 @@ public:
                  size_t _batch_len,
                  size_t _n_thread_block,
                  string _name,
-                 size_t _scratchpad_size=0,
-                 bool _ordered=true,
-                 opt_level_t _opt_level=LEVEL0)
-                 :
-                 Win_Farm_GPU(_winFunction, _win_len, _slide_len, _winType, _emitter_degree, _pardegree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ) {}
+                 size_t _scratchpad_size,
+                 bool _ordered,
+                 opt_level_t _opt_level):
+                 Win_Farm_GPU(_win_func, _win_len, _slide_len, _winType, _emitter_degree, _pardegree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
+    {}
 
     /** 
      *  \brief Constructor II (Nesting with Pane_Farm_GPU)
@@ -253,9 +253,9 @@ public:
                  size_t _batch_len,
                  size_t _n_thread_block,
                  string _name,
-                 size_t _scratchpad_size=0,
-                 bool _ordered=true,
-                 opt_level_t _opt_level=LEVEL0): hasComplexWorkers(true), opt_level(_opt_level), winType(_winType), num_emitters(_emitter_degree)
+                 size_t _scratchpad_size,
+                 bool _ordered,
+                 opt_level_t _opt_level): hasComplexWorkers(true), opt_level(_opt_level), winType(_winType), num_emitters(_emitter_degree)
     {
         // type of the Pane_Farm_GPU to be created within the Win_Farm_GPU pattern
         using panewrap_farm_gpu_t = Pane_Farm_GPU<tuple_t, result_t, win_F_t, wrapper_in_t>;
@@ -296,15 +296,15 @@ public:
                 panewrap_farm_gpu_t *pf_W = nullptr;
                 if (_pf.isGPUPLQ) {
                     if (_pf.isNICWLQ)
-                        pf_W = new panewrap_farm_gpu_t(_pf.gpuFunction, _pf.wlqFunction, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_wf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
+                        pf_W = new panewrap_farm_gpu_t(_pf.gpuFunction, _pf.wlq_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_wf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
                     else
-                        pf_W = new panewrap_farm_gpu_t(_pf.gpuFunction, _pf.wlqUpdate, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_wf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
+                        pf_W = new panewrap_farm_gpu_t(_pf.gpuFunction, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_wf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
                 }
                 else {
                     if (_pf.isNICPLQ)
-                        pf_W = new panewrap_farm_gpu_t(_pf.plqFunction, _pf.gpuFunction, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_wf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
+                        pf_W = new panewrap_farm_gpu_t(_pf.plq_func, _pf.gpuFunction, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_wf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
                     else
-                        pf_W = new panewrap_farm_gpu_t(_pf.plqUpdate, _pf.gpuFunction, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_wf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
+                        pf_W = new panewrap_farm_gpu_t(_pf.plqupdate_func, _pf.gpuFunction, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_wf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
                 }
                 w.push_back(pf_W);
             }
@@ -330,15 +330,15 @@ public:
                 panewrap_farm_gpu_t *pf_W = nullptr;
                 if (_pf.isGPUPLQ) {
                     if (_pf.isNICWLQ)
-                        pf_W = new panewrap_farm_gpu_t(_pf.gpuFunction, _pf.wlqFunction, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_wf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
+                        pf_W = new panewrap_farm_gpu_t(_pf.gpuFunction, _pf.wlq_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_wf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
                     else
-                        pf_W = new panewrap_farm_gpu_t(_pf.gpuFunction, _pf.wlqUpdate, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_wf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
+                        pf_W = new panewrap_farm_gpu_t(_pf.gpuFunction, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_wf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
                 }
                 else {
                     if (_pf.isNICPLQ)
-                        pf_W = new panewrap_farm_gpu_t(_pf.plqFunction, _pf.gpuFunction, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_wf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
+                        pf_W = new panewrap_farm_gpu_t(_pf.plq_func, _pf.gpuFunction, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_wf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
                     else
-                        pf_W = new panewrap_farm_gpu_t(_pf.plqUpdate, _pf.gpuFunction, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_wf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
+                        pf_W = new panewrap_farm_gpu_t(_pf.plqupdate_func, _pf.gpuFunction, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_wf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
                 }
                 // combine the first node of the Pane_Farm_GPU instance with the buffering node
                 combine_with_firststage(*pf_W, ord, true);
@@ -386,9 +386,9 @@ public:
                  size_t _batch_len,
                  size_t _n_thread_block,
                  string _name,
-                 size_t _scratchpad_size=0,
-                 bool _ordered=true,
-                 opt_level_t _opt_level=LEVEL0): hasComplexWorkers(true), opt_level(_opt_level), winType(_winType), num_emitters(_emitter_degree)
+                 size_t _scratchpad_size,
+                 bool _ordered,
+                 opt_level_t _opt_level): hasComplexWorkers(true), opt_level(_opt_level), winType(_winType), num_emitters(_emitter_degree)
     {
         // type of the Win_MapReduce_GPU to be created within the Win_Farm_GPU pattern
         using winwrap_mapreduce_gpu_t = Win_MapReduce_GPU<tuple_t, result_t, win_F_t, wrapper_in_t>;
@@ -429,15 +429,15 @@ public:
                 winwrap_mapreduce_gpu_t *wm_W = nullptr;
                 if (_wm.isGPUMAP) {
                     if (_wm.isNICREDUCE)
-                        wm_W = new winwrap_mapreduce_gpu_t(_wm.gpuFunction, _wm.reduceFunction, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_wf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
+                        wm_W = new winwrap_mapreduce_gpu_t(_wm.gpuFunction, _wm.reduce_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_wf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
                     else
-                        wm_W = new winwrap_mapreduce_gpu_t(_wm.gpuFunction, _wm.reduceUpdate, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_wf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
+                        wm_W = new winwrap_mapreduce_gpu_t(_wm.gpuFunction, _wm.reduceupdate_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_wf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
                 }
                 else {
                     if (_wm.isNICMAP)
-                        wm_W = new winwrap_mapreduce_gpu_t(_wm.mapFunction, _wm.gpuFunction, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_wf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
+                        wm_W = new winwrap_mapreduce_gpu_t(_wm.map_func, _wm.gpuFunction, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_wf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
                     else
-                        wm_W = new winwrap_mapreduce_gpu_t(_wm.mapUpdate, _wm.gpuFunction, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_wf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
+                        wm_W = new winwrap_mapreduce_gpu_t(_wm.mapupdate_func, _wm.gpuFunction, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_wf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
                 }
                 w.push_back(wm_W);
             }
@@ -463,15 +463,15 @@ public:
                 winwrap_mapreduce_gpu_t *wm_W = nullptr;
                 if (_wm.isGPUMAP) {
                     if (_wm.isNICREDUCE)
-                        wm_W = new winwrap_mapreduce_gpu_t(_wm.gpuFunction, _wm.reduceFunction, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_wf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
+                        wm_W = new winwrap_mapreduce_gpu_t(_wm.gpuFunction, _wm.reduce_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_wf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
                     else
-                        wm_W = new winwrap_mapreduce_gpu_t(_wm.gpuFunction, _wm.reduceUpdate, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_wf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
+                        wm_W = new winwrap_mapreduce_gpu_t(_wm.gpuFunction, _wm.reduceupdate_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_wf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
                 }
                 else {
                     if (_wm.isNICMAP)
-                        wm_W = new winwrap_mapreduce_gpu_t(_wm.mapFunction, _wm.gpuFunction, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_wf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
+                        wm_W = new winwrap_mapreduce_gpu_t(_wm.map_func, _wm.gpuFunction, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_wf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
                     else
-                        wm_W = new winwrap_mapreduce_gpu_t(_wm.mapUpdate, _wm.gpuFunction, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_wf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
+                        wm_W = new winwrap_mapreduce_gpu_t(_wm.mapupdate_func, _wm.gpuFunction, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_wf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
                 }        
                 // combine the first node of the Win_MapReduce instance with the buffering node
                 combine_with_firststage(*wm_W, ord, true);

@@ -1,4 +1,4 @@
-/*! \mainpage WindFlow Library (version 1.0)
+/*! \mainpage WindFlow Library
  * 
  * \section intro_sec Introduction
  * 

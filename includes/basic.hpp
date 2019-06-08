@@ -128,7 +128,10 @@ struct PatternConfig {
     size_t n_inner; // parallelism degree in the innermost pattern
     uint64_t slide_inner; // sliding factor of the innermost pattern
 
-    // constructor
+    // constructor I
+    PatternConfig(): id_outer(0), n_outer(0), slide_outer(0), id_inner(0), n_inner(0), slide_inner(0) {}
+
+    // constructor II
     PatternConfig(size_t _id_outer, size_t _n_outer, uint64_t _slide_outer, size_t _id_inner, size_t _n_inner, uint64_t _slide_inner):
                   id_outer(_id_outer),
                   n_outer(_n_outer),

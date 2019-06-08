@@ -40,7 +40,7 @@ class Standard_Emitter: public ff_monode_t<tuple_t>
 {
 private:
     // function type to map the key hashcode onto an identifier starting from zero to pardegree-1
-    using f_routing_t = function<size_t(size_t, size_t)>;
+    using routing_func_t = function<size_t(size_t, size_t)>;
     // friendships with other classes in the library
     template<typename T1>
     friend class Sink;
@@ -54,13 +54,13 @@ private:
     friend class Accumulator;
     friend class MultiPipe;
     bool isKeyed; // flag stating whether the key-based distribution is used or not
-    f_routing_t routing; // routing function
+    routing_func_t routing; // routing function
 
     // private constructor I
     Standard_Emitter(): isKeyed(false) {}
 
     // private constructor II
-    Standard_Emitter(f_routing_t _routing): isKeyed(true), routing(_routing) {}
+    Standard_Emitter(routing_func_t _routing): isKeyed(true), routing(_routing) {}
 
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()

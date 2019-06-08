@@ -60,9 +60,11 @@ public:
     /// type of the flatmap function
     using flatmap_func_t = function<void(const tuple_t &, Shipper<result_t> &)>;
     /// type of the rich flatmap function
-    using rich_flatmap_func_t = function<void(const tuple_t &, Shipper<result_t> &, RuntimeContext)>;
-    /// function type to map the key hashcode onto an identifier starting from zero to pardegree-1
-    using f_routing_t = function<size_t(size_t, size_t)>;
+    using rich_flatmap_func_t = function<void(const tuple_t &, Shipper<result_t> &, RuntimeContext &)>;
+    /// type of the closing function
+    using closing_func_t = function<void(RuntimeContext &)>;
+    /// type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
+    using routing_func_t = function<size_t(size_t, size_t)>;
 private:
     // friendships with other classes in the library
     friend class MultiPipe;
@@ -73,6 +75,7 @@ private:
     private:
         flatmap_func_t flatmap_func; // flatmap function
         rich_flatmap_func_t rich_flatmap_func; // rich flatmap function
+        closing_func_t closing_func; // closing function
         string name; // string of the unique name of the pattern
         bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
         // shipper object used for the delivery of results
@@ -89,10 +92,10 @@ private:
 #endif
     public:
         // Constructor I
-        FlatMap_Node(flatmap_func_t _flatmap_func, string _name): flatmap_func(_flatmap_func), name(_name), isRich(false) {}
+        FlatMap_Node(flatmap_func_t _flatmap_func, string _name, RuntimeContext _context, closing_func_t _closing_func): flatmap_func(_flatmap_func), name(_name), isRich(false), context(_context), closing_func(_closing_func) {}
 
         // Constructor II
-        FlatMap_Node(rich_flatmap_func_t _rich_flatmap_func, string _name, RuntimeContext _context): rich_flatmap_func(_rich_flatmap_func), name(_name), isRich(true), context(_context) {}
+        FlatMap_Node(rich_flatmap_func_t _rich_flatmap_func, string _name, RuntimeContext _context, closing_func_t _closing_func): rich_flatmap_func(_rich_flatmap_func), name(_name), isRich(true), context(_context), closing_func(_closing_func) {}
 
         // svc_init method (utilized by the FastFlow runtime)
         int svc_init()
@@ -139,6 +142,8 @@ private:
         // svc_end method (utilized by the FastFlow runtime)
         void svc_end()
         {
+            // call the closing function
+            closing_func(context);
             delete shipper;
 #if defined (LOG_DIR)
             ostringstream stream;
@@ -162,8 +167,9 @@ public:
      *  \param _func flatmap function
      *  \param _pardegree parallelism degree of the FlatMap pattern
      *  \param _name string with the unique name of the FlatMap pattern
+     *  \param _closing_func closing function
      */ 
-    FlatMap(flatmap_func_t _func, size_t _pardegree, string _name): keyed(false)
+    FlatMap(flatmap_func_t _func, size_t _pardegree, string _name, closing_func_t _closing_func): keyed(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -173,7 +179,7 @@ public:
         // vector of FlatMap_Node instances
         vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
-            auto *seq = new FlatMap_Node(_func, _name);
+            auto *seq = new FlatMap_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             w.push_back(seq);
         }
         // add emitter
@@ -192,9 +198,10 @@ public:
      *  \param _func flatmap function
      *  \param _pardegree parallelism degree of the FlatMap pattern
      *  \param _name string with the unique name of the FlatMap pattern
-     *  \param _routing function to map the key hashcode onto an identifier starting from zero to pardegree-1
+     *  \param _closing_func closing function
+     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
-    FlatMap(flatmap_func_t _func, size_t _pardegree, string _name, f_routing_t _routing): keyed(true)
+    FlatMap(flatmap_func_t _func, size_t _pardegree, string _name, closing_func_t _closing_func, routing_func_t _routing_func): keyed(true)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -204,11 +211,11 @@ public:
         // vector of FlatMap_Node instances
         vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
-            auto *seq = new FlatMap_Node(_func, _name);
+            auto *seq = new FlatMap_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing));
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func));
         // add workers
         ff_farm::add_workers(w);
         // add default collector
@@ -223,8 +230,9 @@ public:
      *  \param _func rich flatmap function
      *  \param _pardegree parallelism degree of the FlatMap pattern
      *  \param _name string with the unique name of the FlatMap pattern
+     *  \param _closing_func closing function
      */ 
-    FlatMap(rich_flatmap_func_t _func, size_t _pardegree, string _name): keyed(false)
+    FlatMap(rich_flatmap_func_t _func, size_t _pardegree, string _name, closing_func_t _closing_func): keyed(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -234,7 +242,7 @@ public:
         // vector of FlatMap_Node instances
         vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
-            auto *seq = new FlatMap_Node(_func, _name, RuntimeContext(_pardegree, i));
+            auto *seq = new FlatMap_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             w.push_back(seq);
         }
         // add emitter
@@ -253,9 +261,10 @@ public:
      *  \param _func rich flatmap function
      *  \param _pardegree parallelism degree of the FlatMap pattern
      *  \param _name string with the unique name of the FlatMap pattern
-     *  \param _routing function to map the key hashcode onto an identifier starting from zero to pardegree-1
+     *  \param _closing_func closing function
+     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
-    FlatMap(rich_flatmap_func_t _func, size_t _pardegree, string _name, f_routing_t _routing): keyed(true)
+    FlatMap(rich_flatmap_func_t _func, size_t _pardegree, string _name, closing_func_t _closing_func, routing_func_t _routing_func): keyed(true)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -265,11 +274,11 @@ public:
         // vector of FlatMap_Node instances
         vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
-            auto *seq = new FlatMap_Node(_func, _name, RuntimeContext(_pardegree, i));
+            auto *seq = new FlatMap_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing));
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func));
         // add workers
         ff_farm::add_workers(w);
         // add default collector

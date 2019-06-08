@@ -40,6 +40,7 @@
 #include <ff/farm.hpp>
 #include <ff/optimize.hpp>
 #include <win_seq.hpp>
+#include <context.hpp>
 #include <wf_nodes.hpp>
 #include <pane_farm.hpp>
 #include <win_mapreduce.hpp>
@@ -56,10 +57,16 @@ template<typename tuple_t, typename result_t, typename input_t>
 class Win_Farm: public ff_farm
 {
 public:
-    /// function type of the non-incremental window processing
-    using f_winfunction_t = function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
-    /// function type of the incremental window processing
-    using f_winupdate_t = function<void(uint64_t, const tuple_t &, result_t &)>;
+    /// type of the non-incremental window processing function
+    using win_func_t = function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
+    /// type of the rich non-incremental window processing function
+    using rich_win_func_t = function<void(uint64_t, Iterable<tuple_t> &, result_t &, RuntimeContext &)>;
+    /// type of the incremental window processing function
+    using winupdate_func_t = function<void(uint64_t, const tuple_t &, result_t &)>;
+    /// type of the rich incremental window processing function
+    using rich_winupdate_func_t = function<void(uint64_t, const tuple_t &, result_t &, RuntimeContext &)>;
+    /// type of the closing function
+    using closing_func_t = function<void(RuntimeContext &)>;
     /// type of the Pane_Farm passed to the proper nesting constructor
     using pane_farm_t = Pane_Farm<tuple_t, result_t>;
     /// type of the Win_MapReduce passed to the proper nesting constructor
@@ -96,18 +103,25 @@ private:
     // private constructor I (stub)
     Win_Farm() {}
 
-    // private constructor II (non-incremental queries)
-    Win_Farm(f_winfunction_t _winFunction,
+    // private constructor II
+    template<typename F_t>
+    Win_Farm(F_t _func,
              uint64_t _win_len,
              uint64_t _slide_len,
              win_type_t _winType,
              size_t _emitter_degree,
              size_t _pardegree,
              string _name,
+             closing_func_t _closing_func,
              bool _ordered,
              opt_level_t _opt_level,
              PatternConfig _config,
-             role_t _role): hasComplexWorkers(false), opt_level(_opt_level), winType(_winType), num_emitters(_emitter_degree)
+             role_t _role)
+             :
+             hasComplexWorkers(false),
+             opt_level(_opt_level),
+             winType(_winType),
+             num_emitters(_emitter_degree)
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -139,7 +153,7 @@ private:
             for (size_t i = 0; i < _pardegree; i++) {
                 // configuration structure of the Win_Seq instances
                 PatternConfig configSeq(_config.id_inner, _config.n_inner, _config.slide_inner, i, _pardegree, _slide_len);
-                auto *seq = new win_seq_t(_winFunction, _win_len, private_slide, _winType, _name + "_wf", configSeq, _role);
+                auto *seq = new win_seq_t(_func, _win_len, private_slide, _winType, _name + "_wf", _closing_func, RuntimeContext(_pardegree, i), configSeq, _role);
                 w.push_back(seq);
             }
         }
@@ -159,89 +173,7 @@ private:
                 auto *ord = new Ordering_Node<tuple_t, wrapper_in_t>(((_winType == CB) ? ID : TS));
                 // configuration structure of the Win_Seq instances
                 PatternConfig configSeq(_config.id_inner, _config.n_inner, _config.slide_inner, i, _pardegree, _slide_len);
-                auto *seq = new win_seq_t(_winFunction, _win_len, private_slide, _winType, _name + "_wf", configSeq, _role);
-                auto *comb = new ff_comb(ord, seq, true, true);
-                seqs[i] = comb;
-            }
-            a2a->add_secondset(seqs, true);
-            w.push_back(a2a);
-        }
-        ff_farm::add_workers(w);
-        // create the Emitter and Collector nodes
-        if (_emitter_degree == 1)
-            ff_farm::add_emitter(new wf_emitter_t(_winType, _win_len, _slide_len, _pardegree, _config.id_inner, _config.n_inner, _config.slide_inner, _role));
-        if (_ordered)
-            ff_farm::add_collector(new wf_collector_t());
-        else
-            ff_farm::add_collector(nullptr);
-        // when the Win_Farm will be destroyed we need aslo to destroy the emitter, workers and collector
-        ff_farm::cleanup_all();
-    }
-
-    // private constructor III (incremental queries)
-    Win_Farm(f_winupdate_t _winUpdate,
-             uint64_t _win_len,
-             uint64_t _slide_len,
-             win_type_t _winType,
-             size_t _emitter_degree,
-             size_t _pardegree,
-             string _name,
-             bool _ordered,
-             opt_level_t _opt_level,
-             PatternConfig _config,
-             role_t _role): hasComplexWorkers(false), opt_level(_opt_level), winType(_winType), num_emitters(_emitter_degree)
-    {
-        // check the validity of the windowing parameters
-        if (_win_len == 0 || _slide_len == 0) {
-            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
-            exit(EXIT_FAILURE);
-        }
-        // check the validity of the emitter degree
-        if (_emitter_degree == 0) {
-            cerr << RED << "WindFlow Error: at least one emitter is needed" << DEFAULT << endl;
-            exit(EXIT_FAILURE);
-        }
-        // check the validity of the parallelism degree
-        if (_pardegree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
-            exit(EXIT_FAILURE);
-        }
-        // check the optimization level
-        if (_opt_level != LEVEL0) {
-            cerr << YELLOW << "WindFlow Warning: optimization level has no effect" << DEFAULT << endl;
-            opt_level = LEVEL0;
-        }
-        // vector of Win_Seq instances
-        vector<ff_node *> w;
-        // private sliding factor of each Win_Seq instance
-        uint64_t private_slide = _slide_len * _pardegree;
-        // standard case: one Emitter node
-        if (_emitter_degree == 1) {
-            // create the Win_Seq instances
-            for (size_t i = 0; i < _pardegree; i++) {
-                // configuration structure of the Win_Seq instances
-                PatternConfig configSeq(_config.id_inner, _config.n_inner, _config.slide_inner, i, _pardegree, _slide_len);
-                auto *seq = new win_seq_t(_winUpdate, _win_len, private_slide, _winType, _name + "_wf", configSeq, _role);
-                w.push_back(seq);
-            }
-        }
-        // advanced case: multiple Emitter nodes
-        else {
-            ff_a2a *a2a = new ff_a2a();
-            // create the Emitter nodes
-            vector<ff_node *> emitters(_emitter_degree);
-            for (size_t i = 0; i < _emitter_degree; i++) {
-                auto *emitter = new wf_emitter_t(_winType, _win_len, _slide_len, _pardegree, _config.id_inner, _config.n_inner, _config.slide_inner, _role);
-                emitters[i] = emitter;
-            }
-            a2a->add_firstset(emitters, 0, true);
-            // create the Win_Seq nodes composed with an orderingNodes
-            vector<ff_node *> seqs(_pardegree);
-            for (size_t i = 0; i < _pardegree; i++) {
-                auto *ord = new Ordering_Node<tuple_t, wrapper_in_t>(((_winType == CB) ? ID : TS));
-                // configuration structure of the Win_Seq instances
-                PatternConfig configSeq(_config.id_inner, _config.n_inner, _config.slide_inner, i, _pardegree, _slide_len);
-                auto *seq = new win_seq_t(_winUpdate, _win_len, private_slide, _winType, _name + "_wf", configSeq, _role);
+                auto *seq = new win_seq_t(_func, _win_len, private_slide, _winType, _name + "_wf", _closing_func, RuntimeContext(_pardegree, i), configSeq, _role);
                 auto *comb = new ff_comb(ord, seq, true, true);
                 seqs[i] = comb;
             }
@@ -275,57 +207,115 @@ private:
 
 public:
     /** 
-     *  \brief Constructor I (Non-Incremental Queries)
+     *  \brief Constructor I
      *  
-     *  \param _winFunction the non-incremental window processing function
+     *  \param _win_func the non-incremental window processing function
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _emitter_degree number of replicas of the emitter node
      *  \param _pardegree parallelism degree of the Win_Farm pattern
      *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Win_Farm(f_winfunction_t _winFunction,
+    Win_Farm(win_func_t _win_func,
              uint64_t _win_len,
              uint64_t _slide_len,
              win_type_t _winType,
              size_t _emitter_degree,
              size_t _pardegree,
              string _name,
-             bool _ordered=true,
-             opt_level_t _opt_level=LEVEL0)
-             :
-             Win_Farm(_winFunction, _win_len, _slide_len, _winType, _emitter_degree, _pardegree, _name, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ) {}
+             closing_func_t _closing_func,
+             bool _ordered,
+             opt_level_t _opt_level):
+             Win_Farm(_win_func, _win_len, _slide_len, _winType, _emitter_degree, _pardegree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
+    {}
 
     /** 
-     *  \brief Constructor II (Incremental Queries)
+     *  \brief Constructor II
      *  
-     *  \param _winUpdate the incremental window processing function
+     *  \param _rich_win_func the rich non-incremental window processing function
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _emitter_degree number of replicas of the emitter node
      *  \param _pardegree parallelism degree of the Win_Farm pattern
      *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Win_Farm(f_winupdate_t _winUpdate,
+    Win_Farm(rich_win_func_t _rich_win_func,
              uint64_t _win_len,
              uint64_t _slide_len,
              win_type_t _winType,
              size_t _emitter_degree,
              size_t _pardegree,
              string _name,
-             bool _ordered=true,
-             opt_level_t _opt_level=LEVEL0)
-             :
-             Win_Farm(_winUpdate, _win_len, _slide_len, _winType, _emitter_degree, _pardegree, _name, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ) {}
+             closing_func_t _closing_func,
+             bool _ordered,
+             opt_level_t _opt_level):
+             Win_Farm(_rich_win_func, _win_len, _slide_len, _winType, _emitter_degree, _pardegree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
+    {}
 
     /** 
-     *  \brief Constructor III (Nesting with Pane_Farm)
+     *  \brief Constructor III
+     *  
+     *  \param _winupdate_func the incremental window processing function
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _emitter_degree number of replicas of the emitter node
+     *  \param _pardegree parallelism degree of the Win_Farm pattern
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
+     *  \param _opt_level optimization level used to build the pattern
+     */ 
+    Win_Farm(winupdate_func_t _winupdate_func,
+             uint64_t _win_len,
+             uint64_t _slide_len,
+             win_type_t _winType,
+             size_t _emitter_degree,
+             size_t _pardegree,
+             string _name,
+             closing_func_t _closing_func,
+             bool _ordered,
+             opt_level_t _opt_level):
+             Win_Farm(_winupdate_func, _win_len, _slide_len, _winType, _emitter_degree, _pardegree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
+    {}
+
+    /** 
+     *  \brief Constructor IV
+     *  
+     *  \param _rich_winupdate_func the rich incremental window processing function
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _emitter_degree number of replicas of the emitter node
+     *  \param _pardegree parallelism degree of the Win_Farm pattern
+     *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
+     *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
+     *  \param _opt_level optimization level used to build the pattern
+     */ 
+    Win_Farm(rich_winupdate_func_t _rich_winupdate_func,
+             uint64_t _win_len,
+             uint64_t _slide_len,
+             win_type_t _winType,
+             size_t _emitter_degree,
+             size_t _pardegree,
+             string _name,
+             closing_func_t _closing_func,
+             bool _ordered,
+             opt_level_t _opt_level):
+             Win_Farm(_rich_winupdate_func, _win_len, _slide_len, _winType, _emitter_degree, _pardegree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
+    {}
+
+    /** 
+     *  \brief Constructor V (Nesting with Pane_Farm)
      *  
      *  \param _pf Pane_Farm instance to be replicated within the Win_Farm pattern
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -334,6 +324,7 @@ public:
      *  \param _emitter_degree number of replicas of the emitter node
      *  \param _pardegree parallelism degree of the Win_Farm pattern
      *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
      */ 
@@ -344,8 +335,9 @@ public:
              size_t _emitter_degree,
              size_t _pardegree,
              string _name,
-             bool _ordered=true,
-             opt_level_t _opt_level=LEVEL0): hasComplexWorkers(true), opt_level(_opt_level), winType(_winType), num_emitters(_emitter_degree)
+             closing_func_t _closing_func,
+             bool _ordered,
+             opt_level_t _opt_level): hasComplexWorkers(true), opt_level(_opt_level), winType(_winType), num_emitters(_emitter_degree)
     {
         // type of the Pane_Farm to be created within the Win_Farm pattern
         using panewrap_farm_t = Pane_Farm<tuple_t, result_t, wrapper_in_t>;
@@ -379,14 +371,43 @@ public:
                 PatternConfig configPF(0, 1, _slide_len, i, _pardegree, _slide_len);
                 // create the correct Pane_Farm instance
                 panewrap_farm_t *pf_W = nullptr;
-                if (_pf.isNICPLQ && _pf.isNICWLQ) // PLQ and WLQ are non-incremental
-                    pf_W = new panewrap_farm_t(_pf.plqFunction, _pf.wlqFunction, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), false, _pf.opt_level, configPF);
-                if (!_pf.isNICPLQ && !_pf.isNICWLQ) // PLQ and WLQ are incremental
-                    pf_W = new panewrap_farm_t(_pf.plqUpdate, _pf.wlqUpdate, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), false, _pf.opt_level, configPF);
-                if (_pf.isNICPLQ && !_pf.isNICWLQ) // PLQ is non-incremental and the WLQ is incremental
-                    pf_W = new panewrap_farm_t(_pf.plqFunction, _pf.wlqUpdate, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), false, _pf.opt_level, configPF);
-                if (!_pf.isNICPLQ && _pf.isNICWLQ) // PLQ is incremental and the WLQ is non-incremental
-                    pf_W = new panewrap_farm_t(_pf.plqUpdate, _pf.wlqFunction, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), false, _pf.opt_level, configPF);
+
+                if (_pf.isNICPLQ && _pf.isNICWLQ && !_pf.isRichPLQ && !_pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.plq_func, _pf.wlq_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                if (_pf.isNICPLQ && !_pf.isNICWLQ && !_pf.isRichPLQ && !_pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.plq_func, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                if (!_pf.isNICPLQ && _pf.isNICWLQ && !_pf.isRichPLQ && !_pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.plqupdate_func, _pf.wlq_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                if (!_pf.isNICPLQ && !_pf.isNICWLQ && !_pf.isRichPLQ && !_pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.plqupdate_func, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+
+                if (_pf.isNICPLQ && _pf.isNICWLQ && _pf.isRichPLQ && !_pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.rich_plq_func, _pf.wlq_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                if (_pf.isNICPLQ && !_pf.isNICWLQ && _pf.isRichPLQ && !_pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.rich_plq_func, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                if (!_pf.isNICPLQ && _pf.isNICWLQ && _pf.isRichPLQ && !_pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.rich_plqupdate_func, _pf.wlq_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                if (!_pf.isNICPLQ && !_pf.isNICWLQ && _pf.isRichPLQ && !_pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.rich_plqupdate_func, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+
+                if (_pf.isNICPLQ && _pf.isNICWLQ && !_pf.isRichPLQ && _pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.plq_func, _pf.rich_wlq_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                if (_pf.isNICPLQ && !_pf.isNICWLQ && !_pf.isRichPLQ && _pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.plq_func, _pf.rich_wlqupdate_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                if (!_pf.isNICPLQ && _pf.isNICWLQ && !_pf.isRichPLQ && _pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.plqupdate_func, _pf.rich_wlq_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                if (!_pf.isNICPLQ && !_pf.isNICWLQ && !_pf.isRichPLQ && _pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.plqupdate_func, _pf.rich_wlqupdate_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+
+                if (_pf.isNICPLQ && _pf.isNICWLQ && _pf.isRichPLQ && _pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.rich_plq_func, _pf.rich_wlq_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                if (_pf.isNICPLQ && !_pf.isNICWLQ && _pf.isRichPLQ && _pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.rich_plq_func, _pf.rich_wlqupdate_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                if (!_pf.isNICPLQ && _pf.isNICWLQ && _pf.isRichPLQ && _pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.rich_plqupdate_func, _pf.rich_wlq_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                if (!_pf.isNICPLQ && !_pf.isNICWLQ && _pf.isRichPLQ && _pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.rich_plqupdate_func, _pf.rich_wlqupdate_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+
                 w.push_back(pf_W);
             }
         }
@@ -409,14 +430,43 @@ public:
                 PatternConfig configPF(0, 1, _slide_len, i, _pardegree, _slide_len);
                 // create the correct Pane_Farm instance
                 panewrap_farm_t *pf_W = nullptr;
-                if (_pf.isNICPLQ && _pf.isNICWLQ) // PLQ and WLQ are non-incremental
-                    pf_W = new panewrap_farm_t(_pf.plqFunction, _pf.wlqFunction, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), false, _pf.opt_level, configPF);
-                if (!_pf.isNICPLQ && !_pf.isNICWLQ) // PLQ and WLQ are incremental
-                    pf_W = new panewrap_farm_t(_pf.plqUpdate, _pf.wlqUpdate, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), false, _pf.opt_level, configPF);
-                if (_pf.isNICPLQ && !_pf.isNICWLQ) // PLQ is non-incremental and the WLQ is incremental
-                    pf_W = new panewrap_farm_t(_pf.plqFunction, _pf.wlqUpdate, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), false, _pf.opt_level, configPF);
-                if (!_pf.isNICPLQ && _pf.isNICWLQ) // PLQ is incremental and the WLQ is non-incremental
-                    pf_W = new panewrap_farm_t(_pf.plqUpdate, _pf.wlqFunction, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), false, _pf.opt_level, configPF);
+
+                if (_pf.isNICPLQ && _pf.isNICWLQ && !_pf.isRichPLQ && !_pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.plq_func, _pf.wlq_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                if (_pf.isNICPLQ && !_pf.isNICWLQ && !_pf.isRichPLQ && !_pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.plq_func, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                if (!_pf.isNICPLQ && _pf.isNICWLQ && !_pf.isRichPLQ && !_pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.plqupdate_func, _pf.wlq_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                if (!_pf.isNICPLQ && !_pf.isNICWLQ && !_pf.isRichPLQ && !_pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.plqupdate_func, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+
+                if (_pf.isNICPLQ && _pf.isNICWLQ && _pf.isRichPLQ && !_pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.rich_plq_func, _pf.wlq_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                if (_pf.isNICPLQ && !_pf.isNICWLQ && _pf.isRichPLQ && !_pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.rich_plq_func, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                if (!_pf.isNICPLQ && _pf.isNICWLQ && _pf.isRichPLQ && !_pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.rich_plqupdate_func, _pf.wlq_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                if (!_pf.isNICPLQ && !_pf.isNICWLQ && _pf.isRichPLQ && !_pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.rich_plqupdate_func, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+
+                if (_pf.isNICPLQ && _pf.isNICWLQ && !_pf.isRichPLQ && _pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.plq_func, _pf.rich_wlq_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                if (_pf.isNICPLQ && !_pf.isNICWLQ && !_pf.isRichPLQ && _pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.plq_func, _pf.rich_wlqupdate_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                if (!_pf.isNICPLQ && _pf.isNICWLQ && !_pf.isRichPLQ && _pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.plqupdate_func, _pf.rich_wlq_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                if (!_pf.isNICPLQ && !_pf.isNICWLQ && !_pf.isRichPLQ && _pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.plqupdate_func, _pf.rich_wlqupdate_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+
+                if (_pf.isNICPLQ && _pf.isNICWLQ && _pf.isRichPLQ && _pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.rich_plq_func, _pf.rich_wlq_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                if (_pf.isNICPLQ && !_pf.isNICWLQ && _pf.isRichPLQ && _pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.rich_plq_func, _pf.rich_wlqupdate_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                if (!_pf.isNICPLQ && _pf.isNICWLQ && _pf.isRichPLQ && _pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.rich_plqupdate_func, _pf.rich_wlq_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                if (!_pf.isNICPLQ && !_pf.isNICWLQ && _pf.isRichPLQ && _pf.isRichWLQ)
+                    pf_W = new panewrap_farm_t(_pf.rich_plqupdate_func, _pf.rich_wlqupdate_func, _pf.win_len, _pf.slide_len * _pardegree, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_wf_" + to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+
                 // combine the first node of the Pane_Farm instance with the buffering node
                 combine_with_firststage(*pf_W, ord, true);
                 pfs[i] = pf_W;
@@ -448,6 +498,7 @@ public:
      *  \param _emitter_degree number of replicas of the emitter node
      *  \param _pardegree parallelism degree of the Win_Farm pattern
      *  \param _name string with the unique name of the pattern
+     *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
      */ 
@@ -458,8 +509,9 @@ public:
              size_t _emitter_degree,
              size_t _pardegree,
              string _name,
-             bool _ordered=true,
-             opt_level_t _opt_level=LEVEL0): hasComplexWorkers(true), opt_level(_opt_level), winType(_winType), num_emitters(_emitter_degree)
+             closing_func_t _closing_func,
+             bool _ordered,
+             opt_level_t _opt_level): hasComplexWorkers(true), opt_level(_opt_level), winType(_winType), num_emitters(_emitter_degree)
     {
         // type of the Win_MapReduce to be created within the Win_Farm pattern
         using winwrap_map_t = Win_MapReduce<tuple_t, result_t, wrapper_in_t>;
@@ -493,14 +545,43 @@ public:
                 PatternConfig configWM(0, 1, _slide_len, i, _pardegree, _slide_len);
                 // create the correct Win_MapReduce instance
                 winwrap_map_t *wm_W = nullptr;
-                if (_wm.isNICMAP && _wm.isNICREDUCE) // MAP and REDUCE are non-incremental
-                    wm_W = new winwrap_map_t(_wm.mapFunction, _wm.reduceFunction, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), false, _wm.opt_level, configWM);
-                if (!_wm.isNICMAP && !_wm.isNICREDUCE) // MAP and REDUCE are incremental
-                    wm_W = new winwrap_map_t(_wm.mapUpdate, _wm.reduceUpdate, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), false, _wm.opt_level, configWM);
-                if (_wm.isNICMAP && !_wm.isNICREDUCE) // MAP is non-incremental and the REDUCE is incremental
-                    wm_W = new winwrap_map_t(_wm.mapFunction, _wm.reduceUpdate, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), false, _wm.opt_level, configWM);
-                if (!_wm.isNICMAP && _wm.isNICREDUCE) // MAP is incremental and the REDUCE is non-incremental
-                    wm_W = new winwrap_map_t(_wm.mapUpdate, _wm.reduceFunction, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), false, _wm.opt_level, configWM);
+
+                if (_wm.isNICMAP && _wm.isNICREDUCE && !_wm.isRichMAP && !_wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.map_func, _wm.reduce_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                if (_wm.isNICMAP && !_wm.isNICREDUCE && !_wm.isRichMAP && !_wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.map_func, _wm.reduceupdate_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                if (!_wm.isNICMAP && _wm.isNICREDUCE && !_wm.isRichMAP && !_wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.mapupdate_func, _wm.reduce_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                if (!_wm.isNICMAP && !_wm.isNICREDUCE && !_wm.isRichMAP && !_wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.mapupdate_func, _wm.reduceupdate_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+
+                if (_wm.isNICMAP && _wm.isNICREDUCE && _wm.isRichMAP && !_wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.rich_map_func, _wm.reduce_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                if (_wm.isNICMAP && !_wm.isNICREDUCE && _wm.isRichMAP && !_wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.rich_map_func, _wm.reduceupdate_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                if (!_wm.isNICMAP && _wm.isNICREDUCE && _wm.isRichMAP && !_wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.rich_mapupdate_func, _wm.reduce_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                if (!_wm.isNICMAP && !_wm.isNICREDUCE && _wm.isRichMAP && !_wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.rich_mapupdate_func, _wm.reduceupdate_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+
+                if (_wm.isNICMAP && _wm.isNICREDUCE && !_wm.isRichMAP && _wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.map_func, _wm.rich_reduce_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                if (_wm.isNICMAP && !_wm.isNICREDUCE && !_wm.isRichMAP && _wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.map_func, _wm.rich_reduceupdate_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                if (!_wm.isNICMAP && _wm.isNICREDUCE && !_wm.isRichMAP && _wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.mapupdate_func, _wm.rich_reduce_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                if (!_wm.isNICMAP && !_wm.isNICREDUCE && !_wm.isRichMAP && _wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.mapupdate_func, _wm.rich_reduceupdate_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+
+                if (_wm.isNICMAP && _wm.isNICREDUCE && _wm.isRichMAP && _wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.rich_map_func, _wm.rich_reduce_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                if (_wm.isNICMAP && !_wm.isNICREDUCE && _wm.isRichMAP && _wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.rich_map_func, _wm.rich_reduceupdate_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                if (!_wm.isNICMAP && _wm.isNICREDUCE && _wm.isRichMAP && _wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.rich_mapupdate_func, _wm.rich_reduce_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                if (!_wm.isNICMAP && !_wm.isNICREDUCE && _wm.isRichMAP && _wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.rich_mapupdate_func, _wm.rich_reduceupdate_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+
                 w.push_back(wm_W);
             }
         }
@@ -523,14 +604,43 @@ public:
                 PatternConfig configWM(0, 1, _slide_len, i, _pardegree, _slide_len);
                 // create the correct Win_MapReduce instance
                 winwrap_map_t *wm_W = nullptr;
-                if (_wm.isNICMAP && _wm.isNICREDUCE) // MAP and REDUCE are non-incremental
-                    wm_W = new winwrap_map_t(_wm.mapFunction, _wm.reduceFunction, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), false, _wm.opt_level, configWM);
-                if (!_wm.isNICMAP && !_wm.isNICREDUCE) // MAP and REDUCE are incremental
-                    wm_W = new winwrap_map_t(_wm.mapUpdate, _wm.reduceUpdate, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), false, _wm.opt_level, configWM);
-                if (_wm.isNICMAP && !_wm.isNICREDUCE) // MAP is non-incremental and the REDUCE is incremental
-                    wm_W = new winwrap_map_t(_wm.mapFunction, _wm.reduceUpdate, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), false, _wm.opt_level, configWM);
-                if (!_wm.isNICMAP && _wm.isNICREDUCE) // MAP is incremental and the REDUCE is non-incremental
-                    wm_W = new winwrap_map_t(_wm.mapUpdate, _wm.reduceFunction, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), false, _wm.opt_level, configWM);                
+
+                if (_wm.isNICMAP && _wm.isNICREDUCE && !_wm.isRichMAP && !_wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.map_func, _wm.reduce_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                if (_wm.isNICMAP && !_wm.isNICREDUCE && !_wm.isRichMAP && !_wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.map_func, _wm.reduceupdate_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                if (!_wm.isNICMAP && _wm.isNICREDUCE && !_wm.isRichMAP && !_wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.mapupdate_func, _wm.reduce_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                if (!_wm.isNICMAP && !_wm.isNICREDUCE && !_wm.isRichMAP && !_wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.mapupdate_func, _wm.reduceupdate_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+
+                if (_wm.isNICMAP && _wm.isNICREDUCE && _wm.isRichMAP && !_wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.rich_map_func, _wm.reduce_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                if (_wm.isNICMAP && !_wm.isNICREDUCE && _wm.isRichMAP && !_wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.rich_map_func, _wm.reduceupdate_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                if (!_wm.isNICMAP && _wm.isNICREDUCE && _wm.isRichMAP && !_wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.rich_mapupdate_func, _wm.reduce_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                if (!_wm.isNICMAP && !_wm.isNICREDUCE && _wm.isRichMAP && !_wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.rich_mapupdate_func, _wm.reduceupdate_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+
+                if (_wm.isNICMAP && _wm.isNICREDUCE && !_wm.isRichMAP && _wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.map_func, _wm.rich_reduce_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                if (_wm.isNICMAP && !_wm.isNICREDUCE && !_wm.isRichMAP && _wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.map_func, _wm.rich_reduceupdate_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                if (!_wm.isNICMAP && _wm.isNICREDUCE && !_wm.isRichMAP && _wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.mapupdate_func, _wm.rich_reduce_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                if (!_wm.isNICMAP && !_wm.isNICREDUCE && !_wm.isRichMAP && _wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.mapupdate_func, _wm.rich_reduceupdate_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+
+                if (_wm.isNICMAP && _wm.isNICREDUCE && _wm.isRichMAP && _wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.rich_map_func, _wm.rich_reduce_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                if (_wm.isNICMAP && !_wm.isNICREDUCE && _wm.isRichMAP && _wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.rich_map_func, _wm.rich_reduceupdate_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                if (!_wm.isNICMAP && _wm.isNICREDUCE && _wm.isRichMAP && _wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.rich_mapupdate_func, _wm.rich_reduce_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                if (!_wm.isNICMAP && !_wm.isNICREDUCE && _wm.isRichMAP && _wm.isRichREDUCE)
+                    wm_W = new winwrap_map_t(_wm.rich_mapupdate_func, _wm.rich_reduceupdate_func, _wm.win_len, _wm.slide_len * _pardegree, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+
                 // combine the first node of the Win_MapReduce instance with the buffering node
                 combine_with_firststage(*wm_W, ord, true);
                 wms[i] = wm_W;

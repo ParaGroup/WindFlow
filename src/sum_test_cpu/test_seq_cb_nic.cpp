@@ -26,7 +26,7 @@
 #include <string>
 #include <iostream>
 #include <ff/ff.hpp>
-#include <windflow.hpp>
+#include <win_seq.hpp>
 #include "sum_cb.hpp"
 
 using namespace ff;

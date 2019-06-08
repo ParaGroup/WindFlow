@@ -63,7 +63,7 @@ class Key_Farm_GPU: public ff_farm
 {
 public:
     /// function type to map the key hashcode onto an identifier starting from zero to pardegree-1
-    using f_routing_t = function<size_t(size_t, size_t)>;
+    using routing_func_t = function<size_t(size_t, size_t)>;
     /// type of the Pane_Farm_GPU passed to the proper nesting constructor
     using pane_farm_gpu_t = Pane_Farm_GPU<tuple_t, result_t, win_F_t>;
     /// type of the Win_MapReduce_GPU passed to the proper nesting constructor
@@ -107,7 +107,7 @@ public:
     /** 
      *  \brief Constructor I
      *  
-     *  \param _winFunction the non-incremental window processing function (CPU/GPU function)
+     *  \param _win_func the non-incremental window processing function (CPU/GPU function)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
@@ -116,10 +116,10 @@ public:
      *  \param _n_thread_block number of threads (i.e. windows) per block
      *  \param _name string with the unique name of the pattern
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
-     *  \param _routing function to map the key hashcode onto an identifier starting from zero to pardegree-1
+     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the pattern
      */ 
-    Key_Farm_GPU(win_F_t _winFunction,
+    Key_Farm_GPU(win_F_t _win_func,
                  uint64_t _win_len,
                  uint64_t _slide_len,
                  win_type_t _winType,
@@ -127,9 +127,9 @@ public:
                  size_t _batch_len,
                  size_t _n_thread_block,
                  string _name,
-                 size_t _scratchpad_size=0,
-                 f_routing_t _routing=[](size_t k, size_t n) { return k%n; },
-                 opt_level_t _opt_level=LEVEL0): hasComplexWorkers(false), opt_level(_opt_level), winType(_winType)
+                 size_t _scratchpad_size,
+                 routing_func_t _routing_func,
+                 opt_level_t _opt_level): hasComplexWorkers(false), opt_level(_opt_level), winType(_winType)
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -155,13 +155,13 @@ public:
         vector<ff_node *> w(_pardegree);
         // create the Win_Seq_GPU instances
         for (size_t i = 0; i < _pardegree; i++) {
-            auto *seq = new win_seq_gpu_t(_winFunction, _win_len, _slide_len, _winType, _batch_len, _n_thread_block, _name + "_kf", _scratchpad_size);
+            auto *seq = new win_seq_gpu_t(_win_func, _win_len, _slide_len, _winType, _batch_len, _n_thread_block, _name + "_kf", _scratchpad_size);
             w[i] = seq;
         }
         ff_farm::add_workers(w);
         ff_farm::add_collector(nullptr);
         // create the Emitter node
-        ff_farm::add_emitter(new kf_emitter_t(_routing, _pardegree));
+        ff_farm::add_emitter(new kf_emitter_t(_routing_func, _pardegree));
         // when the Key_Farm_GPU will be destroyed we need aslo to destroy the emitter, workers and collector
         ff_farm::cleanup_all();
     }
@@ -178,7 +178,7 @@ public:
      *  \param _n_thread_block number of threads (i.e. windows) per block
      *  \param _name string with the unique name of the pattern
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
-     *  \param _routing function to map the key hashcode onto an identifier starting from zero to pardegree-1
+     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the pattern
      */ 
     Key_Farm_GPU(const pane_farm_gpu_t &_pf,
@@ -189,9 +189,9 @@ public:
                  size_t _batch_len,
                  size_t _n_thread_block,
                  string _name,
-                 size_t _scratchpad_size=0,
-                 f_routing_t _routing=[](size_t k, size_t n) { return k%n; },
-                 opt_level_t _opt_level=LEVEL0): hasComplexWorkers(true), opt_level(_opt_level), winType(_winType)
+                 size_t _scratchpad_size,
+                 routing_func_t _routing_func,
+                 opt_level_t _opt_level): hasComplexWorkers(true), opt_level(_opt_level), winType(_winType)
     {
         // type of the Pane_Farm_GPU to be created within the Key_Farm_GPU pattern
         using panewrap_farm_gpu_t = Pane_Farm_GPU<tuple_t, result_t, win_F_t, wrapper_in_t>;
@@ -225,22 +225,22 @@ public:
             panewrap_farm_gpu_t *pf_W = nullptr;
             if (_pf.isGPUPLQ) {
                 if (_pf.isNICWLQ)
-                    pf_W = new panewrap_farm_gpu_t(_pf.gpuFunction, _pf.wlqFunction, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_kf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
+                    pf_W = new panewrap_farm_gpu_t(_pf.gpuFunction, _pf.wlq_func, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_kf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
                 else
-                    pf_W = new panewrap_farm_gpu_t(_pf.gpuFunction, _pf.wlqUpdate, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_kf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
+                    pf_W = new panewrap_farm_gpu_t(_pf.gpuFunction, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_kf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
             }
             else {
                 if (_pf.isNICPLQ)
-                    pf_W = new panewrap_farm_gpu_t(_pf.plqFunction, _pf.gpuFunction, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_kf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
+                    pf_W = new panewrap_farm_gpu_t(_pf.plq_func, _pf.gpuFunction, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_kf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
                 else
-                    pf_W = new panewrap_farm_gpu_t(_pf.plqUpdate, _pf.gpuFunction, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_kf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
+                    pf_W = new panewrap_farm_gpu_t(_pf.plqupdate_func, _pf.gpuFunction, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_kf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
             }
             w[i] = pf_W;
         }
         ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
         ff_farm::add_collector(new kf_collector_t());
-        ff_farm::add_emitter(new kf_emitter_t(_routing, _pardegree));
+        ff_farm::add_emitter(new kf_emitter_t(_routing_func, _pardegree));
         // optimization process according to the provided optimization level
         this->optimize_KeyFarmGPU(_opt_level);
         // when the Key_Farm_GPU will be destroyed we need aslo to destroy the emitter, workers and collector
@@ -259,7 +259,7 @@ public:
      *  \param _n_thread_block number of threads (i.e. windows) per block
      *  \param _name string with the unique name of the pattern
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
-     *  \param _routing function to map the key hashcode onto an identifier starting from zero to pardegree-1
+     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the pattern
      */ 
     Key_Farm_GPU(const win_mapreduce_gpu_t &_wm,
@@ -270,9 +270,9 @@ public:
                  size_t _batch_len,
                  size_t _n_thread_block,
                  string _name,
-                 size_t _scratchpad_size=0,
-                 f_routing_t _routing=[](size_t k, size_t n) { return k%n; },
-                 opt_level_t _opt_level=LEVEL0): hasComplexWorkers(true), opt_level(_opt_level), winType(_winType)
+                 size_t _scratchpad_size,
+                 routing_func_t _routing_func,
+                 opt_level_t _opt_level): hasComplexWorkers(true), opt_level(_opt_level), winType(_winType)
     {
         // type of the Win_MapReduce_GPU to be created within the Key_Farm_GPU pattern
         using winwrap_mapreduce_gpu_t = Win_MapReduce_GPU<tuple_t, result_t, win_F_t, wrapper_in_t>;
@@ -306,22 +306,22 @@ public:
             winwrap_mapreduce_gpu_t *wm_W = nullptr;
             if (_wm.isGPUMAP) {
                 if (_wm.isNICREDUCE)
-                    wm_W = new winwrap_mapreduce_gpu_t(_wm.gpuFunction, _wm.reduceFunction, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_kf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
+                    wm_W = new winwrap_mapreduce_gpu_t(_wm.gpuFunction, _wm.reduce_func, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_kf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
                 else
-                    wm_W = new winwrap_mapreduce_gpu_t(_wm.gpuFunction, _wm.reduceUpdate, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_kf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
+                    wm_W = new winwrap_mapreduce_gpu_t(_wm.gpuFunction, _wm.reduceupdate_func, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_kf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
             }
             else {
                 if (_wm.isNICMAP)
-                    wm_W = new winwrap_mapreduce_gpu_t(_wm.mapFunction, _wm.gpuFunction, _wm.win_len, _wm.slide_len , _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_kf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
+                    wm_W = new winwrap_mapreduce_gpu_t(_wm.map_func, _wm.gpuFunction, _wm.win_len, _wm.slide_len , _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_kf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
                 else
-                    wm_W = new winwrap_mapreduce_gpu_t(_wm.mapUpdate, _wm.gpuFunction, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_kf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
+                    wm_W = new winwrap_mapreduce_gpu_t(_wm.mapupdate_func, _wm.gpuFunction, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_kf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
             }
             w[i] = wm_W;
         }
         ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
         ff_farm::add_collector(new kf_collector_t());
-        ff_farm::add_emitter(new kf_emitter_t(_routing, _pardegree));
+        ff_farm::add_emitter(new kf_emitter_t(_routing_func, _pardegree));
         // optimization process according to the provided optimization level
         this->optimize_KeyFarmGPU(_opt_level);
         // when the Key_Farm_GPU will be destroyed we need aslo to destroy the emitter, workers and collector
