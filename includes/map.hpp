@@ -28,7 +28,7 @@
  *  must produce one output result for each input tuple consumed.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with a
- *  copy constructor and copy assignment operator, and they must provide and implement
+ *  copy Constructor and copy assignment operator, and they must provide and implement
  *  the setControlFields() and getControlFields() methods.
  */ 
 
@@ -43,6 +43,7 @@
 #include <standard.hpp>
 
 using namespace ff;
+using namespace std;
 
 /** 
  *  \class Map

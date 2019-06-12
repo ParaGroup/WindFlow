@@ -59,12 +59,12 @@ private:
         tuple_t last_tuple; // copy of the last tuple received of this key
         size_t nextDst; // id of the Win_Seq instance receiving the next tuple of this key
 
-        // constructor
+        // Constructor
         Key_Descriptor(size_t _nextDst): rcv_counter(0), nextDst(_nextDst) {}
     };
     unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
 
-    // private constructor
+    // Private Constructor
     WinMap_Emitter(size_t _map_degree, win_type_t _winType): map_degree(_map_degree), winType(_winType) {}
 
     // svc_init method (utilized by the FastFlow runtime)
@@ -156,13 +156,13 @@ private:
         tuple_t last_tuple; // copy of the last tuple received of this key
         size_t nextDst; // id of the Win_Seq instance receiving the next tuple of this key
 
-        // constructor
+        // Constructor
         Key_Descriptor(size_t _nextDst): rcv_counter(0), nextDst(_nextDst) {}
     };
     unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     size_t my_id; // identifier of the Win_Seq instance associated with this WinMap_Dropper istance
 
-    // private constructor
+    // Private Constructor
     WinMap_Dropper(size_t _my_id, size_t _map_degree): my_id(_my_id), map_degree(_map_degree) {}
 
     // svc_init method (utilized by the FastFlow runtime)
@@ -240,13 +240,13 @@ private:
         uint64_t next_win; // next window to be transmitted of that key
         deque<result_t *> resultsSet; // deque of buffered results of that key
 
-        // constructor
+        // Constructor
         Key_Descriptor(): next_win(0) {}
     };
     // hash table that maps key identifiers onto key descriptors
     unordered_map<key_t, Key_Descriptor> keyMap;
 
-    // private constructor
+    // Private Constructor
     WinMap_Collector() {}
 
     // svc_init method (utilized by the FastFlow runtime)

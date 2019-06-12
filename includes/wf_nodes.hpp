@@ -66,12 +66,12 @@ private:
         uint64_t rcv_counter; // number of tuples received of this key
         tuple_t last_tuple; // copy of the last tuple received of this key
 
-        // constructor
+        // Constructor
         Key_Descriptor(): rcv_counter(0) {}
     };
     unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
 
-    // private constructor
+    // Private Constructor
     WF_Emitter(win_type_t _winType, uint64_t _win_len, uint64_t _slide_len, size_t _pardegree, size_t _id_outer, size_t _n_outer, uint64_t _slide_outer, role_t _role):
                winType(_winType),
                win_len(_win_len),
@@ -230,12 +230,12 @@ private:
         tuple_t last_tuple; // copy of the last tuple received of this key
         size_t nextDst; // id of the Win_Seq instance receiving the next tuple of this key (meaningful if role is MAP)
 
-        // constructor
+        // Constructor
         Key_Descriptor(size_t _nextDst): rcv_counter(0), nextDst(_nextDst) {}
     };
     unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
 
-    // private constructor
+    // Private Constructor
     WF_NestedEmitter(win_type_t _winType, uint64_t _win_len, uint64_t _slide_len, uint64_t _pane_len, size_t _pardegree1, size_t _pardegree2, role_t _role):
                winType(_winType),
                win_len(_win_len),
@@ -423,13 +423,13 @@ private:
         uint64_t next_win; // next window to be transmitted of that key
         deque<result_t *> resultsSet; // deque of buffered results of that key
 
-        // constructor
+        // Constructor
         Key_Descriptor(): next_win(0) {}
     };
     // hash table that maps key identifiers onto key descriptors
     unordered_map<key_t, Key_Descriptor> keyMap;
 
-    // private constructor
+    // Private Constructor
     WF_Collector() {}
 
     // svc_init method (utilized by the FastFlow runtime)

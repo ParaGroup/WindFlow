@@ -31,7 +31,7 @@
  *  windows of the same sub-stream are executed rigorously in order.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with
- *  a copy constructor and copy assignment operator, and they must provide and implement
+ *  a copy Constructor and copy assignment operator, and they must provide and implement
  *  the setControlFields() and getControlFields() methods.
  */ 
 
@@ -42,7 +42,6 @@
 #include <ff/farm.hpp>
 #include <ff/optimize.hpp>
 #include <win_seq.hpp>
-#include <context.hpp>
 #include <kf_nodes.hpp>
 #include <pane_farm.hpp>
 #include <win_mapreduce.hpp>
@@ -70,9 +69,9 @@ public:
     using rich_winupdate_func_t = function<void(uint64_t, const tuple_t &, result_t &, RuntimeContext &)>;
     /// type of the closing function
     using closing_func_t = function<void(RuntimeContext &)>;
-    /// type of the Pane_Farm used for the nesting constructor
+    /// type of the Pane_Farm used for the nesting Constructor
     using pane_farm_t = Pane_Farm<tuple_t, result_t>;
-    /// type of the Win_MapReduce used for the nesting constructor
+    /// type of the Win_MapReduce used for the nesting Constructor
     using win_mapreduce_t = Win_MapReduce<tuple_t, result_t>;
     /// type of the functionto map the key hashcode onto an identifier starting from zero to pardegree-1
     using routing_func_t = function<size_t(size_t, size_t)>;
@@ -83,7 +82,7 @@ private:
     using kf_emitter_t = KF_Emitter<tuple_t, input_t>;
     // type of the KF_Collector node
     using kf_collector_t = KF_NestedCollector<result_t>;
-    // type of the Win_Seq to be created within the regular constructor
+    // type of the Win_Seq to be created within the regular Constructor
     using win_seq_t = Win_Seq<tuple_t, result_t, wrapper_in_t>;
     // friendships with other classes in the library
     template<typename T>
@@ -95,10 +94,10 @@ private:
     // window type (CB or TB)
     win_type_t winType;
 
-    // private constructor I (stub)
+    // Private Constructor I (stub)
     Key_Farm() {}
 
-    // private constructor II
+    // Private Constructor II
     template<typename F_t>
     Key_Farm(F_t _func,
              uint64_t _win_len,

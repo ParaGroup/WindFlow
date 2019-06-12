@@ -33,10 +33,10 @@
 #ifndef CONTEXT_H
 #define CONTEXT_H
 
-using namespace std;
-
 // includes
 #include <local_storage.hpp>
+
+using namespace std;
 
 /** 
  *  \class RuntimeContext

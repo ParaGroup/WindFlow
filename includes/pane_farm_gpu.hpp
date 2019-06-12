@@ -34,7 +34,7 @@
  *  incremental or an incremental query definition.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with a
- *  copy constructor and copy assignment operator, and they must provide and implement
+ *  copy Constructor and copy assignment operator, and they must provide and implement
  *  the setControlFields() and getControlFields() methods. The third template argument F_t
  *  is the type of the callable object to be used for GPU processing (either for the PLQ
  *  or for the WLQ).
@@ -46,7 +46,6 @@
 // includes
 #include <ff/combine.hpp>
 #include <ff/pipeline.hpp>
-#include <context.hpp>
 #include <win_farm.hpp>
 #include <win_farm_gpu.hpp>
 #include <ordering_node.hpp>
@@ -118,7 +117,7 @@ private:
     opt_level_t opt_level;
     PatternConfig config;
 
-    // private constructor I
+    // Private Constructor I
     Pane_Farm_GPU(F_t _gpuFunction,
                   wlq_func_t _wlq_func,
                   uint64_t _win_len,
@@ -212,7 +211,7 @@ private:
         ff_pipeline::flatten();
     }
 
-    // private constructor II
+    // Private Constructor II
     Pane_Farm_GPU(F_t _gpuFunction,
                   wlqupdate_func_t _wlqupdate_func,
                   uint64_t _win_len,
@@ -306,7 +305,7 @@ private:
         ff_pipeline::flatten();
     }
 
-    // private constructor III
+    // Private Constructor III
     Pane_Farm_GPU(plq_func_t _plq_func,
                   F_t _gpuFunction,
                   uint64_t _win_len,
@@ -400,7 +399,7 @@ private:
         ff_pipeline::flatten();
     }
 
-    // private constructor IV
+    // Private Constructor IV
     Pane_Farm_GPU(plqupdate_func_t _plqupdate_func,
                   F_t _gpuFunction,
                   uint64_t _win_len,

@@ -26,7 +26,7 @@
  *  This file implements the Sink pattern in charge of absorbing the items of
  *  a data stream.
  *  
- *  The template parameter tuple_t must be default constructible, with a copy constructor
+ *  The template parameter tuple_t must be default constructible, with a copy Constructor
  *  and copy assignment operator, and it must provide and implement the setControlFields() and
  *  getControlFields() methods.
  */ 
@@ -42,11 +42,13 @@
 #else
     #include <optional>
 #endif
-#include <ff/multinode.hpp>
 #include <ff/farm.hpp>
+#include <ff/multinode.hpp>
 #include <context.hpp>
+#include <standard.hpp>
 
 using namespace ff;
+using namespace std;
 
 /** 
  *  \class Sink

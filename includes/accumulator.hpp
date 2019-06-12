@@ -27,7 +27,7 @@
  *  functions on data streams.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with a copy
- *  constructor and copy assignment operator, and thet must provide and implement the
+ *  Constructor and copy assignment operator, and thet must provide and implement the
  *  setControlFields() and getControlFields() methods.
  */ 
 
@@ -39,8 +39,8 @@
 #include <unordered_map>
 #include <ff/node.hpp>
 #include <ff/farm.hpp>
-#include <ff/multinode.hpp>
 #include <context.hpp>
+#include <standard.hpp>
 
 using namespace ff;
 using namespace std;
@@ -87,7 +87,7 @@ private:
         {
             result_t result;
 
-            // constructor
+            // Constructor
             Key_Descriptor(result_t _init_value): result(_init_value) {}
         };
         // hash table that maps key values onto key descriptors
@@ -180,7 +180,7 @@ public:
      *  \brief Constructor I
      *  
      *  \param _func reduce/fold function
-     *  \param _init_value initial value to be used by the fold function (for reduce the initial value is the one obtained by the default constructor of result_t)
+     *  \param _init_value initial value to be used by the fold function (for reduce the initial value is the one obtained by the default Constructor of result_t)
      *  \param _pardegree parallelism degree of the Accumulator pattern
      *  \param _name string with the unique name of the Accumulator pattern
      *  \param _closing_func closing function
@@ -211,7 +211,7 @@ public:
      *  \brief Constructor II
      *  
      *  \param _func rich reduce/fold function
-     *  \param _init_value initial value to be used by the fold function (for reduce the initial value is the one obtained by the default constructor of result_t)
+     *  \param _init_value initial value to be used by the fold function (for reduce the initial value is the one obtained by the default Constructor of result_t)
      *  \param _pardegree parallelism degree of the Accumulator pattern
      *  \param _name string with the unique name of the Accumulator pattern
      *  \param _closing_func closing function

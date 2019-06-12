@@ -26,7 +26,7 @@
  *  This file implements the Filter pattern able to drop all the input items that do not
  *  respect a given predicate given by the user.
  *  
- *  The template parameter tuple_t must be default constructible, with a copy constructor
+ *  The template parameter tuple_t must be default constructible, with a copy Constructor
  *  and copy assignment operator, and it must provide and implement the setControlFields()
  *  and getControlFields() methods.
  */ 
@@ -42,6 +42,7 @@
 #include <standard.hpp>
 
 using namespace ff;
+using namespace std;
 
 /** 
  *  \class Filter

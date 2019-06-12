@@ -32,9 +32,9 @@
  *  offloaded on the GPU sequentially.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with a copy
- *  constructor and copy assignment operator, and they must provide and implement the setControlFields()
- *  and getControlFields() methods. The third template argument win_F_t is the type of the callable object
- *  to be used for GPU processing.
+ *  Constructor and copy assignment operator, and they must provide and implement the
+ *  setControlFields() and getControlFields() methods. The third template argument win_F_t
+ *  is the type of the callable object to be used for GPU processing.
  */ 
 
 #ifndef KEY_FARM_GPU_H
@@ -64,14 +64,14 @@ class Key_Farm_GPU: public ff_farm
 public:
     /// function type to map the key hashcode onto an identifier starting from zero to pardegree-1
     using routing_func_t = function<size_t(size_t, size_t)>;
-    /// type of the Pane_Farm_GPU passed to the proper nesting constructor
+    /// type of the Pane_Farm_GPU passed to the proper nesting Constructor
     using pane_farm_gpu_t = Pane_Farm_GPU<tuple_t, result_t, win_F_t>;
-    /// type of the Win_MapReduce_GPU passed to the proper nesting constructor
+    /// type of the Win_MapReduce_GPU passed to the proper nesting Constructor
     using win_mapreduce_gpu_t = Win_MapReduce_GPU<tuple_t, result_t, win_F_t>;
 private:
     // type of the wrapper of input tuples
     using wrapper_in_t = wrapper_tuple_t<tuple_t>;
-    // type of the Win_Seq_GPU to be created within the regular constructor
+    // type of the Win_Seq_GPU to be created within the regular Constructor
     using win_seq_gpu_t = Win_Seq_GPU<tuple_t, result_t, win_F_t, wrapper_in_t>;
     // type of the KF_Emitter node
     using kf_emitter_t = KF_Emitter<tuple_t, input_t>;
@@ -87,7 +87,7 @@ private:
     // window type (CB or TB)
     win_type_t winType;
 
-    // private constructor (stub)
+    // Private Constructor (stub)
     Key_Farm_GPU() {}
 
     // method to optimize the structure of the Key_Farm_GPU pattern

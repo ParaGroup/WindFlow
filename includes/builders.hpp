@@ -30,18 +30,10 @@
 #define BUILDERS_H
 
 // includes
-#include <tuple>
 #include <chrono>
 #include <memory>
 #include <functional>
-#if __cplusplus < 201703L //not C++17
-    #include <experimental/optional>
-    using namespace std::experimental;
-#else
-    #include <optional>
-#endif
 #include <basic.hpp>
-#include <context.hpp>
 #include <meta_utils.hpp>
 
 using namespace chrono;
@@ -563,7 +555,7 @@ public:
     /** 
      *  \brief Method to specify the initial value for fold functions
      *         (for reduce the initial value is the one obtained by the
-     *          default constructor of result_t)
+     *          default Constructor of result_t)
      *  
      *  \param _init_value initial value
      *  \return the object itself

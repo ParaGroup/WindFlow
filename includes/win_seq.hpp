@@ -28,7 +28,7 @@
  *  core and supports both a non-incremental and an incremental query definition.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with
- *  a copy constructor and copy assignment operator, and they must provide and implement
+ *  a copy Constructor and copy assignment operator, and they must provide and implement
  *  the setControlFields() and getControlFields() methods.
  */ 
 
@@ -43,7 +43,7 @@
 #include <ff/node.hpp>
 #include <window.hpp>
 #include <context.hpp>
-#include <builders.hpp>
+#include <iterable.hpp>
 #include <stream_archive.hpp>
 
 using namespace ff;
@@ -105,7 +105,7 @@ private:
         tuple_t last_tuple; // copy of the last tuple received of this key
         uint64_t next_lwid; // next window to be opened of this key (lwid)
 
-        // constructor
+        // Constructor
         Key_Descriptor(compare_func_t _compare_func, uint64_t _emit_counter=0):
                        archive(_compare_func),
                        emit_counter(_emit_counter),
@@ -115,7 +115,7 @@ private:
             wins.reserve(DEFAULT_VECTOR_CAPACITY);
         }
 
-        // move constructor
+        // move Constructor
         Key_Descriptor(Key_Descriptor &&_k):
                        archive(move(_k.archive)),
                        wins(move(_k.wins)),

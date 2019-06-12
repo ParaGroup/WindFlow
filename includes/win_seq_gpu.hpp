@@ -29,7 +29,7 @@
  *  windows within each batch.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with
- *  a copy constructor and copy assignment operator, and they must provide and implement
+ *  a copy Constructor and copy assignment operator, and they must provide and implement
  *  the setControlFields() and getControlFields() methods. The third template argument
  *  win_F_t is the type of the callable object to be used for GPU processing.
  */ 
@@ -44,7 +44,6 @@
 #include <math.h>
 #include <ff/node.hpp>
 #include <window.hpp>
-#include <builders.hpp>
 #include <stream_archive.hpp>
 
 using namespace ff;
@@ -127,7 +126,7 @@ private:
         vector<uint64_t> tsWin; // vector of the final timestamp of the windows in the current micro-batch
         optional<tuple_t> start_tuple; // optional to the first tuple of the current micro-batch
 
-        // constructor
+        // Constructor
         Key_Descriptor(compare_func_t _compare_func, uint64_t _emit_counter=0):
                        archive(_compare_func),
                        emit_counter(_emit_counter),
@@ -138,7 +137,7 @@ private:
             wins.reserve(DEFAULT_VECTOR_CAPACITY);
         }
 
-        // move constructor
+        // move Constructor
         Key_Descriptor(Key_Descriptor &&_k):
                        archive(move(_k.archive)),
                        wins(move(_k.wins)),
@@ -189,7 +188,7 @@ private:
     ofstream *logfile = nullptr;
 #endif
 
-    // private constructor
+    // Private Constructor
     Win_Seq_GPU(win_F_t _win_func,
                 uint64_t _win_len,
                 uint64_t _slide_len,

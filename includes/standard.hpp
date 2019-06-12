@@ -56,10 +56,10 @@ private:
     bool isKeyed; // flag stating whether the key-based distribution is used or not
     routing_func_t routing; // routing function
 
-    // private constructor I
+    // Private Constructor I
     Standard_Emitter(): isKeyed(false) {}
 
-    // private constructor II
+    // Private Constructor II
     Standard_Emitter(routing_func_t _routing): isKeyed(true), routing(_routing) {}
 
     // svc_init method (utilized by the FastFlow runtime)

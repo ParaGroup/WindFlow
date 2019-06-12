@@ -28,7 +28,7 @@
  *  must produce zero, one or more than one output result for each input tuple consumed.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with
- *  a copy constructor and copy assignment operator, and they must provide and implement
+ *  a copy Constructor and copy assignment operator, and they must provide and implement
  *  the setControlFields() and getControlFields() methods.
  */ 
 
@@ -44,6 +44,7 @@
 #include <standard.hpp>
 
 using namespace ff;
+using namespace std;
 
 /** 
  *  \class FlatMap

@@ -52,7 +52,7 @@ private:
     container_t archive; // container implementing the archive (elements are stored in increasing order)
 
 public:
-    // constructor
+    // Constructor
     StreamArchive(compare_func_t _lessThan): lessThan(_lessThan) {}
 
     // method to add a tuple to the archive

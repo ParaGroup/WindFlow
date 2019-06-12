@@ -30,7 +30,7 @@
  *  windows within each batch.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with a
- *  copy constructor and copy assignment operator, and they must provide and implement
+ *  copy Constructor and copy assignment operator, and they must provide and implement
  *  the setControlFields() and getControlFields() methods. The third template argument
  *  win_F_t is the type of the callable object to be used for GPU processing.
  */ 
@@ -61,14 +61,14 @@ template<typename tuple_t, typename result_t, typename win_F_t, typename input_t
 class Win_Farm_GPU: public ff_farm
 {
 public:
-    /// type of the Pane_Farm_GPU passed to the proper nesting constructor
+    /// type of the Pane_Farm_GPU passed to the proper nesting Constructor
     using pane_farm_gpu_t = Pane_Farm_GPU<tuple_t, result_t, win_F_t>;
-    /// type of the Win_MapReduce_GPU passed to the proper nesting constructor
+    /// type of the Win_MapReduce_GPU passed to the proper nesting Constructor
     using win_mapreduce_gpu_t = Win_MapReduce_GPU<tuple_t, result_t, win_F_t>;
 private:
     // type of the wrapper of input tuples
     using wrapper_in_t = wrapper_tuple_t<tuple_t>;
-    // type of the Win_Seq_GPU to be created within the regular constructor
+    // type of the Win_Seq_GPU to be created within the regular Constructor
     using win_seq_gpu_t = Win_Seq_GPU<tuple_t, result_t, win_F_t, wrapper_in_t>;
     // type of the WF_Emitter node
     using wf_emitter_t = WF_Emitter<tuple_t, input_t>;
@@ -90,10 +90,10 @@ private:
     // number of Win_Farm_GPU emitters
     size_t num_emitters;
 
-    // private constructor I (stub)
+    // Private Constructor I (stub)
     Win_Farm_GPU() {}
 
-    // private constructor II
+    // Private Constructor II
     Win_Farm_GPU(win_F_t _win_func,
                  uint64_t _win_len,
                  uint64_t _slide_len,

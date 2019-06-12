@@ -27,7 +27,7 @@
  *  to the next stage of the application.
  *  
  *  The template parameter of the data items that can be used with the Shipper must be default
- *  constructible, with a copy constructor and copy assignment operator, and they
+ *  constructible, with a copy Constructor and copy assignment operator, and they
  *  must provide and implement the setControlFields() and getControlFields() methods.
  */ 
 

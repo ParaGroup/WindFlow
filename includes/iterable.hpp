@@ -28,7 +28,7 @@
  *  non-incremental interface for patterns implemented on the CPU.
  *  
  *  The template parameter of the data items that can be used with the Iterable must be default
- *  constructible, with a copy constructor and copy assignment operator, and they
+ *  constructible, with a copy Constructor and copy assignment operator, and they
  *  must provide and implement the setControlFields() and getControlFields() methods.
  */ 
 

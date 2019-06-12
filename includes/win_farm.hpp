@@ -29,7 +29,7 @@
  *  and supports both a non-incremental and an incremental query definition.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with a
- *  copy constructor and copy assignment operator, and they must provide and implement
+ *  copy Constructor and copy assignment operator, and they must provide and implement
  *  the setControlFields() and getControlFields() methods.
  */ 
 
@@ -40,7 +40,6 @@
 #include <ff/farm.hpp>
 #include <ff/optimize.hpp>
 #include <win_seq.hpp>
-#include <context.hpp>
 #include <wf_nodes.hpp>
 #include <pane_farm.hpp>
 #include <win_mapreduce.hpp>
@@ -67,9 +66,9 @@ public:
     using rich_winupdate_func_t = function<void(uint64_t, const tuple_t &, result_t &, RuntimeContext &)>;
     /// type of the closing function
     using closing_func_t = function<void(RuntimeContext &)>;
-    /// type of the Pane_Farm passed to the proper nesting constructor
+    /// type of the Pane_Farm passed to the proper nesting Constructor
     using pane_farm_t = Pane_Farm<tuple_t, result_t>;
-    /// type of the Win_MapReduce passed to the proper nesting constructor
+    /// type of the Win_MapReduce passed to the proper nesting Constructor
     using win_mapreduce_t = Win_MapReduce<tuple_t, result_t>;
 private:
     // type of the wrapper of input tuples
@@ -78,7 +77,7 @@ private:
     using wf_emitter_t = WF_Emitter<tuple_t, input_t>;
     // type of the WF_Collector node
     using wf_collector_t = WF_Collector<result_t>;
-    // type of the Win_Seq to be created within the regular constructor
+    // type of the Win_Seq to be created within the regular Constructor
     using win_seq_t = Win_Seq<tuple_t, result_t, wrapper_in_t>;
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3>
@@ -100,10 +99,10 @@ private:
     // number of Win_Farm emitters
     size_t num_emitters;
 
-    // private constructor I (stub)
+    // Private Constructor I (stub)
     Win_Farm() {}
 
-    // private constructor II
+    // Private Constructor II
     template<typename F_t>
     Win_Farm(F_t _func,
              uint64_t _win_len,

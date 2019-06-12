@@ -55,7 +55,7 @@ private:
     uint64_t initial_id; // identifier of the first tuple
 
 public:
-    // constructor
+    // Constructor
     Triggerer_CB(uint64_t _win_len, uint64_t _slide_len, uint64_t _wid, uint64_t _initial_id=0):
                  win_len(_win_len), slide_len(_slide_len), wid(_wid), initial_id(_initial_id) {}
 
@@ -76,7 +76,7 @@ private:
     uint64_t starting_ts; // starting timestamp
 
 public:
-    // constructor 
+    // Constructor 
     Triggerer_TB(uint64_t _win_len, uint64_t _slide_len, uint64_t _wid, uint64_t _starting_ts=0):
                  win_len(_win_len), slide_len(_slide_len), wid(_wid), starting_ts(_starting_ts) {}
 
@@ -109,7 +109,7 @@ private:
     bool batched; // flag stating whether the window is batched or not
 
 public:
-    // constructor 
+    // Constructor 
     Window(key_t _key, uint64_t _lwid, uint64_t _gwid, triggerer_t _triggerer, win_type_t _winType, uint64_t _win_len, uint64_t _slide_len):
            winType(_winType),
            triggerer(_triggerer),
@@ -127,7 +127,7 @@ public:
             result->setControlFields(_key, _gwid, _gwid * _slide_len + _win_len - 1);
     }
 
-    // copy constructor
+    // copy Constructor
     Window(const Window &win)
     {
         winType = win.winType;
@@ -152,13 +152,13 @@ public:
         if (event == CONTINUE) {
             no_tuples++;
             if (!firstTuple)
-                firstTuple = make_optional(_t); // need a copy constructor for tuple_t
+                firstTuple = make_optional(_t); // need a copy Constructor for tuple_t
             if (winType == CB)
                 result->setControlFields(key, gwid, std::get<2>(_t.getControlFields()));
         }
         if (event == FIRED) {
             if (!firingTuple)
-                firingTuple = make_optional(_t); // need a copy constructor for tuple_t
+                firingTuple = make_optional(_t); // need a copy Constructor for tuple_t
         }
         if (batched)
             return BATCHED;

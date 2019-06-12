@@ -61,13 +61,13 @@ private:
         uint64_t rcv_counter; // number of tuples received of this key
         tuple_t last_tuple; // copy of the last tuple received of this key
 
-        // constructor
+        // Constructor
         Key_Descriptor(): rcv_counter(0) {}
     };
     unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
 
 public:
-    // constructor
+    // Constructor
     broadcast_node(size_t _n): n(_n) {}
 
     // svc_init method (utilized by the FastFlow runtime)
@@ -156,7 +156,7 @@ private:
         }
     };
 
-    // private constructor used by union only
+    // private Constructor used by union only
     MultiPipe(string _name, vector<ff_node *> _init_set): name(_name), has_source(true), has_sink(false), isUnified(false), startUnion(true)
     {
         // create the initial matrioska

@@ -298,7 +298,7 @@ template<typename F_t>
 auto get_WF_nested_type(F_t _f)
 {
     return Win_Farm<decltype(get_tuple_t(_f)),
-                    decltype(get_result_t(_f))>(); // stub constructor
+                    decltype(get_result_t(_f))>(); // stub Constructor
 }
 
 // metafunction to extract the type of Win_Farm_GPU from the inner pattern of type Pane_Farm_GPU
@@ -315,7 +315,7 @@ auto get_WF_GPU_nested_type(F_t _f)
 {
     return Win_Farm_GPU<decltype(get_tuple_t(_f)),
                         decltype(get_result_t(_f)),
-                        decltype(_f)>(); // stub constructor
+                        decltype(_f)>(); // stub Constructor
 }
 
 // metafunction to extract the type of Key_Farm from the inner pattern of type Pane_Farm
@@ -331,7 +331,7 @@ template<typename F_t>
 auto get_KF_nested_type(F_t _f)
 {
     return Key_Farm<decltype(get_tuple_t(_f)),
-                    decltype(get_result_t(_f))>(); // stub constructor
+                    decltype(get_result_t(_f))>(); // stub Constructor
 }
 
 // metafunction to extract the type of Key_Farm_GPU from the inner pattern of type Pane_Farm_GPU
@@ -348,7 +348,7 @@ auto get_KF_GPU_nested_type(F_t _f)
 {
     return Key_Farm_GPU<decltype(get_tuple_t(_f)),
                         decltype(get_result_t(_f)),
-                        decltype(_f)>(); // stub constructor
+                        decltype(_f)>(); // stub Constructor
 }
 
 // metafunctions to return the callable type to be executed on the GPU (only lambda or functor!)
@@ -384,7 +384,7 @@ struct wrapper_tuple_t
     atomic<size_t> counter; // atomic reference counter
     bool eos; // if true, the tuple is a EOS marker
 
-    // constructor
+    // Constructor
     wrapper_tuple_t(tuple_t *_t, size_t _counter=1, bool _eos=false): tuple(_t), counter(_counter), eos(_eos) {}
 
 };

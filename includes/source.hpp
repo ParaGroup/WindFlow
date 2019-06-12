@@ -27,7 +27,7 @@
  *  a data stream.
  *  
  *  The template parameter tuple_t must be default constructible, with a copy
- *  constructor and copy assignment operator, and it must provide and implement
+ *  Constructor and copy assignment operator, and it must provide and implement
  *  the setControlFields() and getControlFields() methods.
  */ 
 
@@ -38,12 +38,12 @@
 #include <string>
 #include <ff/node.hpp>
 #include <ff/all2all.hpp>
-#include <ff/multinode.hpp>
-#include <standard.hpp>
 #include <shipper.hpp>
 #include <context.hpp>
+#include <standard.hpp>
 
 using namespace ff;
+using namespace std;
 
 /** 
  *  \class Source

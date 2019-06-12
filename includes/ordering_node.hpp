@@ -79,7 +79,7 @@ private:
             // ordering mode
             ordering_mode_t mode;
 
-            // constructor
+            // Constructor
             Comparator(ordering_mode_t _mode): mode(_mode) {}
 
             // operator()
@@ -101,7 +101,7 @@ private:
     	// ordered queue of tuples of the given key received by the node
     	priority_queue<input_t *, deque<input_t *>, Comparator> queue;
 
-        // constructor
+        // Constructor
         Key_Descriptor(size_t _n, ordering_mode_t _mode): emit_counter(0), maxs(_n, 0), eos_marker(nullptr), queue(Comparator(_mode)) {}
     };
     // hash table that maps key identifiers onto key descriptors
@@ -109,7 +109,7 @@ private:
     size_t eos_rcv; // number of EOS received
     ordering_mode_t mode; // ordering mode
 
-	// private constructor
+	// private Constructor
 	Ordering_Node(ordering_mode_t _mode=ID): eos_rcv(0), mode(_mode) {}
 
     // svc_init method (utilized by the FastFlow runtime)

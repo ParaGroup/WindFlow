@@ -31,11 +31,11 @@
 #ifndef LOCALSTORAGE_H
 #define LOCALSTORAGE_H
 
-using namespace std;
-
 // includes
 #include <string>
 #include <unordered_map>
+
+using namespace std;
 
 /** 
  *  \class LocalStorage
@@ -61,7 +61,7 @@ public:
      *  \brief Return a copy of the value of the data field with type type_t and
      *         name _name in the storage. If the data field is not in the storage,
      *         it returns a value obtained by constructing an object of type type_t
-     *         with its default constructor and the field is added to the storage
+     *         with its default Constructor and the field is added to the storage
      *  
      *  \param _name name of the data field to be retrieved from the storage
      *  \return a copy of the data field

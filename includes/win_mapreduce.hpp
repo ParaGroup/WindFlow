@@ -31,7 +31,7 @@
  *  incremental and an incremental query definition in the two stages.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with a
- *  copy constructor and copy assignment operator, and they must provide and implement
+ *  copy Constructor and copy assignment operator, and they must provide and implement
  *  the setControlFields() and getControlFields() methods.
  */ 
 
@@ -41,7 +41,6 @@
 // includes
 #include <ff/combine.hpp>
 #include <ff/pipeline.hpp>
-#include <context.hpp>
 #include <win_farm.hpp>
 #include <wm_nodes.hpp>
 #include <ordering_node.hpp>
@@ -119,7 +118,7 @@ private:
     opt_level_t opt_level;
     PatternConfig config;
 
-    // private constructor
+    // Private Constructor
     template <typename F_t, typename G_t>
     Win_MapReduce(F_t _func_MAP,
                   G_t _func_REDUCE,

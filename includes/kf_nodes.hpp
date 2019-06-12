@@ -34,6 +34,7 @@
 #include <ff/multinode.hpp>
 
 using namespace ff;
+using namespace std;
 
 // class KF_Emitter
 template<typename tuple_t, typename input_t=tuple_t>
@@ -53,7 +54,7 @@ private:
     routing_func_t routing; // routing function
     size_t pardegree; // parallelism degree (number of inner patterns)
 
-    // private constructor
+    // Private Constructor
     KF_Emitter(routing_func_t _routing, size_t _pardegree):
                routing(_routing), pardegree(_pardegree) {}
 
@@ -115,12 +116,12 @@ private:
         tuple_t last_tuple; // copy of the last tuple received of this key
         size_t nextDst; // id of the Win_Seq instance receiving the next tuple of this key (meaningful if role is MAP)
 
-        // constructor
+        // Constructor
         Key_Descriptor(size_t _nextDst): rcv_counter(0), nextDst(_nextDst) {}
     };
     unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
 
-    // private constructor
+    // Private Constructor
     KF_NestedEmitter(routing_func_t _routing, win_type_t _winType, uint64_t _win_len, uint64_t _slide_len, size_t _pardegree1, size_t _pardegree2, role_t _role):
                      routing(_routing),
                      winType(_winType),
@@ -280,14 +281,14 @@ private:
         uint64_t next_win; // next window to be transmitted of that key
         deque<result_t *> resultsSet; // deque of buffered results of that key
 
-        // constructor
+        // Constructor
         Key_Descriptor(): next_win(0) {}
 
     };
     // hash table that maps key identifiers onto key descriptors
     unordered_map<key_t, Key_Descriptor> keyMap;
 
-    // private constructor
+    // private Constructor
     KF_NestedCollector() {}
 
     // svc_init method (utilized by the FastFlow runtime)

@@ -73,7 +73,7 @@ inline unsigned long current_time_nsecs()
 
 /// utility macros
 #define DEFAULT_VECTOR_CAPACITY 500 //< default capacity of vectors used internally by the library
-#define DEFAULT_BATCH_SIZE_TB 100 //< inital batch size (in no. of tuples) used by GPU patterns with time-based windows
+#define DEFAULT_BATCH_SIZE_TB 1000 //< inital batch size (in no. of tuples) used by GPU patterns with time-based windows
 #define DEFAULT_CUDA_NUM_THREAD_BLOCK 256 //< default number of threads per block used by GPU patterns
 #define gpuErrChk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 
@@ -128,10 +128,10 @@ struct PatternConfig {
     size_t n_inner; // parallelism degree in the innermost pattern
     uint64_t slide_inner; // sliding factor of the innermost pattern
 
-    // constructor I
+    // Constructor I
     PatternConfig(): id_outer(0), n_outer(0), slide_outer(0), id_inner(0), n_inner(0), slide_inner(0) {}
 
-    // constructor II
+    // Constructor II
     PatternConfig(size_t _id_outer, size_t _n_outer, uint64_t _slide_outer, size_t _id_inner, size_t _n_inner, uint64_t _slide_inner):
                   id_outer(_id_outer),
                   n_outer(_n_outer),
