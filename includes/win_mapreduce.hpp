@@ -38,7 +38,7 @@
 #ifndef WIN_MAPREDUCE_H
 #define WIN_MAPREDUCE_H
 
-// includes
+/// includes
 #include <ff/combine.hpp>
 #include <ff/pipeline.hpp>
 #include <win_farm.hpp>
@@ -78,6 +78,7 @@ public:
     using rich_reduceupdate_func_t = function<void(uint64_t, const result_t &, result_t &, RuntimeContext &)>;
     /// type of the closing function
     using closing_func_t = function<void(RuntimeContext &)>;
+
 private:
     // type of the wrapper of input tuples
     using wrapper_in_t = wrapper_tuple_t<tuple_t>;
@@ -131,7 +132,18 @@ private:
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level,
-                  PatternConfig _config)  
+                  PatternConfig _config)
+                  :
+                  win_len(_win_len),
+                  slide_len(_slide_len),
+                  winType(_winType),
+                  map_degree(_map_degree),
+                  reduce_degree(_reduce_degree),
+                  name(_name),
+                  closing_func(_closing_func),
+                  ordered(_ordered),
+                  opt_level(_opt_level),
+                  config(PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -223,6 +235,7 @@ private:
                 delete farm_map;
                 delete farm_reduce;
                 delete buf_node;
+                // delete emitter_reduce; commented -> why?
                 return result;
             }
         }
@@ -263,16 +276,6 @@ public:
         isNICREDUCE = true;
         isRichMAP = false;
         isRichREDUCE = false;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        map_degree = _map_degree;
-        reduce_degree = _reduce_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -309,16 +312,6 @@ public:
         isNICREDUCE = true;
         isRichMAP = true;
         isRichREDUCE = false;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        map_degree = _map_degree;
-        reduce_degree = _reduce_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -355,16 +348,6 @@ public:
         isNICREDUCE = true;
         isRichMAP = false;
         isRichREDUCE = true;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        map_degree = _map_degree;
-        reduce_degree = _reduce_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -401,16 +384,6 @@ public:
         isNICREDUCE = true;
         isRichMAP = true;
         isRichREDUCE = true;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        map_degree = _map_degree;
-        reduce_degree = _reduce_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -447,16 +420,6 @@ public:
         isNICREDUCE = false;
         isRichMAP = false;
         isRichREDUCE = false;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        map_degree = _map_degree;
-        reduce_degree = _reduce_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -493,16 +456,6 @@ public:
         isNICREDUCE = false;
         isRichMAP = true;
         isRichREDUCE = false;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        map_degree = _map_degree;
-        reduce_degree = _reduce_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -539,16 +492,6 @@ public:
         isNICREDUCE = false;
         isRichMAP = false;
         isRichREDUCE = true;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        map_degree = _map_degree;
-        reduce_degree = _reduce_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -585,16 +528,6 @@ public:
         isNICREDUCE = false;
         isRichMAP = true;
         isRichREDUCE = true;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        map_degree = _map_degree;
-        reduce_degree = _reduce_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -631,16 +564,6 @@ public:
         isNICREDUCE = false;
         isRichMAP = false;
         isRichREDUCE = false;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        map_degree = _map_degree;
-        reduce_degree = _reduce_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -677,16 +600,6 @@ public:
         isNICREDUCE = false;
         isRichMAP = true;
         isRichREDUCE = false;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        map_degree = _map_degree;
-        reduce_degree = _reduce_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -723,16 +636,6 @@ public:
         isNICREDUCE = false;
         isRichMAP = false;
         isRichREDUCE = true;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        map_degree = _map_degree;
-        reduce_degree = _reduce_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -769,16 +672,6 @@ public:
         isNICREDUCE = false;
         isRichMAP = true;
         isRichREDUCE = true;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        map_degree = _map_degree;
-        reduce_degree = _reduce_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -815,16 +708,6 @@ public:
         isNICREDUCE = true;
         isRichMAP = false;
         isRichREDUCE = false;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        map_degree = _map_degree;
-        reduce_degree = _reduce_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -861,16 +744,6 @@ public:
         isNICREDUCE = true;
         isRichMAP = true;
         isRichREDUCE = false;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        map_degree = _map_degree;
-        reduce_degree = _reduce_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -907,16 +780,6 @@ public:
         isNICREDUCE = true;
         isRichMAP = false;
         isRichREDUCE = true;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        map_degree = _map_degree;
-        reduce_degree = _reduce_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -953,16 +816,6 @@ public:
         isNICREDUCE = true;
         isRichMAP = true;
         isRichREDUCE = true;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        map_degree = _map_degree;
-        reduce_degree = _reduce_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 

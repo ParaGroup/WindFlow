@@ -40,7 +40,7 @@
 #ifndef PANE_FARM_H
 #define PANE_FARM_H
 
-// includes
+/// includes
 #include <ff/combine.hpp>
 #include <ff/pipeline.hpp>
 #include <win_farm.hpp>
@@ -78,6 +78,7 @@ public:
     using rich_wlqupdate_func_t = function<void(uint64_t, const result_t &, result_t &, RuntimeContext &)>;
     /// type of the closing function
     using closing_func_t = function<void(RuntimeContext &)>;
+
 private:
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3>
@@ -135,6 +136,17 @@ private:
               bool _ordered,
               opt_level_t _opt_level,
               PatternConfig _config)
+              :
+              win_len(_win_len),
+              slide_len(_slide_len),
+              winType(_winType),
+              plq_degree(_plq_degree),
+              wlq_degree(_wlq_degree),
+              name(_name),
+              closing_func(_closing_func),
+              ordered(_ordered),
+              opt_level(_opt_level),
+              config(PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -227,6 +239,7 @@ private:
                 delete farm_plq;
                 delete farm_wlq;
                 delete buf_node;
+                // delete emitter_wlq; //commented -> why?
                 return result;
             }
         }
@@ -267,16 +280,6 @@ public:
         isNICWLQ = true;
         isRichPLQ = false;
         isRichWLQ = false;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        plq_degree = _plq_degree;
-        wlq_degree = _wlq_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -313,16 +316,6 @@ public:
         isNICWLQ = true;
         isRichPLQ = true;
         isRichWLQ = false;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        plq_degree = _plq_degree;
-        wlq_degree = _wlq_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -359,16 +352,6 @@ public:
         isNICWLQ = true;
         isRichPLQ = false;
         isRichWLQ = true;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        plq_degree = _plq_degree;
-        wlq_degree = _wlq_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -405,16 +388,6 @@ public:
         isNICWLQ = true;
         isRichPLQ = true;
         isRichWLQ = true;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        plq_degree = _plq_degree;
-        wlq_degree = _wlq_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -451,16 +424,6 @@ public:
         isNICWLQ = false;
         isRichPLQ = false;
         isRichWLQ = false;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        plq_degree = _plq_degree;
-        wlq_degree = _wlq_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -497,16 +460,6 @@ public:
         isNICWLQ = false;
         isRichPLQ = true;
         isRichWLQ = false;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        plq_degree = _plq_degree;
-        wlq_degree = _wlq_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -543,16 +496,6 @@ public:
         isNICWLQ = false;
         isRichPLQ = false;
         isRichWLQ = true;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        plq_degree = _plq_degree;
-        wlq_degree = _wlq_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -589,16 +532,6 @@ public:
         isNICWLQ = false;
         isRichPLQ = true;
         isRichWLQ = true;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        plq_degree = _plq_degree;
-        wlq_degree = _wlq_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -635,16 +568,6 @@ public:
         isNICWLQ = false;
         isRichPLQ = false;
         isRichWLQ = false;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        plq_degree = _plq_degree;
-        wlq_degree = _wlq_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -681,16 +604,6 @@ public:
         isNICWLQ = false;
         isRichPLQ = true;
         isRichWLQ = false;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        plq_degree = _plq_degree;
-        wlq_degree = _wlq_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -727,16 +640,6 @@ public:
         isNICWLQ = false;
         isRichPLQ = false;
         isRichWLQ = true;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        plq_degree = _plq_degree;
-        wlq_degree = _wlq_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -773,16 +676,6 @@ public:
         isNICWLQ = false;
         isRichPLQ = true;
         isRichWLQ = true;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        plq_degree = _plq_degree;
-        wlq_degree = _wlq_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -819,16 +712,6 @@ public:
         isNICWLQ = true;
         isRichPLQ = false;
         isRichWLQ = false;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        plq_degree = _plq_degree;
-        wlq_degree = _wlq_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -865,16 +748,6 @@ public:
         isNICWLQ = true;
         isRichPLQ = true;
         isRichWLQ = false;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        plq_degree = _plq_degree;
-        wlq_degree = _wlq_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -911,16 +784,6 @@ public:
         isNICWLQ = true;
         isRichPLQ = false;
         isRichWLQ = true;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        plq_degree = _plq_degree;
-        wlq_degree = _wlq_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
@@ -957,16 +820,6 @@ public:
         isNICWLQ = true;
         isRichPLQ = true;
         isRichWLQ = true;
-        win_len = _win_len;
-        slide_len = _slide_len;
-        winType = _winType;
-        plq_degree = _plq_degree;
-        wlq_degree = _wlq_degree;
-        name = _name;
-        closing_func = _closing_func;
-        ordered = _ordered;
-        opt_level = _opt_level;
-        config = PatternConfig(0, 1, _slide_len, 0, 1, _slide_len);
     }
 
     /** 
