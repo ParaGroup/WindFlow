@@ -287,7 +287,7 @@ int main(int argc, char *argv[])
 			res->value = sum;
 		};
 	    // kf
-	    auto *kf = KeyFarmGPU_Builder<decltype(kf_function)>(kf_function).withName("test_kf_tb_gpu_kf").withParallelism(kf_degree).withTBWindow(microseconds(win_len), microseconds(win_slide)).withBatch(batch_len).build_ptr();
+	    auto *kf = KeyFarmGPU_Builder<decltype(kf_function)>(kf_function).withName("test_kf_tb_gpu_kf").withParallelism(kf_degree).withTBWindows(microseconds(win_len), microseconds(win_slide)).withBatch(batch_len).build_ptr();
 	    application.add(*kf);
 	    // sink
 	    Sink_Functor sink_functor(n_keys);

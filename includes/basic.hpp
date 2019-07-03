@@ -85,6 +85,9 @@ enum win_type_t { CB, TB };
 // supported roles of the Win_Seq pattern
 enum role_t { SEQ, PLQ, WLQ, MAP, REDUCE };
 
+// window-based patterns of the library
+enum pattern_t { SEQ_CPU, SEQ_GPU, KF_CPU, KF_GPU, WF_CPU, WF_GPU, PF_CPU, PF_GPU, WMR_CPU, WMR_GPU };
+
 // optimization levels
 enum opt_level_t { LEVEL0, LEVEL1, LEVEL2 };
 
@@ -172,7 +175,7 @@ template<typename tuple_t, typename result_t, typename input_t=tuple_t>
 class Win_Farm;
 
 /// forward declaration of the Key_Farm pattern
-template<typename tuple_t, typename result_t, typename input_t=tuple_t>
+template<typename tuple_t, typename result_t>
 class Key_Farm;
 
 /// forward declaration of the Pane_Farm pattern
@@ -188,11 +191,11 @@ template<typename tuple_t, typename result_t, typename fun_t, typename input_t=t
 class Win_Seq_GPU;
 
 /// forward declaration of the Win_Farm_GPU pattern
-template<typename tuple_t, typename result_t, typename fun_, typename input_t=tuple_t>
+template<typename tuple_t, typename result_t, typename fun_t, typename input_t=tuple_t>
 class Win_Farm_GPU;
 
 /// forward declaration of the Key_Farm_GPU pattern
-template<typename tuple_t, typename result_t, typename fun_t, typename input_t=tuple_t>
+template<typename tuple_t, typename result_t, typename fun_t>
 class Key_Farm_GPU;
 
 /// forward declaration of the Pane_Farm_GPU pattern

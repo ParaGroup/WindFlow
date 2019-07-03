@@ -34,7 +34,7 @@
 #ifndef SOURCE_H
 #define SOURCE_H
 
-// includes
+/// includes
 #include <string>
 #include <ff/node.hpp>
 #include <ff/all2all.hpp>
@@ -66,6 +66,7 @@ public:
     using rich_source_loop_func_t = function<void(Shipper<tuple_t>&, RuntimeContext &)>;
     /// type of the closing function
     using closing_func_t = function<void(RuntimeContext &)>;
+
 private:
     // friendships with other classes in the library
     friend class MultiPipe;
@@ -83,11 +84,12 @@ private:
         bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
         bool isEND; // flag stating whether the Source_Node has completed to generate items
         Shipper<tuple_t> *shipper = nullptr; // shipper object used for the delivery of results (single-loop version)
-        RuntimeContext context; // RuntimeContext instance
+        RuntimeContext context; // RuntimeContext
 #if defined(LOG_DIR)
         unsigned long sentTuples = 0;
         ofstream *logfile = nullptr;
 #endif
+
     public:
         // Constructor I
         Source_Node(source_item_func_t _source_func_item, string _name, RuntimeContext _context, closing_func_t _closing_func): source_func_item(_source_func_item), name(_name), isItemized(true), isRich(false), isEND(false), context(_context), closing_func(_closing_func) {}
@@ -182,7 +184,7 @@ public:
             cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
-        // vector of Source_Node instances
+        // vector of Source_Node
         vector<ff_node *> first_set;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new Source_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
@@ -211,7 +213,7 @@ public:
             cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
-        // vector of Source_Node instances
+        // vector of Source_Node
         vector<ff_node *> first_set;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new Source_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
@@ -240,7 +242,7 @@ public:
             cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
-        // vector of Source_Node instances
+        // vector of Source_Node
         vector<ff_node *> first_set;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new Source_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
@@ -269,7 +271,7 @@ public:
             cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
-        // vector of Source_Node instances
+        // vector of Source_Node
         vector<ff_node *> first_set;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new Source_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);

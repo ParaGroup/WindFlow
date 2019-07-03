@@ -287,7 +287,7 @@ int main(int argc, char *argv[])
 	    Map map = Map_Builder(map_functor).withName("test_kf_tb_map").withParallelism(map_degree).build();
 	    application.add(map);
 	    // kf
-	    Key_Farm kf = KeyFarm_Builder(kf_function).withName("test_kf_tb_kf").withParallelism(kf_degree).withTBWindow(microseconds(win_len), microseconds(win_slide)).build();
+	    Key_Farm kf = KeyFarm_Builder(kf_function).withName("test_kf_tb_kf").withParallelism(kf_degree).withTBWindows(microseconds(win_len), microseconds(win_slide)).build();
 	    application.add(kf);
 	    // sink
 	    Sink_Functor sink_functor(n_keys);

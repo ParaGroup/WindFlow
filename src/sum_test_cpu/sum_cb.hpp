@@ -34,6 +34,7 @@ struct tuple_t
 	uint64_t id;
 	uint64_t ts;
 	uint64_t value;
+	size_t ch_id;
 
 	// constructor
 	tuple_t(size_t _key, uint64_t _id, uint64_t _ts, uint64_t _value): key(_key), id(_id), ts(_ts), value(_value) {}
@@ -66,6 +67,7 @@ struct output_t
 	uint64_t id;
 	uint64_t ts;
 	uint64_t value;
+	size_t ch_id;
 
 	// default constructor
 	output_t(): key(0), id(0), ts(0), value(0) {}

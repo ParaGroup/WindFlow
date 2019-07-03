@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
 		res->value = sum;
 	};
 	// creation of the Key_Farm_GPU pattern
-	auto *kf_gpu = KeyFarmGPU_Builder<decltype(F)>(F).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *kf_gpu = KeyFarmGPU_Builder<decltype(F)>(F).withTBWindows(microseconds(win_len), microseconds(win_slide))
 													 .withParallelism(pardegree)
 													 .withBatch(batch_len)
 													 .withName("test_sum")

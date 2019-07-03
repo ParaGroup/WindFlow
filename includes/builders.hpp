@@ -29,7 +29,7 @@
 #ifndef BUILDERS_H
 #define BUILDERS_H
 
-// includes
+/// includes
 #include <chrono>
 #include <memory>
 #include <functional>
@@ -79,9 +79,9 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the number of parallel instances within the Source pattern
+     *  \brief Method to specify the parallelism of the Source pattern
      *  
-     *  \param _pardegree number of parallel instances
+     *  \param _pardegree number of source replicas
      *  \return the object itself
      */ 
     Source_Builder<F_t>& withParallelism(size_t _pardegree)
@@ -180,9 +180,9 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the number of parallel instances within the Filter pattern
+     *  \brief Method to specify the parallelism of the Filter pattern
      *  
-     *  \param _pardegree number of parallel instances
+     *  \param _pardegree number of filter replicas
      *  \return the object itself
      */ 
     Filter_Builder<F_t>& withParallelism(size_t _pardegree)
@@ -304,9 +304,9 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the number of parallel instances within the Map pattern
+     *  \brief Method to specify the parallelism of the Map pattern
      *  
-     *  \param _pardegree number of parallel instances
+     *  \param _pardegree number of map replicas
      *  \return the object itself
      */ 
     Map_Builder<F_t>& withParallelism(size_t _pardegree)
@@ -428,9 +428,9 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the number of parallel instances within the FlatMap pattern
+     *  \brief Method to specify the parallelism of the FlatMap pattern
      *  
-     *  \param _pardegree number of parallel instances
+     *  \param _pardegree number of flatmap replicas
      *  \return the object itself
      */ 
     FlatMap_Builder<F_t>& withParallelism(size_t _pardegree)
@@ -524,7 +524,7 @@ private:
     using closing_func_t = function<void(RuntimeContext&)>;
     // type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
     using routing_func_t = function<size_t(size_t, size_t)>;
-    // type of the result produced by the Accumulator instance
+    // type of the result produced by the Accumulator
     using result_t = decltype(get_result_t(func));
     uint64_t pardegree = 1;
     string name = "anonymous_accumulator";
@@ -567,9 +567,9 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the number of parallel instances within the Accumulator pattern
+     *  \brief Method to specify the parallelism of the Accumulator pattern
      *  
-     *  \param _pardegree number of parallel instances
+     *  \param _pardegree number of accumulator replicas
      *  \return the object itself
      */ 
     Accumulator_Builder<F_t>& withParallelism(size_t _pardegree)
@@ -673,7 +673,7 @@ public:
      *  \param _slide_len slide length (in no. of tuples)
      *  \return the object itself
      */ 
-    WinSeq_Builder<F_t>& withCBWindow(uint64_t _win_len, uint64_t _slide_len)
+    WinSeq_Builder<F_t>& withCBWindows(uint64_t _win_len, uint64_t _slide_len)
     {
         win_len = _win_len;
         slide_len = _slide_len;
@@ -688,7 +688,7 @@ public:
      *  \param _slide_len slide length (in microseconds)
      *  \return the object itself
      */ 
-    WinSeq_Builder<F_t>& withTBWindow(microseconds _win_len, microseconds _slide_len)
+    WinSeq_Builder<F_t>& withTBWindows(microseconds _win_len, microseconds _slide_len)
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
@@ -792,7 +792,7 @@ public:
      *  \param _slide_len slide length (in no. of tuples)
      *  \return the object itself
      */ 
-    WinSeqGPU_Builder<F_t>& withCBWindow(uint64_t _win_len, uint64_t _slide_len)
+    WinSeqGPU_Builder<F_t>& withCBWindows(uint64_t _win_len, uint64_t _slide_len)
     {
         win_len = _win_len;
         slide_len = _slide_len;
@@ -807,7 +807,7 @@ public:
      *  \param _slide_len slide length (in microseconds)
      *  \return the object itself
      */ 
-    WinSeqGPU_Builder<F_t>& withTBWindow(microseconds _win_len, microseconds _slide_len)
+    WinSeqGPU_Builder<F_t>& withTBWindows(microseconds _win_len, microseconds _slide_len)
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
@@ -897,10 +897,10 @@ private:
     size_t pardegree = 1;
     string name = "anonymous_wf";
     bool ordered = true;
-    opt_level_t opt_level = LEVEL0;
+    opt_level_t opt_level = LEVEL2;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
 
-    // window parameters initialization (input is a Pane_Farm instance)
+    // window parameters initialization (input is a Pane_Farm)
     template<typename ...Args>
     void initWindowConf(Pane_Farm<Args...> _pf)
     {
@@ -909,7 +909,7 @@ private:
         winType = _pf.winType;
     }
 
-    // window parameters initialization (input is a Win_MapReduce instance)
+    // window parameters initialization (input is a Win_MapReduce)
     template<typename ...Args>
     void initWindowConf(Win_MapReduce<Args...> _wm)
     {
@@ -945,7 +945,7 @@ public:
      *  \param _slide_len slide length (in no. of tuples)
      *  \return the object itself
      */ 
-    WinFarm_Builder<T>& withCBWindow(uint64_t _win_len, uint64_t _slide_len)
+    WinFarm_Builder<T>& withCBWindows(uint64_t _win_len, uint64_t _slide_len)
     {
         win_len = _win_len;
         slide_len = _slide_len;
@@ -960,7 +960,7 @@ public:
      *  \param _slide_len slide length (in microseconds)
      *  \return the object itself
      */ 
-    WinFarm_Builder<T>& withTBWindow(microseconds _win_len, microseconds _slide_len)
+    WinFarm_Builder<T>& withTBWindows(microseconds _win_len, microseconds _slide_len)
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
@@ -981,9 +981,9 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the number of parallel instances within the Win_Farm pattern
+     *  \brief Method to specify the parallelism of the Win_Farm pattern
      *  
-     *  \param _pardegree number of parallel instances
+     *  \param _pardegree number of replicas
      *  \return the object itself
      */ 
     WinFarm_Builder<T>& withParallelism(size_t _pardegree)
@@ -1031,7 +1031,7 @@ public:
     /** 
      *  \brief Method to specify the closing function used by the pattern
      *         This method does not have any effect in case the Win_Farm
-     *         replicates complex patterns (i.e. Pane_Farm and Win_MapReduce instances).
+     *         replicates complex patterns (i.e. Pane_Farm and Win_MapReduce).
      *  
      *  \param _closing_func closing function to be used by the pattern
      *  \return the object itself
@@ -1099,9 +1099,9 @@ private:
     string name = "anonymous_wf_gpu";
     size_t scratchpad_size = 0;
     bool ordered = true;
-    opt_level_t opt_level = LEVEL0;
+    opt_level_t opt_level = LEVEL2;
 
-    // window parameters initialization (input is a Pane_Farm_GPU instance)
+    // window parameters initialization (input is a Pane_Farm_GPU)
     template<typename ...Args>
     void initWindowConf(Pane_Farm_GPU<Args...> _pf)
     {
@@ -1112,7 +1112,7 @@ private:
         n_thread_block = _pf.n_thread_block;
     }
 
-    // window parameters initialization (input is a Win_MapReduce_GPU instance)
+    // window parameters initialization (input is a Win_MapReduce_GPU)
     template<typename ...Args>
     void initWindowConf(Win_MapReduce_GPU<Args...> _wm)
     {
@@ -1151,7 +1151,7 @@ public:
      *  \param _slide_len slide length (in no. of tuples)
      *  \return the object itself
      */ 
-    WinFarmGPU_Builder<T>& withCBWindow(uint64_t _win_len, uint64_t _slide_len)
+    WinFarmGPU_Builder<T>& withCBWindows(uint64_t _win_len, uint64_t _slide_len)
     {
         win_len = _win_len;
         slide_len = _slide_len;
@@ -1166,7 +1166,7 @@ public:
      *  \param _slide_len slide length (in microseconds)
      *  \return the object itself
      */ 
-    WinFarmGPU_Builder<T>& withTBWindow(microseconds _win_len, microseconds _slide_len)
+    WinFarmGPU_Builder<T>& withTBWindows(microseconds _win_len, microseconds _slide_len)
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
@@ -1187,9 +1187,9 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the number of parallel instances within the Win_Farm_GPU pattern
+     *  \brief Method to specify the parallelism of the Win_Farm_GPU pattern
      *  
-     *  \param _pardegree number of parallel instances
+     *  \param _pardegree number of replicas
      *  \return the object itself
      */ 
     WinFarmGPU_Builder<T>& withParallelism(size_t _pardegree)
@@ -1305,10 +1305,10 @@ private:
     size_t pardegree = 1;
     string name = "anonymous_kf";
     routing_func_t routing_func = [](size_t k, size_t n) { return k%n; };
-    opt_level_t opt_level = LEVEL0;
+    opt_level_t opt_level = LEVEL2;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
 
-    // window parameters initialization (input is a Pane_Farm instance)
+    // window parameters initialization (input is a Pane_Farm)
     template<typename ...Args>
     void initWindowConf(Pane_Farm<Args...> _pf)
     {
@@ -1317,7 +1317,7 @@ private:
         winType = _pf.winType;
     }
 
-    // window parameters initialization (input is a Win_MapReduce instance)
+    // window parameters initialization (input is a Win_MapReduce)
     template<typename ...Args>
     void initWindowConf(Win_MapReduce<Args...> _wm)
     {
@@ -1353,7 +1353,7 @@ public:
      *  \param _slide_len slide length (in no. of tuples)
      *  \return the object itself
      */ 
-    KeyFarm_Builder<T>& withCBWindow(uint64_t _win_len, uint64_t _slide_len)
+    KeyFarm_Builder<T>& withCBWindows(uint64_t _win_len, uint64_t _slide_len)
     {
         win_len = _win_len;
         slide_len = _slide_len;
@@ -1368,7 +1368,7 @@ public:
      *  \param _slide_len slide length (in microseconds)
      *  \return the object itself
      */ 
-    KeyFarm_Builder<T>& withTBWindow(microseconds _win_len, microseconds _slide_len)
+    KeyFarm_Builder<T>& withTBWindows(microseconds _win_len, microseconds _slide_len)
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
@@ -1377,9 +1377,9 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the number of parallel instances within the Key_Farm pattern
+     *  \brief Method to specify the parallelism of the Key_Farm pattern
      *  
-     *  \param _pardegree number of parallel instances
+     *  \param _pardegree number of replicas
      *  \return the object itself
      */ 
     KeyFarm_Builder<T>& withParallelism(size_t _pardegree)
@@ -1494,9 +1494,9 @@ private:
     string name = "anonymous_wf_gpu";
     size_t scratchpad_size = 0;
     routing_func_t routing_func = [](size_t k, size_t n) { return k%n; };
-    opt_level_t opt_level = LEVEL0;
+    opt_level_t opt_level = LEVEL2;
 
-    // window parameters initialization (input is a Pane_Farm_GPU instance)
+    // window parameters initialization (input is a Pane_Farm_GPU)
     template<typename ...Args>
     void initWindowConf(Pane_Farm_GPU<Args...> _pf)
     {
@@ -1507,7 +1507,7 @@ private:
         n_thread_block = _pf.n_thread_block;
     }
 
-    // window parameters initialization (input is a Win_MapReduce_GPU instance)
+    // window parameters initialization (input is a Win_MapReduce_GPU)
     template<typename ...Args>
     void initWindowConf(Win_MapReduce_GPU<Args...> _wm)
     {
@@ -1546,7 +1546,7 @@ public:
      *  \param _slide_len slide length (in no. of tuples)
      *  \return the object itself
      */ 
-    KeyFarmGPU_Builder<T>& withCBWindow(uint64_t _win_len, uint64_t _slide_len)
+    KeyFarmGPU_Builder<T>& withCBWindows(uint64_t _win_len, uint64_t _slide_len)
     {
         win_len = _win_len;
         slide_len = _slide_len;
@@ -1561,7 +1561,7 @@ public:
      *  \param _slide_len slide length (in microseconds)
      *  \return the object itself
      */ 
-    KeyFarmGPU_Builder<T>& withTBWindow(microseconds _win_len, microseconds _slide_len)
+    KeyFarmGPU_Builder<T>& withTBWindows(microseconds _win_len, microseconds _slide_len)
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
@@ -1570,9 +1570,9 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the number of parallel instances within the Key_Farm_GPU pattern
+     *  \brief Method to specify the parallelism of the Key_Farm_GPU pattern
      *  
-     *  \param _pardegree number of parallel instances
+     *  \param _pardegree number of replicas
      *  \return the object itself
      */ 
     KeyFarmGPU_Builder<T>& withParallelism(size_t _pardegree)
@@ -1707,7 +1707,7 @@ public:
      *  \param _slide_len slide length (in no. of tuples)
      *  \return the object itself
      */ 
-    PaneFarm_Builder<F_t, G_t>& withCBWindow(uint64_t _win_len, uint64_t _slide_len)
+    PaneFarm_Builder<F_t, G_t>& withCBWindows(uint64_t _win_len, uint64_t _slide_len)
     {
         win_len = _win_len;
         slide_len = _slide_len;
@@ -1722,7 +1722,7 @@ public:
      *  \param _slide_len slide length (in microseconds)
      *  \return the object itself
      */ 
-    PaneFarm_Builder<F_t, G_t>& withTBWindow(microseconds _win_len, microseconds _slide_len)
+    PaneFarm_Builder<F_t, G_t>& withTBWindows(microseconds _win_len, microseconds _slide_len)
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
@@ -1731,10 +1731,10 @@ public:
     }
 
     /** 
-     *  \brief Method to specify parallel configuration within the Pane_Farm pattern
+     *  \brief Method to specify the parallelism configuration within the Pane_Farm pattern
      *  
-     *  \param _plq_degree number of Win_Seq instances in the PLQ stage
-     *  \param _wlq_degree number of Win_Seq instances in the WLQ stage
+     *  \param _plq_degree number replicas in the PLQ stage
+     *  \param _wlq_degree number replicas in the WLQ stage
      *  \return the object itself
      */ 
     PaneFarm_Builder<F_t, G_t>& withParallelism(size_t _plq_degree, size_t _wlq_degree)
@@ -1871,7 +1871,7 @@ public:
      *  \param _slide_len slide length (in no. of tuples)
      *  \return the object itself
      */ 
-    PaneFarmGPU_Builder<F_t, G_t>& withCBWindow(uint64_t _win_len, uint64_t _slide_len)
+    PaneFarmGPU_Builder<F_t, G_t>& withCBWindows(uint64_t _win_len, uint64_t _slide_len)
     {
         win_len = _win_len;
         slide_len = _slide_len;
@@ -1886,7 +1886,7 @@ public:
      *  \param _slide_len slide length (in microseconds)
      *  \return the object itself
      */ 
-    PaneFarmGPU_Builder<F_t, G_t>& withTBWindow(microseconds _win_len, microseconds _slide_len)
+    PaneFarmGPU_Builder<F_t, G_t>& withTBWindows(microseconds _win_len, microseconds _slide_len)
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
@@ -1895,10 +1895,10 @@ public:
     }
 
     /** 
-     *  \brief Method to specify parallel configuration within the Pane_Farm_GPU pattern
+     *  \brief Method to specify the parallelism configuration within the Pane_Farm_GPU pattern
      *  
-     *  \param _plq_degree number of Win_Seq_GPU instances in the PLQ stage
-     *  \param _wlq_degree number of Win_Seq_GPU instances in the WLQ stage
+     *  \param _plq_degree number of replicas in the PLQ stage
+     *  \param _wlq_degree number of replicas in the WLQ stage
      *  \return the object itself
      */ 
     PaneFarmGPU_Builder<F_t, G_t>& withParallelism(size_t _plq_degree, size_t _wlq_degree)
@@ -2035,7 +2035,7 @@ public:
      *  \param _slide_len slide length (in no. of tuples)
      *  \return the object itself
      */ 
-    WinMapReduce_Builder<F_t, G_t>& withCBWindow(uint64_t _win_len, uint64_t _slide_len)
+    WinMapReduce_Builder<F_t, G_t>& withCBWindows(uint64_t _win_len, uint64_t _slide_len)
     {
         win_len = _win_len;
         slide_len = _slide_len;
@@ -2050,7 +2050,7 @@ public:
      *  \param _slide_len slide length (in microseconds)
      *  \return the object itself
      */ 
-    WinMapReduce_Builder<F_t, G_t>& withTBWindow(microseconds _win_len, microseconds _slide_len)
+    WinMapReduce_Builder<F_t, G_t>& withTBWindows(microseconds _win_len, microseconds _slide_len)
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
@@ -2059,10 +2059,10 @@ public:
     }
 
     /** 
-     *  \brief Method to specify parallel configuration within the Win_MapReduce pattern
+     *  \brief Method to specify the parallelism configuration within the Win_MapReduce pattern
      *  
-     *  \param _map_degree number of Win_Seq instances in the MAP stage
-     *  \param _reduce_degree number of Win_Seq instances in the REDUCE stage
+     *  \param _map_degree number of replicas in the MAP stage
+     *  \param _reduce_degree number of replicas in the REDUCE stage
      *  \return the object itself
      */ 
     WinMapReduce_Builder<F_t, G_t>& withParallelism(size_t _map_degree, size_t _reduce_degree)
@@ -2199,7 +2199,7 @@ public:
      *  \param _slide_len slide length (in no. of tuples)
      *  \return the object itself
      */ 
-    WinMapReduceGPU_Builder<F_t, G_t>& withCBWindow(uint64_t _win_len, uint64_t _slide_len)
+    WinMapReduceGPU_Builder<F_t, G_t>& withCBWindows(uint64_t _win_len, uint64_t _slide_len)
     {
         win_len = _win_len;
         slide_len = _slide_len;
@@ -2214,7 +2214,7 @@ public:
      *  \param _slide_len slide length (in microseconds)
      *  \return the object itself
      */ 
-    WinMapReduceGPU_Builder<F_t, G_t>& withTBWindow(microseconds _win_len, microseconds _slide_len)
+    WinMapReduceGPU_Builder<F_t, G_t>& withTBWindows(microseconds _win_len, microseconds _slide_len)
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
@@ -2223,10 +2223,10 @@ public:
     }
 
     /** 
-     *  \brief Method to specify parallel configuration within the Win_MapReduce_GPU pattern
+     *  \brief Method to specify the parallelism configuration within the Win_MapReduce_GPU pattern
      *  
-     *  \param _map_degree number of Win_Seq_GPU instances in the MAP stage
-     *  \param _reduce_degree number of Win_Seq_GPU instances in the REDUCE stage
+     *  \param _map_degree number of replicas in the MAP stage
+     *  \param _reduce_degree number of replicas in the REDUCE stage
      *  \return the object itself
      */ 
     WinMapReduceGPU_Builder<F_t, G_t>& withParallelism(size_t _map_degree, size_t _reduce_degree)
@@ -2364,9 +2364,9 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the number of parallel instances within the Sink pattern
+     *  \brief Method to specify the parallelism of the Sink pattern
      *  
-     *  \param _pardegree number of parallel instances
+     *  \param _pardegree number of sink replicas
      *  \return the object itself
      */ 
     Sink_Builder<F_t>& withParallelism(size_t _pardegree)

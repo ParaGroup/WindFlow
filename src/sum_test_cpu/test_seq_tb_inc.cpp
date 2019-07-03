@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
 		result.value += t.value;
 	};
 	// creation of the Win_Seq pattern
-	Win_Seq seq = WinSeq_Builder(F).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	Win_Seq seq = WinSeq_Builder(F).withTBWindows(microseconds(win_len), microseconds(win_slide))
 								   .withName("test_sum")
 								   .build();
 	// creation of the pipeline

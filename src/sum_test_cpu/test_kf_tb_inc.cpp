@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
 		result.value += t.value;
 	};
 	// creation of the Key_Farm pattern
-	Key_Farm kf = KeyFarm_Builder(F).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	Key_Farm kf = KeyFarm_Builder(F).withTBWindows(microseconds(win_len), microseconds(win_slide))
 									.withParallelism(pardegree)
 									.withName("test_sum")
 									.withOptLevel(LEVEL)

@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
 		res->value = sum;
 	};
 	// creation of the Pane_Farm_GPU pattern
-	auto *pf_gpu = PaneFarmGPU_Builder<decltype(F), decltype(G)>(F, G).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *pf_gpu = PaneFarmGPU_Builder<decltype(F), decltype(G)>(F, G).withTBWindows(microseconds(win_len), microseconds(win_slide))
 													     .withParallelism(plq_degree, wlq_degree)
 													     .withBatch(batch_len)
 													     .withName("test_sum")

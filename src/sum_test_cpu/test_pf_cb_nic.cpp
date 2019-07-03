@@ -88,7 +88,7 @@ int main(int argc, char *argv[])
 		win_result.value = sum;
 	};
 	// creation of the Pane_Farm pattern
-	Pane_Farm pf = PaneFarm_Builder(F, G).withCBWindow(win_len, win_slide)
+	Pane_Farm pf = PaneFarm_Builder(F, G).withCBWindows(win_len, win_slide)
 									.withParallelism(plq_degree, wlq_degree)
 									.withName("test_sum")
 									.withOptLevel(LEVEL)

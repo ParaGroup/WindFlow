@@ -34,7 +34,7 @@
 #ifndef SHIPPER_H
 #define SHIPPER_H
 
-// includes
+/// includes
 #include <ff/node.hpp>
 
 using namespace ff;

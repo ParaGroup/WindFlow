@@ -25,15 +25,15 @@
  *  @section RuntimeContext (Description)
  *  
  *  This file implements the RuntimeContext class used to access the run-time system
- *  information used by the functional logic of a pattern instance (static information
- *  such as the parallelism degree of the operator and which is the current replica
- *  invoking the operator's functional logic).
+ *  information used by the functional logic of a pattern (static information such
+ *  as the parallelism degree of the operator and which is the current replica invoking
+ *  the operator's functional logic).
  */ 
 
 #ifndef CONTEXT_H
 #define CONTEXT_H
 
-// includes
+/// includes
 #include <local_storage.hpp>
 
 using namespace std;
@@ -62,7 +62,7 @@ public:
     /** 
      *  \brief Constructor II
      *  
-     *  \param _parallelism number of replicas of the pattern instance
+     *  \param _parallelism number of replicas of the pattern
      *  \param _index index of the replica invoking the functional logic
      */ 
     RuntimeContext(size_t _parallelism, size_t _index): parallelism(_parallelism), index(_index) {}
@@ -89,7 +89,6 @@ public:
 
     /** 
      *  \brief Return a reference to the local storage used by the operator replica
-     *         accessing this instance of RuntimeContext
      *  
      *  \return reference to the local storage
      */ 

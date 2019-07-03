@@ -52,20 +52,6 @@ private:
     tuple_t tmp; // never used
     // key data type
     using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
-    // friendships with other classes in the library
-    template<typename T1, typename T2, typename T3>
-    friend class Win_Farm;
-    template<typename T1, typename T2, typename T3, typename T4>
-    friend class Win_Farm_GPU;
-    template<typename T1, typename T2, typename T3>
-    friend class Pane_Farm;
-    template<typename T1, typename T2, typename T3, typename T4>
-    friend class Pane_Farm_GPU;
-    template<typename T1, typename T2, typename T3>
-    friend class Win_MapReduce;
-    template<typename T1, typename T2, typename T3, typename T4>
-    friend class Win_MapReduce_GPU;
-    friend class MultiPipe;
     // inner struct of a key descriptor
     struct Key_Descriptor
     {
@@ -102,19 +88,31 @@ private:
     	priority_queue<input_t *, deque<input_t *>, Comparator> queue;
 
         // Constructor
-        Key_Descriptor(size_t _n, ordering_mode_t _mode): emit_counter(0), maxs(_n, 0), eos_marker(nullptr), queue(Comparator(_mode)) {}
+        Key_Descriptor(size_t _n, ordering_mode_t _mode):
+                       emit_counter(0),
+                       maxs(_n, 0),
+                       eos_marker(nullptr),
+                       queue(Comparator(_mode))
+        {}
     };
     // hash table that maps key identifiers onto key descriptors
     unordered_map<key_t, Key_Descriptor> keyMap;
     size_t eos_rcv; // number of EOS received
     ordering_mode_t mode; // ordering mode
 
-	// private Constructor
+    size_t last_id[3];
+    size_t last_emitted_id = 0;
+
+public:
+	// Constructor
 	Ordering_Node(ordering_mode_t _mode=ID): eos_rcv(0), mode(_mode) {}
 
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
     {
+        last_id[0] = 0;
+        last_id[1] = 0;
+        last_id[2] = 0;
     	return 0;
     }
 

@@ -287,7 +287,7 @@ int main(int argc, char *argv[])
 			res->value = sum;
 		};
 	    // wf
-	    auto *wf = WinFarmGPU_Builder<decltype(wf_function)>(wf_function).withName("test_wf_tb_gpu_wf").withParallelism(wf_degree).withTBWindow(microseconds(win_len), microseconds(win_slide)).withBatch(batch_len).build_ptr();
+	    auto *wf = WinFarmGPU_Builder<decltype(wf_function)>(wf_function).withName("test_wf_tb_gpu_wf").withParallelism(wf_degree).withTBWindows(microseconds(win_len), microseconds(win_slide)).withBatch(batch_len).build_ptr();
 	    application.add(*wf);
 	    // sink
 	    Sink_Functor sink_functor(n_keys);

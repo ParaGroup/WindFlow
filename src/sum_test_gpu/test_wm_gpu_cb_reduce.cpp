@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
 		res->value = sum;
 	};
 	// creation of the Win_MapReduce_GPU pattern
-	auto *wm_gpu = WinMapReduceGPU_Builder<decltype(F), decltype(G)>(F, G).withCBWindow(win_len, win_slide)
+	auto *wm_gpu = WinMapReduceGPU_Builder<decltype(F), decltype(G)>(F, G).withCBWindows(win_len, win_slide)
 													                      .withParallelism(map_degree, reduce_degree)
 													     				  .withBatch(batch_len)
 													     				  .withName("test_sum")

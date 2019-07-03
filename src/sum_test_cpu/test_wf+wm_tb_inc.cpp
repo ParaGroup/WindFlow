@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
 		win_result.value += t.value;
 	};
 	// creation of the Win_MapReduce and Win_Farm patterns
-	Win_MapReduce wm = WinMapReduce_Builder(F, F).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	Win_MapReduce wm = WinMapReduce_Builder(F, F).withTBWindows(microseconds(win_len), microseconds(win_slide))
 									.withParallelism(map_degree, reduce_degree)
 									.withName("test_sum")
 									.withOptLevel(LEVEL)

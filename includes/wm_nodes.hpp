@@ -31,9 +31,11 @@
 #define WM_NODES_H
 
 // includes
+#include <vector>
 #include <ff/multinode.hpp>
 
 using namespace ff;
+using namespace std;
 
 // class WinMap_Emitter
 template<typename tuple_t, typename input_t=tuple_t>
@@ -45,11 +47,6 @@ private:
     tuple_t tmp; // never used
     // key data type
     using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
-    // friendships with other classes in the library
-    template<typename T1, typename T2, typename T3>
-    friend class Win_MapReduce;
-    template<typename T1, typename T2, typename T3, typename T4>
-    friend class Win_MapReduce_GPU;
     size_t map_degree; // parallelism degree (MAP phase)
     win_type_t winType; // type of the windows (CB or TB)
     // struct of a key descriptor
@@ -57,15 +54,19 @@ private:
     {
         uint64_t rcv_counter; // number of tuples received of this key
         tuple_t last_tuple; // copy of the last tuple received of this key
-        size_t nextDst; // id of the Win_Seq instance receiving the next tuple of this key
+        size_t nextDst; // id of the Win_Seq receiving the next tuple of this key
 
         // Constructor
         Key_Descriptor(size_t _nextDst): rcv_counter(0), nextDst(_nextDst) {}
     };
     unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
+    bool isCombined; // true if this node is used within a treeComb node
+    vector<pair<wrapper_in_t *, int>> output_queue; // used in case of treeComb mode
 
-    // Private Constructor
-    WinMap_Emitter(size_t _map_degree, win_type_t _winType): map_degree(_map_degree), winType(_winType) {}
+public:
+    // Constructor
+    WinMap_Emitter(size_t _map_degree, win_type_t _winType):
+                   map_degree(_map_degree), winType(_winType), isCombined(false) {}
 
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
@@ -109,8 +110,11 @@ private:
         }
         // prepare the wrapper to be sent
         wrapper_in_t *out = prepareWrapper<input_t, wrapper_in_t>(wt, 1);
-        // send the wrapper to the next Win_Seq instance
-        this->ff_send_out_to(out, key_d.nextDst);
+        // send the wrapper to the next Win_Seq
+        if (!isCombined)
+            this->ff_send_out_to(out, key_d.nextDst);
+        else
+            output_queue.push_back(make_pair(out, key_d.nextDst));
         key_d.nextDst = (key_d.nextDst + 1) % map_degree;
         return this->GO_ON;
     }
@@ -126,14 +130,36 @@ private:
                 tuple_t *tuple = new tuple_t();
                 *tuple = key_d.last_tuple;
                 wrapper_in_t *out = new wrapper_in_t(tuple, map_degree, true); // eos marker enabled
-                for (size_t i=0; i < map_degree; i++)
-                    this->ff_send_out_to(out, i);
+                for (size_t i=0; i < map_degree; i++) {
+                    if (!isCombined)
+                        this->ff_send_out_to(out, i);
+                    else
+                        output_queue.push_back(make_pair(out, i));
+                }
             }
         }
     }
 
     // svc_end method (utilized by the FastFlow runtime)
     void svc_end() {}
+
+    // get the number of destinations
+    size_t getNDestinations()
+    {
+        return map_degree;
+    }
+
+    // set/unset the treeComb mode
+    void setTreeCombMode(bool _val)
+    {
+        isCombined = _val;
+    }
+
+    // method to get a reference to the internal output queue (used in treeComb mode)
+    vector<pair<wrapper_in_t *, int>> &getOutputQueue()
+    {
+        return output_queue;
+    }
 };
 
 // class WinMap_Dropper
@@ -146,23 +172,22 @@ private:
     tuple_t tmp; // never used
     // key data type
     using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
-    // friendships with other classes in the library
-    friend class MultiPipe;
     size_t map_degree; // parallelism degree (MAP phase)
     // struct of a key descriptor
     struct Key_Descriptor
     {
         uint64_t rcv_counter; // number of tuples received of this key
         tuple_t last_tuple; // copy of the last tuple received of this key
-        size_t nextDst; // id of the Win_Seq instance receiving the next tuple of this key
+        size_t nextDst; // id of the Win_Seq receiving the next tuple of this key
 
         // Constructor
         Key_Descriptor(size_t _nextDst): rcv_counter(0), nextDst(_nextDst) {}
     };
     unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
-    size_t my_id; // identifier of the Win_Seq instance associated with this WinMap_Dropper istance
+    size_t my_id; // identifier of the Win_Seq associated with this WinMap_Dropper istance
 
-    // Private Constructor
+public:
+    // Constructor
     WinMap_Dropper(size_t _my_id, size_t _map_degree): my_id(_my_id), map_degree(_map_degree) {}
 
     // svc_init method (utilized by the FastFlow runtime)
@@ -208,7 +233,7 @@ private:
         for (auto &k: keyMap) {
             Key_Descriptor &key_d = k.second;
             if (key_d.rcv_counter > 0) {
-                // send the last tuple to the Win_Seq instance associated with this WinMap_Dropper instance
+                // send the last tuple to the Win_Seq associated with this WinMap_Dropper
                 tuple_t *tuple = new tuple_t();
                 *tuple = key_d.last_tuple;
                 wrapper_in_t *out = new wrapper_in_t(tuple, 1, true); // eos marker enabled
@@ -223,17 +248,12 @@ private:
 
 // class WinMap_Collector
 template<typename result_t>
-class WinMap_Collector: public ff_node_t<result_t, result_t>
+class WinMap_Collector: public ff_minode_t<result_t, result_t>
 {
 private:
     result_t tmp; // never used
     // key data type
     using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
-    // friendships with other classes in the library
-    template<typename T1, typename T2, typename T3>
-    friend class Win_MapReduce;
-    template<typename T1, typename T2, typename T3, typename T4>
-    friend class Win_MapReduce_GPU;
     // inner struct of a key descriptor
     struct Key_Descriptor
     {
@@ -246,7 +266,8 @@ private:
     // hash table that maps key identifiers onto key descriptors
     unordered_map<key_t, Key_Descriptor> keyMap;
 
-    // Private Constructor
+public:
+    // Constructor
     WinMap_Collector() {}
 
     // svc_init method (utilized by the FastFlow runtime)

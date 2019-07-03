@@ -181,7 +181,7 @@ int main(int argc, char *argv[])
 	// Test 1 SEQ_GPU
 	Generator generator1(stream_len, num_keys);
 	Consumer consumer1(num_keys);
-	auto *seq1 = WinSeqGPU_Builder<decltype(seqFGPU)>(seqFGPU).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *seq1 = WinSeqGPU_Builder<decltype(seqFGPU)>(seqFGPU).withTBWindows(microseconds(win_len), microseconds(win_slide))
 															  .withBatch(batch_len)
 										   					  .withName("seq_gpu")
 										   					  .build_ptr();
@@ -194,7 +194,7 @@ int main(int argc, char *argv[])
 	// Test 2 WF(SEQ_GPU)
 	Generator generator2(stream_len, num_keys);
 	Consumer consumer2(num_keys);
-	auto *wf2 = WinFarmGPU_Builder<decltype(seqFGPU)>(seqFGPU).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *wf2 = WinFarmGPU_Builder<decltype(seqFGPU)>(seqFGPU).withTBWindows(microseconds(win_len), microseconds(win_slide))
 															  .withBatch(batch_len)
 										   					  .withParallelism(degree1)
 										   				      .withName("wf_gpu")
@@ -213,7 +213,7 @@ int main(int argc, char *argv[])
 	// Test 3 KF(SEQ_GPU)
 	Generator generator3(stream_len, num_keys);
 	Consumer consumer3(num_keys);
-	auto *kf3 = KeyFarmGPU_Builder<decltype(seqFGPU)>(seqFGPU).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *kf3 = KeyFarmGPU_Builder<decltype(seqFGPU)>(seqFGPU).withTBWindows(microseconds(win_len), microseconds(win_slide))
 																.withBatch(batch_len)
 										   					    .withParallelism(degree1)
 										   					    .set_KeyBy(routingF)
@@ -232,7 +232,7 @@ int main(int argc, char *argv[])
 	// Test 4 PF(PLQ_GPU, WLQ(NIC))
 	Generator generator4(stream_len, num_keys);
 	Consumer consumer4(num_keys);
-	auto *pf4 = PaneFarmGPU_Builder<decltype(plqFGPU), decltype(wlqFNIC)>(plqFGPU, wlqFNIC).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *pf4 = PaneFarmGPU_Builder<decltype(plqFGPU), decltype(wlqFNIC)>(plqFGPU, wlqFNIC).withTBWindows(microseconds(win_len), microseconds(win_slide))
 																								.withBatch(batch_len)
 										   														.withParallelism(degree2, degree3)
 										   														.withName("pf_gpu_nic")
@@ -251,7 +251,7 @@ int main(int argc, char *argv[])
 	// Test 5 PF(PLQ_GPU, WLQ(INC))
 	Generator generator5(stream_len, num_keys);
 	Consumer consumer5(num_keys);
-	auto *pf5 = PaneFarmGPU_Builder<decltype(plqFGPU), decltype(wlqFINC)>(plqFGPU, wlqFINC).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *pf5 = PaneFarmGPU_Builder<decltype(plqFGPU), decltype(wlqFINC)>(plqFGPU, wlqFINC).withTBWindows(microseconds(win_len), microseconds(win_slide))
 																								.withBatch(batch_len)
 										   														.withParallelism(degree2, degree3)
 										   														.withName("pf_gpu_inc")
@@ -270,7 +270,7 @@ int main(int argc, char *argv[])
 	// Test 6 PF(PLQ(NIC), WLQ_GPU)
 	Generator generator6(stream_len, num_keys);
 	Consumer consumer6(num_keys);
-	auto *pf6 = PaneFarmGPU_Builder<decltype(plqFNIC), decltype(wlqFGPU)>(plqFNIC, wlqFGPU).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *pf6 = PaneFarmGPU_Builder<decltype(plqFNIC), decltype(wlqFGPU)>(plqFNIC, wlqFGPU).withTBWindows(microseconds(win_len), microseconds(win_slide))
 																								.withBatch(batch_len)
 										   														.withParallelism(degree2, degree3)
 										   														.withName("pf_nic_gpu")
@@ -289,7 +289,7 @@ int main(int argc, char *argv[])
 	// Test 7 PF(PLQ(INC), WLQ_GPU)
 	Generator generator7(stream_len, num_keys);
 	Consumer consumer7(num_keys);
-	auto *pf7 = PaneFarmGPU_Builder<decltype(plqFINC), decltype(wlqFGPU)>(plqFINC, wlqFGPU).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *pf7 = PaneFarmGPU_Builder<decltype(plqFINC), decltype(wlqFGPU)>(plqFINC, wlqFGPU).withTBWindows(microseconds(win_len), microseconds(win_slide))
 																								.withBatch(batch_len)
 										   														.withParallelism(degree2, degree3)
 										   														.withName("pf_inc_gpu")
@@ -308,7 +308,7 @@ int main(int argc, char *argv[])
 	// Test 8 WM(MAP_GPU, REDUCE(NIC))
 	Generator generator8(stream_len, num_keys);
 	Consumer consumer8(num_keys);
-	auto *wm8 = WinMapReduceGPU_Builder<decltype(mapFGPU), decltype(reduceFNIC)>(mapFGPU, reduceFNIC).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *wm8 = WinMapReduceGPU_Builder<decltype(mapFGPU), decltype(reduceFNIC)>(mapFGPU, reduceFNIC).withTBWindows(microseconds(win_len), microseconds(win_slide))
 																										  .withBatch(batch_len)
 										   																  .withParallelism(max<size_t>(degree2, 2), degree3)
 										   															      .withName("wm_gpu_nic")
@@ -329,7 +329,7 @@ int main(int argc, char *argv[])
 	// Test 9 WM(MAP_GPU, REDUCE(INC))
 	Generator generator9(stream_len, num_keys);
 	Consumer consumer9(num_keys);
-	auto *wm9 = WinMapReduceGPU_Builder<decltype(mapFGPU), decltype(reduceFINC)>(mapFGPU, reduceFINC).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *wm9 = WinMapReduceGPU_Builder<decltype(mapFGPU), decltype(reduceFINC)>(mapFGPU, reduceFINC).withTBWindows(microseconds(win_len), microseconds(win_slide))
 																										  .withBatch(batch_len)
 										   																  .withParallelism(max<size_t>(degree2, 2), degree3)
 										   																  .withName("wm_gpu_inc")
@@ -350,7 +350,7 @@ int main(int argc, char *argv[])
 	// Test 10 WM(MAP(NIC), REDUCE_GPU)
 	Generator generator10(stream_len, num_keys);
 	Consumer consumer10(num_keys);
-	auto *wm10 = WinMapReduceGPU_Builder<decltype(mapFNIC), decltype(reduceFGPU)>(mapFNIC, reduceFGPU).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *wm10 = WinMapReduceGPU_Builder<decltype(mapFNIC), decltype(reduceFGPU)>(mapFNIC, reduceFGPU).withTBWindows(microseconds(win_len), microseconds(win_slide))
 																										  .withBatch(batch_len)
 										   																  .withParallelism(max<size_t>(degree2, 2), degree3)
 										   																  .withName("wm_nic_gpu")
@@ -371,7 +371,7 @@ int main(int argc, char *argv[])
 	// Test 11 WM(MAP(INC), REDUCE_GPU)
 	Generator generator11(stream_len, num_keys);
 	Consumer consumer11(num_keys);
-	auto *wm11 = WinMapReduceGPU_Builder<decltype(mapFINC), decltype(reduceFGPU)>(mapFINC, reduceFGPU).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *wm11 = WinMapReduceGPU_Builder<decltype(mapFINC), decltype(reduceFGPU)>(mapFINC, reduceFGPU).withTBWindows(microseconds(win_len), microseconds(win_slide))
 																										  .withBatch(batch_len)
 										   																  .withParallelism(max<size_t>(degree2, 2), degree3)
 										   																  .withName("wm_inc_gpu")
@@ -392,7 +392,7 @@ int main(int argc, char *argv[])
 	// Test 12 WF(PF(PLQ_GPU, WLQ(NIC)))
 	Generator generator12(stream_len, num_keys);
 	Consumer consumer12(num_keys);
-	auto *pf12 = PaneFarmGPU_Builder<decltype(plqFGPU), decltype(wlqFNIC)>(plqFGPU, wlqFNIC).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *pf12 = PaneFarmGPU_Builder<decltype(plqFGPU), decltype(wlqFNIC)>(plqFGPU, wlqFNIC).withTBWindows(microseconds(win_len), microseconds(win_slide))
 																							    .withBatch(batch_len)
 										   														.withParallelism(degree2, degree3)
 										   														.withName("pf_gpu_nic")
@@ -415,7 +415,7 @@ int main(int argc, char *argv[])
 	// Test 13 WF(PF(PLQ_GPU, WLQ(INC)))
 	Generator generator13(stream_len, num_keys);
 	Consumer consumer13(num_keys);
-	auto *fp13 = PaneFarmGPU_Builder<decltype(plqFGPU), decltype(wlqFINC)>(plqFGPU, wlqFINC).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *fp13 = PaneFarmGPU_Builder<decltype(plqFGPU), decltype(wlqFINC)>(plqFGPU, wlqFINC).withTBWindows(microseconds(win_len), microseconds(win_slide))
 																								.withBatch(batch_len)
 										   														.withParallelism(degree2, degree3)
 										   														.withName("pf_gpu_inc")
@@ -438,7 +438,7 @@ int main(int argc, char *argv[])
 	// Test 14 WF(PF(PLQ(NIC), WLQ_GPU))
 	Generator generator14(stream_len, num_keys);
 	Consumer consumer14(num_keys);
-	auto *pf14 = PaneFarmGPU_Builder<decltype(plqFNIC), decltype(wlqFGPU)>(plqFNIC, wlqFGPU).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *pf14 = PaneFarmGPU_Builder<decltype(plqFNIC), decltype(wlqFGPU)>(plqFNIC, wlqFGPU).withTBWindows(microseconds(win_len), microseconds(win_slide))
 																								.withBatch(batch_len)
 										   														.withParallelism(degree2, degree3)
 										   														.withName("pf_nic_gpu")
@@ -461,7 +461,7 @@ int main(int argc, char *argv[])
 	// Test 15 WF(PF(PLQ(INC), WLQ_GPU))
 	Generator generator15(stream_len, num_keys);
 	Consumer consumer15(num_keys);
-	auto *pf15 = PaneFarmGPU_Builder<decltype(plqFINC), decltype(wlqFGPU)>(plqFINC, wlqFGPU).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *pf15 = PaneFarmGPU_Builder<decltype(plqFINC), decltype(wlqFGPU)>(plqFINC, wlqFGPU).withTBWindows(microseconds(win_len), microseconds(win_slide))
 																								.withBatch(batch_len)
 										   														.withParallelism(degree2, degree3)
 										   														.withName("pf_inc_gpu")
@@ -484,7 +484,7 @@ int main(int argc, char *argv[])
 	// Test 16 WF(WM(MAP_GPU, REDUCE(NIC)))
 	Generator generator16(stream_len, num_keys);
 	Consumer consumer16(num_keys);
-	auto *wm16 = WinMapReduceGPU_Builder<decltype(mapFGPU), decltype(reduceFNIC)>(mapFGPU, reduceFNIC).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *wm16 = WinMapReduceGPU_Builder<decltype(mapFGPU), decltype(reduceFNIC)>(mapFGPU, reduceFNIC).withTBWindows(microseconds(win_len), microseconds(win_slide))
 																										  .withBatch(batch_len)
 										   																  .withParallelism(max<size_t>(degree2, 2), degree3)
 										   																  .withName("wm_gpu_nic")
@@ -509,7 +509,7 @@ int main(int argc, char *argv[])
 	// Test 17 WF(WM(MAP_GPU, REDUCE(INC)))
 	Generator generator17(stream_len, num_keys);
 	Consumer consumer17(num_keys);
-	auto *wm17 = WinMapReduceGPU_Builder<decltype(mapFGPU), decltype(reduceFINC)>(mapFGPU, reduceFINC).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *wm17 = WinMapReduceGPU_Builder<decltype(mapFGPU), decltype(reduceFINC)>(mapFGPU, reduceFINC).withTBWindows(microseconds(win_len), microseconds(win_slide))
 																										  .withBatch(batch_len)
 										   																  .withParallelism(max<size_t>(degree2, 2), degree3)
 										   																  .withName("wm_gpu_nic")
@@ -534,7 +534,7 @@ int main(int argc, char *argv[])
 	// Test 18 WF(WM(MAP(NIC), REDUCE_GPU))
 	Generator generator18(stream_len, num_keys);
 	Consumer consumer18(num_keys);
-	auto *wm18 = WinMapReduceGPU_Builder<decltype(mapFNIC), decltype(reduceFGPU)>(mapFNIC, reduceFGPU).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *wm18 = WinMapReduceGPU_Builder<decltype(mapFNIC), decltype(reduceFGPU)>(mapFNIC, reduceFGPU).withTBWindows(microseconds(win_len), microseconds(win_slide))
 																									  .withBatch(batch_len)
 										   															  .withParallelism(max<size_t>(degree2, 2), degree3)
 										   															  .withName("wm_nic_gpu")
@@ -559,7 +559,7 @@ int main(int argc, char *argv[])
 	// Test 19 WF(WM(MAP(INC), REDUCE_GPU))
 	Generator generator19(stream_len, num_keys);
 	Consumer consumer19(num_keys);
-	auto *wm19 = WinMapReduceGPU_Builder<decltype(mapFINC), decltype(reduceFGPU)>(mapFINC, reduceFGPU).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *wm19 = WinMapReduceGPU_Builder<decltype(mapFINC), decltype(reduceFGPU)>(mapFINC, reduceFGPU).withTBWindows(microseconds(win_len), microseconds(win_slide))
 																									  .withBatch(batch_len)
 										   														      .withParallelism(max<size_t>(degree2, 2), degree3)
 										   														      .withName("wm_inc_gpu")
@@ -584,7 +584,7 @@ int main(int argc, char *argv[])
 	// Test 20 KF(PF(PLQ_GPU, WLQ(NIC)))
 	Generator generator20(stream_len, num_keys);
 	Consumer consumer20(num_keys);
-	auto *pf20 = PaneFarmGPU_Builder<decltype(plqFGPU), decltype(wlqFNIC)>(plqFGPU, wlqFNIC).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *pf20 = PaneFarmGPU_Builder<decltype(plqFGPU), decltype(wlqFNIC)>(plqFGPU, wlqFNIC).withTBWindows(microseconds(win_len), microseconds(win_slide))
 																								.withBatch(batch_len)
 										   														.withParallelism(degree2, degree3)
 										   														.withName("pf_gpu_nic")
@@ -607,7 +607,7 @@ int main(int argc, char *argv[])
 	// Test 21 KF(PF(PLQ_GPU, WLQ(INC)))
 	Generator generator21(stream_len, num_keys);
 	Consumer consumer21(num_keys);
-	auto *pf21 = PaneFarmGPU_Builder<decltype(plqFGPU), decltype(wlqFINC)>(plqFGPU, wlqFINC).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *pf21 = PaneFarmGPU_Builder<decltype(plqFGPU), decltype(wlqFINC)>(plqFGPU, wlqFINC).withTBWindows(microseconds(win_len), microseconds(win_slide))
 																								.withBatch(batch_len)
 										   														.withParallelism(degree2, degree3)
 										   														.withName("pf_gpu_inc")
@@ -630,7 +630,7 @@ int main(int argc, char *argv[])
 	// Test 22 KF(PF(PLQ(NIC), WLQ_GPU))
 	Generator generator22(stream_len, num_keys);
 	Consumer consumer22(num_keys);
-	auto *pf22 = PaneFarmGPU_Builder<decltype(plqFNIC), decltype(wlqFGPU)>(plqFNIC, wlqFGPU).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *pf22 = PaneFarmGPU_Builder<decltype(plqFNIC), decltype(wlqFGPU)>(plqFNIC, wlqFGPU).withTBWindows(microseconds(win_len), microseconds(win_slide))
 																								.withBatch(batch_len)
 										   														.withParallelism(degree2, degree3)
 										   														.withName("pf_nic_gpu")
@@ -653,7 +653,7 @@ int main(int argc, char *argv[])
 	// Test 23 KF(PF(PLQ(INC), WLQ_GPU))
 	Generator generator23(stream_len, num_keys);
 	Consumer consumer23(num_keys);
-	auto *pf23 = PaneFarmGPU_Builder<decltype(plqFINC), decltype(wlqFGPU)>(plqFINC, wlqFGPU).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *pf23 = PaneFarmGPU_Builder<decltype(plqFINC), decltype(wlqFGPU)>(plqFINC, wlqFGPU).withTBWindows(microseconds(win_len), microseconds(win_slide))
 																								.withBatch(batch_len)
 										   														.withParallelism(degree2, degree3)
 										   														.withName("pf_inc_gpu")
@@ -677,7 +677,7 @@ int main(int argc, char *argv[])
 	// Test 24 KF(WM(MAP_GPU, REDUCE(NIC)))
 	Generator generator24(stream_len, num_keys);
 	Consumer consumer24(num_keys);
-	auto *wm24 = WinMapReduceGPU_Builder<decltype(mapFGPU), decltype(reduceFNIC)>(mapFGPU, reduceFNIC).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *wm24 = WinMapReduceGPU_Builder<decltype(mapFGPU), decltype(reduceFNIC)>(mapFGPU, reduceFNIC).withTBWindows(microseconds(win_len), microseconds(win_slide))
 																										  .withBatch(batch_len)
 										   																  .withParallelism(max<size_t>(degree2, 2), degree3)
 										   																  .withName("wm_gpu_nic")
@@ -702,7 +702,7 @@ int main(int argc, char *argv[])
 	// Test 25 KF(WM(MAP_GPU, REDUCE(INC)))
 	Generator generator25(stream_len, num_keys);
 	Consumer consumer25(num_keys);
-	auto *wm25 = WinMapReduceGPU_Builder<decltype(mapFGPU), decltype(reduceFINC)>(mapFGPU, reduceFINC).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *wm25 = WinMapReduceGPU_Builder<decltype(mapFGPU), decltype(reduceFINC)>(mapFGPU, reduceFINC).withTBWindows(microseconds(win_len), microseconds(win_slide))
 																										  .withBatch(batch_len)
 										   														          .withParallelism(max<size_t>(degree2, 2), degree3)
 										   														          .withName("wm_gpu_inc")
@@ -727,7 +727,7 @@ int main(int argc, char *argv[])
 	// Test 26 KF(WM(MAP(NIC), REDUCE_GPU))
 	Generator generator26(stream_len, num_keys);
 	Consumer consumer26(num_keys);
-	auto *wm26 = WinMapReduceGPU_Builder<decltype(mapFNIC), decltype(reduceFGPU)>(mapFNIC, reduceFGPU).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *wm26 = WinMapReduceGPU_Builder<decltype(mapFNIC), decltype(reduceFGPU)>(mapFNIC, reduceFGPU).withTBWindows(microseconds(win_len), microseconds(win_slide))
 																									  .withBatch(batch_len)
 										   														      .withParallelism(max<size_t>(degree2, 2), degree3)
 										   														      .withName("wm_nic_gpu")
@@ -752,7 +752,7 @@ int main(int argc, char *argv[])
 	// Test 27 KF(WM(MAP(INC), REDUCE_GPU))
 	Generator generator27(stream_len, num_keys);
 	Consumer consumer27(num_keys);
-	auto *wm27 = WinMapReduceGPU_Builder<decltype(mapFINC), decltype(reduceFGPU)>(mapFINC, reduceFGPU).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	auto *wm27 = WinMapReduceGPU_Builder<decltype(mapFINC), decltype(reduceFGPU)>(mapFINC, reduceFGPU).withTBWindows(microseconds(win_len), microseconds(win_slide))
 																									  .withBatch(batch_len)
 										   														      .withParallelism(max<size_t>(degree2, 2), degree3)
 										   														      .withName("wm_inc_gpu")

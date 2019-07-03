@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
 		win_result.value += t.value;
 	};
 	// creation of the Win_MapReduce pattern
-	Win_MapReduce wm = WinMapReduce_Builder(F, F).withCBWindow(win_len, win_slide)
+	Win_MapReduce wm = WinMapReduce_Builder(F, F).withCBWindows(win_len, win_slide)
 									.withParallelism(map_degree, reduce_degree)
 									.withName("test_sum")
 									.withOptLevel(LEVEL)

@@ -300,7 +300,7 @@ int main(int argc, char *argv[])
 	    Map map = Map_Builder(map_functor).withName("test_wmr_tb_ch_map").withParallelism(degree2).build();
 	    application.chain(map);
 	    // wmr
-	    Win_MapReduce wmr = WinMapReduce_Builder(wmap_function, reduce_function).withName("test_wmr_tb_ch_wmr").withParallelism(wmap_degree, reduce_degree).withTBWindow(microseconds(win_len), microseconds(win_slide)).build();
+	    Win_MapReduce wmr = WinMapReduce_Builder(wmap_function, reduce_function).withName("test_wmr_tb_ch_wmr").withParallelism(wmap_degree, reduce_degree).withTBWindows(microseconds(win_len), microseconds(win_slide)).build();
 	    application.add(wmr);
 	    // sink
 	    Sink_Functor sink_functor(n_keys);

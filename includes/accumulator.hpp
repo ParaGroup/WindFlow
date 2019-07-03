@@ -34,7 +34,7 @@
 #ifndef ACCUMULATOR_H
 #define ACCUMULATOR_H
 
-// includes
+/// includes
 #include <string>
 #include <unordered_map>
 #include <ff/node.hpp>
@@ -65,6 +65,7 @@ public:
     using closing_func_t = function<void(RuntimeContext &)>;
     /// type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
     using routing_func_t = function<size_t(size_t, size_t)>;
+
 private:
     tuple_t tmp; // never used
     // key data type
@@ -80,7 +81,7 @@ private:
         closing_func_t closing_func; // closing function
         string name; // string of the unique name of the pattern
         bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
-        RuntimeContext context; // RuntimeContext instance
+        RuntimeContext context; // RuntimeContext
         result_t init_value; // initial value of the results
         // inner struct of a key descriptor
         struct Key_Descriptor
@@ -99,6 +100,7 @@ private:
         volatile unsigned long startTD, startTS, endTD, endTS;
         ofstream *logfile = nullptr;
 #endif
+
     public:
         // Constructor I
         Accumulator_Node(acc_func_t _acc_func, result_t _init_value, string _name, RuntimeContext _context, closing_func_t _closing_func): acc_func(_acc_func), init_value(_init_value), name(_name), isRich(false), context(_context), closing_func(_closing_func) {}
@@ -193,13 +195,13 @@ public:
             cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
-        // vector of Accumulator_Node instances
+        // vector of Accumulator_Node
         vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new Accumulator_Node(_func, _init_value, _name, RuntimeContext(_pardegree, i), _closing_func);
             w.push_back(seq);
         }
-        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func));
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func, _pardegree));
         ff_farm::add_workers(w);
         // add default collector
         ff_farm::add_collector(nullptr);
@@ -224,13 +226,13 @@ public:
             cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
-        // vector of Accumulator_Node instances
+        // vector of Accumulator_Node
         vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new Accumulator_Node(_func, _init_value, _name, RuntimeContext(_pardegree, i), _closing_func);
             w.push_back(seq);
         }
-        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func));
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func, _pardegree));
         ff_farm::add_workers(w);
         // add default collector
         ff_farm::add_collector(nullptr);

@@ -297,7 +297,7 @@ int main(int argc, char *argv[])
 			win_result.value = sum;
 		};
 	    // pf
-	    auto *pf = PaneFarmGPU_Builder<decltype(plq_function), decltype(wlq_function)>(plq_function, wlq_function).withName("test_pf_tb_pf_ch").withParallelism(plq_degree, wlq_degree).withTBWindow(microseconds(win_len), microseconds(win_slide)).withBatch(batch_len).build_ptr();
+	    auto *pf = PaneFarmGPU_Builder<decltype(plq_function), decltype(wlq_function)>(plq_function, wlq_function).withName("test_pf_tb_pf_ch").withParallelism(plq_degree, wlq_degree).withTBWindows(microseconds(win_len), microseconds(win_slide)).withBatch(batch_len).build_ptr();
 	    application.add(*pf);
 	    // sink
 	    Sink_Functor sink_functor(n_keys);

@@ -31,7 +31,7 @@
 #ifndef LOCALSTORAGE_H
 #define LOCALSTORAGE_H
 
-// includes
+/// includes
 #include <string>
 #include <unordered_map>
 

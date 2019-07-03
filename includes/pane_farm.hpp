@@ -83,7 +83,7 @@ private:
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3>
     friend class Win_Farm;
-    template<typename T1, typename T2, typename T3>
+    template<typename T1, typename T2>
     friend class Key_Farm;
     template<typename T>
     friend class WinFarm_Builder;
@@ -169,26 +169,26 @@ private:
         ff_node *plq_stage, *wlq_stage;
         // create the first stage PLQ (Pane Level Query)
         if (_plq_degree > 1) {
-            // configuration structure of the Win_Farm instance (PLQ)
+            // configuration structure of the Win_Farm (PLQ)
             PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_func_PLQ, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", _closing_func, true, LEVEL0, configWFPLQ, PLQ);
             plq_stage = plq_wf;
         }
         else {
-            // configuration structure of the Win_Seq instance (PLQ)
+            // configuration structure of the Win_Seq (PLQ)
             PatternConfig configSeqPLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _pane_len);
             auto *plq_seq = new Win_Seq<tuple_t, result_t, input_t>(_func_PLQ, _pane_len, _pane_len, _winType, _name + "_plq", _closing_func, RuntimeContext(1, 0), configSeqPLQ, PLQ);
             plq_stage = plq_seq;
         }
         // create the second stage WLQ (Window Level Query)
         if (_wlq_degree > 1) {
-            // configuration structure of the Win_Farm instance (WLQ)
+            // configuration structure of the Win_Farm (WLQ)
             PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *wlq_wf = new Win_Farm<result_t, result_t>(_func_WLQ, (_win_len/_pane_len), (_slide_len/_pane_len), CB, 1, _wlq_degree, _name + "_wlq", _closing_func, _ordered, LEVEL0, configWFWLQ, WLQ);
             wlq_stage = wlq_wf;
         }
         else {
-            // configuration structure of the Win_Seq instance (WLQ)
+            // configuration structure of the Win_Seq (WLQ)
             PatternConfig configSeqWLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, (_slide_len/_pane_len));
             auto *wlq_seq = new Win_Seq<result_t, result_t>(_func_WLQ, (_win_len/_pane_len), (_slide_len/_pane_len), CB, _name + "_wlq", _closing_func, RuntimeContext(1, 0), configSeqWLQ, WLQ);
             wlq_stage = wlq_seq;
@@ -239,7 +239,7 @@ private:
                 delete farm_plq;
                 delete farm_wlq;
                 delete buf_node;
-                // delete emitter_wlq; //commented -> why?
+                // delete emitter_wlq; // --> should be executed, why not?
                 return result;
             }
         }
@@ -825,14 +825,26 @@ public:
     /** 
      *  \brief Get the optimization level used to build the pattern
      *  \return adopted utilization level by the pattern
-     */
-    opt_level_t getOptLevel() { return opt_level; }
+     */ 
+    opt_level_t getOptLevel() const { return opt_level; }
 
     /** 
      *  \brief Get the window type (CB or TB) utilized by the pattern
      *  \return adopted windowing semantics (count- or time-based)
-     */
-    win_type_t getWinType() { return winType; }
+     */ 
+    win_type_t getWinType() const { return winType; }
+
+    /** 
+     *  \brief Get the parallelism degree of the PLQ stage
+     *  \return PLQ parallelism degree
+     */ 
+    size_t getPLQParallelism() const { return plq_degree; }
+
+    /** 
+     *  \brief Get the parallelism degree of the WLQ stage
+     *  \return WLQ parallelism degree
+     */ 
+    size_t getWLQParallelism() const { return wlq_degree; }
 };
 
 #endif

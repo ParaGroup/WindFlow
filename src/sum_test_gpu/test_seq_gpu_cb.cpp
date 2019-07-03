@@ -71,7 +71,7 @@ int main(int argc, char *argv[])
 		res->value = sum;
 	};
 	// creation of the Win_Seq_GPU pattern
-	auto *seq_gpu = WinSeqGPU_Builder<decltype(F)>(F).withCBWindow(win_len, win_slide)
+	auto *seq_gpu = WinSeqGPU_Builder<decltype(F)>(F).withCBWindows(win_len, win_slide)
 													 .withBatch(batch_len)
 													 .withName("test_sum")
 													 .build_ptr();

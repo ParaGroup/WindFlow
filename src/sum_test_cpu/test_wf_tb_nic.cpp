@@ -75,7 +75,7 @@ int main(int argc, char *argv[])
 		result.value = sum;
 	};
 	// creation of the Win_Farm pattern
-	Win_Farm wf = WinFarm_Builder(F).withTBWindow(microseconds(win_len), microseconds(win_slide))
+	Win_Farm wf = WinFarm_Builder(F).withTBWindows(microseconds(win_len), microseconds(win_slide))
 									.withParallelism(pardegree)
 									.withName("test_sum")
 									.withOptLevel(LEVEL)

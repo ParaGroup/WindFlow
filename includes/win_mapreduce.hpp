@@ -89,7 +89,7 @@ private:
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3>
     friend class Win_Farm;
-    template<typename T1, typename T2, typename T3>
+    template<typename T1, typename T2>
     friend class Key_Farm;
     template<typename T>
     friend class WinFarm_Builder;
@@ -164,11 +164,11 @@ private:
         ff_node *map_stage, *reduce_stage;
         // create the MAP phase
         if (_map_degree > 1) {
-            // vector of Win_Seq instances
+            // vector of Win_Seq
             vector<ff_node *> w(_map_degree);
-            // create the Win_Seq instances
+            // create the Win_Seq
             for (size_t i = 0; i < _map_degree; i++) {
-                // configuration structure of the Win_Seq instance (MAP)
+                // configuration structure of the Win_Seq (MAP)
                 PatternConfig configSeqMAP(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _slide_len);
                 auto *seq = new Win_Seq<tuple_t, result_t, wrapper_in_t>(_func_MAP, _win_len, _slide_len, _winType, _name + "_map_wf", _closing_func, RuntimeContext(_map_degree, i), configSeqMAP, MAP);
                 seq->setMapIndexes(i, _map_degree);
@@ -182,7 +182,7 @@ private:
             map_stage = farm_map;
         }
         else {
-            // configuration structure of the Win_Seq instance (MAP)
+            // configuration structure of the Win_Seq (MAP)
             PatternConfig configSeqMAP(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _slide_len);
             auto *seq_map = new Win_Seq<tuple_t, result_t, wrapper_in_t>(_func_MAP, _win_len, _slide_len, _winType, _name + "_map", _closing_func, RuntimeContext(1, 0), configSeqMAP, MAP);
             seq_map->setMapIndexes(0, 1);
@@ -190,13 +190,13 @@ private:
         }
         // create the REDUCE phase
         if (_reduce_degree > 1) {
-            // configuration structure of the Win_Farm instance (REDUCE)
+            // configuration structure of the Win_Farm (REDUCE)
             PatternConfig configWFREDUCE(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *farm_reduce = new Win_Farm<result_t, result_t>(_func_REDUCE, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", _closing_func, _ordered, LEVEL0, configWFREDUCE, REDUCE);
             reduce_stage = farm_reduce;
         }
         else {
-            // configuration structure of the Win_Seq instance (REDUCE)
+            // configuration structure of the Win_Seq (REDUCE)
             PatternConfig configSeqREDUCE(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _map_degree);
             auto *seq_reduce = new Win_Seq<result_t, result_t>(_func_REDUCE, _map_degree, _map_degree, CB, _name + "_reduce", _closing_func, RuntimeContext(1, 0), configSeqREDUCE, REDUCE);
             reduce_stage = seq_reduce;
@@ -235,7 +235,7 @@ private:
                 delete farm_map;
                 delete farm_reduce;
                 delete buf_node;
-                // delete emitter_reduce; commented -> why?
+                // delete emitter_reduce; // --> should be executed, why not?
                 return result;
             }
         }
@@ -821,14 +821,26 @@ public:
     /** 
      *  \brief Get the optimization level used to build the pattern
      *  \return adopted utilization level by the pattern
-     */
-    opt_level_t getOptLevel() { return opt_level; }
+     */ 
+    opt_level_t getOptLevel() const { return opt_level; }
 
     /** 
      *  \brief Get the window type (CB or TB) utilized by the pattern
      *  \return adopted windowing semantics (count- or time-based)
-     */
-    win_type_t getWinType() { return winType; }
+     */ 
+    win_type_t getWinType() const { return winType; }
+
+    /** 
+     *  \brief Get the parallelism degree of the MAP stage
+     *  \return MAP parallelism degree
+     */ 
+    size_t getMAPParallelism() const { return map_degree; }
+
+    /** 
+     *  \brief Get the parallelism degree of the REDUCE stage
+     *  \return REDUCE parallelism degree
+     */ 
+    size_t getREDUCEParallelism() const { return reduce_degree; }
 };
 
 #endif

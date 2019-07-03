@@ -35,7 +35,7 @@
 #ifndef WIN_SEQ_H
 #define WIN_SEQ_H
 
-// includes
+/// includes
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -70,6 +70,7 @@ public:
     using rich_winupdate_func_t = function<void(uint64_t, const tuple_t &, result_t &, RuntimeContext &)>;
     /// type of the closing function
     using closing_func_t = function<void(RuntimeContext &)>;
+
 private:
     // const iterator type for accessing tuples
     using const_input_iterator_t = typename deque<tuple_t>::const_iterator;
@@ -85,7 +86,7 @@ private:
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3>
     friend class Win_Farm;
-    template<typename T1, typename T2, typename T3>
+    template<typename T1, typename T2>
     friend class Key_Farm;
     template<typename T1, typename T2, typename T3>
     friend class Pane_Farm;
@@ -135,9 +136,9 @@ private:
     string name; // string of the unique name of the pattern
     bool isNIC; // this flag is true if the pattern is instantiated with a non-incremental query function
     bool isRich; // flag stating whether the function to be used is rich
-    RuntimeContext context; // RuntimeContext instance
+    RuntimeContext context; // RuntimeContext
     PatternConfig config; // configuration structure of the Win_Seq pattern
-    role_t role; // role of the Win_Seq instance
+    role_t role; // role of the Win_Seq
     unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     pair<size_t, size_t> map_indexes = make_pair(0, 1); // indexes useful is the role is MAP
 #if defined(LOG_DIR)
@@ -386,9 +387,9 @@ public:
                 key_d.last_tuple = *t;
             }
         }
-        // gwid of the first window of that key assigned to this Win_Seq instance
+        // gwid of the first window of that key assigned to this Win_Seq
         uint64_t first_gwid_key = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) * config.n_outer + (config.id_outer - (hashcode % config.n_outer) + config.n_outer) % config.n_outer;
-        // initial identifer/timestamp of the keyed sub-stream arriving at this Win_Seq instance
+        // initial identifer/timestamp of the keyed sub-stream arriving at this Win_Seq
         uint64_t initial_outer = ((config.id_outer - (hashcode % config.n_outer) + config.n_outer) % config.n_outer) * config.slide_outer;
         uint64_t initial_inner = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) * config.slide_inner;
         uint64_t initial_id = initial_outer + initial_inner;
@@ -409,7 +410,7 @@ public:
         else {
             uint64_t n = floor((double) (id-initial_id) / slide_len);
             last_w = n;
-            // if the tuple does not belong to at least one window assigned to this Win_Seq instance
+            // if the tuple does not belong to at least one window assigned to this Win_Seq
             if ((id-initial_id < n*(slide_len)) || (id-initial_id >= (n*slide_len)+win_len)) {
                 // if it is not an EOS marker, we delete the tuple immediately
                 if (!isEOSMarker<tuple_t, input_t>(*wt)) {

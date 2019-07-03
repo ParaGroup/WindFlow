@@ -34,7 +34,7 @@
 #ifndef SINK_H
 #define SINK_H
 
-// includes
+/// includes
 #include <string>
 #if __cplusplus < 201703L //not C++17
     #include <experimental/optional>
@@ -69,6 +69,7 @@ public:
     using closing_func_t = function<void(RuntimeContext &)>;
     /// type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
     using routing_func_t = function<size_t(size_t, size_t)>;
+
 private:
     // friendships with other classes in the library
     friend class MultiPipe;
@@ -82,7 +83,7 @@ private:
         closing_func_t closing_func; // closing function
         string name; // string of the unique name of the pattern
         bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
-        RuntimeContext context; // RuntimeContext instance
+        RuntimeContext context; // RuntimeContext
 #if defined(LOG_DIR)
         unsigned long rcvTuples = 0;
         double avg_td_us = 0;
@@ -90,6 +91,7 @@ private:
         volatile unsigned long startTD, startTS, endTD, endTS;
         ofstream *logfile = nullptr;
 #endif
+
     public:
         // Constructor I
         Sink_Node(sink_func_t _sink_fun, string _name, RuntimeContext _context, closing_func_t _closing_func): sink_fun(_sink_fun), name(_name), isRich(false), context(_context), closing_func(_closing_func) {}
@@ -186,14 +188,14 @@ public:
             cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
-        // vector of Sink_Node instances
+        // vector of Sink_Node
         vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new Sink_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new Standard_Emitter<tuple_t>());
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_pardegree));
         // add workers
         ff_farm::add_workers(w);
         // when the Sink will be destroyed we need aslo to destroy the emitter and workers
@@ -216,14 +218,14 @@ public:
             cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
-        // vector of Sink_Node instances
+        // vector of Sink_Node
         vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new Sink_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func));
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func, _pardegree));
         // add workers
         ff_farm::add_workers(w);
         // when the Sink will be destroyed we need aslo to destroy the emitter and workers
@@ -245,14 +247,14 @@ public:
             cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
-        // vector of Sink_Node instances
+        // vector of Sink_Node
         vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new Sink_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new Standard_Emitter<tuple_t>());
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_pardegree));
         // add workers
         ff_farm::add_workers(w);
         // when the Sink will be destroyed we need aslo to destroy the emitter and workers
@@ -275,14 +277,14 @@ public:
             cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
-        // vector of Sink_Node instances
+        // vector of Sink_Node
         vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new Sink_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func));
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func, _pardegree));
         // add workers
         ff_farm::add_workers(w);
         // when the Sink will be destroyed we need aslo to destroy the emitter and workers

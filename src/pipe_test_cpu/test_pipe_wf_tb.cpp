@@ -287,7 +287,7 @@ int main(int argc, char *argv[])
 	    Map map = Map_Builder(map_functor).withName("test_wf_tb_map").withParallelism(map_degree).build();
 	    application.add(map);
 	    // wf
-	    Win_Farm wf = WinFarm_Builder(wf_function).withName("test_wf_tb_wf").withParallelism(wf_degree).withTBWindow(microseconds(win_len), microseconds(win_slide)).build();
+	    Win_Farm wf = WinFarm_Builder(wf_function).withName("test_wf_tb_wf").withParallelism(wf_degree).withTBWindows(microseconds(win_len), microseconds(win_slide)).build();
 	    application.add(wf);
 	    // sink
 	    Sink_Functor sink_functor(n_keys);

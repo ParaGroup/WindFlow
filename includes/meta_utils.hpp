@@ -319,12 +319,12 @@ auto get_WF_GPU_nested_type(F_t _f)
 }
 
 // metafunction to extract the type of Key_Farm from the inner pattern of type Pane_Farm
-template<typename ...Args>
-Key_Farm<Args...> get_KF_nested_type(Pane_Farm<Args...> const);
+template<typename arg1, typename arg2, typename arg3>
+Key_Farm<arg1, arg2> get_KF_nested_type(Pane_Farm<arg1, arg2, arg3> const);
 
 // metafunction to extract the type of Key_Farm from the inner pattern of type Win_MapReduce
-template<typename ...Args>
-Key_Farm<Args...> get_KF_nested_type(Win_MapReduce<Args...> const);
+template<typename arg1, typename arg2, typename arg3>
+Key_Farm<arg1, arg2> get_KF_nested_type(Win_MapReduce<arg1, arg2, arg3> const);
 
 // metafunction to extract the type of Key_Farm from a callable type (e.g., function, lambda, functor)
 template<typename F_t>
@@ -335,12 +335,12 @@ auto get_KF_nested_type(F_t _f)
 }
 
 // metafunction to extract the type of Key_Farm_GPU from the inner pattern of type Pane_Farm_GPU
-template<typename ...Args>
-Key_Farm_GPU<Args...> get_KF_GPU_nested_type(Pane_Farm_GPU<Args...> const);
+template<typename arg1, typename arg2, typename arg3, typename arg4>
+Key_Farm_GPU<arg1, arg2, arg3> get_KF_GPU_nested_type(Pane_Farm_GPU<arg1, arg2, arg3, arg4> const);
 
 // metafunction to extract the type of Key_Farm_GPU from the inner pattern of type Win_MapReduce_GPU
-template<typename ...Args>
-Key_Farm_GPU<Args...> get_KF_GPU_nested_type(Win_MapReduce_GPU<Args...> const);
+template<typename arg1, typename arg2, typename arg3, typename arg4>
+Key_Farm_GPU<arg1, arg2, arg3> get_KF_GPU_nested_type(Win_MapReduce_GPU<arg1, arg2, arg3, arg4> const);
 
 // metafunction to extract the type of Key_Farm_GPU from a callable type (e.g., function, lambda, functor)
 template<typename F_t>

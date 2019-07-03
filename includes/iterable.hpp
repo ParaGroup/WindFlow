@@ -35,7 +35,7 @@
 #ifndef ITERABLE_H
 #define ITERABLE_H
 
-// includes
+/// includes
 #include <deque>
 #include <stdexcept>
 

@@ -142,7 +142,7 @@ int main(int argc, char *argv[])
 	{
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Win_Seq seqNIC = WinSeq_Builder(seqFNIC).withCBWindow(win_len, win_slide)
+		Win_Seq seqNIC = WinSeq_Builder(seqFNIC).withCBWindows(win_len, win_slide)
 											   .withName("seq_nic")
 											   .build();
 		ff_Pipe<tuple_t, output_t> pipe1(generator, seqNIC, consumer);
@@ -156,7 +156,7 @@ int main(int argc, char *argv[])
 	{
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Win_Seq seqINC = WinSeq_Builder(seqFINC).withCBWindow(win_len, win_slide)
+		Win_Seq seqINC = WinSeq_Builder(seqFINC).withCBWindows(win_len, win_slide)
 											   .withName("seq_inc")
 											   .build();
 		ff_Pipe<tuple_t, output_t> pipe2(generator, seqINC, consumer);
@@ -174,7 +174,7 @@ int main(int argc, char *argv[])
 	{
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Win_Farm wfNIC = WinFarm_Builder(seqFNIC).withCBWindow(win_len, win_slide)
+		Win_Farm wfNIC = WinFarm_Builder(seqFNIC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree1)
 											   .withName("wf_nic")
 											   .withEmitters(emitter_degree)
@@ -194,7 +194,7 @@ int main(int argc, char *argv[])
 	{
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Win_Farm wfINC = WinFarm_Builder(seqFINC).withCBWindow(win_len, win_slide)
+		Win_Farm wfINC = WinFarm_Builder(seqFINC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree1)
 											   .withName("wf_inc")
 											   .withEmitters(emitter_degree)
@@ -214,7 +214,7 @@ int main(int argc, char *argv[])
 	{
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Key_Farm kfNIC = KeyFarm_Builder(seqFNIC).withCBWindow(win_len, win_slide)
+		Key_Farm kfNIC = KeyFarm_Builder(seqFNIC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree1)
 											   .withName("kf_nic")
 											   .build();
@@ -233,7 +233,7 @@ int main(int argc, char *argv[])
 	{
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Key_Farm kfINC = KeyFarm_Builder(seqFINC).withCBWindow(win_len, win_slide)
+		Key_Farm kfINC = KeyFarm_Builder(seqFINC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree1)
 											   .withName("kf_inc")
 											   .build();
@@ -252,7 +252,7 @@ int main(int argc, char *argv[])
 	{
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Pane_Farm pfNICNIC = PaneFarm_Builder(plqFNIC, wlqFNIC).withCBWindow(win_len, win_slide)
+		Pane_Farm pfNICNIC = PaneFarm_Builder(plqFNIC, wlqFNIC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree2, degree3)
 											   .withName("pf_nic_nic")
 											   .withOptLevel(opt_level)
@@ -272,7 +272,7 @@ int main(int argc, char *argv[])
 	{
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Pane_Farm pfNICINC = PaneFarm_Builder(plqFNIC, wlqFINC).withCBWindow(win_len, win_slide)
+		Pane_Farm pfNICINC = PaneFarm_Builder(plqFNIC, wlqFINC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree2, degree3)
 											   .withName("pf_nic_inc")
 											   .withOptLevel(opt_level)
@@ -292,7 +292,7 @@ int main(int argc, char *argv[])
 	{
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Pane_Farm pfINCNIC = PaneFarm_Builder(plqFINC, wlqFNIC).withCBWindow(win_len, win_slide)
+		Pane_Farm pfINCNIC = PaneFarm_Builder(plqFINC, wlqFNIC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree2, degree3)
 											   .withName("pf_inc_nic")
 											   .withOptLevel(opt_level)
@@ -312,7 +312,7 @@ int main(int argc, char *argv[])
 	{
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Pane_Farm pfINCINC = PaneFarm_Builder(plqFINC, wlqFINC).withCBWindow(win_len, win_slide)
+		Pane_Farm pfINCINC = PaneFarm_Builder(plqFINC, wlqFINC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree2, degree3)
 											   .withName("pf_inc_inc")
 											   .withOptLevel(opt_level)
@@ -332,7 +332,7 @@ int main(int argc, char *argv[])
 	if (degree2 > 1) {
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Win_MapReduce wmNICNIC = WinMapReduce_Builder(wmFNIC, wmFNIC).withCBWindow(win_len, win_slide)
+		Win_MapReduce wmNICNIC = WinMapReduce_Builder(wmFNIC, wmFNIC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree2, degree3)
 											   .withName("wm_nic_nic")
 											   .withOptLevel(opt_level)
@@ -352,7 +352,7 @@ int main(int argc, char *argv[])
 	if (degree2 > 1) {
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Win_MapReduce wmNICINC = WinMapReduce_Builder(wmFNIC, wmFINC).withCBWindow(win_len, win_slide)
+		Win_MapReduce wmNICINC = WinMapReduce_Builder(wmFNIC, wmFINC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree2, degree3)
 											   .withName("wm_nic_inc")
 											   .withOptLevel(opt_level)
@@ -372,7 +372,7 @@ int main(int argc, char *argv[])
 	if (degree2 > 1) {
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Win_MapReduce wmINCNIC = WinMapReduce_Builder(wmFINC, wmFNIC).withCBWindow(win_len, win_slide)
+		Win_MapReduce wmINCNIC = WinMapReduce_Builder(wmFINC, wmFNIC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree2, degree3)
 											   .withName("wm_inc_nic")
 											   .withOptLevel(opt_level)
@@ -392,7 +392,7 @@ int main(int argc, char *argv[])
 	if (degree2 > 1) {
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Win_MapReduce wmINCINC = WinMapReduce_Builder(wmFINC, wmFINC).withCBWindow(win_len, win_slide)
+		Win_MapReduce wmINCINC = WinMapReduce_Builder(wmFINC, wmFINC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree2, degree3)
 											   .withName("wm_inc_inc")
 											   .withOptLevel(opt_level)
@@ -412,7 +412,7 @@ int main(int argc, char *argv[])
 	{
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Pane_Farm pfNICNIC = PaneFarm_Builder(plqFNIC, wlqFNIC).withCBWindow(win_len, win_slide)
+		Pane_Farm pfNICNIC = PaneFarm_Builder(plqFNIC, wlqFNIC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree2, degree3)
 											   .withName("pf_nic_nic")
 											   .withOptLevel(opt_level)
@@ -437,7 +437,7 @@ int main(int argc, char *argv[])
 	{
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Pane_Farm pfNICINC = PaneFarm_Builder(plqFNIC, wlqFINC).withCBWindow(win_len, win_slide)
+		Pane_Farm pfNICINC = PaneFarm_Builder(plqFNIC, wlqFINC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree2, degree3)
 											   .withName("pf_nic_inc")
 											   .withOptLevel(opt_level)
@@ -462,7 +462,7 @@ int main(int argc, char *argv[])
 	{
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Pane_Farm pfINCNIC = PaneFarm_Builder(plqFINC, wlqFNIC).withCBWindow(win_len, win_slide)
+		Pane_Farm pfINCNIC = PaneFarm_Builder(plqFINC, wlqFNIC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree2, degree3)
 											   .withName("pf_inc_nic")
 											   .withOptLevel(opt_level)
@@ -487,7 +487,7 @@ int main(int argc, char *argv[])
 	{
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Pane_Farm pfINCINC = PaneFarm_Builder(plqFINC, wlqFINC).withCBWindow(win_len, win_slide)
+		Pane_Farm pfINCINC = PaneFarm_Builder(plqFINC, wlqFINC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree2, degree3)
 											   .withName("pf_inc_inc")
 											   .withOptLevel(opt_level)
@@ -512,7 +512,7 @@ int main(int argc, char *argv[])
 	if (degree2 > 1) {
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Win_MapReduce wmNICNIC = WinMapReduce_Builder(wmFNIC, wmFNIC).withCBWindow(win_len, win_slide)
+		Win_MapReduce wmNICNIC = WinMapReduce_Builder(wmFNIC, wmFNIC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree2, degree3)
 											   .withName("wm_nic_nic")
 											   .withOptLevel(opt_level)
@@ -537,7 +537,7 @@ int main(int argc, char *argv[])
 	if (degree2 > 1) {
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Win_MapReduce wmNICINC = WinMapReduce_Builder(wmFNIC, wmFINC).withCBWindow(win_len, win_slide)
+		Win_MapReduce wmNICINC = WinMapReduce_Builder(wmFNIC, wmFINC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree2, degree3)
 											   .withName("wm_nic_inc")
 											   .withOptLevel(opt_level)
@@ -562,7 +562,7 @@ int main(int argc, char *argv[])
 	if (degree2 > 1) {
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Win_MapReduce wmINCNIC = WinMapReduce_Builder(wmFINC, wmFNIC).withCBWindow(win_len, win_slide)
+		Win_MapReduce wmINCNIC = WinMapReduce_Builder(wmFINC, wmFNIC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree2, degree3)
 											   .withName("wm_inc_nic")
 											   .withOptLevel(opt_level)
@@ -587,7 +587,7 @@ int main(int argc, char *argv[])
 	if (degree2 > 1) {
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Win_MapReduce wmINCINC = WinMapReduce_Builder(wmFINC, wmFINC).withCBWindow(win_len, win_slide)
+		Win_MapReduce wmINCINC = WinMapReduce_Builder(wmFINC, wmFINC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree2, degree3)
 											   .withName("wm_inc_inc")
 											   .withOptLevel(opt_level)
@@ -612,7 +612,7 @@ int main(int argc, char *argv[])
 	{
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Pane_Farm pfNICNIC = PaneFarm_Builder(plqFNIC, wlqFNIC).withCBWindow(win_len, win_slide)
+		Pane_Farm pfNICNIC = PaneFarm_Builder(plqFNIC, wlqFNIC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree2, degree3)
 											   .withName("pf_nic_nic")
 											   .withOptLevel(opt_level)
@@ -636,7 +636,7 @@ int main(int argc, char *argv[])
 	{
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Pane_Farm pfNICINC = PaneFarm_Builder(plqFNIC, wlqFINC).withCBWindow(win_len, win_slide)
+		Pane_Farm pfNICINC = PaneFarm_Builder(plqFNIC, wlqFINC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree2, degree3)
 											   .withName("pf_nic_inc")
 											   .withOptLevel(opt_level)
@@ -660,7 +660,7 @@ int main(int argc, char *argv[])
 	{
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Pane_Farm pfINCNIC = PaneFarm_Builder(plqFINC, wlqFNIC).withCBWindow(win_len, win_slide)
+		Pane_Farm pfINCNIC = PaneFarm_Builder(plqFINC, wlqFNIC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree2, degree3)
 											   .withName("pf_inc_nic")
 											   .withOptLevel(opt_level)
@@ -684,7 +684,7 @@ int main(int argc, char *argv[])
 	{
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Pane_Farm pfINCINC = PaneFarm_Builder(plqFINC, wlqFINC).withCBWindow(win_len, win_slide)
+		Pane_Farm pfINCINC = PaneFarm_Builder(plqFINC, wlqFINC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree2, degree3)
 											   .withName("pf_inc_inc")
 											   .withOptLevel(opt_level)
@@ -709,7 +709,7 @@ int main(int argc, char *argv[])
 	if (degree2 > 1) {
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Win_MapReduce wmNICNIC = WinMapReduce_Builder(wmFNIC, wmFNIC).withCBWindow(win_len, win_slide)
+		Win_MapReduce wmNICNIC = WinMapReduce_Builder(wmFNIC, wmFNIC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree2, degree3)
 											   .withName("wm_nic_nic")
 											   .withOptLevel(opt_level)
@@ -733,7 +733,7 @@ int main(int argc, char *argv[])
 	if (degree2 > 1) {
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Win_MapReduce wmNICINC = WinMapReduce_Builder(wmFNIC, wmFINC).withCBWindow(win_len, win_slide)
+		Win_MapReduce wmNICINC = WinMapReduce_Builder(wmFNIC, wmFINC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree2, degree3)
 											   .withName("wm_nic_inc")
 											   .withOptLevel(opt_level)
@@ -757,7 +757,7 @@ int main(int argc, char *argv[])
 	if (degree2 > 1) {
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Win_MapReduce wmINCNIC = WinMapReduce_Builder(wmFINC, wmFNIC).withCBWindow(win_len, win_slide)
+		Win_MapReduce wmINCNIC = WinMapReduce_Builder(wmFINC, wmFNIC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree2, degree3)
 											   .withName("wm_inc_nic")
 											   .withOptLevel(opt_level)
@@ -781,7 +781,7 @@ int main(int argc, char *argv[])
 	if (degree2 > 1) {
 		Generator generator(stream_len, num_keys);
 		Consumer consumer(num_keys);
-		Win_MapReduce wmINCINC = WinMapReduce_Builder(wmFINC, wmFINC).withCBWindow(win_len, win_slide)
+		Win_MapReduce wmINCINC = WinMapReduce_Builder(wmFINC, wmFINC).withCBWindows(win_len, win_slide)
 											   .withParallelism(degree2, degree3)
 											   .withName("wm_inc_inc")
 											   .withOptLevel(opt_level)

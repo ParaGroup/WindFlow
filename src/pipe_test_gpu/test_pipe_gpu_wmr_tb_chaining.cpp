@@ -299,7 +299,7 @@ int main(int argc, char *argv[])
 			win_result.value = sum;
 		};
 	    // wmr
-	    auto *wmr = WinMapReduceGPU_Builder<decltype(map_function), decltype(reduce_function)>(map_function, reduce_function).withName("test_wmr_tb_wmr_ch").withParallelism(wmap_degree, reduce_degree).withTBWindow(microseconds(win_len), microseconds(win_slide)).withBatch(batch_len).build_ptr();
+	    auto *wmr = WinMapReduceGPU_Builder<decltype(map_function), decltype(reduce_function)>(map_function, reduce_function).withName("test_wmr_tb_wmr_ch").withParallelism(wmap_degree, reduce_degree).withTBWindows(microseconds(win_len), microseconds(win_slide)).withBatch(batch_len).build_ptr();
 	    application.add(*wmr);
 	    // sink
 	    Sink_Functor sink_functor(n_keys);

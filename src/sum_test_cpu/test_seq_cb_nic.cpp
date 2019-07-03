@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
 		result.value = sum;
 	};
 	// creation of the Win_Seq pattern
-	Win_Seq seq = WinSeq_Builder(F).withCBWindow(win_len, win_slide)
+	Win_Seq seq = WinSeq_Builder(F).withCBWindows(win_len, win_slide)
 								   .withName("test_sum")
 								   .build();	
 	// creation of the pipeline

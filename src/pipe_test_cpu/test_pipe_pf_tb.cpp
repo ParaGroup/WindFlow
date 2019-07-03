@@ -299,7 +299,7 @@ int main(int argc, char *argv[])
 	    Map map = Map_Builder(map_functor).withName("test_pf_tb_map").withParallelism(map_degree).build();
 	    application.add(map);
 	    // pf
-	    Pane_Farm pf = PaneFarm_Builder(plq_function, wlq_function).withName("test_pf_tb_pf").withParallelism(plq_degree, wlq_degree).withTBWindow(microseconds(win_len), microseconds(win_slide)).build();
+	    Pane_Farm pf = PaneFarm_Builder(plq_function, wlq_function).withName("test_pf_tb_pf").withParallelism(plq_degree, wlq_degree).withTBWindows(microseconds(win_len), microseconds(win_slide)).build();
 	    application.add(pf);
 	    // sink
 	    Sink_Functor sink_functor(n_keys);

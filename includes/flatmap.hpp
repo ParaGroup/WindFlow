@@ -35,7 +35,7 @@
 #ifndef FLATMAP_H
 #define FLATMAP_H
 
-// includes
+/// includes
 #include <string>
 #include <ff/node.hpp>
 #include <ff/farm.hpp>
@@ -66,6 +66,7 @@ public:
     using closing_func_t = function<void(RuntimeContext &)>;
     /// type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
     using routing_func_t = function<size_t(size_t, size_t)>;
+
 private:
     // friendships with other classes in the library
     friend class MultiPipe;
@@ -81,7 +82,7 @@ private:
         bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
         // shipper object used for the delivery of results
         Shipper<result_t> *shipper = nullptr;
-        RuntimeContext context; // RuntimeContext instance
+        RuntimeContext context; // RuntimeContext
 #if defined(LOG_DIR)
         unsigned long rcvTuples = 0;
         unsigned long delivered = 0;
@@ -91,6 +92,7 @@ private:
         volatile unsigned long startTD, startTS, endTD, endTS;
         ofstream *logfile = nullptr;
 #endif
+
     public:
         // Constructor I
         FlatMap_Node(flatmap_func_t _flatmap_func, string _name, RuntimeContext _context, closing_func_t _closing_func): flatmap_func(_flatmap_func), name(_name), isRich(false), context(_context), closing_func(_closing_func) {}
@@ -177,14 +179,14 @@ public:
             cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
-        // vector of FlatMap_Node instances
+        // vector of FlatMap_Node
         vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new FlatMap_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new Standard_Emitter<tuple_t>());
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_pardegree));
         // add workers
         ff_farm::add_workers(w);
         // add default collector
@@ -209,14 +211,14 @@ public:
             cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
-        // vector of FlatMap_Node instances
+        // vector of FlatMap_Node
         vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new FlatMap_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func));
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func, _pardegree));
         // add workers
         ff_farm::add_workers(w);
         // add default collector
@@ -240,14 +242,14 @@ public:
             cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
-        // vector of FlatMap_Node instances
+        // vector of FlatMap_Node
         vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new FlatMap_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new Standard_Emitter<tuple_t>());
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_pardegree));
         // add workers
         ff_farm::add_workers(w);
         // add default collector
@@ -272,14 +274,14 @@ public:
             cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
             exit(EXIT_FAILURE);
         }
-        // vector of FlatMap_Node instances
+        // vector of FlatMap_Node
         vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new FlatMap_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func));
+        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func, _pardegree));
         // add workers
         ff_farm::add_workers(w);
         // add default collector

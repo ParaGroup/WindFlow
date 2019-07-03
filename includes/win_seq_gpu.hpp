@@ -37,7 +37,7 @@
 #ifndef WIN_SEQ_GPU_H
 #define WIN_SEQ_GPU_H
 
-// includes
+/// includes
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -105,7 +105,7 @@ private:
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3, typename T4>
     friend class Win_Farm_GPU;
-    template<typename T1, typename T2, typename T3, typename T4>
+    template<typename T1, typename T2, typename T3>
     friend class Key_Farm_GPU;
     template<typename T1, typename T2, typename T3, typename T4>
     friend class Pane_Farm_GPU;
@@ -159,7 +159,7 @@ private:
     win_type_t winType; // window type (CB or TB)
     string name; // string of the unique name of the pattern
     PatternConfig config; // configuration structure of the Win_Seq_GPU pattern
-    role_t role; // role of the Win_Seq_GPU instance
+    role_t role; // role of the Win_Seq_GPU
     unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     pair<size_t, size_t> map_indexes = make_pair(0, 1); // indexes useful is the role is MAP
     size_t batch_len; // length of the micro-batch in terms of no. of windows (i.e. 1 window mapped onto 1 CUDA thread)
@@ -168,7 +168,7 @@ private:
     win_F_t win_func; // function to be executed per window
     result_t *host_results = nullptr; // array of results copied back from the GPU
     // GPU variables
-    cudaStream_t cudaStream; // CUDA stream used by this Win_Seq_GPU instance
+    cudaStream_t cudaStream; // CUDA stream used by this Win_Seq_GPU
     size_t no_thread_block; // number of CUDA threads per block
     tuple_t *Bin = nullptr; // array of tuples in the micro-batch (allocated on the GPU)
     result_t *Bout = nullptr; // array of results of the micro-batch (allocated on the GPU)
@@ -349,9 +349,9 @@ public:
                 key_d.last_tuple = *t;
             }
         }
-        // gwid of the first window of that key assigned to this Win_Seq_GPU instance
+        // gwid of the first window of that key assigned to this Win_Seq_GPU
         uint64_t first_gwid_key = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) * config.n_outer + (config.id_outer - (hashcode % config.n_outer) + config.n_outer) % config.n_outer;
-        // initial identifer/timestamp of the keyed sub-stream arriving at this Win_Seq_GPU instance
+        // initial identifer/timestamp of the keyed sub-stream arriving at this Win_Seq_GPU
         uint64_t initial_outer = ((config.id_outer - (hashcode % config.n_outer) + config.n_outer) % config.n_outer) * config.slide_outer;
         uint64_t initial_inner = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) * config.slide_inner;
         uint64_t initial_id = initial_outer + initial_inner;
@@ -372,7 +372,7 @@ public:
         else {
             uint64_t n = floor((double) (id-initial_id) / slide_len);
             last_w = n;
-            // if the tuple does not belong to at least one window assigned to this Win_Seq instance
+            // if the tuple does not belong to at least one window assigned to this Win_Seq
             if ((id-initial_id < n*(slide_len)) || (id-initial_id >= (n*slide_len)+win_len)) {
                 // if it is not an EOS marker, we delete the tuple immediately
                 if (!isEOSMarker<tuple_t, input_t>(*wt)) {
