@@ -94,7 +94,7 @@ int main(int argc, char *argv[])
     YSBJoin join_functor(campaign_gen.getHashMap(), campaign_gen.getRelationalTable());
     FlatMap join = FlatMap_Builder(join_functor).withName("ysb_join").withParallelism(pardegree1).build();
     // create the aggregation operator
-    Win_MapReduce aggregation = WinMapReduce_Builder(aggregateFunctionINC, reduceFunctionINC).withTBWindow(seconds(10), seconds(10)).withName("ysb_wmr").withParallelism(pardegree2, 1).build();
+    Win_MapReduce aggregation = WinMapReduce_Builder(aggregateFunctionINC, reduceFunctionINC).withTBWindows(seconds(10), seconds(10)).withName("ysb_wmr").withParallelism(pardegree2, 1).build();
     // create the sink operator
     YSBSink sink_functor;
     Sink sink = Sink_Builder(sink_functor).withName("ysb_sink").withParallelism(1).build();

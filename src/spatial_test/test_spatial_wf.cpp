@@ -88,10 +88,10 @@ int main(int argc, char *argv[])
 	SQGenerator *generator = new SQGenerator(rate, stream_len);
 	pipe.add_stage(generator);
 	// create the first stage (Skyline Operator)
-	Win_Seq sky_seq = WinSeq_Builder(SkyLineFunction).withTBWindow(milliseconds(win_len), milliseconds(slide_len))
+	Win_Seq sky_seq = WinSeq_Builder(SkyLineFunction).withTBWindows(milliseconds(win_len), milliseconds(slide_len))
 													 .withName("skyline")
 													 .build();
-	Win_Farm sky_wf = WinFarm_Builder(SkyLineFunction).withTBWindow(milliseconds(win_len), milliseconds(slide_len))
+	Win_Farm sky_wf = WinFarm_Builder(SkyLineFunction).withTBWindows(milliseconds(win_len), milliseconds(slide_len))
 													  .withParallelism(skyline_pardegree)
 													  .withName("skyline")
 													  .withEmitters(emitters_degree)
