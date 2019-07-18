@@ -39,10 +39,10 @@
 extern volatile unsigned long start_time_usec;
 
 // global variable: number of generated events
-extern atomic<int> sentCounter;
+extern atomic<long> sentCounter;
 
 // global variable: number of received results
-extern atomic<int> rcvResults;
+extern atomic<long> rcvResults;
 
 // global variable: sum of the latency values
 extern atomic<long> latency_sum;

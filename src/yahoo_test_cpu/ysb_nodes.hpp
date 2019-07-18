@@ -39,10 +39,10 @@ using namespace ff;
 volatile unsigned long start_time_usec;
 
 // global variable: number of generated events
-atomic<int> sentCounter;
+atomic<long> sentCounter;
 
 // global variable: number of received results
-atomic<int> rcvResults;
+atomic<long> rcvResults;
 
 // global variable: sum of the latency values
 atomic<long> latency_sum;
