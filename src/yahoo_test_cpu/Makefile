@@ -20,7 +20,7 @@ FF_ROOT			= ../../fastflow
 OUT_DIR			= ../../bin/yahoo_test_cpu
 INCLUDE_DIR		= ../../includes
 
-CXX 			= /usr/local/gcc-7.2.0/bin/g++
+CXX 			= g++
 CXXFLAGS		= -std=c++17
 INCLUDES		= -I $(FF_ROOT) -I $(INCLUDE_DIR) -I .
 MACROS 			= -DFF_BOUNDED_BUFFER -DN_CAMPAIGNS=100# -DTRACE_FASTFLOW -DLOG_DIR="../../log"
