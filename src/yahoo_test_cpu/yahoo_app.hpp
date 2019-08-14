@@ -147,7 +147,7 @@ struct win_result
 };
 
 // function for computing the final aggregates on tumbling windows (INCremental version)
-size_t aggregateFunctionINC(size_t wid, const joined_event_t &event, win_result &result)
+void aggregateFunctionINC(size_t wid, const joined_event_t &event, win_result &result)
 {
     result.count++;
     if (event.ts > result.lastUpdate)
@@ -155,7 +155,7 @@ size_t aggregateFunctionINC(size_t wid, const joined_event_t &event, win_result 
 }
 
 // function for computing the final aggregates on tumbling windows (reduce version)
-size_t reduceFunctionINC(size_t wid, const win_result &r1, win_result &r2)
+void reduceFunctionINC(size_t wid, const win_result &r1, win_result &r2)
 {
     r2.count += r1.count;
     if (r1.lastUpdate > r2.lastUpdate)
