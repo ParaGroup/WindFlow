@@ -99,20 +99,16 @@ private:
     unordered_map<key_t, Key_Descriptor> keyMap;
     size_t eos_rcv; // number of EOS received
     ordering_mode_t mode; // ordering mode
-
-    size_t last_id[3];
-    size_t last_emitted_id = 0;
+    key_t mykey; // temporary variables
+    long received; // temporary variables
 
 public:
 	// Constructor
-	Ordering_Node(ordering_mode_t _mode=ID): eos_rcv(0), mode(_mode) {}
+	Ordering_Node(ordering_mode_t _mode=ID): eos_rcv(0), mode(_mode), received(0) {}
 
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
     {
-        last_id[0] = 0;
-        last_id[1] = 0;
-        last_id[2] = 0;
     	return 0;
     }
 
@@ -122,6 +118,12 @@ public:
         // extract the key and id/ts from the input tuple
         tuple_t *r = extractTuple<tuple_t, input_t>(wr);
         auto key = std::get<0>(r->getControlFields()); // key
+
+        received++;
+        if (received == 1)
+            mykey = key;
+        key = mykey;
+
         uint64_t wid = (mode == ID) ? std::get<1>(r->getControlFields()) : std::get<2>(r->getControlFields()); // identifier/timestamp
         // find the corresponding key descriptor
         auto it = keyMap.find(key);
