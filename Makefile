@@ -16,7 +16,7 @@
 # Author: Gabriele Mencagli <mencagli@di.unipi.it>
 # Date:   June 2017
 
-FF_ROOT	= fastflow
+FF_ROOT	= $(HOME)/fastflow
 FF_REPO	= https://github.com/fastflow/fastflow
 
 all: fastflow
