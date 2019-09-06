@@ -16,7 +16,7 @@
 # Author: Gabriele Mencagli <mencagli@di.unipi.it>
 # Date:   January 2019
 
-FF_ROOT			= ../../fastflow
+FF_ROOT			= $(HOME)/fastflow
 OUT_DIR			= ../../bin/source_test
 INCLUDE_DIR		= ../../includes
 

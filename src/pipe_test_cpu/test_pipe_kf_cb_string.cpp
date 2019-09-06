@@ -107,11 +107,11 @@ class Source_Functor
 private:
 	size_t len; // stream length per key
 	size_t keys; // number of keys
-	vector<uint64_t> next_ts;
+	uint64_t next_ts;
 
 public:
 	// constructor
-	Source_Functor(size_t _len, size_t _keys): len(_len), keys(_keys), next_ts(_keys, 0)
+	Source_Functor(size_t _len, size_t _keys): len(_len), keys(_keys), next_ts(0)
 	{
 		srand(0);
 	}
@@ -123,9 +123,9 @@ public:
 		for (size_t i=0; i<len; i++) {
 			for (size_t k=0; k<keys; k++) {
 				string key = "key_" + to_string(k);
-				tuple_t t(key, i, next_ts[k], i);
+				tuple_t t(key, i, next_ts, i);
 				double x = (1000 * 0.05) / 1.05;
-				next_ts[k] += ceil(pareto(1.05, x));
+				next_ts += ceil(pareto(1.05, x));
 				//next_ts[k] += 1000;
 				shipper.push(t);
 			}

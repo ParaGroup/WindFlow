@@ -79,6 +79,7 @@ int main(int argc, char *argv[])
 									.withParallelism(pardegree)
 									.withName("test_sum")
 									.withOptLevel(LEVEL)
+									.withEmitters(5)
 									.build();
 	// creation of the pipeline
 	Generator generator(stream_len, num_keys);

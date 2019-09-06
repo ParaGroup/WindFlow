@@ -139,7 +139,7 @@ public:
 	// svc_end method
 	void svc_end()
 	{
-		cout << "Received " << received << " results, total value " << sum << endl;
+		//cout << "Received " << received << " results, total value " << sum << endl;
 	}
 };
 
@@ -154,14 +154,23 @@ class Acc_Functor
 {
 private:
 	int state;
+	int rcv;
 public:
-	Acc_Functor(int _state=1): state(_state) {}
+	Acc_Functor(int _state=1): state(_state), rcv(0) {}
 
-	void operator()(const tuple_t &t, result_t &r)
+	void operator()(const tuple_t &t, result_t &r, RuntimeContext &context)
 	{
 		r.value += t.value;
+		LocalStorage &ls = context.getLocalStorage();
+		ls.put<int>("rcv", ++rcv);
 	}
 };
+
+void closing_func(RuntimeContext &context)
+{
+	LocalStorage &ls = context.getLocalStorage();
+	cout << "Replica " << context.getReplicaIndex() << " received " << ls.get<int>("rcv") << " tuples" << endl;
+}
 
 // main
 int main(int argc, char *argv[])
@@ -236,6 +245,7 @@ int main(int argc, char *argv[])
 	// creation of the Accumulator pattern
 	Accumulator acc3 = Accumulator_Builder(functor).withParallelism(pardegree)
 	                                               .withName("accumulator")
+	                                               .withClosingFunction(closing_func)
 						                           .build();
 	Consumer consumer3;
 	// creation of the pipeline

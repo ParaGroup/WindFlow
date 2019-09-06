@@ -16,7 +16,7 @@
 # Author: Gabriele Mencagli <mencagli@di.unipi.it>
 # Date:   Jan 2019
 
-FF_ROOT			= ../../fastflow
+FF_ROOT			= $(HOME)/fastflow
 OUT_DIR			= ../../bin/pipe_test_gpu
 INCLUDE_DIR		= ../../includes
 

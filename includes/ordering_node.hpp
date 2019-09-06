@@ -37,6 +37,7 @@
 #include <queue>
 #include <unordered_map>
 #include <ff/multinode.hpp>
+#include <basic.hpp>
 #include <meta_utils.hpp>
 
 using namespace ff;
@@ -52,38 +53,36 @@ private:
     tuple_t tmp; // never used
     // key data type
     using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
+    // comparator functor (returns true if A comes before B in the ordering)
+    struct Comparator {
+        // ordering mode
+        ordering_mode_t mode;
+
+        // Constructor
+        Comparator(ordering_mode_t _mode): mode(_mode) {}
+
+        // operator()
+        bool operator() (input_t *wA, input_t *wB) {
+            tuple_t *A = extractTuple<tuple_t, input_t>(wA);
+            tuple_t *B = extractTuple<tuple_t, input_t>(wB);
+            uint64_t id_A = (mode == ID) ? std::get<1>(A->getControlFields()) : std::get<2>(A->getControlFields());
+            uint64_t id_B = (mode == ID) ? std::get<1>(B->getControlFields()) : std::get<2>(B->getControlFields());
+            if (id_A > id_B)
+                return true;
+            else if (id_A < id_B)
+                return false;
+            else {
+                assert(A != B);
+                return (A > B); // compare the memory pointers to have a unique ordering!!!
+            }
+        }
+    };
     // inner struct of a key descriptor
     struct Key_Descriptor
     {
-        // progressive counter (used if mode is TS_RENUMBERING)
-        uint64_t emit_counter;
-    	// maxs[i] contains the greatest identifier/timestamp received from the i-th input stream
-    	vector<uint64_t> maxs;
+        uint64_t emit_counter; // progressive counter (used if mode is TS_RENUMBERING)
+    	vector<uint64_t> maxs; // maxs[i] contains the greatest identifier/timestamp received from the i-th input stream
         input_t *eos_marker; // pointer to the most recent EOS marker of this key
-    	// comparator functor (returns true if A comes before B in the ordering)
-        struct Comparator {
-            // ordering mode
-            ordering_mode_t mode;
-
-            // Constructor
-            Comparator(ordering_mode_t _mode): mode(_mode) {}
-
-            // operator()
-            bool operator() (input_t *wA, input_t *wB) {
-                tuple_t *A = extractTuple<tuple_t, input_t>(wA);
-                tuple_t *B = extractTuple<tuple_t, input_t>(wB);
-                uint64_t id_A = (mode == ID) ? std::get<1>(A->getControlFields()) : std::get<2>(A->getControlFields());
-                uint64_t id_B = (mode == ID) ? std::get<1>(B->getControlFields()) : std::get<2>(B->getControlFields());
-                if (id_A > id_B)
-                    return true;
-                else if (id_A < id_B)
-                    return false;
-                else {
-                    assert(A != B);
-                    return (A > B); // compare the memory pointers to have a unique ordering!!!
-                }
-            }
-        };
     	// ordered queue of tuples of the given key received by the node
     	priority_queue<input_t *, deque<input_t *>, Comparator> queue;
 
@@ -99,16 +98,21 @@ private:
     unordered_map<key_t, Key_Descriptor> keyMap;
     size_t eos_rcv; // number of EOS received
     ordering_mode_t mode; // ordering mode
-    key_t mykey; // temporary variables
-    long received; // temporary variables
+    // variables for correcting the bug (temporarily)
+    priority_queue<input_t *, deque<input_t *>, Comparator> globalQueue;
+    vector<uint64_t> globalMaxs;
+    key_t mykey;
+    long received;
 
 public:
 	// Constructor
-	Ordering_Node(ordering_mode_t _mode=ID): eos_rcv(0), mode(_mode), received(0) {}
+	Ordering_Node(ordering_mode_t _mode=ID): eos_rcv(0), mode(_mode), globalQueue(Comparator(_mode)), received(0) {}
 
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
     {
+        for (size_t i=0; i<this->get_num_inchannels(); i++)
+            globalMaxs.push_back(0);
     	return 0;
     }
 
@@ -118,12 +122,6 @@ public:
         // extract the key and id/ts from the input tuple
         tuple_t *r = extractTuple<tuple_t, input_t>(wr);
         auto key = std::get<0>(r->getControlFields()); // key
-
-        received++;
-        if (received == 1)
-            mykey = key;
-        key = mykey;
-
         uint64_t wid = (mode == ID) ? std::get<1>(r->getControlFields()) : std::get<2>(r->getControlFields()); // identifier/timestamp
         // find the corresponding key descriptor
         auto it = keyMap.find(key);
@@ -150,27 +148,37 @@ public:
         }
         // get the index of the source's stream
         size_t source_id = this->get_channel_id();
-        // update the parameters of the key descriptor
-        key_d.maxs[source_id] = wid;
-        uint64_t min_id = *(min_element((key_d.maxs).begin(), (key_d.maxs).end()));
-        // add the new input item in the priority queue of the corresponding key
-        (key_d.queue).push(wr);
+        uint64_t min_id = 0;
+        auto &queue = (mode == ID) ? key_d.queue : globalQueue;
+        if (mode == ID) { // ordering on a key-basis
+            key_d.maxs[source_id] = wid;
+            min_id = *(min_element((key_d.maxs).begin(), (key_d.maxs).end()));
+        }
+        else { // ordering regardless the key
+            globalMaxs[source_id] = wid;
+            min_id = *(min_element(globalMaxs.begin(), globalMaxs.end()));
+        }
+        // add the new input item in the priority queue
+        queue.push(wr);
         // check if buffered tuples can be emitted in order
-        while (!(key_d.queue).empty()) {
-        	// emit all the buffered tuples with identifier lower or equal than min_i
-            input_t *wnext = (key_d.queue).top();
+        while (!queue.empty()) {
+        	// emit all the buffered tuples with identifier/timestamp lower or equal than min_i
+            input_t *wnext = queue.top();
             tuple_t *next = extractTuple<tuple_t, input_t>(wnext);
         	uint64_t id = (mode == ID) ? std::get<1>(next->getControlFields()) : std::get<2>(next->getControlFields());
         	if (id > min_id)
         		break;
         	else {
         		// deque the tuple
-        		(key_d.queue).pop();
+        		queue.pop();
         		// emit the tuple
                 if (mode == TS_RENUMBERING) { // check if renumbering is required
                     tuple_t *copy = new tuple_t(*next); // copy of the tuple
                     deleteTuple<tuple_t, input_t>(wnext);
-                    copy->setControlFields(key, key_d.emit_counter++, std::get<2>(copy->getControlFields()));
+                    auto tmp_key = std::get<0>(copy->getControlFields());
+                    auto tmp_it = keyMap.find(tmp_key);
+                    Key_Descriptor &tmp_key_d = (*tmp_it).second;
+                    copy->setControlFields(tmp_key, tmp_key_d.emit_counter++, std::get<2>(copy->getControlFields()));
                     auto *copy_wt = createWrapper<tuple_t, input_t, wrapper_tuple_t<tuple_t>>(copy, 1);
                     this->ff_send_out(copy_wt);
                 }
@@ -187,38 +195,78 @@ public:
         eos_rcv++;
         if (eos_rcv != this->get_num_inchannels())
             return;
-        // send (in order) all the queued tuples of all the keys
-        for (auto &k: keyMap) {
-            auto key = k.first;
-            auto &key_d = (k.second);
-            while (!(key_d.queue).empty()) {
+        if (mode != ID) {
+            while (!globalQueue.empty()) {
                 // extract the next tuple
-                input_t *wnext = (key_d.queue).top();
+                input_t *wnext = globalQueue.top();
                 tuple_t *next = extractTuple<tuple_t, input_t>(wnext);
-                (key_d.queue).pop();
+                globalQueue.pop();
                 // emit the tuple
                 if (mode == TS_RENUMBERING) { // check if renumbering is required
                     tuple_t *copy = new tuple_t(*next); // copy of the tuple
                     deleteTuple<tuple_t, input_t>(wnext);
+                    auto key = std::get<0>(copy->getControlFields());
+                    auto it = keyMap.find(key);
+                    Key_Descriptor &key_d = (*it).second;
                     copy->setControlFields(key, key_d.emit_counter++, std::get<2>(copy->getControlFields()));
                     auto *copy_wt = createWrapper<tuple_t, input_t, wrapper_tuple_t<tuple_t>>(copy, 1);
                     this->ff_send_out(copy_wt);
                 }
                 else
-                    this->ff_send_out(wnext);
+                    this->ff_send_out(wnext);           
             }
-            // send the most recent EOS marker of this key (if it exists)
-            if(key_d.eos_marker != nullptr) {
-                if (mode == TS_RENUMBERING) { // check if renumbering is required
-                    tuple_t *next = extractTuple<tuple_t, input_t>(key_d.eos_marker);
-                    tuple_t *copy = new tuple_t(*next); // copy of the tuple
-                    deleteTuple<tuple_t, input_t>(key_d.eos_marker);
-                    copy->setControlFields(key, key_d.emit_counter++, std::get<2>(copy->getControlFields()));
-                    auto *copy_wt = createWrapper<tuple_t, input_t, wrapper_tuple_t<tuple_t>>(copy, 1, true);
-                    this->ff_send_out(copy_wt);
+            for (auto &k: keyMap) {
+                auto key = k.first;
+                auto &key_d = (k.second);
+                // send the most recent EOS marker of this key (if it exists)
+                if(key_d.eos_marker != nullptr) {
+                    if (mode == TS_RENUMBERING) { // check if renumbering is required
+                        tuple_t *next = extractTuple<tuple_t, input_t>(key_d.eos_marker);
+                        tuple_t *copy = new tuple_t(*next); // copy of the tuple
+                        deleteTuple<tuple_t, input_t>(key_d.eos_marker);
+                        copy->setControlFields(key, key_d.emit_counter++, std::get<2>(copy->getControlFields()));
+                        auto *copy_wt = createWrapper<tuple_t, input_t, wrapper_tuple_t<tuple_t>>(copy, 1, true);
+                        this->ff_send_out(copy_wt);
+                    }
+                    else
+                        this->ff_send_out(key_d.eos_marker);
                 }
-                else
-                    this->ff_send_out(key_d.eos_marker);
+            }
+        }
+        else {
+            // send (in order) all the queued tuples of all the keys
+            for (auto &k: keyMap) {
+                auto key = k.first;
+                auto &key_d = (k.second);
+                while (!(key_d.queue).empty()) {
+                    // extract the next tuple
+                    input_t *wnext = (key_d.queue).top();
+                    tuple_t *next = extractTuple<tuple_t, input_t>(wnext);
+                    (key_d.queue).pop();
+                    // emit the tuple
+                    if (mode == TS_RENUMBERING) { // check if renumbering is required
+                        tuple_t *copy = new tuple_t(*next); // copy of the tuple
+                        deleteTuple<tuple_t, input_t>(wnext);
+                        copy->setControlFields(key, key_d.emit_counter++, std::get<2>(copy->getControlFields()));
+                        auto *copy_wt = createWrapper<tuple_t, input_t, wrapper_tuple_t<tuple_t>>(copy, 1);
+                        this->ff_send_out(copy_wt);
+                    }
+                    else
+                        this->ff_send_out(wnext);
+                }
+                // send the most recent EOS marker of this key (if it exists)
+                if(key_d.eos_marker != nullptr) {
+                    if (mode == TS_RENUMBERING) { // check if renumbering is required
+                        tuple_t *next = extractTuple<tuple_t, input_t>(key_d.eos_marker);
+                        tuple_t *copy = new tuple_t(*next); // copy of the tuple
+                        deleteTuple<tuple_t, input_t>(key_d.eos_marker);
+                        copy->setControlFields(key, key_d.emit_counter++, std::get<2>(copy->getControlFields()));
+                        auto *copy_wt = createWrapper<tuple_t, input_t, wrapper_tuple_t<tuple_t>>(copy, 1, true);
+                        this->ff_send_out(copy_wt);
+                    }
+                    else
+                        this->ff_send_out(key_d.eos_marker);
+                }
             }
         }
     }

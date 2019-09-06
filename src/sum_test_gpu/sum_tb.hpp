@@ -107,21 +107,13 @@ class Generator: public ff_node_t<tuple_t>
 private:
 	size_t len; // stream length per key
 	size_t keys; // number of keys
-	uint64_t *next_ts;
+	uint64_t next_ts;
 
 public:
 	// constructor
-	Generator(size_t _len, size_t _keys): len(_len), keys(_keys)
+	Generator(size_t _len, size_t _keys): len(_len), keys(_keys), next_ts(0)
 	{
-		next_ts = new uint64_t[keys];
-		fill_n(next_ts, keys, 0);
 		srand(0);
-	}
-
-	// destructor
-	~Generator()
-	{
-		delete next_ts;
 	}
 
 	// svc method
@@ -130,10 +122,9 @@ public:
 		// generation of the input stream
 		for (size_t i=0; i<len; i++) {
 			for (size_t k=0; k<keys; k++) {
-				tuple_t *t = new tuple_t(k, i, next_ts[k], i);
+				tuple_t *t = new tuple_t(k, i, next_ts, i);
 				double x = (1000 * 0.05) / 1.05;
-				next_ts[k] += ceil(pareto(1.05, x));
-				//next_ts[k] += 1000;
+				next_ts += ceil(pareto(1.05, x));
 				ff_send_out(t);
 			}
 		}
