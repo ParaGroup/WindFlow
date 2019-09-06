@@ -68,7 +68,7 @@ fastflow:
 	@if [ ! -d $(FF_ROOT) ] ;\
 	then \
 	  echo "FastFlow does not exist, fetching"; \
-	  git clone $(FF_REPO); \
+	  git clone $(FF_REPO) $(FF_ROOT); \
 fi
 
 clean:
