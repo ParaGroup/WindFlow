@@ -39,7 +39,7 @@
 #include <deque>
 #include <stdexcept>
 
-using namespace std;
+namespace wf {
 
 /** 
  *  \class Iterable
@@ -55,7 +55,7 @@ class Iterable
 {
 private:
 	// const iterator type
-    using const_iterator_t = typename deque<tuple_t>::const_iterator;
+    using const_iterator_t = typename std::deque<tuple_t>::const_iterator;
     const_iterator_t first; // const iterator to the first tuple
     const_iterator_t last; // const iterator to the last tuple (excluded)
     size_t n_size; // number of tuples that can be accessed through the iterable object
@@ -130,10 +130,12 @@ public:
      *  \param _first first const iterator
      *  \param _last last const iterator
      */ 
-    Iterable(const_iterator_t _first, const_iterator_t _last):
+    Iterable(const_iterator_t _first,
+             const_iterator_t _last):
              first(_first),
              last(_last),
-             n_size(distance(_first, _last)) {}
+             n_size(distance(_first, _last))
+    {}
 
     /** 
      *  \brief Return an Iterator to the begin of the iterable object
@@ -175,7 +177,7 @@ public:
     const tuple_t &operator[](size_t i) const
     {
     	if (i >= n_size)
-    		throw out_of_range ("Invalid index of the Iterable");
+    		throw std::out_of_range ("Invalid index of the Iterable");
     	return *(first+i);
     }
 
@@ -189,7 +191,7 @@ public:
     const tuple_t &at(size_t i) const
     {
     	if (i >= n_size)
-    		throw out_of_range ("Invalid index of the Iterable");
+    		throw std::out_of_range ("Invalid index of the Iterable");
     	return *(first+i);
     }
 
@@ -202,7 +204,7 @@ public:
     const tuple_t &front() const
     {
     	if (n_size == 0)
-    		throw out_of_range ("Invalid index of the Iterable");
+    		throw std::out_of_range ("Invalid index of the Iterable");
     	return *(first);
     }
 
@@ -215,9 +217,11 @@ public:
     const tuple_t &back() const
     {
     	if (n_size == 0)
-    		throw out_of_range ("Invalid index of the Iterable");
+    		throw std::out_of_range ("Invalid index of the Iterable");
     	return *(last-1);
     }
 };
+
+} // namespace wf
 
 #endif

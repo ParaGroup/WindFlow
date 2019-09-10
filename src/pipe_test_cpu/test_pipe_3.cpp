@@ -28,9 +28,8 @@
 #include <ff/ff.hpp>
 #include <windflow.hpp>
 
-using namespace ff;
 using namespace std;
-
+using namespace wf;
 // defines
 #define RATIO 0.46566128e-9
 

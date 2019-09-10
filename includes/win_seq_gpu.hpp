@@ -44,9 +44,10 @@
 #include <math.h>
 #include <ff/node.hpp>
 #include <window.hpp>
+#include <meta_utils.hpp>
 #include <stream_archive.hpp>
 
-using namespace ff;
+namespace wf {
 
 //@cond DOXY_IGNORE
 
@@ -88,20 +89,20 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=f
  *  and offloads the processing of all the windows within a batch on the GPU.
  */ 
 template<typename tuple_t, typename result_t, typename win_F_t, typename input_t>
-class Win_Seq_GPU: public ff_node_t<input_t, result_t>
+class Win_Seq_GPU: public ff::ff_node_t<input_t, result_t>
 {
 private:
     // const iterator type for accessing tuples
-    using const_input_iterator_t = typename vector<tuple_t>::const_iterator;
+    using const_input_iterator_t = typename std::vector<tuple_t>::const_iterator;
     // type of the stream archive used by the Win_Seq_GPU pattern
-    using archive_t = StreamArchive<tuple_t, vector<tuple_t>>;
+    using archive_t = StreamArchive<tuple_t, std::vector<tuple_t>>;
     // window type used by the Win_Seq_GPU pattern
     using win_t = Window<tuple_t, result_t>;
     // function type to compare two tuples
-    using compare_func_t = function<bool(const tuple_t &, const tuple_t &)>;
+    using compare_func_t = std::function<bool(const tuple_t &, const tuple_t &)>;
     tuple_t tmp; // never used
     // key data type
-    using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
+    using key_t = typename std::remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3, typename T4>
     friend class Win_Farm_GPU;
@@ -115,19 +116,20 @@ private:
     struct Key_Descriptor
     {
         archive_t archive; // archive of tuples of this key
-        vector<win_t> wins; // open windows of this key
+        std::vector<win_t> wins; // open windows of this key
         uint64_t emit_counter; // progressive counter (used if role is PLQ or MAP)
         uint64_t rcv_counter; // number of tuples received of this key
         tuple_t last_tuple; // copy of the last tuple received of this key
         uint64_t next_lwid; // next window to be opened of this key (lwid)
         size_t batchedWin; // number of batched windows of the key
-        vector<size_t> start, end; // vectors of initial/final positions of each window in the current micro-batch
-        vector<uint64_t> gwids; // vector of gwid of the windows in the current micro-batch
-        vector<uint64_t> tsWin; // vector of the final timestamp of the windows in the current micro-batch
-        optional<tuple_t> start_tuple; // optional to the first tuple of the current micro-batch
+        std::vector<size_t> start, end; // vector of initial/final positions of each window in the current micro-batch
+        std::vector<uint64_t> gwids; // vector of gwid of the windows in the current micro-batch
+        std::vector<uint64_t> tsWin; // vector of the final timestamp of the windows in the current micro-batch
+        std::optional<tuple_t> start_tuple; // optional to the first tuple of the current micro-batch
 
         // Constructor
-        Key_Descriptor(compare_func_t _compare_func, uint64_t _emit_counter=0):
+        Key_Descriptor(compare_func_t _compare_func,
+                       uint64_t _emit_counter=0):
                        archive(_compare_func),
                        emit_counter(_emit_counter),
                        rcv_counter(0),
@@ -157,11 +159,11 @@ private:
     uint64_t win_len; // window length (no. of tuples or in time units)
     uint64_t slide_len; // slide length (no. of tuples or in time units)
     win_type_t winType; // window type (CB or TB)
-    string name; // string of the unique name of the pattern
+    std::string name; // std::string of the unique name of the pattern
     PatternConfig config; // configuration structure of the Win_Seq_GPU pattern
     role_t role; // role of the Win_Seq_GPU
-    unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
-    pair<size_t, size_t> map_indexes = make_pair(0, 1); // indexes useful is the role is MAP
+    std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
+    std::pair<size_t, size_t> map_indexes = std::make_pair(0, 1); // indexes useful is the role is MAP
     size_t batch_len; // length of the micro-batch in terms of no. of windows (i.e. 1 window mapped onto 1 CUDA thread)
     size_t n_thread_block; // number of threads per block
     size_t tuples_per_batch; // number of tuples per batch (only for CB windows)
@@ -185,7 +187,7 @@ private:
     double avg_ts_triggering_us = 0;
     double avg_ts_non_triggering_us = 0;
     volatile unsigned long startTD, startTS, endTD, endTS;
-    ofstream *logfile = nullptr;
+    std::ofstream *logfile = nullptr;
 #endif
 
     // Private Constructor
@@ -195,11 +197,10 @@ private:
                 win_type_t _winType,
                 size_t _batch_len,
                 size_t _n_thread_block,
-                string _name,
+                std::string _name,
                 size_t _scratchpad_size,
                 PatternConfig _config,
-                role_t _role)
-                :
+                role_t _role):
                 win_func(_win_func),
                 win_len(_win_len),
                 slide_len(_slide_len),
@@ -213,17 +214,17 @@ private:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // create the CUDA stream
         if (cudaStreamCreate(&cudaStream) != cudaSuccess) {
-            cerr << RED << "WindFlow Error: cudaStreamCreate() returns error code" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: cudaStreamCreate() returns error code" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // define the compare function depending on the window type
@@ -255,7 +256,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _batch_len no. of windows in a batch (i.e. 1 window mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. windows) per block
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      */ 
     Win_Seq_GPU(win_F_t _win_func,
@@ -264,7 +265,7 @@ public:
                 win_type_t _winType,
                 size_t _batch_len,
                 size_t _n_thread_block,
-                string _name,
+                std::string _name,
                 size_t _scratchpad_size):
                 Win_Seq_GPU(_win_func, _win_len, _slide_len, _winType, _batch_len, _n_thread_block, _name, _scratchpad_size, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
     {}
@@ -301,9 +302,9 @@ public:
             gpuErrChk(cudaMalloc((char **) &scratchpad_memory, batch_len * scratchpad_size));  // scratchpad_memory
         }
 #if defined(LOG_DIR)
-        logfile = new ofstream();
-        name += "_seq_" + to_string(ff_node_t<input_t, result_t>::get_my_id()) + ".log";
-        string filename = string(STRINGIFY(LOG_DIR)) + "/" + name;
+        logfile = new std::ofstream();
+        name += "_seq_" + to_std::string(ff::ff_node_t<input_t, result_t>::get_my_id()) + ".log";
+        std::string filename = std::string(STRINGIFY(LOG_DIR)) + "/" + name;
         logfile->open(filename);
 #endif
         return 0;
@@ -321,13 +322,13 @@ public:
         // extract the key and id/timestamp fields from the input tuple
         tuple_t *t = extractTuple<tuple_t, input_t>(wt);
         auto key = std::get<0>(t->getControlFields()); // key
-        size_t hashcode = hash<decltype(key)>()(key); // compute the hashcode of the key
+        size_t hashcode = std::hash<decltype(key)>()(key); // compute the hashcode of the key
         uint64_t id = (winType == CB) ? std::get<1>(t->getControlFields()) : std::get<2>(t->getControlFields()); // identifier or timestamp
         // access the descriptor of the input key
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
             // create the descriptor of that key
-            keyMap.insert(make_pair(key, Key_Descriptor(compare_func, role == MAP ? map_indexes.first : 0)));
+            keyMap.insert(std::make_pair(key, Key_Descriptor(compare_func, role == MAP ? map_indexes.first : 0)));
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
@@ -405,9 +406,9 @@ public:
                 (key_d.gwids).push_back(win.getGWID());
                 (key_d.tsWin).push_back(std::get<2>((win.getResult())->getControlFields()));
                 // acquire from the archive the optionals to the first and the last tuple of the window
-                optional<tuple_t> t_s = win.getFirstTuple();
-                optional<tuple_t> t_e = win.getFiringTuple();
-                pair<const_input_iterator_t, const_input_iterator_t> its;
+                std::optional<tuple_t> t_s = win.getFirstTuple();
+                std::optional<tuple_t> t_e = win.getFiringTuple();
+                std::pair<const_input_iterator_t, const_input_iterator_t> its;
                 // empty window
                 if (!t_s) {
                     if ((key_d.start).size() == 0)
@@ -465,7 +466,7 @@ public:
                     else {
                         // simple herustics to resize the array Bin on the GPU (if required)
                         if (size_copy > tuples_per_batch) {
-                            tuples_per_batch = max(tuples_per_batch * 2, size_copy);
+                            tuples_per_batch = std::max(tuples_per_batch * 2, size_copy);
                             // deallocate/allocate Bin
                             gpuErrChk(cudaFree(Bin));
                             gpuErrChk(cudaMalloc((tuple_t **) &Bin, tuples_per_batch * sizeof(tuple_t)));     // Bin
@@ -509,7 +510,7 @@ public:
                     (key_d.start).clear();
                     (key_d.end).clear();
                     (key_d.gwids).clear();
-                    key_d.start_tuple = nullopt;
+                    key_d.start_tuple = std::nullopt;
                 }
             }
         }
@@ -546,9 +547,9 @@ public:
             auto &wins = key_d.wins;
             // iterate over all the existing windows of the key and execute them on the CPU
             for (auto &win: wins) {
-                optional<tuple_t> t_s = win.getFirstTuple();
-                optional<tuple_t> t_e = win.getFiringTuple();
-                pair<const_input_iterator_t, const_input_iterator_t> its;
+                std::optional<tuple_t> t_s = win.getFirstTuple();
+                std::optional<tuple_t> t_e = win.getFiringTuple();
+                std::pair<const_input_iterator_t, const_input_iterator_t> its;
                 result_t *out = win.getResult();
                 if (t_s) { // not-empty window
                     if (t_e) // BATCHED window
@@ -570,7 +571,7 @@ public:
                     (k.second).emit_counter += map_indexes.second;
                 }
                 else if (role == PLQ) {
-                    size_t hashcode = hash<key_t>()(k.first); // compute the hashcode of the key
+                    size_t hashcode = std::hash<key_t>()(k.first); // compute the hashcode of the key
                     uint64_t new_id = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) + ((k.second).emit_counter * config.n_inner);
                     out->setControlFields(k.first, new_id, std::get<2>(out->getControlFields()));
                     (k.second).emit_counter++;
@@ -598,7 +599,7 @@ public:
         // destroy the CUDA stream
         cudaStreamDestroy(cudaStream);
 #if defined (LOG_DIR)
-        ostringstream stream;
+        std::ostringstream stream;
         stream << "************************************LOG************************************\n";
         stream << "No. of received tuples: " << rcvTuples << "\n";
         stream << "No. of received tuples (triggering): " << rcvTuplesTriggering << "\n";
@@ -624,14 +625,16 @@ public:
     /// Method to start the pattern execution asynchronously
     virtual int run(bool)
     {
-        return ff_node::run();
+        return ff::ff_node::run();
     }
 
     /// Method to wait the pattern termination
     virtual int wait()
     {
-        return ff_node::wait();
+        return ff::ff_node::wait();
     }
 };
+
+} // namespace wf
 
 #endif

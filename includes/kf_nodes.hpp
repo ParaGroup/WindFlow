@@ -34,25 +34,28 @@
 #include <vector>
 #include <ff/multinode.hpp>
 
-using namespace ff;
-using namespace std;
+namespace wf {
 
 // class KF_Emitter
 template<typename tuple_t>
-class KF_Emitter: public ff_monode_t<tuple_t, tuple_t>
+class KF_Emitter: public ff::ff_monode_t<tuple_t, tuple_t>
 {
 private:
     // type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
-    using routing_func_t = function<size_t(size_t, size_t)>;
+    using routing_func_t = std::function<size_t(size_t, size_t)>;
     routing_func_t routing_func; // routing function
     size_t pardegree; // parallelism degree (number of inner patterns)
     bool isCombined; // true if this node is used within a treeComb node
-    vector<pair<tuple_t *, int>> output_queue; // used in case of treeComb mode
+    std::vector<std::pair<tuple_t *, int>> output_queue; // used in case of treeComb mode
 
 public:
     // Constructor
-    KF_Emitter(routing_func_t _routing_func, size_t _pardegree):
-               routing_func(_routing_func), pardegree(_pardegree), isCombined(false) {}
+    KF_Emitter(routing_func_t _routing_func,
+               size_t _pardegree):
+               routing_func(_routing_func),
+               pardegree(_pardegree),
+               isCombined(false)
+    {}
 
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
@@ -65,13 +68,13 @@ public:
     {
         // extract the key from the input tuple
         auto key = std::get<0>(t->getControlFields()); // key
-        size_t hashcode = hash<decltype(key)>()(key); // compute the hashcode of the key
+        size_t hashcode = std::hash<decltype(key)>()(key); // compute the hashcode of the key
         // evaluate the routing function
         size_t dest_w = routing_func(hashcode, pardegree);
         if (!isCombined)
             this->ff_send_out_to(t, dest_w);
         else
-            output_queue.push_back(make_pair(t, dest_w));
+            output_queue.push_back(std::make_pair(t, dest_w));
         return this->GO_ON;
     }
 
@@ -91,7 +94,7 @@ public:
     }
 
     // method to get a reference to the internal output queue (used in treeComb mode)
-    vector<pair<tuple_t *, int>> &getOutputQueue()
+    std::vector<std::pair<tuple_t *, int>> &getOutputQueue()
     {
         return output_queue;
     }
@@ -99,24 +102,24 @@ public:
 
 // class KF_NestedCollector
 template<typename result_t>
-class KF_NestedCollector: public ff_minode_t<result_t, result_t>
+class KF_NestedCollector: public ff::ff_minode_t<result_t, result_t>
 {
 private:
     result_t tmp; // never used
     // key data type
-    using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
+    using key_t = typename std::remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
     // inner struct of a key descriptor
     struct Key_Descriptor
     {
         uint64_t next_win; // next window to be transmitted of that key
-        deque<result_t *> resultsSet; // deque of buffered results of that key
+        std::deque<result_t *> resultsSet; // std::deque of buffered results of that key
 
         // Constructor
         Key_Descriptor(): next_win(0) {}
 
     };
     // hash table that maps key identifiers onto key descriptors
-    unordered_map<key_t, Key_Descriptor> keyMap;
+    std::unordered_map<key_t, Key_Descriptor> keyMap;
 
 public:
     // Constructor
@@ -133,18 +136,18 @@ public:
     {
         // extract key and identifier from the result
         auto key = std::get<0>(r->getControlFields()); // key
-        size_t hashcode = hash<decltype(key)>()(key); // compute the hashcode of the key
+        size_t hashcode = std::hash<decltype(key)>()(key); // compute the hashcode of the key
         uint64_t wid = std::get<1>(r->getControlFields()); // identifier
         // find the corresponding key descriptor
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
             // create the descriptor of that key
-            keyMap.insert(make_pair(key, Key_Descriptor()));
+            keyMap.insert(std::make_pair(key, Key_Descriptor()));
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
         uint64_t &next_win = key_d.next_win;
-        deque<result_t *> &resultsSet = key_d.resultsSet;
+        std::deque<result_t *> &resultsSet = key_d.resultsSet;
         // add the new result at the correct place
         if ((wid - next_win) >= resultsSet.size()) {
             size_t new_size = (wid - next_win) + 1;
@@ -168,5 +171,7 @@ public:
     // svc_end method (utilized by the FastFlow runtime)
     void svc_end() {}
 };
+
+} // namespace wf
 
 #endif

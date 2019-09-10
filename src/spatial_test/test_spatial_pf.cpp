@@ -34,8 +34,10 @@
 #include "sq_printer.hpp"
 #include "sq_generator.hpp"
 
-using namespace ff;
 using namespace std;
+using namespace chrono;
+using namespace ff;
+using namespace wf;
 
 // global barrier to synchronize the beginning of the execution
 pthread_barrier_t startBarrier;

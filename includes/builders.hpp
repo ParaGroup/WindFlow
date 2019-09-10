@@ -36,7 +36,7 @@
 #include <basic.hpp>
 #include <meta_utils.hpp>
 
-using namespace chrono;
+namespace wf {
 
 /** 
  *  \class Source_Builder
@@ -53,9 +53,9 @@ private:
     // type of the pattern to be created by this builder
     using source_t = Source<decltype(get_tuple_t(func))>;
     // type of the closing function
-    using closing_func_t = function<void(RuntimeContext&)>;
+    using closing_func_t = std::function<void(RuntimeContext&)>;
     uint64_t pardegree = 1;
-    string name = "anonymous_source";
+    std::string name = "anonymous_source";
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
 
 public:
@@ -69,10 +69,10 @@ public:
     /** 
      *  \brief Method to specify the name of the Source pattern
      *  
-     *  \param _name string with the name to be given
+     *  \param _name std::string with the name to be given
      *  \return the object itself
      */ 
-    Source_Builder<F_t>& withName(string _name)
+    Source_Builder<F_t>& withName(std::string _name)
     {
         name = _name;
         return *this;
@@ -129,9 +129,9 @@ public:
      *  
      *  \return a unique_ptr to the created Source pattern
      */ 
-    unique_ptr<source_t> build_unique()
+    std::unique_ptr<source_t> build_unique()
     {
-        return make_unique<source_t>(func, pardegree, name, closing_func);
+        return std::make_unique<source_t>(func, pardegree, name, closing_func);
     }
 };
 
@@ -150,11 +150,11 @@ private:
     // type of the pattern to be created by this builder
     using filter_t = Filter<decltype(get_tuple_t(func))>;
     // type of the closing function
-    using closing_func_t = function<void(RuntimeContext&)>;
+    using closing_func_t = std::function<void(RuntimeContext&)>;
     // type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
-    using routing_func_t = function<size_t(size_t, size_t)>;
+    using routing_func_t = std::function<size_t(size_t, size_t)>;
     uint64_t pardegree = 1;
-    string name = "anonymous_filter";
+    std::string name = "anonymous_filter";
     bool isKeyed = false;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
     routing_func_t routing_func;
@@ -170,10 +170,10 @@ public:
     /** 
      *  \brief Method to specify the name of the Filter pattern
      *  
-     *  \param _name string with the name to be given
+     *  \param _name std::string with the name to be given
      *  \return the object itself
      */ 
-    Filter_Builder<F_t>& withName(string _name)
+    Filter_Builder<F_t>& withName(std::string _name)
     {
         name = _name;
         return *this;
@@ -249,12 +249,12 @@ public:
      *  
      *  \return a unique_ptr to the created Filter pattern
      */ 
-    unique_ptr<filter_t> build_unique()
+    std::unique_ptr<filter_t> build_unique()
     {
         if (!isKeyed)
-            return make_unique<filter_t>(func, pardegree, name, closing_func);
+            return std::make_unique<filter_t>(func, pardegree, name, closing_func);
         else
-            return make_unique<filter_t>(func, pardegree, name, closing_func, routing_func);
+            return std::make_unique<filter_t>(func, pardegree, name, closing_func, routing_func);
     }
 };
 
@@ -274,11 +274,11 @@ private:
     using map_t = Map<decltype(get_tuple_t(func)),
                              decltype(get_result_t(func))>;
     // type of the closing function
-    using closing_func_t = function<void(RuntimeContext&)>;
+    using closing_func_t = std::function<void(RuntimeContext&)>;
     // type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
-    using routing_func_t = function<size_t(size_t, size_t)>;
+    using routing_func_t = std::function<size_t(size_t, size_t)>;
     uint64_t pardegree = 1;
-    string name = "anonymous_map";
+    std::string name = "anonymous_map";
     bool isKeyed = false;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
     routing_func_t routing_func;
@@ -294,10 +294,10 @@ public:
     /** 
      *  \brief Method to specify the name of the Map pattern
      *  
-     *  \param _name string with the name to be given
+     *  \param _name std::string with the name to be given
      *  \return the object itself
      */ 
-    Map_Builder<F_t>& withName(string _name)
+    Map_Builder<F_t>& withName(std::string _name)
     {
         name = _name;
         return *this;
@@ -373,12 +373,12 @@ public:
      *  
      *  \return a unique_ptr to the created Map pattern
      */ 
-    unique_ptr<map_t> build_unique()
+    std::unique_ptr<map_t> build_unique()
     {
         if (!isKeyed)
-            return make_unique<map_t>(func, pardegree, name, closing_func);
+            return std::make_unique<map_t>(func, pardegree, name, closing_func);
         else
-            return make_unique<map_t>(func, pardegree, name, closing_func, routing_func);
+            return std::make_unique<map_t>(func, pardegree, name, closing_func, routing_func);
     }
 };
 
@@ -398,11 +398,11 @@ private:
     using flatmap_t = FlatMap<decltype(get_tuple_t(func)),
                              decltype(get_result_t(func))>;
     // type of the closing function
-    using closing_func_t = function<void(RuntimeContext&)>;
+    using closing_func_t = std::function<void(RuntimeContext&)>;
     // type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
-    using routing_func_t = function<size_t(size_t, size_t)>;
+    using routing_func_t = std::function<size_t(size_t, size_t)>;
     uint64_t pardegree = 1;
-    string name = "anonymous_flatmap";
+    std::string name = "anonymous_flatmap";
     bool isKeyed = false;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
     routing_func_t routing_func;
@@ -418,10 +418,10 @@ public:
     /** 
      *  \brief Method to specify the name of the FlatMap pattern
      *  
-     *  \param _name string with the name to be given
+     *  \param _name std::string with the name to be given
      *  \return the object itself
      */ 
-    FlatMap_Builder<F_t>& withName(string _name)
+    FlatMap_Builder<F_t>& withName(std::string _name)
     {
         name = _name;
         return *this;
@@ -497,12 +497,12 @@ public:
      *  
      *  \return a unique_ptr to the created FlatMap pattern
      */ 
-    unique_ptr<flatmap_t> build_unique()
+    std::unique_ptr<flatmap_t> build_unique()
     {
         if (!isKeyed)
-            return make_unique<flatmap_t>(func, pardegree, name, closing_func);
+            return std::make_unique<flatmap_t>(func, pardegree, name, closing_func);
         else
-            return make_unique<flatmap_t>(func, pardegree, name, closing_func, routing_func);
+            return std::make_unique<flatmap_t>(func, pardegree, name, closing_func, routing_func);
     }
 };
 
@@ -521,13 +521,13 @@ private:
     // type of the pattern to be created by this builder
     using accumulator_t = Accumulator<decltype(get_tuple_t(func)), decltype(get_result_t(func))>;
     // type of the closing function
-    using closing_func_t = function<void(RuntimeContext&)>;
+    using closing_func_t = std::function<void(RuntimeContext&)>;
     // type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
-    using routing_func_t = function<size_t(size_t, size_t)>;
+    using routing_func_t = std::function<size_t(size_t, size_t)>;
     // type of the result produced by the Accumulator
     using result_t = decltype(get_result_t(func));
     uint64_t pardegree = 1;
-    string name = "anonymous_accumulator";
+    std::string name = "anonymous_accumulator";
     result_t init_value;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
     routing_func_t routing_func = [](size_t k, size_t n) { return k%n; };
@@ -543,10 +543,10 @@ public:
     /** 
      *  \brief Method to specify the name of the Accumulator pattern
      *  
-     *  \param _name string with the name to be given
+     *  \param _name std::string with the name to be given
      *  \return the object itself
      */ 
-    Accumulator_Builder<F_t>& withName(string _name)
+    Accumulator_Builder<F_t>& withName(std::string _name)
     {
         name = _name;
         return *this;
@@ -629,9 +629,9 @@ public:
      *  
      *  \return a unique_ptr to the created Accumulator pattern
      */ 
-    unique_ptr<accumulator_t> build_unique()
+    std::unique_ptr<accumulator_t> build_unique()
     {
-        return make_unique<accumulator_t>(func, init_value, pardegree, name, closing_func, routing_func);
+        return std::make_unique<accumulator_t>(func, init_value, pardegree, name, closing_func, routing_func);
     }
 };
 
@@ -651,11 +651,11 @@ private:
     using winseq_t = Win_Seq<decltype(get_tuple_t(func)),
                              decltype(get_result_t(func))>;
     // type of the closing function
-    using closing_func_t = function<void(RuntimeContext&)>;
+    using closing_func_t = std::function<void(RuntimeContext&)>;
     uint64_t win_len = 1;
     uint64_t slide_len = 1;
     win_type_t winType = CB;
-    string name = "anonymous_seq";
+    std::string name = "anonymous_seq";
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
 
 public:
@@ -688,7 +688,7 @@ public:
      *  \param _slide_len slide length (in microseconds)
      *  \return the object itself
      */ 
-    WinSeq_Builder<F_t>& withTBWindows(microseconds _win_len, microseconds _slide_len)
+    WinSeq_Builder<F_t>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len)
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
@@ -699,10 +699,10 @@ public:
     /** 
      *  \brief Method to specify the name of the Win_Seq pattern
      *  
-     *  \param _name string with the name to be given
+     *  \param _name std::string with the name to be given
      *  \return the object itself
      */ 
-    WinSeq_Builder<F_t>& withName(string _name)
+    WinSeq_Builder<F_t>& withName(std::string _name)
     {
         name = _name;
         return *this;
@@ -747,9 +747,9 @@ public:
      *  
      *  \return a unique_ptr to the created Win_Seq pattern
      */ 
-    unique_ptr<winseq_t> build_unique()
+    std::unique_ptr<winseq_t> build_unique()
     {
-        return make_unique<winseq_t>(func, win_len, slide_len, winType, name, closing_func, RuntimeContext(1, 0), PatternConfig(0, 1, slide_len, 0, 1, slide_len), SEQ);
+        return std::make_unique<winseq_t>(func, win_len, slide_len, winType, name, closing_func, RuntimeContext(1, 0), PatternConfig(0, 1, slide_len, 0, 1, slide_len), SEQ);
     }
 };
 
@@ -774,7 +774,7 @@ private:
     win_type_t winType = CB;
     size_t batch_len = 1;
     size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
-    string name = "anonymous_seq_gpu";
+    std::string name = "anonymous_seq_gpu";
     size_t scratchpad_size = 0;
 
 public:
@@ -807,7 +807,7 @@ public:
      *  \param _slide_len slide length (in microseconds)
      *  \return the object itself
      */ 
-    WinSeqGPU_Builder<F_t>& withTBWindows(microseconds _win_len, microseconds _slide_len)
+    WinSeqGPU_Builder<F_t>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len)
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
@@ -832,10 +832,10 @@ public:
     /** 
      *  \brief Method to specify the name of the Win_Seq_GPU pattern
      *  
-     *  \param _name string with the name to be given
+     *  \param _name std::string with the name to be given
      *  \return the object itself
      */ 
-    WinSeqGPU_Builder<F_t>& withName(string _name)
+    WinSeqGPU_Builder<F_t>& withName(std::string _name)
     {
         name = _name;
         return *this;
@@ -868,9 +868,9 @@ public:
      *  
      *  \return a unique_ptr to the created Win_Seq_GPU pattern
      */ 
-    unique_ptr<winseq_gpu_t> build_unique()
+    std::unique_ptr<winseq_gpu_t> build_unique()
     {
-        return make_unique<winseq_gpu_t>(func, win_len, slide_len, winType, batch_len, n_thread_block, name, scratchpad_size);
+        return std::make_unique<winseq_gpu_t>(func, win_len, slide_len, winType, batch_len, n_thread_block, name, scratchpad_size);
     }
 };
 
@@ -889,13 +889,13 @@ private:
     // type of the pattern to be created by this builder
     using winfarm_t = decltype(get_WF_nested_type(input));
     // type of the closing function
-    using closing_func_t = function<void(RuntimeContext&)>;
+    using closing_func_t = std::function<void(RuntimeContext&)>;
     uint64_t win_len = 1;
     uint64_t slide_len = 1;
     win_type_t winType = CB;
     size_t emitter_degree = 1;
     size_t pardegree = 1;
-    string name = "anonymous_wf";
+    std::string name = "anonymous_wf";
     bool ordered = true;
     opt_level_t opt_level = LEVEL2;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
@@ -960,7 +960,7 @@ public:
      *  \param _slide_len slide length (in microseconds)
      *  \return the object itself
      */ 
-    WinFarm_Builder<T>& withTBWindows(microseconds _win_len, microseconds _slide_len)
+    WinFarm_Builder<T>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len)
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
@@ -995,10 +995,10 @@ public:
     /** 
      *  \brief Method to specify the name of the Win_Farm pattern
      *  
-     *  \param _name string with the name to be given
+     *  \param _name std::string with the name to be given
      *  \return the object itself
      */ 
-    WinFarm_Builder<T>& withName(string _name)
+    WinFarm_Builder<T>& withName(std::string _name)
     {
         name = _name;
         return *this;
@@ -1069,9 +1069,9 @@ public:
      *  
      *  \return a unique_ptr to the created Win_Farm pattern
      */ 
-    unique_ptr<winfarm_t> build_unique()
+    std::unique_ptr<winfarm_t> build_unique()
     {
-        return make_unique<winfarm_t>(input, win_len, slide_len, winType, emitter_degree, pardegree, name, closing_func, ordered, opt_level);
+        return std::make_unique<winfarm_t>(input, win_len, slide_len, winType, emitter_degree, pardegree, name, closing_func, ordered, opt_level);
     }
 };
 
@@ -1096,7 +1096,7 @@ private:
     size_t pardegree = 1;
     size_t batch_len = 1;
     size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
-    string name = "anonymous_wf_gpu";
+    std::string name = "anonymous_wf_gpu";
     size_t scratchpad_size = 0;
     bool ordered = true;
     opt_level_t opt_level = LEVEL2;
@@ -1166,7 +1166,7 @@ public:
      *  \param _slide_len slide length (in microseconds)
      *  \return the object itself
      */ 
-    WinFarmGPU_Builder<T>& withTBWindows(microseconds _win_len, microseconds _slide_len)
+    WinFarmGPU_Builder<T>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len)
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
@@ -1215,10 +1215,10 @@ public:
     /** 
      *  \brief Method to specify the name of the Win_Farm_GPU pattern
      *  
-     *  \param _name string with the name to be given
+     *  \param _name std::string with the name to be given
      *  \return the object itself
      */ 
-    WinFarmGPU_Builder<T>& withName(string _name)
+    WinFarmGPU_Builder<T>& withName(std::string _name)
     {
         name = _name;
         return *this;
@@ -1275,9 +1275,9 @@ public:
      *  
      *  \return a unique_ptr to the created Win_Farm_GPU pattern
      */ 
-    unique_ptr<winfarm_gpu_t> build_unique()
+    std::unique_ptr<winfarm_gpu_t> build_unique()
     {
-        return make_unique<winfarm_gpu_t>(input, win_len, slide_len, winType, emitter_degree, pardegree, batch_len, n_thread_block, name, scratchpad_size, ordered, opt_level);
+        return std::make_unique<winfarm_gpu_t>(input, win_len, slide_len, winType, emitter_degree, pardegree, batch_len, n_thread_block, name, scratchpad_size, ordered, opt_level);
     }
 };
 
@@ -1296,14 +1296,14 @@ private:
     // type of the pattern to be created by this builder
     using keyfarm_t = decltype(get_KF_nested_type(input));
     // type of the closing function
-    using closing_func_t = function<void(RuntimeContext&)>;
+    using closing_func_t = std::function<void(RuntimeContext&)>;
     // type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
-    using routing_func_t = function<size_t(size_t, size_t)>;
+    using routing_func_t = std::function<size_t(size_t, size_t)>;
     uint64_t win_len = 1;
     uint64_t slide_len = 1;
     win_type_t winType = CB;
     size_t pardegree = 1;
-    string name = "anonymous_kf";
+    std::string name = "anonymous_kf";
     routing_func_t routing_func = [](size_t k, size_t n) { return k%n; };
     opt_level_t opt_level = LEVEL2;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
@@ -1368,7 +1368,7 @@ public:
      *  \param _slide_len slide length (in microseconds)
      *  \return the object itself
      */ 
-    KeyFarm_Builder<T>& withTBWindows(microseconds _win_len, microseconds _slide_len)
+    KeyFarm_Builder<T>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len)
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
@@ -1391,10 +1391,10 @@ public:
     /** 
      *  \brief Method to specify the name of the Key_Farm pattern
      *  
-     *  \param _name string with the name to be given
+     *  \param _name std::string with the name to be given
      *  \return the object itself
      */ 
-    KeyFarm_Builder<T>& withName(string _name)
+    KeyFarm_Builder<T>& withName(std::string _name)
     {
         name = _name;
         return *this;
@@ -1463,9 +1463,9 @@ public:
      *  
      *  \return a unique_ptr to the created Key_Farm pattern
      */ 
-    unique_ptr<keyfarm_t> build_unique()
+    std::unique_ptr<keyfarm_t> build_unique()
     {
-        return make_unique<keyfarm_t>(input, win_len, slide_len, winType, pardegree, name, closing_func, routing_func, opt_level);
+        return std::make_unique<keyfarm_t>(input, win_len, slide_len, winType, pardegree, name, closing_func, routing_func, opt_level);
     }
 };
 
@@ -1482,7 +1482,7 @@ class KeyFarmGPU_Builder
 private:
     T input;
     // type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
-    using routing_func_t = function<size_t(size_t, size_t)>;
+    using routing_func_t = std::function<size_t(size_t, size_t)>;
     // type of the pattern to be created by this builder
     using keyfarm_gpu_t = decltype(get_KF_GPU_nested_type(input));
     uint64_t win_len = 1;
@@ -1491,7 +1491,7 @@ private:
     size_t pardegree = 1;
     size_t batch_len = 1;
     size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
-    string name = "anonymous_wf_gpu";
+    std::string name = "anonymous_wf_gpu";
     size_t scratchpad_size = 0;
     routing_func_t routing_func = [](size_t k, size_t n) { return k%n; };
     opt_level_t opt_level = LEVEL2;
@@ -1561,7 +1561,7 @@ public:
      *  \param _slide_len slide length (in microseconds)
      *  \return the object itself
      */ 
-    KeyFarmGPU_Builder<T>& withTBWindows(microseconds _win_len, microseconds _slide_len)
+    KeyFarmGPU_Builder<T>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len)
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
@@ -1598,10 +1598,10 @@ public:
     /** 
      *  \brief Method to specify the name of the Key_Farm_GPU pattern
      *  
-     *  \param _name string with the name to be given
+     *  \param _name std::string with the name to be given
      *  \return the object itself
      */ 
-    KeyFarmGPU_Builder<T>& withName(string _name)
+    KeyFarmGPU_Builder<T>& withName(std::string _name)
     {
         name = _name;
         return *this;
@@ -1658,9 +1658,9 @@ public:
      *  
      *  \return a unique_ptr to the created Key_Farm_GPU pattern
      */ 
-    unique_ptr<keyfarm_gpu_t> build_unique()
+    std::unique_ptr<keyfarm_gpu_t> build_unique()
     {
-        return make_unique<keyfarm_gpu_t>(input, win_len, slide_len, winType, pardegree, batch_len, n_thread_block, name, scratchpad_size, routing_func, opt_level);
+        return std::make_unique<keyfarm_gpu_t>(input, win_len, slide_len, winType, pardegree, batch_len, n_thread_block, name, scratchpad_size, routing_func, opt_level);
     }
 };
 
@@ -1680,13 +1680,13 @@ private:
     using panefarm_t = Pane_Farm<decltype(get_tuple_t(func_F)),
                                  decltype(get_result_t(func_F))>;
     // type of the closing function
-    using closing_func_t = function<void(RuntimeContext&)>;
+    using closing_func_t = std::function<void(RuntimeContext&)>;
     uint64_t win_len = 1;
     uint64_t slide_len = 1;
     win_type_t winType = CB;
     size_t plq_degree = 1;
     size_t wlq_degree = 1;
-    string name = "anonymous_pf";
+    std::string name = "anonymous_pf";
     bool ordered = true;
     opt_level_t opt_level = LEVEL0;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
@@ -1722,7 +1722,7 @@ public:
      *  \param _slide_len slide length (in microseconds)
      *  \return the object itself
      */ 
-    PaneFarm_Builder<F_t, G_t>& withTBWindows(microseconds _win_len, microseconds _slide_len)
+    PaneFarm_Builder<F_t, G_t>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len)
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
@@ -1747,10 +1747,10 @@ public:
     /** 
      *  \brief Method to specify the name of the Pane_Farm pattern
      *  
-     *  \param _name string with the name to be given
+     *  \param _name std::string with the name to be given
      *  \return the object itself
      */ 
-    PaneFarm_Builder<F_t, G_t>& withName(string _name)
+    PaneFarm_Builder<F_t, G_t>& withName(std::string _name)
     {
         name = _name;
         return *this;
@@ -1819,9 +1819,9 @@ public:
      *  
      *  \return a unique_ptr to the created Pane_Farm pattern
      */ 
-    unique_ptr<panefarm_t> build_unique()
+    std::unique_ptr<panefarm_t> build_unique()
     {
-        return make_unique<panefarm_t>(func_F, func_G, win_len, slide_len, winType, plq_degree, wlq_degree, name, closing_func, ordered, opt_level);
+        return std::make_unique<panefarm_t>(func_F, func_G, win_len, slide_len, winType, plq_degree, wlq_degree, name, closing_func, ordered, opt_level);
     }
 };
 
@@ -1848,7 +1848,7 @@ private:
     size_t wlq_degree = 1;
     size_t batch_len = 1;
     size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
-    string name = "anonymous_pf_gpu";
+    std::string name = "anonymous_pf_gpu";
     size_t scratchpad_size = 0;
     bool ordered = true;
     opt_level_t opt_level = LEVEL0;
@@ -1886,7 +1886,7 @@ public:
      *  \param _slide_len slide length (in microseconds)
      *  \return the object itself
      */ 
-    PaneFarmGPU_Builder<F_t, G_t>& withTBWindows(microseconds _win_len, microseconds _slide_len)
+    PaneFarmGPU_Builder<F_t, G_t>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len)
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
@@ -1925,10 +1925,10 @@ public:
     /** 
      *  \brief Method to specify the name of the Pane_Farm_GPU pattern
      *  
-     *  \param _name string with the name to be given
+     *  \param _name std::string with the name to be given
      *  \return the object itself
      */ 
-    PaneFarmGPU_Builder<F_t, G_t>& withName(string _name)
+    PaneFarmGPU_Builder<F_t, G_t>& withName(std::string _name)
     {
         name = _name;
         return *this;
@@ -1985,9 +1985,9 @@ public:
      *  
      *  \return a unique_ptr to the created Pane_Farm_GPU pattern
      */ 
-    unique_ptr<panefarm_gpu_t> build_unique()
+    std::unique_ptr<panefarm_gpu_t> build_unique()
     {
-        return make_unique<panefarm_gpu_t>(func_F, func_G, win_len, slide_len, winType, plq_degree, wlq_degree, batch_len, n_thread_block, name, scratchpad_size, ordered, opt_level);
+        return std::make_unique<panefarm_gpu_t>(func_F, func_G, win_len, slide_len, winType, plq_degree, wlq_degree, batch_len, n_thread_block, name, scratchpad_size, ordered, opt_level);
     }
 };
 
@@ -2008,13 +2008,13 @@ private:
     using winmapreduce_t = Win_MapReduce<decltype(get_tuple_t(func_F)),
                                          decltype(get_result_t(func_F))>;
     // type of the closing function
-    using closing_func_t = function<void(RuntimeContext&)>;
+    using closing_func_t = std::function<void(RuntimeContext&)>;
     uint64_t win_len = 1;
     uint64_t slide_len = 1;
     win_type_t winType = CB;
     size_t map_degree = 2;
     size_t reduce_degree = 1;
-    string name = "anonymous_wmr";
+    std::string name = "anonymous_wmr";
     bool ordered = true;
     opt_level_t opt_level = LEVEL0;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
@@ -2050,7 +2050,7 @@ public:
      *  \param _slide_len slide length (in microseconds)
      *  \return the object itself
      */ 
-    WinMapReduce_Builder<F_t, G_t>& withTBWindows(microseconds _win_len, microseconds _slide_len)
+    WinMapReduce_Builder<F_t, G_t>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len)
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
@@ -2075,10 +2075,10 @@ public:
     /** 
      *  \brief Method to specify the name of the Win_MapReduce pattern
      *  
-     *  \param _name string with the name to be given
+     *  \param _name std::string with the name to be given
      *  \return the object itself
      */ 
-    WinMapReduce_Builder<F_t, G_t>& withName(string _name)
+    WinMapReduce_Builder<F_t, G_t>& withName(std::string _name)
     {
         name = _name;
         return *this;
@@ -2147,9 +2147,9 @@ public:
      *  
      *  \return a unique_ptr to the created Win_MapReduce pattern
      */ 
-    unique_ptr<winmapreduce_t> build_unique()
+    std::unique_ptr<winmapreduce_t> build_unique()
     {
-        return make_unique<winmapreduce_t>(func_F, func_G, win_len, slide_len, winType, map_degree, reduce_degree, name, closing_func, ordered, opt_level);
+        return std::make_unique<winmapreduce_t>(func_F, func_G, win_len, slide_len, winType, map_degree, reduce_degree, name, closing_func, ordered, opt_level);
     }
 };
 
@@ -2176,7 +2176,7 @@ private:
     size_t reduce_degree = 1;
     size_t batch_len = 1;
     size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
-    string name = "anonymous_wmw_gpu";
+    std::string name = "anonymous_wmw_gpu";
     size_t scratchpad_size = 0;
     bool ordered = true;
     opt_level_t opt_level = LEVEL0;
@@ -2214,7 +2214,7 @@ public:
      *  \param _slide_len slide length (in microseconds)
      *  \return the object itself
      */ 
-    WinMapReduceGPU_Builder<F_t, G_t>& withTBWindows(microseconds _win_len, microseconds _slide_len)
+    WinMapReduceGPU_Builder<F_t, G_t>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len)
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
@@ -2253,10 +2253,10 @@ public:
     /** 
      *  \brief Method to specify the name of the Win_MapReduce_GPU pattern
      *  
-     *  \param _name string with the name to be given
+     *  \param _name std::string with the name to be given
      *  \return the object itself
      */ 
-    WinMapReduceGPU_Builder<F_t, G_t>& withName(string _name)
+    WinMapReduceGPU_Builder<F_t, G_t>& withName(std::string _name)
     {
         name = _name;
         return *this;
@@ -2313,9 +2313,9 @@ public:
      *  
      *  \return a unique_ptr to the created Pane_Farm_GPU pattern
      */ 
-    unique_ptr<winmapreduce_gpu_t> build_unique()
+    std::unique_ptr<winmapreduce_gpu_t> build_unique()
     {
-        return make_unique<winmapreduce_gpu_t>(func_F, func_G, win_len, slide_len, winType, map_degree, reduce_degree, batch_len, n_thread_block, name, scratchpad_size, ordered, opt_level);
+        return std::make_unique<winmapreduce_gpu_t>(func_F, func_G, win_len, slide_len, winType, map_degree, reduce_degree, batch_len, n_thread_block, name, scratchpad_size, ordered, opt_level);
     }
 };
 
@@ -2334,11 +2334,11 @@ private:
     // type of the pattern to be created by this builder
     using sink_t = Sink<decltype(get_tuple_t(func))>;
     // type of the closing function
-    using closing_func_t = function<void(RuntimeContext&)>;
+    using closing_func_t = std::function<void(RuntimeContext&)>;
     // type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
-    using routing_func_t = function<size_t(size_t, size_t)>;
+    using routing_func_t = std::function<size_t(size_t, size_t)>;
     uint64_t pardegree = 1;
-    string name = "anonymous_sink";
+    std::string name = "anonymous_sink";
     bool isKeyed = false;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
     routing_func_t routing_func;
@@ -2354,10 +2354,10 @@ public:
     /** 
      *  \brief Method to specify the name of the Sink pattern
      *  
-     *  \param _name string with the name to be given
+     *  \param _name std::string with the name to be given
      *  \return the object itself
      */ 
-    Sink_Builder<F_t>& withName(string _name)
+    Sink_Builder<F_t>& withName(std::string _name)
     {
         name = _name;
         return *this;
@@ -2433,13 +2433,15 @@ public:
      *  
      *  \return a unique_ptr to the created Sink pattern
      */ 
-    unique_ptr<sink_t> build_unique()
+    std::unique_ptr<sink_t> build_unique()
     {
         if (!isKeyed)
-            return make_unique<sink_t>(func, pardegree, name, closing_func);
+            return std::make_unique<sink_t>(func, pardegree, name, closing_func);
         else
-            return make_unique<sink_t>(func, pardegree, name, closing_func, routing_func);
+            return std::make_unique<sink_t>(func, pardegree, name, closing_func, routing_func);
     }
 };
+
+} // namespace wf
 
 #endif

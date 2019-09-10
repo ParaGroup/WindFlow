@@ -29,6 +29,8 @@
 #include <stack>
 #include <basic.hpp>
 
+using namespace wf;
+
 // defines
 #define DOM_LEFT   0
 #define DOM_RIGHT  1

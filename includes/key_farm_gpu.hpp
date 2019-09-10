@@ -41,14 +41,19 @@
 #define KEY_FARM_GPU_H
 
 /// includes
+#include <ff/pipeline.hpp>
+#include <ff/all2all.hpp>
 #include <ff/farm.hpp>
 #include <ff/optimize.hpp>
+#include <basic.hpp>
 #include <win_seq_gpu.hpp>
 #include <kf_nodes.hpp>
-#include <pane_farm_gpu.hpp>
-#include <win_mapreduce_gpu.hpp>
+#include <wf_nodes.hpp>
+#include <wm_nodes.hpp>
 #include <tree_combiner.hpp>
 #include <transformations.hpp>
+
+namespace wf {
 
 /** 
  *  \class Key_Farm_GPU
@@ -61,11 +66,11 @@
  *  with tuples of same sub-stream are prepared/offloaded sequentially on the CPU.
  */ 
 template<typename tuple_t, typename result_t, typename win_F_t>
-class Key_Farm_GPU: public ff_farm
+class Key_Farm_GPU: public ff::ff_farm
 {
 public:
     /// function type to map the key hashcode onto an identifier starting from zero to pardegree-1
-    using routing_func_t = function<size_t(size_t, size_t)>;
+    using routing_func_t = std::function<size_t(size_t, size_t)>;
     /// type of the Pane_Farm_GPU passed to the proper nesting Constructor
     using pane_farm_gpu_t = Pane_Farm_GPU<tuple_t, result_t, win_F_t>;
     /// type of the Win_MapReduce_GPU passed to the proper nesting Constructor
@@ -113,12 +118,12 @@ private:
         else { // optimization level 2
             kf_emitter_t *kf_e = static_cast<kf_emitter_t *>(this->getEmitter());
             auto &oldWorkers = this->getWorkers();
-            vector<inner_emitter_t *> Es;
+            std::vector<inner_emitter_t *> Es;
             bool tobeTransformmed = true;
             // change the workers by removing their first emitter (if any)
             for (auto *w: oldWorkers) {
-                ff_pipeline *pipe = static_cast<ff_pipeline *>(w);
-                ff_node *e = remove_emitter_from_pipe(*pipe);
+                ff::ff_pipeline *pipe = static_cast<ff::ff_pipeline *>(w);
+                ff::ff_node *e = remove_emitter_from_pipe(*pipe);
                 if (e == nullptr)
                     tobeTransformmed = false;
                 else {
@@ -148,7 +153,7 @@ public:
      *  \param _pardegree parallelism degree of the Key_Farm_GPU pattern
      *  \param _batch_len no. of windows in a batch (i.e. 1 window mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. windows) per block
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the pattern
@@ -160,11 +165,10 @@ public:
                  size_t _pardegree,
                  size_t _batch_len,
                  size_t _n_thread_block,
-                 string _name,
+                 std::string _name,
                  size_t _scratchpad_size,
                  routing_func_t _routing_func,
-                 opt_level_t _opt_level)
-                 :
+                 opt_level_t _opt_level):
                  hasComplexWorkers(false),
                  outer_opt_level(_opt_level),
                  inner_opt_level(LEVEL0),
@@ -176,37 +180,37 @@ public:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the optimization level
         if (_opt_level != LEVEL0) {
-            //cerr << YELLOW << "WindFlow Warning: optimization level has no effect" << DEFAULT << endl;
+            //std::cerr << YELLOW << "WindFlow Warning: optimization level has no effect" << DEFAULT << std::endl;
             outer_opt_level = LEVEL0;
         }
-        // vector of Win_Seq_GPU
-        vector<ff_node *> w(_pardegree);
+        // std::vector of Win_Seq_GPU
+        std::vector<ff::ff_node *> w(_pardegree);
         // create the Win_Seq_GPU
         for (size_t i = 0; i < _pardegree; i++) {
             auto *seq = new win_seq_gpu_t(_win_func, _win_len, _slide_len, _winType, _batch_len, _n_thread_block, _name + "_kf", _scratchpad_size);
             w[i] = seq;
         }
-        ff_farm::add_workers(w);
-        ff_farm::add_collector(nullptr);
+        ff::ff_farm::add_workers(w);
+        ff::ff_farm::add_collector(nullptr);
         // create the Emitter node
-        ff_farm::add_emitter(new kf_emitter_t(_routing_func, _pardegree));
+        ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _pardegree));
         // when the Key_Farm_GPU will be destroyed we need aslo to destroy the emitter, workers and collector
-        ff_farm::cleanup_all();
+        ff::ff_farm::cleanup_all();
     }
 
     /** 
@@ -219,7 +223,7 @@ public:
      *  \param _pardegree parallelism degree of the Key_Farm_GPU pattern
      *  \param _batch_len no. of windows in a batch (i.e. 1 window mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. windows) per block
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the pattern
@@ -231,11 +235,10 @@ public:
                  size_t _pardegree,
                  size_t _batch_len,
                  size_t _n_thread_block,
-                 string _name,
+                 std::string _name,
                  size_t _scratchpad_size,
                  routing_func_t _routing_func,
-                 opt_level_t _opt_level)
-                 :
+                 opt_level_t _opt_level):
                  hasComplexWorkers(true),
                  outer_opt_level(_opt_level),
                  inner_type(PF_GPU),
@@ -246,29 +249,29 @@ public:
         using plq_emitter_t = WF_Emitter<tuple_t>;        
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the compatibility of the windowing/batching parameters
         if (_pf.win_len != _win_len || _pf.slide_len != _slide_len || _pf.winType != _winType || _pf.batch_len != _batch_len || _pf.n_thread_block != _n_thread_block) {
-            cerr << RED << "WindFlow Error: incompatible windowing and batching parameters" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: incompatible windowing and batching parameters" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         inner_opt_level = _pf.opt_level;
         inner_parallelism_1 = _pf.plq_degree;
         inner_parallelism_2 = _pf.wlq_degree;
-        // vector of Pane_Farm_GPU
-        vector<ff_node *> w(_pardegree);
+        // std::vector of Pane_Farm_GPU
+        std::vector<ff::ff_node *> w(_pardegree);
         // create the Pane_Farm_GPU starting from the passed one
         for (size_t i = 0; i < _pardegree; i++) {
             // configuration structure of the Pane_Farm_GPU
@@ -277,26 +280,26 @@ public:
             pane_farm_gpu_t *pf_W = nullptr;
             if (_pf.isGPUPLQ) {
                 if (_pf.isNICWLQ)
-                    pf_W = new pane_farm_gpu_t(_pf.gpuFunction, _pf.wlq_func, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_kf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
+                    pf_W = new pane_farm_gpu_t(_pf.gpuFunction, _pf.wlq_func, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_kf_" + std::to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
                 else
-                    pf_W = new pane_farm_gpu_t(_pf.gpuFunction, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_kf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
+                    pf_W = new pane_farm_gpu_t(_pf.gpuFunction, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_kf_" + std::to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
             }
             else {
                 if (_pf.isNICPLQ)
-                    pf_W = new pane_farm_gpu_t(_pf.plq_func, _pf.gpuFunction, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_kf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
+                    pf_W = new pane_farm_gpu_t(_pf.plq_func, _pf.gpuFunction, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_kf_" + std::to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
                 else
-                    pf_W = new pane_farm_gpu_t(_pf.plqupdate_func, _pf.gpuFunction, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_kf_" + to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
+                    pf_W = new pane_farm_gpu_t(_pf.plqupdate_func, _pf.gpuFunction, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_kf_" + std::to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
             }
             w[i] = pf_W;
         }
-        ff_farm::add_workers(w);
+        ff::ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
-        ff_farm::add_collector(new kf_collector_t());
-        ff_farm::add_emitter(new kf_emitter_t(_routing_func, _pardegree));
+        ff::ff_farm::add_collector(new kf_collector_t());
+        ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _pardegree));
         // optimization process according to the provided optimization level
         this->optimize_KeyFarmGPU<plq_emitter_t>(_opt_level);
         // when the Key_Farm_GPU will be destroyed we need aslo to destroy the emitter, workers and collector
-        ff_farm::cleanup_all();
+        ff::ff_farm::cleanup_all();
     }
 
     /** 
@@ -309,7 +312,7 @@ public:
      *  \param _pardegree parallelism degree of the Key_Farm_GPU pattern
      *  \param _batch_len no. of windows in a batch (i.e. 1 window mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. windows) per block
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the pattern
@@ -321,11 +324,10 @@ public:
                  size_t _pardegree,
                  size_t _batch_len,
                  size_t _n_thread_block,
-                 string _name,
+                 std::string _name,
                  size_t _scratchpad_size,
                  routing_func_t _routing_func,
-                 opt_level_t _opt_level)
-                 :
+                 opt_level_t _opt_level):
                  hasComplexWorkers(true),
                  outer_opt_level(_opt_level),
                  inner_type(WMR_GPU),
@@ -336,29 +338,29 @@ public:
         using map_emitter_t = WinMap_Emitter<tuple_t>;        
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the compatibility of the windowing/batching parameters
         if (_wm.win_len != _win_len || _wm.slide_len != _slide_len || _wm.winType != _winType || _wm.batch_len != _batch_len || _wm.n_thread_block != _n_thread_block) {
-            cerr << RED << "WindFlow Error: incompatible windowing and batching parameters" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: incompatible windowing and batching parameters" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         inner_opt_level = _wm.opt_level;
         inner_parallelism_1 = _wm.map_degree;
         inner_parallelism_2 = _wm.reduce_degree;
-        // vector of Win_MapReduce_GPU
-        vector<ff_node *> w(_pardegree);
+        // std::vector of Win_MapReduce_GPU
+        std::vector<ff::ff_node *> w(_pardegree);
         // create the Win_MapReduce_GPU starting from the passed one
         for (size_t i = 0; i < _pardegree; i++) {
             // configuration structure of the Win_MapReduce_GPU
@@ -367,26 +369,26 @@ public:
             win_mapreduce_gpu_t *wm_W = nullptr;
             if (_wm.isGPUMAP) {
                 if (_wm.isNICREDUCE)
-                    wm_W = new win_mapreduce_gpu_t(_wm.gpuFunction, _wm.reduce_func, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_kf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
+                    wm_W = new win_mapreduce_gpu_t(_wm.gpuFunction, _wm.reduce_func, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_kf_" + std::to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
                 else
-                    wm_W = new win_mapreduce_gpu_t(_wm.gpuFunction, _wm.reduceupdate_func, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_kf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
+                    wm_W = new win_mapreduce_gpu_t(_wm.gpuFunction, _wm.reduceupdate_func, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_kf_" + std::to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
             }
             else {
                 if (_wm.isNICMAP)
-                    wm_W = new win_mapreduce_gpu_t(_wm.map_func, _wm.gpuFunction, _wm.win_len, _wm.slide_len , _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_kf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
+                    wm_W = new win_mapreduce_gpu_t(_wm.map_func, _wm.gpuFunction, _wm.win_len, _wm.slide_len , _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_kf_" + std::to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
                 else
-                    wm_W = new win_mapreduce_gpu_t(_wm.mapupdate_func, _wm.gpuFunction, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_kf_" + to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
+                    wm_W = new win_mapreduce_gpu_t(_wm.mapupdate_func, _wm.gpuFunction, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_kf_" + std::to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
             }
             w[i] = wm_W;
         }
-        ff_farm::add_workers(w);
+        ff::ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
-        ff_farm::add_collector(new kf_collector_t());
-        ff_farm::add_emitter(new kf_emitter_t(_routing_func, _pardegree));
+        ff::ff_farm::add_collector(new kf_collector_t());
+        ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _pardegree));
         // optimization process according to the provided optimization level
         this->optimize_KeyFarmGPU<map_emitter_t>(_opt_level);
         // when the Key_Farm_GPU will be destroyed we need aslo to destroy the emitter, workers and collector
-        ff_farm::cleanup_all();
+        ff::ff_farm::cleanup_all();
     }
 
     /** 
@@ -423,7 +425,7 @@ public:
      *  \brief Get the parallelism degrees of the inner patterns within this Key_Farm_GPU
      *  \return parallelism degrees of the inner patterns
      */ 
-    pair<size_t, size_t> getInnerParallelism() const { return make_pair(inner_parallelism_1, inner_parallelism_2); }
+    std::pair<size_t, size_t> getInnerParallelism() const { return std::make_pair(inner_parallelism_1, inner_parallelism_2); }
 
     /** 
      *  \brief Get the window type (CB or TB) utilized by the pattern
@@ -431,5 +433,7 @@ public:
      */ 
     win_type_t getWinType() const { return winType; }
 };
+
+} // namespace wf
 
 #endif

@@ -33,20 +33,20 @@
 // includes
 #include <vector>
 #include <ff/multinode.hpp>
+#include <meta_utils.hpp>
 
-using namespace ff;
-using namespace std;
+namespace wf {
 
 // class Broadcast_Node
 template<typename tuple_t, typename input_t=tuple_t>
-class Broadcast_Node: public ff_monode_t<input_t, wrapper_tuple_t<tuple_t>>
+class Broadcast_Node: public ff::ff_monode_t<input_t, wrapper_tuple_t<tuple_t>>
 {
 private:
     // type of the wrapper of input tuples
     using wrapper_in_t = wrapper_tuple_t<tuple_t>;
     size_t n_dest; // number of destinations
     bool isCombined; // true if this node is used within a treeComb node
-    vector<pair<wrapper_in_t *, int>> output_queue; // used in case of treeComb mode
+    std::vector<std::pair<wrapper_in_t *, int>> output_queue; // used in case of treeComb mode
 
 public:
     // Constructor
@@ -66,7 +66,7 @@ public:
             if (!isCombined)
                 this->ff_send_out_to(out, i);
             else
-                output_queue.push_back(make_pair(out, i));
+                output_queue.push_back(std::make_pair(out, i));
         }
         return this->GO_ON;
     }
@@ -87,10 +87,12 @@ public:
     }
 
     // method to get a reference to the internal output queue (used in treeComb mode)
-    vector<pair<wrapper_in_t *, int>> &getOutputQueue()
+    std::vector<std::pair<wrapper_in_t *, int>> &getOutputQueue()
     {
         return output_queue;
     }
 };
+
+} // namespace wf
 
 #endif

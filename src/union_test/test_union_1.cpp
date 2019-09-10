@@ -29,6 +29,9 @@
 // defines
 #define RATIO 0.46566128e-9
 
+using namespace std;
+using namespace wf;
+
 // global variable for the result
 long global_sum;
 

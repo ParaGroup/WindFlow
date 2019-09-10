@@ -37,15 +37,15 @@
 #include <functional>
 #include <assert.h>
 
-using namespace std;
+namespace wf {
 
 // class StreamArchive
-template<typename tuple_t, typename container_t=deque<tuple_t>>
+template<typename tuple_t, typename container_t=std::deque<tuple_t>>
 class StreamArchive
 {
 private:
     // function to compare two tuples
-    using compare_func_t = function<bool(const tuple_t &t1, const tuple_t &t2)>;
+    using compare_func_t = std::function<bool(const tuple_t &t1, const tuple_t &t2)>;
     // const iterator type
     using const_iterator_t = typename container_t::const_iterator;
     compare_func_t lessThan; // function to compare two tuples
@@ -58,7 +58,7 @@ public:
     // method to add a tuple to the archive
     void insert(const tuple_t &_t)
     {
-        auto it = lower_bound(archive.begin(), archive.end(), _t, lessThan);
+        auto it = std::lower_bound(archive.begin(), archive.end(), _t, lessThan);
         // _t must be added at the end
         if (it == archive.end())
             archive.push_back(_t);
@@ -70,8 +70,8 @@ public:
     // method to remove all the tuples prior to _t 
     size_t purge(const tuple_t &_t)
     {
-        auto it = lower_bound(archive.begin(), archive.end(), _t, lessThan);
-        size_t n = distance(archive.begin(), it);
+        auto it = std::lower_bound(archive.begin(), archive.end(), _t, lessThan);
+        size_t n = std::distance(archive.begin(), it);
         archive.erase(archive.begin(), it);
         return n;
     }
@@ -101,12 +101,12 @@ public:
      *  and the constant iterator (last) to the smallest tuple in the archive that compares greater or
      *  equal than _t2.
      */ 
-    pair<const_iterator_t, const_iterator_t> getWinRange(const tuple_t &_t1, const tuple_t &_t2) const
+    std::pair<const_iterator_t, const_iterator_t> getWinRange(const tuple_t &_t1, const tuple_t &_t2) const
     {
         assert(lessThan(_t1, _t2));
-        pair<const_iterator_t, const_iterator_t> its;
-        its.first = lower_bound(archive.begin(), archive.end(), _t1, lessThan);
-        its.second = lower_bound(archive.begin(), archive.end(), _t2, lessThan);
+        std::pair<const_iterator_t, const_iterator_t> its;
+        its.first = std::lower_bound(archive.begin(), archive.end(), _t1, lessThan);
+        its.second = std::lower_bound(archive.begin(), archive.end(), _t2, lessThan);
         return its;
     }
 
@@ -116,10 +116,10 @@ public:
      *  the archive that compares greater or equal than _t, and the constant iterator (end) to the end
      *  of the archive.
      */ 
-    pair<const_iterator_t, const_iterator_t> getWinRange(const tuple_t &_t) const
+    std::pair<const_iterator_t, const_iterator_t> getWinRange(const tuple_t &_t) const
     {
-        pair<const_iterator_t, const_iterator_t> its;
-        its.first = lower_bound(archive.begin(), archive.end(), _t, lessThan);
+        std::pair<const_iterator_t, const_iterator_t> its;
+        its.first = std::lower_bound(archive.begin(), archive.end(), _t, lessThan);
         its.second = archive.end();
         return its;
     }
@@ -130,10 +130,10 @@ public:
      */ 
     size_t getDistance(const tuple_t &_t1, const tuple_t &_t2) const
     {
-        pair<const_iterator_t, const_iterator_t> its;
-        its.first = lower_bound(archive.begin(), archive.end(), _t1, lessThan);
-        its.second = lower_bound(archive.begin(), archive.end(), _t2, lessThan);
-        return distance(its.first, its.second);
+        std::pair<const_iterator_t, const_iterator_t> its;
+        its.first = std::lower_bound(archive.begin(), archive.end(), _t1, lessThan);
+        its.second = std::lower_bound(archive.begin(), archive.end(), _t2, lessThan);
+        return std::distance(its.first, its.second);
     }
 
     /*  
@@ -142,9 +142,9 @@ public:
      */ 
     size_t getDistance(const tuple_t &_t1) const
     {
-        pair<const_iterator_t, const_iterator_t> its;
-        its.first = lower_bound(archive.begin(), archive.end(), _t1, lessThan);
-        return distance(its.first, archive.end());
+        std::pair<const_iterator_t, const_iterator_t> its;
+        its.first = std::lower_bound(archive.begin(), archive.end(), _t1, lessThan);
+        return std::distance(its.first, archive.end());
     }
 
     /*  
@@ -153,8 +153,10 @@ public:
      */ 
     const_iterator_t getIterator(const tuple_t &_t1) const
     {
-        return lower_bound(archive.begin(), archive.end(), _t1, lessThan);
+        return std::lower_bound(archive.begin(), archive.end(), _t1, lessThan);
     }
 };
+
+} // namespace wf
 
 #endif

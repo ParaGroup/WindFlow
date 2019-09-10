@@ -31,8 +31,10 @@
 #include <windflow.hpp>
 #include "sum_tb.hpp"
 
-using namespace ff;
 using namespace std;
+using namespace chrono;
+using namespace ff;
+using namespace wf;
 
 // main
 int main(int argc, char *argv[])

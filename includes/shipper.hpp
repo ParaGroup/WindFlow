@@ -37,8 +37,7 @@
 /// includes
 #include <ff/node.hpp>
 
-using namespace ff;
-using namespace std;
+namespace wf {
 
 /** 
  *  \class Shipper
@@ -53,7 +52,7 @@ class Shipper
 {
 private:
     // ff_node to be used for the delivery
-    ff_node *node;
+    ff::ff_node *node;
     // counter of the delivered results
     unsigned long n_delivered;
 
@@ -63,7 +62,10 @@ public:
      *  
      *  \param _node fastflow node used for the delivery of results
      */ 
-    Shipper(ff_node &_node): node(&_node), n_delivered(0) {}
+    Shipper(ff::ff_node &_node):
+            node(&_node),
+            n_delivered(0)
+    {}
 
     /** 
      *  \brief Return the number of results delivered
@@ -101,5 +103,7 @@ public:
         return node->ff_send_out(r);
     }
 };
+
+} // namespace wf
 
 #endif

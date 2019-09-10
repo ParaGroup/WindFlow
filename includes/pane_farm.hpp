@@ -41,10 +41,13 @@
 #define PANE_FARM_H
 
 /// includes
-#include <ff/combine.hpp>
 #include <ff/pipeline.hpp>
+#include <ff/farm.hpp>
 #include <win_farm.hpp>
-#include <ordering_node.hpp>
+#include <basic.hpp>
+#include <meta_utils.hpp>
+
+namespace wf {
 
 /** 
  *  \class Pane_Farm
@@ -57,27 +60,27 @@
  *  stage.
  */ 
 template<typename tuple_t, typename result_t, typename input_t>
-class Pane_Farm: public ff_pipeline
+class Pane_Farm: public ff::ff_pipeline
 {
 public:
     /// type of the non-incremental pane processing function
-    using plq_func_t = function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
+    using plq_func_t = std::function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
     /// type of the rich non-incremental pane processing function
-    using rich_plq_func_t = function<void(uint64_t, Iterable<tuple_t> &, result_t &, RuntimeContext &)>;
+    using rich_plq_func_t = std::function<void(uint64_t, Iterable<tuple_t> &, result_t &, RuntimeContext &)>;
     /// type of the incremental pane processing function
-    using plqupdate_funct_t = function<void(uint64_t, const tuple_t &, result_t &)>;
+    using plqupdate_funct_t = std::function<void(uint64_t, const tuple_t &, result_t &)>;
     /// type of the rich incremental pane processing function
-    using rich_plqupdate_funct_t = function<void(uint64_t, const tuple_t &, result_t &, RuntimeContext &)>;
+    using rich_plqupdate_funct_t = std::function<void(uint64_t, const tuple_t &, result_t &, RuntimeContext &)>;
     /// type of the non-incremental window processing function
-    using wlq_func_t = function<void(uint64_t, Iterable<result_t> &, result_t &)>;
+    using wlq_func_t = std::function<void(uint64_t, Iterable<result_t> &, result_t &)>;
     /// type of the rich non-incremental window processing function
-    using rich_wlq_func_t = function<void(uint64_t, Iterable<result_t> &, result_t &, RuntimeContext &)>;
+    using rich_wlq_func_t = std::function<void(uint64_t, Iterable<result_t> &, result_t &, RuntimeContext &)>;
     /// type of the incremental window processing function
-    using wlqupdate_func_t = function<void(uint64_t, const result_t &, result_t &)>;
+    using wlqupdate_func_t = std::function<void(uint64_t, const result_t &, result_t &)>;
     /// type of the rich incremental window processing function
-    using rich_wlqupdate_func_t = function<void(uint64_t, const result_t &, result_t &, RuntimeContext &)>;
+    using rich_wlqupdate_func_t = std::function<void(uint64_t, const result_t &, result_t &, RuntimeContext &)>;
     /// type of the closing function
-    using closing_func_t = function<void(RuntimeContext &)>;
+    using closing_func_t = std::function<void(RuntimeContext &)>;
 
 private:
     // friendships with other classes in the library
@@ -90,7 +93,7 @@ private:
     template<typename T>
     friend class KeyFarm_Builder;
     // compute the gcd between two numbers
-    function<uint64_t(uint64_t, uint64_t)> gcd = [](uint64_t u, uint64_t v) {
+    std::function<uint64_t(uint64_t, uint64_t)> gcd = [](uint64_t u, uint64_t v) {
         while (v != 0) {
             unsigned long r = u % v;
             u = v;
@@ -117,7 +120,7 @@ private:
     win_type_t winType;
     size_t plq_degree;
     size_t wlq_degree;
-    string name;
+    std::string name;
     bool ordered;
     opt_level_t opt_level;
     PatternConfig config;
@@ -131,12 +134,11 @@ private:
               win_type_t _winType,
               size_t _plq_degree,
               size_t _wlq_degree,
-              string _name,
+              std::string _name,
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level,
-              PatternConfig _config)
-              :
+              PatternConfig _config):
               win_len(_win_len),
               slide_len(_slide_len),
               winType(_winType),
@@ -150,17 +152,17 @@ private:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the parallelism degrees
         if (_plq_degree == 0 || _wlq_degree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degrees cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: parallelism degrees cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // the Pane_Farm can be utilized with sliding windows only
         if (_win_len <= _slide_len) {
-            cerr << RED << "WindFlow Error: Pane_Farm can be used with sliding windows only (s<w)" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: Pane_Farm can be used with sliding windows only (s<w)" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // compute the pane length (no. of tuples or in time units)
@@ -194,18 +196,18 @@ private:
             wlq_stage = wlq_seq;
         }
         // add to this the pipeline optimized according to the provided optimization level
-        ff_pipeline::add_stage(optimize_PaneFarm(plq_stage, wlq_stage, _opt_level));
+        ff::ff_pipeline::add_stage(optimize_PaneFarm(plq_stage, wlq_stage, _opt_level));
         // when the Pane_Farm will be destroyed we need also to destroy the two stages
-        ff_pipeline::cleanup_nodes();
+        ff::ff_pipeline::cleanup_nodes();
         // flatten the pipeline
-        ff_pipeline::flatten();
+        ff::ff_pipeline::flatten();
     }
 
     // method to optimize the structure of the Pane_Farm pattern
-    const ff_pipeline optimize_PaneFarm(ff_node *plq, ff_node *wlq, opt_level_t opt)
+    const ff::ff_pipeline optimize_PaneFarm(ff_node *plq, ff_node *wlq, opt_level_t opt)
     {
         if (opt == LEVEL0) { // no optimization
-            ff_pipeline pipe;
+            ff::ff_pipeline pipe;
             pipe.add_stage(plq);
             pipe.add_stage(wlq);
             pipe.cleanup_nodes();
@@ -213,8 +215,8 @@ private:
         }
         else if (opt == LEVEL1) { // optimization level 1
             if (plq_degree == 1 && wlq_degree == 1) {
-                ff_pipeline pipe;
-                pipe.add_stage(new ff_comb(plq, wlq, true, true));
+                ff::ff_pipeline pipe;
+                pipe.add_stage(new ff::ff_comb(plq, wlq, true, true));
                 pipe.cleanup_nodes();
                 return pipe;
             }
@@ -223,19 +225,19 @@ private:
         else { // optimization level 2
             if (!plq->isFarm() || !wlq->isFarm()) // like level 1
                 if (plq_degree == 1 && wlq_degree == 1) {
-                    ff_pipeline pipe;
-                    pipe.add_stage(new ff_comb(plq, wlq, true, true));
+                    ff::ff_pipeline pipe;
+                    pipe.add_stage(new ff::ff_comb(plq, wlq, true, true));
                     pipe.cleanup_nodes();
                     return pipe;
                 }
                 else return combine_nodes_in_pipeline(*plq, *wlq, true, true);
             else {
                 using emitter_wlq_t = WF_Emitter<result_t, result_t>;
-                ff_farm *farm_plq = static_cast<ff_farm *>(plq);
-                ff_farm *farm_wlq = static_cast<ff_farm *>(wlq);
+                ff::ff_farm *farm_plq = static_cast<ff::ff_farm *>(plq);
+                ff::ff_farm *farm_wlq = static_cast<ff::ff_farm *>(wlq);
                 emitter_wlq_t *emitter_wlq = static_cast<emitter_wlq_t *>(farm_wlq->getEmitter());
                 Ordering_Node<result_t, wrapper_tuple_t<result_t>> *buf_node = new Ordering_Node<result_t, wrapper_tuple_t<result_t>>();
-                const ff_pipeline result = combine_farms(*farm_plq, emitter_wlq, *farm_wlq, buf_node, false);
+                const ff::ff_pipeline result = combine_farms(*farm_plq, emitter_wlq, *farm_wlq, buf_node, false);
                 delete farm_plq;
                 delete farm_wlq;
                 delete buf_node;
@@ -256,7 +258,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -268,7 +270,7 @@ public:
               win_type_t _winType,
               size_t _plq_degree,
               size_t _wlq_degree,
-              string _name,
+              std::string _name,
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
@@ -292,7 +294,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -304,7 +306,7 @@ public:
               win_type_t _winType,
               size_t _plq_degree,
               size_t _wlq_degree,
-              string _name,
+              std::string _name,
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
@@ -328,7 +330,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -340,7 +342,7 @@ public:
               win_type_t _winType,
               size_t _plq_degree,
               size_t _wlq_degree,
-              string _name,
+              std::string _name,
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
@@ -364,7 +366,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -376,7 +378,7 @@ public:
               win_type_t _winType,
               size_t _plq_degree,
               size_t _wlq_degree,
-              string _name,
+              std::string _name,
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
@@ -400,7 +402,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -412,7 +414,7 @@ public:
               win_type_t _winType,
               size_t _plq_degree,
               size_t _wlq_degree,
-              string _name,
+              std::string _name,
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
@@ -436,7 +438,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -448,7 +450,7 @@ public:
               win_type_t _winType,
               size_t _plq_degree,
               size_t _wlq_degree,
-              string _name,
+              std::string _name,
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
@@ -472,7 +474,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -484,7 +486,7 @@ public:
               win_type_t _winType,
               size_t _plq_degree,
               size_t _wlq_degree,
-              string _name,
+              std::string _name,
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
@@ -508,7 +510,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -520,7 +522,7 @@ public:
               win_type_t _winType,
               size_t _plq_degree,
               size_t _wlq_degree,
-              string _name,
+              std::string _name,
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
@@ -544,7 +546,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -556,7 +558,7 @@ public:
               win_type_t _winType,
               size_t _plq_degree,
               size_t _wlq_degree,
-              string _name,
+              std::string _name,
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
@@ -580,7 +582,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -592,7 +594,7 @@ public:
               win_type_t _winType,
               size_t _plq_degree,
               size_t _wlq_degree,
-              string _name,
+              std::string _name,
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
@@ -616,7 +618,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -628,7 +630,7 @@ public:
               win_type_t _winType,
               size_t _plq_degree,
               size_t _wlq_degree,
-              string _name,
+              std::string _name,
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
@@ -652,7 +654,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -664,7 +666,7 @@ public:
               win_type_t _winType,
               size_t _plq_degree,
               size_t _wlq_degree,
-              string _name,
+              std::string _name,
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
@@ -688,7 +690,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -700,7 +702,7 @@ public:
               win_type_t _winType,
               size_t _plq_degree,
               size_t _wlq_degree,
-              string _name,
+              std::string _name,
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
@@ -724,7 +726,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -736,7 +738,7 @@ public:
               win_type_t _winType,
               size_t _plq_degree,
               size_t _wlq_degree,
-              string _name,
+              std::string _name,
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
@@ -760,7 +762,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -772,7 +774,7 @@ public:
               win_type_t _winType,
               size_t _plq_degree,
               size_t _wlq_degree,
-              string _name,
+              std::string _name,
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
@@ -796,7 +798,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -808,7 +810,7 @@ public:
               win_type_t _winType,
               size_t _plq_degree,
               size_t _wlq_degree,
-              string _name,
+              std::string _name,
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
@@ -846,5 +848,7 @@ public:
      */ 
     size_t getWLQParallelism() const { return wlq_degree; }
 };
+
+} // namespace wf
 
 #endif

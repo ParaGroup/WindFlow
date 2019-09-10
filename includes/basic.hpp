@@ -37,11 +37,11 @@
 #include <iostream>
 #include <sys/time.h>
 
+namespace wf {
+
 // defines
 #define STRINGIFY(x) XSTRINGIFY(x)
 #define XSTRINGIFY(x) #x
-
-using namespace std;
 
 /** 
  *  \brief Function to return the number of microseconds from the epoch
@@ -111,14 +111,14 @@ enum opt_level_t { LEVEL0, LEVEL1, LEVEL2 };
 #define BOLDWHITE   "\033[1m\033[37m"
 
 // global variable used by LOCKED_PRINT
-mutex mutex_screen;
+std::mutex mutex_screen;
 
 // macros to avoid mixing of concurrent couts/prints
 #define LOCKED_PRINT(...) { \
- 	ostringstream stream; \
+ 	std::ostringstream stream; \
  	stream << __VA_ARGS__; \
  	mutex_screen.lock(); \
-	cout << stream.str(); \
+	std::cout << stream.str(); \
 	mutex_screen.unlock(); \
 }
 
@@ -132,16 +132,28 @@ struct PatternConfig {
     uint64_t slide_inner; // sliding factor of the innermost pattern
 
     // Constructor I
-    PatternConfig(): id_outer(0), n_outer(0), slide_outer(0), id_inner(0), n_inner(0), slide_inner(0) {}
+    PatternConfig(): id_outer(0),
+                     n_outer(0),
+                     slide_outer(0),
+                     id_inner(0),
+                     n_inner(0),
+                     slide_inner(0)
+    {}
 
     // Constructor II
-    PatternConfig(size_t _id_outer, size_t _n_outer, uint64_t _slide_outer, size_t _id_inner, size_t _n_inner, uint64_t _slide_inner):
+    PatternConfig(size_t _id_outer,
+                  size_t _n_outer,
+                  uint64_t _slide_outer,
+                  size_t _id_inner,
+                  size_t _n_inner,
+                  uint64_t _slide_inner):
                   id_outer(_id_outer),
                   n_outer(_n_outer),
                   slide_outer(_slide_outer),
                   id_inner(_id_inner),
                   n_inner(_n_inner),
-                  slide_inner(_slide_inner) {}
+                  slide_inner(_slide_inner)
+    {}
 };
 
 //@endcond
@@ -212,5 +224,7 @@ class Sink;
 
 /// forward declaration of the MultiPipe construct
 class MultiPipe;
+
+} // namespace wf
 
 #endif

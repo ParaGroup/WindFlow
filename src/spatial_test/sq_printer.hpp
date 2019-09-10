@@ -29,6 +29,9 @@
 #include <basic.hpp>
 
 using namespace std;
+using namespace chrono;
+using namespace ff;
+using namespace wf;
 
 // global barrier to synchronize the beginning of the execution
 extern pthread_barrier_t startBarrier;

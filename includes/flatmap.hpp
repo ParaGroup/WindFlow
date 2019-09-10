@@ -38,13 +38,14 @@
 /// includes
 #include <string>
 #include <ff/node.hpp>
+#include <ff/pipeline.hpp>
 #include <ff/farm.hpp>
+#include <basic.hpp>
 #include <shipper.hpp>
 #include <context.hpp>
 #include <standard.hpp>
 
-using namespace ff;
-using namespace std;
+namespace wf {
 
 /** 
  *  \class FlatMap
@@ -55,30 +56,30 @@ using namespace std;
  *  on each tuple of the input stream.
  */ 
 template<typename tuple_t, typename result_t>
-class FlatMap: public ff_farm
+class FlatMap: public ff::ff_farm
 {
 public:
     /// type of the flatmap function
-    using flatmap_func_t = function<void(const tuple_t &, Shipper<result_t> &)>;
+    using flatmap_func_t = std::function<void(const tuple_t &, Shipper<result_t> &)>;
     /// type of the rich flatmap function
-    using rich_flatmap_func_t = function<void(const tuple_t &, Shipper<result_t> &, RuntimeContext &)>;
+    using rich_flatmap_func_t = std::function<void(const tuple_t &, Shipper<result_t> &, RuntimeContext &)>;
     /// type of the closing function
-    using closing_func_t = function<void(RuntimeContext &)>;
+    using closing_func_t = std::function<void(RuntimeContext &)>;
     /// type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
-    using routing_func_t = function<size_t(size_t, size_t)>;
+    using routing_func_t = std::function<size_t(size_t, size_t)>;
 
 private:
     // friendships with other classes in the library
     friend class MultiPipe;
     bool keyed; // flag stating whether the FlatMap is configured with keyBy or not
     // class FlatMap_Node
-    class FlatMap_Node: public ff_node_t<tuple_t, result_t>
+    class FlatMap_Node: public ff::ff_node_t<tuple_t, result_t>
     {
     private:
         flatmap_func_t flatmap_func; // flatmap function
         rich_flatmap_func_t rich_flatmap_func; // rich flatmap function
         closing_func_t closing_func; // closing function
-        string name; // string of the unique name of the pattern
+        std::string name; // string of the unique name of the pattern
         bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
         // shipper object used for the delivery of results
         Shipper<result_t> *shipper = nullptr;
@@ -90,24 +91,42 @@ private:
         double avg_td_us = 0;
         double avg_ts_us = 0;
         volatile unsigned long startTD, startTS, endTD, endTS;
-        ofstream *logfile = nullptr;
+        std::ofstream *logfile = nullptr;
 #endif
 
     public:
         // Constructor I
-        FlatMap_Node(flatmap_func_t _flatmap_func, string _name, RuntimeContext _context, closing_func_t _closing_func): flatmap_func(_flatmap_func), name(_name), isRich(false), context(_context), closing_func(_closing_func) {}
+        FlatMap_Node(flatmap_func_t _flatmap_func,
+                     std::string _name,
+                     RuntimeContext _context,
+                     closing_func_t _closing_func):
+                     flatmap_func(_flatmap_func), 
+                     name(_name),
+                     isRich(false),
+                     context(_context),
+                     closing_func(_closing_func)
+        {}
 
         // Constructor II
-        FlatMap_Node(rich_flatmap_func_t _rich_flatmap_func, string _name, RuntimeContext _context, closing_func_t _closing_func): rich_flatmap_func(_rich_flatmap_func), name(_name), isRich(true), context(_context), closing_func(_closing_func) {}
+        FlatMap_Node(rich_flatmap_func_t _rich_flatmap_func,
+                     std::string _name,
+                     RuntimeContext _context,
+                     closing_func_t _closing_func):
+                     rich_flatmap_func(_rich_flatmap_func),
+                     name(_name),
+                     isRich(true),
+                     context(_context),
+                     closing_func(_closing_func)
+        {}
 
         // svc_init method (utilized by the FastFlow runtime)
         int svc_init()
         {
             shipper = new Shipper<result_t>(*this);
 #if defined(LOG_DIR)
-            logfile = new ofstream();
-            name += "_node_" + to_string(ff_node_t<tuple_t, result_t>::get_my_id()) + ".log";
-            string filename = string(STRINGIFY(LOG_DIR)) + "/" + name;
+            logfile = new std::ofstream();
+            name += "_node_" + std::to_string(ff::ff_node_t<tuple_t, result_t>::get_my_id()) + ".log";
+            std::string filename = std::string(STRINGIFY(LOG_DIR)) + "/" + name;
             logfile->open(filename);
 #endif
             return 0;
@@ -149,7 +168,7 @@ private:
             closing_func(context);
             delete shipper;
 #if defined (LOG_DIR)
-            ostringstream stream;
+            std::ostringstream stream;
             stream << "************************************LOG************************************\n";
             stream << "No. of received tuples: " << rcvTuples << "\n";
             stream << "Output selectivity: " << delivered/((double) rcvTuples) << "\n";
@@ -172,27 +191,31 @@ public:
      *  \param _name string with the unique name of the FlatMap pattern
      *  \param _closing_func closing function
      */ 
-    FlatMap(flatmap_func_t _func, size_t _pardegree, string _name, closing_func_t _closing_func): keyed(false)
+    FlatMap(flatmap_func_t _func,
+            size_t _pardegree,
+            std::string _name,
+            closing_func_t _closing_func):
+            keyed(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of FlatMap_Node
-        vector<ff_node *> w;
+        std::vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new FlatMap_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_pardegree));
+        ff::ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_pardegree));
         // add workers
-        ff_farm::add_workers(w);
+        ff::ff_farm::add_workers(w);
         // add default collector
-        ff_farm::add_collector(nullptr);
+        ff::ff_farm::add_collector(nullptr);
         // when the FlatMap will be destroyed we need aslo to destroy the emitter, workers and collector
-        ff_farm::cleanup_all();
+        ff::ff_farm::cleanup_all();
     }
 
     /** 
@@ -204,27 +227,32 @@ public:
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
-    FlatMap(flatmap_func_t _func, size_t _pardegree, string _name, closing_func_t _closing_func, routing_func_t _routing_func): keyed(true)
+    FlatMap(flatmap_func_t _func,
+            size_t _pardegree,
+            std::string _name,
+            closing_func_t _closing_func,
+            routing_func_t _routing_func):
+            keyed(true)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of FlatMap_Node
-        vector<ff_node *> w;
+        std::vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new FlatMap_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func, _pardegree));
+        ff::ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func, _pardegree));
         // add workers
-        ff_farm::add_workers(w);
+        ff::ff_farm::add_workers(w);
         // add default collector
-        ff_farm::add_collector(nullptr);
+        ff::ff_farm::add_collector(nullptr);
         // when the FlatMap will be destroyed we need aslo to destroy the emitter, workers and collector
-        ff_farm::cleanup_all();
+        ff::ff_farm::cleanup_all();
     }
 
     /** 
@@ -235,27 +263,31 @@ public:
      *  \param _name string with the unique name of the FlatMap pattern
      *  \param _closing_func closing function
      */ 
-    FlatMap(rich_flatmap_func_t _func, size_t _pardegree, string _name, closing_func_t _closing_func): keyed(false)
+    FlatMap(rich_flatmap_func_t _func,
+            size_t _pardegree,
+            std::string _name,
+            closing_func_t _closing_func):
+            keyed(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of FlatMap_Node
-        vector<ff_node *> w;
+        std::vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new FlatMap_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_pardegree));
+        ff::ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_pardegree));
         // add workers
-        ff_farm::add_workers(w);
+        ff::ff_farm::add_workers(w);
         // add default collector
-        ff_farm::add_collector(nullptr);
+        ff::ff_farm::add_collector(nullptr);
         // when the FlatMap will be destroyed we need aslo to destroy the emitter, workers and collector
-        ff_farm::cleanup_all();
+        ff::ff_farm::cleanup_all();
     }
 
     /** 
@@ -267,27 +299,32 @@ public:
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
-    FlatMap(rich_flatmap_func_t _func, size_t _pardegree, string _name, closing_func_t _closing_func, routing_func_t _routing_func): keyed(true)
+    FlatMap(rich_flatmap_func_t _func,
+            size_t _pardegree,
+            std::string _name,
+            closing_func_t _closing_func,
+            routing_func_t _routing_func):
+            keyed(true)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of FlatMap_Node
-        vector<ff_node *> w;
+        std::vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new FlatMap_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             w.push_back(seq);
         }
         // add emitter
-        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func, _pardegree));
+        ff::ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func, _pardegree));
         // add workers
-        ff_farm::add_workers(w);
+        ff::ff_farm::add_workers(w);
         // add default collector
-        ff_farm::add_collector(nullptr);
+        ff::ff_farm::add_collector(nullptr);
         // when the FlatMap will be destroyed we need aslo to destroy the emitter, workers and collector
-        ff_farm::cleanup_all();
+        ff::ff_farm::cleanup_all();
     }
 
     /** 
@@ -296,5 +333,7 @@ public:
      */
     bool isKeyed() { return keyed; }
 };
+
+} // namespace wf
 
 #endif

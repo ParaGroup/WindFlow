@@ -33,31 +33,40 @@
 #include <vector>
 #include <ff/multinode.hpp>
 
-using namespace ff;
-using namespace std;
+namespace wf {
 
 // class Standard_Emitter
 template<typename tuple_t>
-class Standard_Emitter: public ff_monode_t<tuple_t>
+class Standard_Emitter: public ff::ff_monode_t<tuple_t>
 {
 private:
     // type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
-    using routing_func_t = function<size_t(size_t, size_t)>;
+    using routing_func_t = std::function<size_t(size_t, size_t)>;
     bool isKeyed; // flag stating whether the key-based distribution is used or not
     routing_func_t routing_func; // routing function
     bool isCombined; // true if this node is used within a treeComb node
-    vector<pair<tuple_t *, int>> output_queue; // used in case of treeComb mode
+    std::vector<std::pair<tuple_t *, int>> output_queue; // used in case of treeComb mode
     size_t dest_w; // used to select the destination
     size_t n_dest; // number of destinations
 
 public:
     // Constructor I
     Standard_Emitter(size_t _n_dest):
-                     isKeyed(false), isCombined(false), dest_w(0), n_dest(_n_dest) {}
+                     isKeyed(false),
+                     isCombined(false),
+                     dest_w(0),
+                     n_dest(_n_dest)
+    {}
 
     // Constructor II
-    Standard_Emitter(routing_func_t _routing_func, size_t _n_dest):
-                     isKeyed(true), routing_func(_routing_func), isCombined(false), dest_w(0), n_dest(_n_dest) {}
+    Standard_Emitter(routing_func_t _routing_func,
+                     size_t _n_dest):
+                     isKeyed(true),
+                     routing_func(_routing_func),
+                     isCombined(false),
+                     dest_w(0),
+                     n_dest(_n_dest)
+    {}
 
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
@@ -71,21 +80,21 @@ public:
     	if (isKeyed) { // keyed-based distribution enabled
 	        // extract the key from the input tuple
 	        auto key = std::get<0>(t->getControlFields()); // key
-            size_t hashcode = hash<decltype(key)>()(key); // compute the hashcode of the key
+            size_t hashcode = std::hash<decltype(key)>()(key); // compute the hashcode of the key
 	        // evaluate the routing function
 	        dest_w = routing_func(hashcode, this->get_num_outchannels());
 	        // sent the tuple
             if (!isCombined)
 	           this->ff_send_out_to(t, dest_w);
             else
-                output_queue.push_back(make_pair(t, dest_w));
+                output_queue.push_back(std::make_pair(t, dest_w));
 	        return this->GO_ON;
     	}
     	else { // default distribution
     		if (!isCombined)
                 return t;
             else {
-               output_queue.push_back(make_pair(t, dest_w));
+               output_queue.push_back(std::make_pair(t, dest_w));
                dest_w = (dest_w + 1) % n_dest;
                return this->GO_ON;
             }
@@ -108,16 +117,18 @@ public:
     }
 
     // method to get a reference to the internal output queue (used in treeComb mode)
-    vector<pair<tuple_t *, int>> &getOutputQueue()
+    std::vector<std::pair<tuple_t *, int>> &getOutputQueue()
     {
         return output_queue;
     }
 };
 
 // class Standard_Collector
-class Standard_Collector: public ff_minode
+class Standard_Collector: public ff::ff_minode
 {
     void *svc(void *t) { return t; }
 };
+
+} // namespace wf
 
 #endif

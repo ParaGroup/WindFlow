@@ -29,8 +29,10 @@
 #include <windflow.hpp>
 #include <windflow_gpu.hpp>
 
-using namespace ff;
 using namespace std;
+using namespace chrono;
+using namespace ff;
+using namespace wf;
 
 // defines
 #define RATIO 0.46566128e-9

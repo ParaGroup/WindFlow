@@ -40,19 +40,19 @@
 #include <basic.hpp>
 #include <meta_utils.hpp>
 
-using namespace ff;
+namespace wf {
 
 // supported ordering modes
 enum ordering_mode_t { ID, TS, TS_RENUMBERING };
 
 // class Ordering_Node
 template<typename tuple_t, typename input_t=tuple_t>
-class Ordering_Node: public ff_minode_t<input_t, input_t>
+class Ordering_Node: public ff::ff_minode_t<input_t, input_t>
 {
 private:
     tuple_t tmp; // never used
     // key data type
-    using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
+    using key_t = typename std::remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
     // comparator functor (returns true if A comes before B in the ordering)
     struct Comparator {
         // ordering mode
@@ -81,13 +81,14 @@ private:
     struct Key_Descriptor
     {
         uint64_t emit_counter; // progressive counter (used if mode is TS_RENUMBERING)
-    	vector<uint64_t> maxs; // maxs[i] contains the greatest identifier/timestamp received from the i-th input stream
+    	std::vector<uint64_t> maxs; // maxs[i] contains the greatest identifier/timestamp received from the i-th input stream
         input_t *eos_marker; // pointer to the most recent EOS marker of this key
     	// ordered queue of tuples of the given key received by the node
-    	priority_queue<input_t *, deque<input_t *>, Comparator> queue;
+    	std::priority_queue<input_t *, std::deque<input_t *>, Comparator> queue;
 
         // Constructor
-        Key_Descriptor(size_t _n, ordering_mode_t _mode):
+        Key_Descriptor(size_t _n,
+                       ordering_mode_t _mode):
                        emit_counter(0),
                        maxs(_n, 0),
                        eos_marker(nullptr),
@@ -95,18 +96,23 @@ private:
         {}
     };
     // hash table that maps key identifiers onto key descriptors
-    unordered_map<key_t, Key_Descriptor> keyMap;
+    std::unordered_map<key_t, Key_Descriptor> keyMap;
     size_t eos_rcv; // number of EOS received
     ordering_mode_t mode; // ordering mode
     // variables for correcting the bug (temporarily)
-    priority_queue<input_t *, deque<input_t *>, Comparator> globalQueue;
-    vector<uint64_t> globalMaxs;
+    std::priority_queue<input_t *, std::deque<input_t *>, Comparator> globalQueue;
+    std::vector<uint64_t> globalMaxs;
     key_t mykey;
     long received;
 
 public:
 	// Constructor
-	Ordering_Node(ordering_mode_t _mode=ID): eos_rcv(0), mode(_mode), globalQueue(Comparator(_mode)), received(0) {}
+	Ordering_Node(ordering_mode_t _mode=ID):
+                  eos_rcv(0),
+                  mode(_mode),
+                  globalQueue(Comparator(_mode)),
+                  received(0)
+    {}
 
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
@@ -127,7 +133,7 @@ public:
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
             // create the descriptor of that key
-            keyMap.insert(make_pair(key, Key_Descriptor(this->get_num_inchannels(), mode)));
+            keyMap.insert(std::make_pair(key, Key_Descriptor(this->get_num_inchannels(), mode)));
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
@@ -152,11 +158,11 @@ public:
         auto &queue = (mode == ID) ? key_d.queue : globalQueue;
         if (mode == ID) { // ordering on a key-basis
             key_d.maxs[source_id] = wid;
-            min_id = *(min_element((key_d.maxs).begin(), (key_d.maxs).end()));
+            min_id = *(std::min_element((key_d.maxs).begin(), (key_d.maxs).end()));
         }
         else { // ordering regardless the key
             globalMaxs[source_id] = wid;
-            min_id = *(min_element(globalMaxs.begin(), globalMaxs.end()));
+            min_id = *(std::min_element(globalMaxs.begin(), globalMaxs.end()));
         }
         // add the new input item in the priority queue
         queue.push(wr);
@@ -274,5 +280,7 @@ public:
     // svc_end method (utilized by the FastFlow runtime)
     void svc_end() {}
 };
+
+} // namespace wf
 
 #endif

@@ -26,6 +26,9 @@
 #include <ff/ff.hpp>
 #include <windflow.hpp>
 
+using namespace std;
+using namespace wf;
+
 // global variable: number of generated tuples
 atomic<int> sentCounter;
 

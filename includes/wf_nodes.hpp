@@ -31,22 +31,23 @@
 #define WF_NODES_H
 
 // includes
+#include <cmath>
 #include <vector>
 #include <ff/multinode.hpp>
+#include <meta_utils.hpp>
 
-using namespace ff;
-using namespace std;
+namespace wf {
 
 // class WF_Emitter
 template<typename tuple_t, typename input_t=tuple_t>
-class WF_Emitter: public ff_monode_t<input_t, wrapper_tuple_t<tuple_t>>
+class WF_Emitter: public ff::ff_monode_t<input_t, wrapper_tuple_t<tuple_t>>
 {
 private:
     // type of the wrapper of input tuples
     using wrapper_in_t = wrapper_tuple_t<tuple_t>;
     tuple_t tmp; // never used
     // key data type
-    using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
+    using key_t = typename std::remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
     win_type_t winType; // type of the windows (CB or TB)
     uint64_t win_len; // window length (in no. of tuples or in time units)
     uint64_t slide_len; // window slide (in no. of tuples or in time units)
@@ -55,7 +56,7 @@ private:
     size_t n_outer; // parallelism degree in the outermost pattern
     uint64_t slide_outer; // sliding factor utilized by the outermost pattern
     role_t role; // role of the innermost pattern
-    vector<size_t> to_workers; // vector of identifiers used for scheduling purposes
+    std::vector<size_t> to_workers; // std::vector of identifiers used for scheduling purposes
     // struct of a key descriptor
     struct Key_Descriptor
     {
@@ -65,13 +66,20 @@ private:
         // Constructor
         Key_Descriptor(): rcv_counter(0) {}
     };
-    unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
+    std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     bool isCombined; // true if this node is used within a treeComb node
-    vector<pair<wrapper_in_t *, int>> output_queue; // used in case of treeComb mode
+    std::vector<std::pair<wrapper_in_t *, int>> output_queue; // used in case of treeComb mode
 
 public:
     // Constructor
-    WF_Emitter(win_type_t _winType, uint64_t _win_len, uint64_t _slide_len, size_t _pardegree, size_t _id_outer, size_t _n_outer, uint64_t _slide_outer, role_t _role):
+    WF_Emitter(win_type_t _winType,
+               uint64_t _win_len,
+               uint64_t _slide_len,
+               size_t _pardegree,
+               size_t _id_outer,
+               size_t _n_outer,
+               uint64_t _slide_outer,
+               role_t _role):
                winType(_winType),
                win_len(_win_len),
                slide_len(_slide_len),
@@ -81,7 +89,8 @@ public:
                slide_outer(_slide_outer),
                role(_role),
                to_workers(pardegree),
-               isCombined(false) {}
+               isCombined(false)
+    {}
 
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
@@ -95,13 +104,13 @@ public:
         // extract the key and id/timestamp fields from the input tuple
         tuple_t *t = extractTuple<tuple_t, input_t>(wt);
         auto key = std::get<0>(t->getControlFields()); // key
-        size_t hashcode = hash<decltype(key)>()(key); // compute the hashcode of the key
+        size_t hashcode = std::hash<decltype(key)>()(key); // compute the hashcode of the key
         uint64_t id = (winType == CB) ? std::get<1>(t->getControlFields()) : std::get<2>(t->getControlFields()); // identifier or timestamp
         // access the descriptor of the input key
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
             // create the descriptor of that key
-            keyMap.insert(make_pair(key, Key_Descriptor()));
+            keyMap.insert(std::make_pair(key, Key_Descriptor()));
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
@@ -176,7 +185,7 @@ public:
             if (!isCombined)
                 this->ff_send_out_to(out, to_workers[i]);
             else
-                output_queue.push_back(make_pair(out, to_workers[i]));
+                output_queue.push_back(std::make_pair(out, to_workers[i]));
         }
         return this->GO_ON;
     }
@@ -196,7 +205,7 @@ public:
                     if (!isCombined)
                         this->ff_send_out_to(wt, i);
                     else
-                        output_queue.push_back(make_pair(wt, i));
+                        output_queue.push_back(std::make_pair(wt, i));
                 }
             }
         }
@@ -218,7 +227,7 @@ public:
     }
 
     // method to get a reference to the internal output queue (used in treeComb mode)
-    vector<pair<wrapper_in_t *, int>> &getOutputQueue()
+    std::vector<std::pair<wrapper_in_t *, int>> &getOutputQueue()
     {
         return output_queue;
     }
@@ -226,23 +235,23 @@ public:
 
 // class WF_Collector
 template<typename result_t>
-class WF_Collector: public ff_minode_t<result_t, result_t>
+class WF_Collector: public ff::ff_minode_t<result_t, result_t>
 {
 private:
     result_t tmp; // never used
     // key data type
-    using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
+    using key_t = typename std::remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
     // inner struct of a key descriptor
     struct Key_Descriptor
     {
         uint64_t next_win; // next window to be transmitted of that key
-        deque<result_t *> resultsSet; // deque of buffered results of that key
+        std::deque<result_t *> resultsSet; // std::deque of buffered results of that key
 
         // Constructor
         Key_Descriptor(): next_win(0) {}
     };
     // hash table that maps key identifiers onto key descriptors
-    unordered_map<key_t, Key_Descriptor> keyMap;
+    std::unordered_map<key_t, Key_Descriptor> keyMap;
 
 public:
     // Constructor
@@ -264,12 +273,12 @@ public:
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
             // create the descriptor of that key
-            keyMap.insert(make_pair(key, Key_Descriptor()));
+            keyMap.insert(std::make_pair(key, Key_Descriptor()));
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
         uint64_t &next_win = key_d.next_win;
-        deque<result_t *> &resultsSet = key_d.resultsSet;
+        std::deque<result_t *> &resultsSet = key_d.resultsSet;
         // add the new result at the correct place
         if ((wid - next_win) >= resultsSet.size()) {
             size_t new_size = (wid - next_win) + 1;
@@ -293,5 +302,7 @@ public:
     // svc_end method (utilized by the FastFlow runtime)
     void svc_end() {}
 };
+
+} // namespace wf
 
 #endif

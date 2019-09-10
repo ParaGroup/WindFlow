@@ -35,7 +35,7 @@
 #include <string>
 #include <unordered_map>
 
-using namespace std;
+namespace wf {
 
 /** 
  *  \class LocalStorage
@@ -51,7 +51,7 @@ class LocalStorage
 {
 private:
     size_t n_fields; // number of fields present in the storage
-    unordered_map<string, void *> storage; // storage implemented by a hashmap
+    std::unordered_map<std::string, void *> storage; // storage implemented by a hashmap
 
 public:
     /// Constructor
@@ -67,13 +67,13 @@ public:
      *  \return a copy of the data field
      */ 
     template<typename type_t>
-    type_t get(string _name)
+    type_t get(std::string _name)
     {
         auto it = storage.find(_name);
         if (it == storage.end()) { // the field _name does not exist
             // create the field with _name
             type_t *field = new type_t();
-            storage.insert(make_pair(_name, field));
+            storage.insert(std::make_pair(_name, field));
             n_fields++;
             return *field;
         }
@@ -91,13 +91,13 @@ public:
      *  \param _val value of the data field to be written into the storage
      */ 
     template<typename type_t>
-    void put(string _name, const type_t &_val)
+    void put(std::string _name, const type_t &_val)
     {
         auto it = storage.find(_name);
         if (it == storage.end()) { // the field _name does not exist
             // create the field with key _name
             type_t *field = new type_t(_val);
-            storage.insert(make_pair(_name, field));
+            storage.insert(std::make_pair(_name, field));
             n_fields++;
             return;
         }
@@ -115,10 +115,9 @@ public:
      *  \param _name name of the data field to be deleted from the storage
      */ 
     template<typename type_t>
-    void remove(string _name)
+    void remove(std::string _name)
     {
         auto it = storage.find(_name);
-        assert(it != storage.end()); // the field must exist!
         type_t *field = reinterpret_cast<type_t *>((*it).second);
         delete field;
         storage.erase(_name);
@@ -135,5 +134,7 @@ public:
         return n_fields;
     }
 };
+
+} // namespace wf
 
 #endif

@@ -26,8 +26,8 @@
 #include <ff/ff.hpp>
 #include <windflow.hpp>
 
-using namespace ff;
 using namespace std;
+using namespace wf;
 
 // struct of the input tuple
 struct tuple_t

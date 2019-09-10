@@ -32,21 +32,21 @@
 
 // includes
 #include <vector>
+#include <meta_utils.hpp>
 #include <ff/multinode.hpp>
 
-using namespace ff;
-using namespace std;
+namespace wf {
 
 // class WinMap_Emitter
 template<typename tuple_t, typename input_t=tuple_t>
-class WinMap_Emitter: public ff_monode_t<input_t, wrapper_tuple_t<tuple_t>>
+class WinMap_Emitter: public ff::ff_monode_t<input_t, wrapper_tuple_t<tuple_t>>
 {
 private:
     // type of the wrapper of input tuples
     using wrapper_in_t = wrapper_tuple_t<tuple_t>;
     tuple_t tmp; // never used
     // key data type
-    using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
+    using key_t = typename std::remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
     size_t map_degree; // parallelism degree (MAP phase)
     win_type_t winType; // type of the windows (CB or TB)
     // struct of a key descriptor
@@ -59,14 +59,18 @@ private:
         // Constructor
         Key_Descriptor(size_t _nextDst): rcv_counter(0), nextDst(_nextDst) {}
     };
-    unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
+    std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     bool isCombined; // true if this node is used within a treeComb node
-    vector<pair<wrapper_in_t *, int>> output_queue; // used in case of treeComb mode
+    std::vector<std::pair<wrapper_in_t *, int>> output_queue; // used in case of treeComb mode
 
 public:
     // Constructor
-    WinMap_Emitter(size_t _map_degree, win_type_t _winType):
-                   map_degree(_map_degree), winType(_winType), isCombined(false) {}
+    WinMap_Emitter(size_t _map_degree,
+                   win_type_t _winType):
+                   map_degree(_map_degree),
+                   winType(_winType),
+                   isCombined(false)
+    {}
 
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
@@ -80,13 +84,13 @@ public:
         // extract the key and id/timestamp fields from the input tuple
         tuple_t *t = extractTuple<tuple_t, input_t>(wt);
         auto key = std::get<0>(t->getControlFields()); // key
-        size_t hashcode = hash<decltype(key)>()(key); // compute the hashcode of the key
+        size_t hashcode = std::hash<decltype(key)>()(key); // compute the hashcode of the key
         uint64_t id = (winType == CB) ? std::get<1>(t->getControlFields()) : std::get<2>(t->getControlFields()); // identifier or timestamp
         // access the descriptor of the input key
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
             // create the descriptor of that key
-            keyMap.insert(make_pair(key, Key_Descriptor(hashcode % map_degree)));
+            keyMap.insert(std::make_pair(key, Key_Descriptor(hashcode % map_degree)));
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
@@ -114,7 +118,7 @@ public:
         if (!isCombined)
             this->ff_send_out_to(out, key_d.nextDst);
         else
-            output_queue.push_back(make_pair(out, key_d.nextDst));
+            output_queue.push_back(std::make_pair(out, key_d.nextDst));
         key_d.nextDst = (key_d.nextDst + 1) % map_degree;
         return this->GO_ON;
     }
@@ -134,7 +138,7 @@ public:
                     if (!isCombined)
                         this->ff_send_out_to(out, i);
                     else
-                        output_queue.push_back(make_pair(out, i));
+                        output_queue.push_back(std::make_pair(out, i));
                 }
             }
         }
@@ -156,7 +160,7 @@ public:
     }
 
     // method to get a reference to the internal output queue (used in treeComb mode)
-    vector<pair<wrapper_in_t *, int>> &getOutputQueue()
+    std::vector<std::pair<wrapper_in_t *, int>> &getOutputQueue()
     {
         return output_queue;
     }
@@ -164,14 +168,14 @@ public:
 
 // class WinMap_Dropper
 template<typename tuple_t>
-class WinMap_Dropper: public ff_node_t<wrapper_tuple_t<tuple_t>, wrapper_tuple_t<tuple_t>>
+class WinMap_Dropper: public ff::ff_node_t<wrapper_tuple_t<tuple_t>, wrapper_tuple_t<tuple_t>>
 {
 private:
     // type of the wrapper of input tuples
     using wrapper_in_t = wrapper_tuple_t<tuple_t>;
     tuple_t tmp; // never used
     // key data type
-    using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
+    using key_t = typename std::remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
     size_t map_degree; // parallelism degree (MAP phase)
     // struct of a key descriptor
     struct Key_Descriptor
@@ -183,12 +187,16 @@ private:
         // Constructor
         Key_Descriptor(size_t _nextDst): rcv_counter(0), nextDst(_nextDst) {}
     };
-    unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
+    std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     size_t my_id; // identifier of the Win_Seq associated with this WinMap_Dropper istance
 
 public:
     // Constructor
-    WinMap_Dropper(size_t _my_id, size_t _map_degree): my_id(_my_id), map_degree(_map_degree) {}
+    WinMap_Dropper(size_t _my_id,
+                   size_t _map_degree):
+                   my_id(_my_id),
+                   map_degree(_map_degree)
+    {}
 
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
@@ -202,12 +210,12 @@ public:
         // extract the key field from the input tuple
         tuple_t *t = extractTuple<tuple_t, wrapper_in_t>(wt);
         auto key = std::get<0>(t->getControlFields()); // key
-        size_t hashcode = hash<decltype(key)>()(key); // compute the hashcode of the key
+        size_t hashcode = std::hash<decltype(key)>()(key); // compute the hashcode of the key
         // access the descriptor of the input key
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
             // create the descriptor of that key
-            keyMap.insert(make_pair(key, Key_Descriptor(hashcode % map_degree)));
+            keyMap.insert(std::make_pair(key, Key_Descriptor(hashcode % map_degree)));
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
@@ -248,23 +256,23 @@ public:
 
 // class WinMap_Collector
 template<typename result_t>
-class WinMap_Collector: public ff_minode_t<result_t, result_t>
+class WinMap_Collector: public ff::ff_minode_t<result_t, result_t>
 {
 private:
     result_t tmp; // never used
     // key data type
-    using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
+    using key_t = typename std::remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
     // inner struct of a key descriptor
     struct Key_Descriptor
     {
         uint64_t next_win; // next window to be transmitted of that key
-        deque<result_t *> resultsSet; // deque of buffered results of that key
+        std::deque<result_t *> resultsSet; // std::deque of buffered results of that key
 
         // Constructor
         Key_Descriptor(): next_win(0) {}
     };
     // hash table that maps key identifiers onto key descriptors
-    unordered_map<key_t, Key_Descriptor> keyMap;
+    std::unordered_map<key_t, Key_Descriptor> keyMap;
 
 public:
     // Constructor
@@ -286,12 +294,12 @@ public:
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
             // create the descriptor of that key
-            keyMap.insert(make_pair(key, Key_Descriptor()));
+            keyMap.insert(std::make_pair(key, Key_Descriptor()));
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
         uint64_t &next_win = key_d.next_win;
-        deque<result_t *> &resultsSet = key_d.resultsSet;
+        std::deque<result_t *> &resultsSet = key_d.resultsSet;
         // add the new result at the correct place
         if ((wid - next_win) >= resultsSet.size()) {
             size_t new_size = (wid - next_win) + 1;
@@ -315,5 +323,7 @@ public:
     // svc_end method (utilized by the FastFlow runtime)
     void svc_end() {}
 };
+
+} // namespace wf
 
 #endif

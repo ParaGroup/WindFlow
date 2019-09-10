@@ -32,8 +32,10 @@
 #include <windflow_gpu.hpp>
 #include <sum_cb.hpp>
 
-using namespace ff;
 using namespace std;
+using namespace chrono;
+using namespace ff;
+using namespace wf;
 
 // main
 int main(int argc, char *argv[])

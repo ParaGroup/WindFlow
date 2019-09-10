@@ -38,7 +38,4 @@
 #include <pane_farm_gpu.hpp>
 #include <win_mapreduce_gpu.hpp>
 
-/// namespace
-using namespace ff;
-
 #endif

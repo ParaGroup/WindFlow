@@ -46,6 +46,8 @@
 #include <broadcast_node.hpp>
 #include <transformations.hpp>
 
+namespace wf {
+
 /** 
  *  \class MultiPipe
  *  
@@ -54,21 +56,21 @@
  *  This class implements the MultiPipe construct used to build a complex linear composition
  *  of patterns available in the WindFlow library.
  */ 
-class MultiPipe: public ff_pipeline
+class MultiPipe: public ff::ff_pipeline
 {
 private:
     // enumeration of the routing types
     enum routing_types_t { SIMPLE, COMPLEX };
-	string name; // string with the unique name of the MultiPipe
+	std::string name; // std::string with the unique name of the MultiPipe
 	bool has_source; // true if the MultiPipe has a Source
 	bool has_sink; // true if the MultiPipe ends with a Sink
-	ff_a2a *last; // pointer to the last matrioska
-    ff_a2a *secondToLast; // pointer to the second to last matrioska
+	ff::ff_a2a *last; // pointer to the last matrioska
+    ff::ff_a2a *secondToLast; // pointer to the second to last matrioska
     bool isUnified; // true if the MultiPipe is used in a union with other MultiPipe
     bool forceShuffling; // true if we force the use of a shuffling for adding the next operator to the MultiPipe
     size_t lastParallelism; // parallelism of the last operator added to the MultiPipe (0 if not defined)
     // class of the self-killer multi-input node (selfkiller_node)
-    class selfkiller_node: public ff_minode
+    class selfkiller_node: public ff::ff_minode
     {
         // svc_init (utilized by the FastFlow runtime)
         int svc_init()
@@ -85,7 +87,7 @@ private:
     };
 
     // Private Constructor (used by union only)
-    MultiPipe(string _name, vector<ff_node *> _init_set):
+    MultiPipe(std::string _name, std::vector<ff_node *> _init_set):
               name(_name),
               has_source(true),
               has_sink(false),
@@ -94,10 +96,10 @@ private:
               lastParallelism(0)
     {
         // create the initial matrioska
-        ff_a2a *matrioska = new ff_a2a();
+        ff::ff_a2a *matrioska = new ff::ff_a2a();
         matrioska->add_firstset(_init_set, 0, false);
-        vector<ff_node *> second_set;
-        ff_pipeline *stage = new ff_pipeline();
+        std::vector<ff_node *> second_set;
+        ff::ff_pipeline *stage = new ff::ff_pipeline();
         stage->add_stage(new selfkiller_node(), true);
         second_set.push_back(stage);
         matrioska->add_secondset(second_set, true);
@@ -108,15 +110,15 @@ private:
 
     // generic method to add an operator to the MultiPipe
     template<typename emitter_t, typename collector_t>
-    void add_operator(ff_farm *_pattern, routing_types_t _type, ordering_mode_t _ordering)
+    void add_operator(ff::ff_farm *_pattern, routing_types_t _type, ordering_mode_t _ordering)
     {
         // check the Source and Sink presence
         if (!this->has_source) {
-            cerr << RED << "WindFlow Error: Source is not defined for the MultiPipe [" << name << "]" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: Source is not defined for the MultiPipe [" << name << "]" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         if (this->has_sink) {
-            cerr << RED << "WindFlow Error: MultiPipe [" << name << "]" << " is terminated by a Sink" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: MultiPipe [" << name << "]" << " is terminated by a Sink" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         size_t n1 = (last->getFirstSet()).size();
@@ -127,7 +129,7 @@ private:
             auto worker_set = _pattern->getWorkers();
             // add the pattern's workers to the pipelines in the first set of the matrioska
             for (size_t i=0; i<n1; i++) {
-                ff_pipeline *stage = static_cast<ff_pipeline *>(first_set[i]);
+                ff::ff_pipeline *stage = static_cast<ff::ff_pipeline *>(first_set[i]);
                 stage->add_stage(worker_set[i], false);
             }
         }
@@ -136,16 +138,16 @@ private:
             // prepare the nodes of the first_set of the last matrioska for the shuffling
             auto first_set_m = last->getFirstSet();
             for (size_t i=0; i<n1; i++) {
-                ff_pipeline *stage = static_cast<ff_pipeline *>(first_set_m[i]);
+                ff::ff_pipeline *stage = static_cast<ff::ff_pipeline *>(first_set_m[i]);
                 emitter_t *tmp_e = static_cast<emitter_t *>(_pattern->getEmitter());
                 combine_with_laststage(*stage, new emitter_t(*tmp_e), true);
             }
             // create a new matrioska
-            ff_a2a *matrioska = new ff_a2a();
-            vector<ff_node *> first_set;
+            ff::ff_a2a *matrioska = new ff::ff_a2a();
+            std::vector<ff_node *> first_set;
             auto worker_set = _pattern->getWorkers();
             for (size_t i=0; i<n2; i++) {
-                ff_pipeline *stage = new ff_pipeline();
+                ff::ff_pipeline *stage = new ff::ff_pipeline();
                 stage->add_stage(worker_set[i], false);
                 if (lastParallelism != 1 || forceShuffling || _ordering == ID || _ordering == TS_RENUMBERING)
                     combine_with_firststage(*stage, new collector_t(_ordering), true);
@@ -154,12 +156,12 @@ private:
                 first_set.push_back(stage);
             }
             matrioska->add_firstset(first_set, 0, true);
-            vector<ff_node *> second_set;
-            ff_pipeline *stage = new ff_pipeline();
+            std::vector<ff_node *> second_set;
+            ff::ff_pipeline *stage = new ff::ff_pipeline();
             stage->add_stage(new selfkiller_node(), true);
             second_set.push_back(stage);
             matrioska->add_secondset(second_set, true);
-            ff_pipeline *previous = static_cast<ff_pipeline *>((last->getSecondSet())[0]);
+            ff::ff_pipeline *previous = static_cast<ff::ff_pipeline *>((last->getSecondSet())[0]);
             previous->remove_stage(0); // remove the self-killer node
             previous->add_stage(matrioska, true); // Chinese boxes
             secondToLast = last;
@@ -174,15 +176,15 @@ private:
 
     // generic method to chain an operator with the previous one in the MultiPipe (if it is possible)
     template<typename worker_t>
-    bool chain_operator(ff_farm *_pattern)
+    bool chain_operator(ff::ff_farm *_pattern)
     {
         // check the Source and Sink presence
         if (!this->has_source) {
-            cerr << RED << "WindFlow Error: Source is not defined for the MultiPipe [" << name << "]" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: Source is not defined for the MultiPipe [" << name << "]" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         if (this->has_sink) {
-            cerr << RED << "WindFlow Error: MultiPipe [" << name << "]" << " is terminated by a Sink" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: MultiPipe [" << name << "]" << " is terminated by a Sink" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         size_t n1 = (last->getFirstSet()).size();
@@ -193,7 +195,7 @@ private:
             auto worker_set = _pattern->getWorkers();
             // chaining the pattern's workers with the last node of each pipeline in the first set of the matrioska
             for (size_t i=0; i<n1; i++) {
-                ff_pipeline *stage = static_cast<ff_pipeline *>(first_set[i]);
+                ff::ff_pipeline *stage = static_cast<ff::ff_pipeline *>(first_set[i]);
                 worker_t *worker = static_cast<worker_t *>(worker_set[i]);
                 combine_with_laststage(*stage, worker, false);
             }
@@ -206,18 +208,18 @@ private:
     }
 
     // method to prepare the MultiPipe for the union with other MultiPipe
-    vector<ff_node *> prepare4Union()
+    std::vector<ff_node *> prepare4Union()
     {
         // check the Source and Sink presence
         if (!this->has_source) {
-            cerr << RED << "WindFlow Error: Source is not defined for the MultiPipe [" << name << "]" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: Source is not defined for the MultiPipe [" << name << "]" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         if (this->has_sink) {
-            cerr << RED << "WindFlow Error: MultiPipe [" << name << "]" << " is terminated by a Sink" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: MultiPipe [" << name << "]" << " is terminated by a Sink" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
-        vector<ff_node *> result;
+        std::vector<ff_node *> result;
         // Case 1
         if (this->secondToLast == nullptr) {
             auto first_set = last->getFirstSet();
@@ -228,7 +230,7 @@ private:
         else {
             last->cleanup_firstset(false);
             auto first_set_last = last->getFirstSet();
-            vector<ff_node *> second_set_secondToLast;
+            std::vector<ff_node *> second_set_secondToLast;
             for (size_t i=0; i<first_set_last.size(); i++)
                 second_set_secondToLast.push_back(first_set_last[i]);
             secondToLast->change_secondset(second_set_secondToLast, true);
@@ -242,18 +244,18 @@ private:
     }
 
     // prepareInitSet method: base case 1
-    vector<ff_node *> prepareInitSet() { return vector<ff_node *>(); }
+    std::vector<ff_node *> prepareInitSet() { return std::vector<ff_node *>(); }
 
     // prepareInitSet method: base case 2
     template<typename MULTIPIPE>
-    vector<ff_node *> prepareInitSet(MULTIPIPE &_pipe) { return _pipe.prepare4Union(); }
+    std::vector<ff_node *> prepareInitSet(MULTIPIPE &_pipe) { return _pipe.prepare4Union(); }
 
     // prepareInitSet method: generic case
     template<typename MULTIPIPE, typename ...MULTIPIPES>
-    vector<ff_node *> prepareInitSet(MULTIPIPE &_first, MULTIPIPES&... _pipes)
+    std::vector<ff_node *> prepareInitSet(MULTIPIPE &_first, MULTIPIPES&... _pipes)
     {
-        vector<ff_node *> v1 = _first.prepare4Union();
-        vector<ff_node *> v2 = prepareInitSet(_pipes...);
+        std::vector<ff_node *> v1 = _first.prepare4Union();
+        std::vector<ff_node *> v2 = prepareInitSet(_pipes...);
         v1.insert(v1.end(), v2.begin(), v2.end());
         return v1;
     }
@@ -262,9 +264,9 @@ public:
 	/** 
      *  \brief Constructor
      *  
-     *  \param _name string with the unique name of the MultiPipe
+     *  \param _name std::string with the unique name of the MultiPipe
      */ 
-    MultiPipe(string _name="anonymous_pipe"):
+    MultiPipe(std::string _name="anonymous_pipe"):
               name(_name),
               has_source(false),
               has_sink(false),
@@ -285,21 +287,21 @@ public:
     {
         // check the Source presence
         if (this->has_source) {
-            cerr << RED << "WindFlow Error: Source is already defined for the MultiPipe [" << name << "]" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: Source is already defined for the MultiPipe [" << name << "]" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // create the initial matrioska
-        ff_a2a *matrioska = new ff_a2a();
-        vector<ff_node *> first_set;
+        ff::ff_a2a *matrioska = new ff::ff_a2a();
+        std::vector<ff_node *> first_set;
         auto workers = _source.getFirstSet();
         for (size_t i=0; i<workers.size(); i++) {
-            ff_pipeline *stage = new ff_pipeline();
+            ff::ff_pipeline *stage = new ff::ff_pipeline();
             stage->add_stage(workers[i], false);
             first_set.push_back(stage);
         }
         matrioska->add_firstset(first_set, 0, true);
-        vector<ff_node *> second_set;
-        ff_pipeline *stage = new ff_pipeline();
+        std::vector<ff_node *> second_set;
+        ff::ff_pipeline *stage = new ff::ff_pipeline();
         stage->add_stage(new selfkiller_node(), true);
         second_set.push_back(stage);
         matrioska->add_secondset(second_set, true);
@@ -432,7 +434,7 @@ public:
         // check whether the internal replicas of the Win_Farm are complex or not
         if (_wf.useComplexNesting()) {
             if (_wf.getOptLevel() != LEVEL2 || _wf.getInnerOptLevel() != LEVEL2) {
-                cerr << RED << "WindFlow Error: LEVEL2 optimization needed to add a complex nesting of patterns to the multipipe" << DEFAULT << endl;
+                std::cerr << RED << "WindFlow Error: LEVEL2 optimization needed to add a complex nesting of patterns to the multipipe" << DEFAULT << std::endl;
                 exit(EXIT_FAILURE);
             }
             else {
@@ -477,10 +479,10 @@ public:
                         _wf.change_emitter(new Broadcast_Node<tuple_t>(_wf.getParallelism() * (_wf.getInnerParallelism()).first), true);
                         size_t n_map = (_wf.getInnerParallelism()).first;
                         for (size_t i=0; i<_wf.getParallelism(); i++) {
-                            ff_pipeline *pipe = static_cast<ff_pipeline *>((_wf.getWorkers())[i]);
+                            ff::ff_pipeline *pipe = static_cast<ff::ff_pipeline *>((_wf.getWorkers())[i]);
                             auto &stages = pipe->getStages();
-                            ff_a2a *a2a = static_cast<ff_a2a *>(stages[0]);
-                            vector<ff_node *> nodes;
+                            ff::ff_a2a *a2a = static_cast<ff::ff_a2a *>(stages[0]);
+                            std::vector<ff_node *> nodes;
                             for (size_t j=0; j<n_map; j++)
                                 nodes.push_back(new WinMap_Dropper<tuple_t>(j, n_map));
                             combine_a2a_withFirstNodes(a2a, nodes, true);
@@ -520,7 +522,7 @@ public:
         // check whether the internal replicas of the Win_Farm_GPU are complex or not
         if (_wf.useComplexNesting()) {
             if (_wf.getOptLevel() != LEVEL2 || _wf.getInnerOptLevel() != LEVEL2) {
-                cerr << RED << "WindFlow Error: LEVEL2 optimization needed to add a complex nesting of patterns to the multipipe" << DEFAULT << endl;
+                std::cerr << RED << "WindFlow Error: LEVEL2 optimization needed to add a complex nesting of patterns to the multipipe" << DEFAULT << std::endl;
                 exit(EXIT_FAILURE);
             }
             else {
@@ -565,10 +567,10 @@ public:
                         _wf.change_emitter(new Broadcast_Node<tuple_t>(_wf.getParallelism() * (_wf.getInnerParallelism()).first), true);
                         size_t n_map = (_wf.getInnerParallelism()).first;
                         for (size_t i=0; i<_wf.getParallelism(); i++) {
-                            ff_pipeline *pipe = static_cast<ff_pipeline *>((_wf.getWorkers())[i]);
+                            ff::ff_pipeline *pipe = static_cast<ff::ff_pipeline *>((_wf.getWorkers())[i]);
                             auto &stages = pipe->getStages();
-                            ff_a2a *a2a = static_cast<ff_a2a *>(stages[0]);
-                            vector<ff_node *> nodes;
+                            ff::ff_a2a *a2a = static_cast<ff::ff_a2a *>(stages[0]);
+                            std::vector<ff_node *> nodes;
                             for (size_t j=0; j<n_map; j++)
                                 nodes.push_back(new WinMap_Dropper<tuple_t>(j, n_map));
                             combine_a2a_withFirstNodes(a2a, nodes, true);
@@ -608,7 +610,7 @@ public:
         // check whether the internal replicas of the Key_Farm are complex or not
         if (_kf.useComplexNesting()) {
             if (_kf.getOptLevel() != LEVEL2 || _kf.getInnerOptLevel() != LEVEL2) {
-                cerr << RED << "WindFlow Error: LEVEL2 optimization needed to add a complex nesting of patterns to the multipipe" << DEFAULT << endl;
+                std::cerr << RED << "WindFlow Error: LEVEL2 optimization needed to add a complex nesting of patterns to the multipipe" << DEFAULT << std::endl;
                 exit(EXIT_FAILURE);
             }
             else {
@@ -624,7 +626,7 @@ public:
                             // special case count-based windows
                             auto *emitter = static_cast<TreeComb<KF_Emitter<tuple_t>, WF_Emitter<tuple_t>>*>(_kf.getEmitter());
                             KF_Emitter<tuple_t> *rootnode = new KF_Emitter<tuple_t>(*(emitter->getRootNode()));
-                            vector<Broadcast_Node<tuple_t>*> children;
+                            std::vector<Broadcast_Node<tuple_t>*> children;
                             size_t n_plq = (_kf.getInnerParallelism()).first;
                             for (size_t i=0; i<_kf.getParallelism(); i++) {
                                 auto *b_node = new Broadcast_Node<tuple_t>(n_plq);
@@ -653,7 +655,7 @@ public:
                         // special case count-based windows
                         auto *emitter = static_cast<TreeComb<KF_Emitter<tuple_t>, WinMap_Emitter<tuple_t>>*>(_kf.getEmitter());
                         KF_Emitter<tuple_t> *rootnode = new KF_Emitter<tuple_t>(*(emitter->getRootNode()));
-                        vector<Broadcast_Node<tuple_t>*> children;
+                        std::vector<Broadcast_Node<tuple_t>*> children;
                         size_t n_map = (_kf.getInnerParallelism()).first;
                         for (size_t i=0; i<_kf.getParallelism(); i++) {
                             auto *b_node = new Broadcast_Node<tuple_t>(n_map);
@@ -664,10 +666,10 @@ public:
                         _kf.cleanup_emitter(false);
                         _kf.change_emitter(new_emitter, true);
                         for (size_t i=0; i<_kf.getParallelism(); i++) {
-                            ff_pipeline *pipe = static_cast<ff_pipeline *>((_kf.getWorkers())[i]);
+                            ff::ff_pipeline *pipe = static_cast<ff::ff_pipeline *>((_kf.getWorkers())[i]);
                             auto &stages = pipe->getStages();
-                            ff_a2a *a2a = static_cast<ff_a2a *>(stages[0]);
-                            vector<ff_node *> nodes;
+                            ff::ff_a2a *a2a = static_cast<ff::ff_a2a *>(stages[0]);
+                            std::vector<ff_node *> nodes;
                             for (size_t j=0; j<n_map; j++)
                                 nodes.push_back(new WinMap_Dropper<tuple_t>(j, n_map));
                             combine_a2a_withFirstNodes(a2a, nodes, true);
@@ -699,7 +701,7 @@ public:
         // check whether the internal replicas of the Key_Farm_GPU are complex or not
         if (_kf.useComplexNesting()) {
             if (_kf.getOptLevel() != LEVEL2 || _kf.getInnerOptLevel() != LEVEL2) {
-                cerr << RED << "WindFlow Error: LEVEL2 optimization needed to add a complex nesting of patterns to the multipipe" << DEFAULT << endl;
+                std::cerr << RED << "WindFlow Error: LEVEL2 optimization needed to add a complex nesting of patterns to the multipipe" << DEFAULT << std::endl;
                 exit(EXIT_FAILURE);
             }
             else {
@@ -715,7 +717,7 @@ public:
                             // special case count-based windows
                             auto *emitter = static_cast<TreeComb<KF_Emitter<tuple_t>, WF_Emitter<tuple_t>>*>(_kf.getEmitter());
                             KF_Emitter<tuple_t> *rootnode = new KF_Emitter<tuple_t>(*(emitter->getRootNode()));
-                            vector<Broadcast_Node<tuple_t>*> children;
+                            std::vector<Broadcast_Node<tuple_t>*> children;
                             size_t n_plq = (_kf.getInnerParallelism()).first;
                             for (size_t i=0; i<_kf.getParallelism(); i++) {
                                 auto *b_node = new Broadcast_Node<tuple_t>(n_plq);
@@ -744,7 +746,7 @@ public:
                         // special case count-based windows
                         auto *emitter = static_cast<TreeComb<KF_Emitter<tuple_t>, WinMap_Emitter<tuple_t>>*>(_kf.getEmitter());
                         KF_Emitter<tuple_t> *rootnode = new KF_Emitter<tuple_t>(*(emitter->getRootNode()));
-                        vector<Broadcast_Node<tuple_t>*> children;
+                        std::vector<Broadcast_Node<tuple_t>*> children;
                         size_t n_map = (_kf.getInnerParallelism()).first;
                         for (size_t i=0; i<_kf.getParallelism(); i++) {
                             auto *b_node = new Broadcast_Node<tuple_t>(n_map);
@@ -755,10 +757,10 @@ public:
                         _kf.cleanup_emitter(false);
                         _kf.change_emitter(new_emitter, true);
                         for (size_t i=0; i<_kf.getParallelism(); i++) {
-                            ff_pipeline *pipe = static_cast<ff_pipeline *>((_kf.getWorkers())[i]);
+                            ff::ff_pipeline *pipe = static_cast<ff::ff_pipeline *>((_kf.getWorkers())[i]);
                             auto &stages = pipe->getStages();
-                            ff_a2a *a2a = static_cast<ff_a2a *>(stages[0]);
-                            vector<ff_node *> nodes;
+                            ff::ff_a2a *a2a = static_cast<ff::ff_a2a *>(stages[0]);
+                            std::vector<ff_node *> nodes;
                             for (size_t j=0; j<n_map; j++)
                                 nodes.push_back(new WinMap_Dropper<tuple_t>(j, n_map));
                             combine_a2a_withFirstNodes(a2a, nodes, true);
@@ -787,16 +789,16 @@ public:
     {
         // check the optimization level of the Pane_Farm
         if (_pf.getOptLevel() != LEVEL0) {
-            cerr << RED << "WindFlow Error: LEVEL0 optimization needed to add the Pane_Farm to the multipipe" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: LEVEL0 optimization needed to add the Pane_Farm to the multipipe" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
-        ff_pipeline *pipe = static_cast<ff_pipeline *>(&_pf);
-        const svector<ff_node *> &stages = pipe->getStages();
-        ff_farm *plq = nullptr;
+        ff::ff_pipeline *pipe = static_cast<ff::ff_pipeline *>(&_pf);
+        const ff::svector<ff_node *> &stages = pipe->getStages();
+        ff::ff_farm *plq = nullptr;
         // check if the PLQ stage is a farm, otherwise prepare it
         if (!stages[0]->isFarm()) {
-            plq = new ff_farm();
-            vector<ff_node *> w;
+            plq = new ff::ff_farm();
+            std::vector<ff_node *> w;
             w.push_back(stages[0]); // there is for sure one single worker in the PLQ
             plq->add_emitter(new Standard_Emitter<tuple_t>(1));
             plq->add_workers(w);
@@ -810,7 +812,7 @@ public:
             delete plq;
         }
         else {
-            plq = static_cast<ff_farm *>(stages[0]);
+            plq = static_cast<ff::ff_farm *>(stages[0]);
             // check the type of the windows
             if (_pf.getWinType() == TB) { // time-based windows
                 // call the generic method to add the operator (PLQ stage) to the MultiPipe
@@ -824,11 +826,11 @@ public:
                 add_operator<Broadcast_Node<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, COMPLEX, TS_RENUMBERING);
             }
         }
-        ff_farm *wlq = nullptr;
+        ff::ff_farm *wlq = nullptr;
         // check if the WLQ stage is a farm, otherwise prepare it
         if (!stages[1]->isFarm()) {
-            wlq = new ff_farm();
-            vector<ff_node *> w;
+            wlq = new ff::ff_farm();
+            std::vector<ff_node *> w;
             w.push_back(stages[1]); // there is for sure one single worker in the WLQ
             wlq->add_emitter(new Standard_Emitter<result_t>(1));
             wlq->add_workers(w);
@@ -840,7 +842,7 @@ public:
             delete wlq;
         }
         else {
-            wlq = static_cast<ff_farm *>(stages[1]);
+            wlq = static_cast<ff::ff_farm *>(stages[1]);
             // call the generic method to add the operator (WLQ stage) to the MultiPipe
             add_operator<WF_Emitter<result_t>, Ordering_Node<result_t, wrapper_tuple_t<result_t>>>(wlq, COMPLEX, ID);
         }
@@ -857,16 +859,16 @@ public:
     {
         // check the optimization level of the Pane_Farm_GPU
         if (_pf.getOptLevel() != LEVEL0) {
-            cerr << RED << "WindFlow Error: LEVEL0 optimization needed to add the Pane_Farm_GPU to the multipipe" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: LEVEL0 optimization needed to add the Pane_Farm_GPU to the multipipe" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
-        ff_pipeline *pipe = static_cast<ff_pipeline *>(&_pf);
-        const svector<ff_node *> &stages = pipe->getStages();
-        ff_farm *plq = nullptr;
+        ff::ff_pipeline *pipe = static_cast<ff::ff_pipeline *>(&_pf);
+        const ff::svector<ff_node *> &stages = pipe->getStages();
+        ff::ff_farm *plq = nullptr;
         // check if the PLQ stage is a farm, otherwise prepare it
         if (!stages[0]->isFarm()) {
-            plq = new ff_farm();
-            vector<ff_node *> w;
+            plq = new ff::ff_farm();
+            std::vector<ff_node *> w;
             w.push_back(stages[0]); // there is for sure one single worker in the PLQ
             plq->add_emitter(new Standard_Emitter<tuple_t>(1));
             plq->add_workers(w);
@@ -880,7 +882,7 @@ public:
             delete plq;
         }
         else {
-            plq = static_cast<ff_farm *>(stages[0]);
+            plq = static_cast<ff::ff_farm *>(stages[0]);
             // check the type of the windows
             if (_pf.getWinType() == TB) { // time-based windows
                 // call the generic method to add the operator (PLQ stage) to the MultiPipe
@@ -894,11 +896,11 @@ public:
                 add_operator<Broadcast_Node<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, COMPLEX, TS_RENUMBERING);
             }
         }
-        ff_farm *wlq = nullptr;
+        ff::ff_farm *wlq = nullptr;
         // check if the WLQ stage is a farm, otherwise prepare it
         if (!stages[1]->isFarm()) {
-            wlq = new ff_farm();
-            vector<ff_node *> w;
+            wlq = new ff::ff_farm();
+            std::vector<ff_node *> w;
             w.push_back(stages[1]); // there is for sure one single worker in the WLQ
             wlq->add_emitter(new Standard_Emitter<result_t>(1));
             wlq->add_workers(w);
@@ -910,7 +912,7 @@ public:
             delete wlq;
         }
         else {
-            wlq = static_cast<ff_farm *>(stages[1]);
+            wlq = static_cast<ff::ff_farm *>(stages[1]);
             // call the generic method to add the operator (WLQ stage) to the MultiPipe
             add_operator<WF_Emitter<result_t>, Ordering_Node<result_t, wrapper_tuple_t<result_t>>>(wlq, COMPLEX, ID);
         }
@@ -927,13 +929,13 @@ public:
     {
         // check the optimization level of the Win_MapReduce
         if (_wmr.getOptLevel() != LEVEL0) {
-            cerr << RED << "WindFlow Error: LEVEL0 optimization needed to add the Win_MapReduce to the multipipe" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: LEVEL0 optimization needed to add the Win_MapReduce to the multipipe" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // add the MAP stage
-        ff_pipeline *pipe = static_cast<ff_pipeline *>(&_wmr);
-        const svector<ff_node *> &stages = pipe->getStages();
-        ff_farm *map = static_cast<ff_farm *>(stages[0]);
+        ff::ff_pipeline *pipe = static_cast<ff::ff_pipeline *>(&_wmr);
+        const ff::svector<ff_node *> &stages = pipe->getStages();
+        ff::ff_farm *map = static_cast<ff::ff_farm *>(stages[0]);
         // check the type of the windows
         if (_wmr.getWinType() == TB) { // time-based windows
             // call the generic method to add the operator (MAP stage) to the MultiPipe
@@ -942,12 +944,12 @@ public:
         else {
             // special case count-based windows
             size_t n_map = (map->getWorkers()).size();
-            ff_farm *new_map = new ff_farm();
+            ff::ff_farm *new_map = new ff::ff_farm();
             auto worker_set = map->getWorkers();
-            vector<ff_node *> w;
+            std::vector<ff_node *> w;
             new_map->add_emitter(new Broadcast_Node<tuple_t>(n_map));
             for (size_t i=0; i<n_map; i++) {
-                ff_comb *comb = new ff_comb(new WinMap_Dropper<tuple_t>(i, n_map), worker_set[i], true, false);
+                ff::ff_comb *comb = new ff::ff_comb(new WinMap_Dropper<tuple_t>(i, n_map), worker_set[i], true, false);
                 w.push_back(comb);
             }
             new_map->add_workers(w);
@@ -959,11 +961,11 @@ public:
             delete new_map;
         }
         // add the REDUCE stage
-        ff_farm *reduce = nullptr;
+        ff::ff_farm *reduce = nullptr;
         // check if the REDUCE stage is a farm, otherwise prepare it
         if (!stages[1]->isFarm()) {
-            reduce = new ff_farm();
-            vector<ff_node *> w;
+            reduce = new ff::ff_farm();
+            std::vector<ff_node *> w;
             w.push_back(stages[1]);
             reduce->add_emitter(new Standard_Emitter<result_t>(1));
             reduce->add_workers(w);
@@ -975,7 +977,7 @@ public:
             delete reduce;
         }
         else {
-            reduce = static_cast<ff_farm *>(stages[1]);
+            reduce = static_cast<ff::ff_farm *>(stages[1]);
             // call the generic method to add the operator (REDUCE stage) to the MultiPipe
             add_operator<WF_Emitter<result_t>, Ordering_Node<result_t, wrapper_tuple_t<result_t>>>(reduce, COMPLEX, ID);
         }
@@ -992,13 +994,13 @@ public:
     {
         // check the optimization level of the Win_MapReduce_GPU
         if (_wmr.getOptLevel() != LEVEL0) {
-            cerr << RED << "WindFlow Error: LEVEL0 optimization needed to add the Win_MapReduce_GPU to the multipipe" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: LEVEL0 optimization needed to add the Win_MapReduce_GPU to the multipipe" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // add the MAP stage
-        ff_pipeline *pipe = static_cast<ff_pipeline *>(&_wmr);
-        const svector<ff_node *> &stages = pipe->getStages();
-        ff_farm *map = static_cast<ff_farm *>(stages[0]);
+        ff::ff_pipeline *pipe = static_cast<ff::ff_pipeline *>(&_wmr);
+        const ff::svector<ff_node *> &stages = pipe->getStages();
+        ff::ff_farm *map = static_cast<ff::ff_farm *>(stages[0]);
         // check the type of the windows
         if (_wmr.getWinType() == TB) { // time-based windows
             // call the generic method to add the operator (MAP stage) to the MultiPipe
@@ -1007,12 +1009,12 @@ public:
         else {
             // special case count-based windows
             size_t n_map = (map->getWorkers()).size();
-            ff_farm *new_map = new ff_farm();
+            ff::ff_farm *new_map = new ff::ff_farm();
             auto worker_set = map->getWorkers();
-            vector<ff_node *> w;
+            std::vector<ff_node *> w;
             new_map->add_emitter(new Broadcast_Node<tuple_t>(n_map));
             for (size_t i=0; i<n_map; i++) {
-                ff_comb *comb = new ff_comb(new WinMap_Dropper<tuple_t>(i, n_map), worker_set[i], true, false);
+                ff::ff_comb *comb = new ff::ff_comb(new WinMap_Dropper<tuple_t>(i, n_map), worker_set[i], true, false);
                 w.push_back(comb);
             }
             new_map->add_workers(w);
@@ -1024,11 +1026,11 @@ public:
             delete new_map;
         }
         // add the REDUCE stage
-        ff_farm *reduce = nullptr;
+        ff::ff_farm *reduce = nullptr;
         // check if the REDUCE stage is a farm, otherwise prepare it
         if (!stages[1]->isFarm()) {
-            reduce = new ff_farm();
-            vector<ff_node *> w;
+            reduce = new ff::ff_farm();
+            std::vector<ff_node *> w;
             w.push_back(stages[1]);
             reduce->add_emitter(new Standard_Emitter<result_t>(1));
             reduce->add_workers(w);
@@ -1040,7 +1042,7 @@ public:
             delete reduce;
         }
         else {
-            reduce = static_cast<ff_farm *>(stages[1]);
+            reduce = static_cast<ff::ff_farm *>(stages[1]);
             // call the generic method to add the operator (REDUCE stage) to the MultiPipe
             add_operator<WF_Emitter<result_t>, Ordering_Node<result_t, wrapper_tuple_t<result_t>>>(reduce, COMPLEX, ID);
         }
@@ -1084,42 +1086,42 @@ public:
 #if __cplusplus >= 201703L
     /** 
      *  \brief Union of the MultiPipe with a set of other MultiPipe (only C++17)
-     *  \param _name string with the unique name of the new MultiPipe
+     *  \param _name std::string with the unique name of the new MultiPipe
      *  \param _pipes sequence of MultiPipe
      *  \return a new MultiPipe (the result of the union between this and _pipes)
      */ 
     template<typename ...MULTIPIPES>
-    MultiPipe unionMultiPipes(string _name="anonymous_union_pipe", MULTIPIPES&... _pipes)
+    MultiPipe unionMultiPipes(std::string _name="anonymous_union_pipe", MULTIPIPES&... _pipes)
     {
-        vector<ff_node *> init_set = prepareInitSet(*this, _pipes...);
+        std::vector<ff_node *> init_set = prepareInitSet(*this, _pipes...);
         return MultiPipe(_name, init_set);
     }
 #endif
 
     /** 
      *  \brief Union of the MultiPipe with a set of other MultiPipe
-     *  \param _name string with the unique name of the new MultiPipe
+     *  \param _name std::string with the unique name of the new MultiPipe
      *  \param _pipes sequence of MultiPipe
      *  \return a pointer to a new MultiPipe (the result of the union between this and _pipes)
      */ 
     template<typename ...MULTIPIPES>
-    MultiPipe *unionMultiPipes_ptr(string _name="anonymous_union_pipe", MULTIPIPES&... _pipes)
+    MultiPipe *unionMultiPipes_ptr(std::string _name="anonymous_union_pipe", MULTIPIPES&... _pipes)
     {
-        vector<ff_node *> init_set = prepareInitSet(*this, _pipes...);
+        std::vector<ff_node *> init_set = prepareInitSet(*this, _pipes...);
         return new MultiPipe(_name, init_set);
     }
 
     /** 
      *  \brief Union of the MultiPipe with a set of other MultiPipe
-     *  \param _name string with the unique name of the new MultiPipe
+     *  \param _name std::string with the unique name of the new MultiPipe
      *  \param _pipes sequence of MultiPipe
      *  \return a unique pointer to a new MultiPipe (the result of the union between this and _pipes)
      */ 
     template<typename ...MULTIPIPES>
-    unique_ptr<MultiPipe> unionMultiPipes_unique(string _name="anonymous_union_pipe", MULTIPIPES&... _pipes)
+    std::unique_ptr<MultiPipe> unionMultiPipes_unique(std::string _name="anonymous_union_pipe", MULTIPIPES&... _pipes)
     {
-        vector<ff_node *> init_set = prepareInitSet(*this, _pipes...);
-        return make_unique<MultiPipe>(_name, init_set);
+        std::vector<ff_node *> init_set = prepareInitSet(*this, _pipes...);
+        return std::make_unique<MultiPipe>(_name, init_set);
     }
 
 	/** 
@@ -1165,10 +1167,10 @@ public:
     int run()
     {
         if (!this->isUnified)
-            cout << BOLDGREEN << "WindFlow Status Message: MultiPipe [" << name << "] is running with " << this->getNumThreads() << " threads" << DEFAULT << endl;
-    	int status = ff_pipeline::run();
+            std::cout << BOLDGREEN << "WindFlow Status Message: MultiPipe [" << name << "] is running with " << this->getNumThreads() << " threads" << DEFAULT << std::endl;
+    	int status = ff::ff_pipeline::run();
     	if (status != 0 && !this->isUnified)
-    		cerr << RED << "WindFlow Error: MultiPipe [" << name << "] run failed" << DEFAULT << endl;
+    		std::cerr << RED << "WindFlow Error: MultiPipe [" << name << "] run failed" << DEFAULT << std::endl;
     	return status;
     }
 
@@ -1178,11 +1180,11 @@ public:
      */ 
     int wait()
     {
-    	int status = ff_pipeline::wait();
+    	int status = ff::ff_pipeline::wait();
     	if (status == 0 && !this->isUnified)
-    		cout << BOLDGREEN << "WindFlow Status Message: MultiPipe [" << name << "] terminated successfully" << DEFAULT << endl;
+    		std::cout << BOLDGREEN << "WindFlow Status Message: MultiPipe [" << name << "] terminated successfully" << DEFAULT << std::endl;
     	else if(!this->isUnified)
-    		cerr << RED << "WindFlow Error: MultiPipe [" << name << "] terminated with error" << DEFAULT << endl;
+    		std::cerr << RED << "WindFlow Error: MultiPipe [" << name << "] terminated with error" << DEFAULT << std::endl;
         return status;
     }
 
@@ -1194,9 +1196,11 @@ public:
     int run_and_wait_end()
     {
         if (!this->isUnified)
-            cout << BOLDGREEN << "WindFlow Status Message: MultiPipe [" << name << "] is running with " << this->getNumThreads() << " threads" << DEFAULT << endl;
-    	return ff_pipeline::run_and_wait_end();
+            std::cout << BOLDGREEN << "WindFlow Status Message: MultiPipe [" << name << "] is running with " << this->getNumThreads() << " threads" << DEFAULT << std::endl;
+    	return ff::ff_pipeline::run_and_wait_end();
     }
 };
+
+} // namespace wf
 
 #endif

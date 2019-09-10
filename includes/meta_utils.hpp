@@ -31,17 +31,18 @@
 
 // includes
 #include <atomic>
-#if __cplusplus < 201703L //not C++17
+#if __cplusplus < 201703L // not C++17
     #include <experimental/optional>
-    using namespace std::experimental;
+    namespace std { using namespace experimental; } // ugly but necessary until CUDA will support C++17!
 #else
     #include <optional>
 #endif
+#include <basic.hpp>
 #include <context.hpp>
 #include <shipper.hpp>
 #include <iterable.hpp>
 
-using namespace std;
+namespace wf {
 
 // metafunctions to get the tuple type from a callable type (e.g., function, lambda, functor)
 template<typename F_t, typename Arg1, typename Arg2> // Map not in-place, Accumulator
@@ -135,22 +136,22 @@ template<typename Arg> // Source single-loop
 Arg get_tuple_t(void (*)(Shipper<Arg>&, RuntimeContext&));
 
 template<typename F_t, typename Arg> // Sink
-Arg get_tuple_t(void (F_t::*)(optional<Arg> &) const);
+Arg get_tuple_t(void (F_t::*)(std::optional<Arg> &) const);
 
 template<typename F_t, typename Arg> // Sink
-Arg get_tuple_t(void (F_t::*)(optional<Arg> &));
+Arg get_tuple_t(void (F_t::*)(std::optional<Arg> &));
 
 template<typename Arg> // Sink
-Arg get_tuple_t(void (*)(optional<Arg> &));
+Arg get_tuple_t(void (*)(std::optional<Arg> &));
 
 template<typename F_t, typename Arg> // Sink
-Arg get_tuple_t(void (F_t::*)(optional<Arg> &, RuntimeContext&) const);
+Arg get_tuple_t(void (F_t::*)(std::optional<Arg> &, RuntimeContext&) const);
 
 template<typename F_t, typename Arg> // Sink
-Arg get_tuple_t(void (F_t::*)(optional<Arg> &, RuntimeContext&));
+Arg get_tuple_t(void (F_t::*)(std::optional<Arg> &, RuntimeContext&));
 
 template<typename Arg> // Sink
-Arg get_tuple_t(void (*)(optional<Arg> &, RuntimeContext&));
+Arg get_tuple_t(void (*)(std::optional<Arg> &, RuntimeContext&));
 
 template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (non-incremental)
 Arg1 get_tuple_t(Ret (F_t::*)(uint64_t, Iterable<Arg1>&, Arg2&) const);
@@ -381,31 +382,36 @@ template<typename tuple_t>
 struct wrapper_tuple_t
 {
     tuple_t *tuple; // pointer to a tuple
-    atomic<size_t> counter; // atomic reference counter
+    std::atomic<size_t> counter; // atomic reference counter
     bool eos; // if true, the tuple is a EOS marker
 
     // Constructor
-    wrapper_tuple_t(tuple_t *_t, size_t _counter=1, bool _eos=false): tuple(_t), counter(_counter), eos(_eos) {}
-
+    wrapper_tuple_t(tuple_t *_t,
+                    size_t _counter=1,
+                    bool _eos=false):
+                    tuple(_t),
+                    counter(_counter),
+                    eos(_eos)
+    {}
 };
 
 // function extractTuple: definition valid if T1 != T2
 template <typename T1, typename T2>
-T1 *extractTuple(typename enable_if<!is_same<T1,T2>::value, T2>::type *wt) // T1 is the type of the tuple and T2 is its wrapper type
+T1 *extractTuple(typename std::enable_if<!std::is_same<T1,T2>::value, T2>::type *wt) // T1 is the type of the tuple and T2 is its wrapper type
 {
     return wt->tuple;
 }
 
 // function extractTuple: definition valid if T1 == T2
 template <typename T1, typename T2>
-T1 *extractTuple(typename enable_if<is_same<T1,T2>::value, T2>::type *t) // T1 and T2 are the same type: the tuple's type
+T1 *extractTuple(typename std::enable_if<std::is_same<T1,T2>::value, T2>::type *t) // T1 and T2 are the same type: the tuple's type
 {
     return t;
 }
 
 // function deleteTuple: definition valid if T1 != T2
 template <typename T1, typename T2>
-void deleteTuple(typename enable_if<!is_same<T1,T2>::value, T2>::type *wt) // T1 is the type of the tuple and T2 is its wrapper type
+void deleteTuple(typename std::enable_if<!std::is_same<T1,T2>::value, T2>::type *wt) // T1 is the type of the tuple and T2 is its wrapper type
 {
     T1 *t = wt->tuple;
     // check if the tuple and the wrapper must be destroyed/deallocated
@@ -418,14 +424,14 @@ void deleteTuple(typename enable_if<!is_same<T1,T2>::value, T2>::type *wt) // T1
 
 // function deleteTuple: definition valid if T1 == T2
 template <typename T1, typename T2>
-void deleteTuple(typename enable_if<is_same<T1,T2>::value, T2>::type *t) // T1 and T2 are the same type: the tuple's type
+void deleteTuple(typename std::enable_if<std::is_same<T1,T2>::value, T2>::type *t) // T1 and T2 are the same type: the tuple's type
 {
     delete t;
 }
 
 // function createWrapper: definition valid if T2 != T3
 template<typename T1, typename T2, typename T3>
-T1 *createWrapper(typename enable_if<!is_same<T2,T3>::value, T1>::type *t, size_t val, bool isEOS=false) // T1 is the tuple type, T2 the output type and T3 is the wrapper type
+T1 *createWrapper(typename std::enable_if<!std::is_same<T2,T3>::value, T1>::type *t, size_t val, bool isEOS=false) // T1 is the tuple type, T2 the output type and T3 is the wrapper type
 {
     // only return the tuple
     return t;
@@ -433,7 +439,7 @@ T1 *createWrapper(typename enable_if<!is_same<T2,T3>::value, T1>::type *t, size_
 
 // function createWrapper: definition valid if T2 == T3
 template<typename T1, typename T2, typename T3>
-T2 *createWrapper(typename enable_if<is_same<T2,T3>::value, T1>::type *t, size_t val, bool isEOS=false) // T1 is the tuple type, T2 the output type and T3 is the wrapper type
+T2 *createWrapper(typename std::enable_if<std::is_same<T2,T3>::value, T1>::type *t, size_t val, bool isEOS=false) // T1 is the tuple type, T2 the output type and T3 is the wrapper type
 {
     // create and return a wrapper to the tuple
     T2 *wt = new T2(t, val, isEOS);
@@ -442,7 +448,7 @@ T2 *createWrapper(typename enable_if<is_same<T2,T3>::value, T1>::type *t, size_t
 
 // function prepareWrapper: definition valid if T1 != T2
 template<typename T1, typename T2>
-T2 *prepareWrapper(typename enable_if<!is_same<T1,T2>::value, T1>::type *t, size_t val) // T1 is the type of the tuple and T2 is its wrapper type
+T2 *prepareWrapper(typename std::enable_if<!std::is_same<T1,T2>::value, T1>::type *t, size_t val) // T1 is the type of the tuple and T2 is its wrapper type
 {
     // create wrapper
     return new T2(t, val);
@@ -450,7 +456,7 @@ T2 *prepareWrapper(typename enable_if<!is_same<T1,T2>::value, T1>::type *t, size
 
 // function prepareWrapper: definition valid if T1 == T2
 template<typename T1, typename T2>
-T2 *prepareWrapper(typename enable_if<is_same<T1,T2>::value, T1>::type *wt, size_t val) // T1 and T2 are the same type: the wrapper's type
+T2 *prepareWrapper(typename std::enable_if<std::is_same<T1,T2>::value, T1>::type *wt, size_t val) // T1 and T2 are the same type: the wrapper's type
 {
     (wt->counter).fetch_add(val-1);
     return wt;
@@ -458,16 +464,18 @@ T2 *prepareWrapper(typename enable_if<is_same<T1,T2>::value, T1>::type *wt, size
 
 // function isEOSMarker: definition valid if T1 != T2
 template<typename T1, typename T2>
-bool isEOSMarker(const typename enable_if<!is_same<T1,T2>::value, T2>::type &wt) // T1 is the type of the tuple and T2 is its wrapper type
+bool isEOSMarker(const typename std::enable_if<!std::is_same<T1,T2>::value, T2>::type &wt) // T1 is the type of the tuple and T2 is its wrapper type
 {
     return wt.eos;
 }
 
 // function isEOSMarker: definition valid if T1 == T2
 template<typename T1, typename T2>
-bool isEOSMarker(const typename enable_if<is_same<T1,T2>::value, T1>::type &t) // T1 and T2 are the same type: the wrapper's type
+bool isEOSMarker(const typename std::enable_if<std::is_same<T1,T2>::value, T1>::type &t) // T1 and T2 are the same type: the wrapper's type
 {
     return false;
 }
+
+} // namespace wf
 
 #endif

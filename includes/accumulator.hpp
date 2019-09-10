@@ -36,14 +36,16 @@
 
 /// includes
 #include <string>
+#include <iostream>
 #include <unordered_map>
 #include <ff/node.hpp>
+#include <ff/pipeline.hpp>
 #include <ff/farm.hpp>
+#include <basic.hpp>
 #include <context.hpp>
 #include <standard.hpp>
 
-using namespace ff;
-using namespace std;
+namespace wf {
 
 /** 
  *  \class Accumulator
@@ -54,32 +56,32 @@ using namespace std;
  *  functions on data streams.
  */ 
 template<typename tuple_t, typename result_t>
-class Accumulator: public ff_farm
+class Accumulator: public ff::ff_farm
 {
 public:
     /// type of the reduce/fold function
-    using acc_func_t = function<void(const tuple_t &, result_t &)>;
+    using acc_func_t = std::function<void(const tuple_t &, result_t &)>;
     /// type of the rich reduce/fold function
-    using rich_acc_func_t = function<void(const tuple_t &, result_t &, RuntimeContext &)>;
+    using rich_acc_func_t = std::function<void(const tuple_t &, result_t &, RuntimeContext &)>;
     /// type of the closing function
-    using closing_func_t = function<void(RuntimeContext &)>;
+    using closing_func_t = std::function<void(RuntimeContext &)>;
     /// type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
-    using routing_func_t = function<size_t(size_t, size_t)>;
+    using routing_func_t = std::function<size_t(size_t, size_t)>;
 
 private:
     tuple_t tmp; // never used
     // key data type
-    using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
+    using key_t = typename std::remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
     // friendships with other classes in the library
     friend class MultiPipe;
     // class Accumulator_Node
-    class Accumulator_Node: public ff_node_t<tuple_t, result_t>
+    class Accumulator_Node: public ff::ff_node_t<tuple_t, result_t>
     {
     private:
         acc_func_t acc_func; // reduce/fold function
         rich_acc_func_t rich_acc_func; // rich reduce/fold function
         closing_func_t closing_func; // closing function
-        string name; // string of the unique name of the pattern
+        std::string name; // string of the unique name of the pattern
         bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
         RuntimeContext context; // RuntimeContext
         result_t init_value; // initial value of the results
@@ -92,29 +94,51 @@ private:
             Key_Descriptor(result_t _init_value): result(_init_value) {}
         };
         // hash table that maps key values onto key descriptors
-        unordered_map<key_t, Key_Descriptor> keyMap;
+        std::unordered_map<key_t, Key_Descriptor> keyMap;
 #if defined(LOG_DIR)
         unsigned long rcvTuples = 0;
         double avg_td_us = 0;
         double avg_ts_us = 0;
         volatile unsigned long startTD, startTS, endTD, endTS;
-        ofstream *logfile = nullptr;
+        std::ofstream *logfile = nullptr;
 #endif
 
     public:
         // Constructor I
-        Accumulator_Node(acc_func_t _acc_func, result_t _init_value, string _name, RuntimeContext _context, closing_func_t _closing_func): acc_func(_acc_func), init_value(_init_value), name(_name), isRich(false), context(_context), closing_func(_closing_func) {}
+        Accumulator_Node(acc_func_t _acc_func,
+                        result_t _init_value,
+                        std::string _name,
+                        RuntimeContext _context,
+                        closing_func_t _closing_func):
+                        acc_func(_acc_func),
+                        init_value(_init_value),
+                        name(_name),
+                        isRich(false),
+                        context(_context),
+                        closing_func(_closing_func)
+        {}
 
         // Constructor II
-        Accumulator_Node(rich_acc_func_t _rich_acc_func, result_t _init_value, string _name, RuntimeContext _context, closing_func_t _closing_func): rich_acc_func(_rich_acc_func), init_value(_init_value), name(_name), isRich(true), context(_context), closing_func(_closing_func) {}
+        Accumulator_Node(rich_acc_func_t _rich_acc_func,
+                         result_t _init_value,
+                         std::string _name,
+                         RuntimeContext _context,
+                         closing_func_t _closing_func):
+                         rich_acc_func(_rich_acc_func),
+                         init_value(_init_value),
+                         name(_name),
+                         isRich(true),
+                         context(_context),
+                         closing_func(_closing_func)
+        {}
 
         // svc_init method (utilized by the FastFlow runtime)
         int svc_init()
         {
 #if defined(LOG_DIR)
-            logfile = new ofstream();
-            name += "_node_" + to_string(ff_node_t<tuple_t, result_t>::get_my_id()) + ".log";
-            string filename = string(STRINGIFY(LOG_DIR)) + "/" + name;
+            logfile = new std::ofstream();
+            name += "_node_" + std::to_string(ff::ff_node_t<tuple_t, result_t>::get_my_id()) + ".log";
+            std::string filename = std::string(STRINGIFY(LOG_DIR)) + "/" + name;
             logfile->open(filename);
 #endif
             return 0;
@@ -135,7 +159,7 @@ private:
             auto it = keyMap.find(key);
             if (it == keyMap.end()) {
                 // create the descriptor of that key
-                keyMap.insert(make_pair(key, Key_Descriptor(init_value)));
+                keyMap.insert(std::make_pair(key, Key_Descriptor(init_value)));
                 it = keyMap.find(key);
             }
             Key_Descriptor &key_d = (*it).second;
@@ -164,7 +188,7 @@ private:
             // call the closing function
             closing_func(context);
 #if defined (LOG_DIR)
-            ostringstream stream;
+            std::ostringstream stream;
             stream << "************************************LOG************************************\n";
             stream << "No. of received tuples: " << rcvTuples << "\n";
             stream << "Average service time: " << avg_ts_us << " usec \n";
@@ -188,25 +212,30 @@ public:
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
-    Accumulator(acc_func_t _func, result_t _init_value, size_t _pardegree, string _name, closing_func_t _closing_func, routing_func_t _routing_func)
+    Accumulator(acc_func_t _func,
+                result_t _init_value,
+                size_t _pardegree,
+                std::string _name,
+                closing_func_t _closing_func,
+                routing_func_t _routing_func)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Accumulator_Node
-        vector<ff_node *> w;
+        std::vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new Accumulator_Node(_func, _init_value, _name, RuntimeContext(_pardegree, i), _closing_func);
             w.push_back(seq);
         }
-        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func, _pardegree));
-        ff_farm::add_workers(w);
+        ff::ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func, _pardegree));
+        ff::ff_farm::add_workers(w);
         // add default collector
-        ff_farm::add_collector(nullptr);
+        ff::ff_farm::add_collector(nullptr);
         // when the Accumulator will be destroyed we need aslo to destroy the emitter, workers and collector
-        ff_farm::cleanup_all();
+        ff::ff_farm::cleanup_all();
     }
 
     /** 
@@ -219,26 +248,33 @@ public:
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
-    Accumulator(rich_acc_func_t _func, result_t _init_value, size_t _pardegree, string _name, closing_func_t _closing_func, routing_func_t _routing_func)
+    Accumulator(rich_acc_func_t _func,
+                result_t _init_value,
+                size_t _pardegree,
+                std::string _name,
+                closing_func_t _closing_func,
+                routing_func_t _routing_func)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Accumulator_Node
-        vector<ff_node *> w;
+        std::vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new Accumulator_Node(_func, _init_value, _name, RuntimeContext(_pardegree, i), _closing_func);
             w.push_back(seq);
         }
-        ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func, _pardegree));
-        ff_farm::add_workers(w);
+        ff::ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func, _pardegree));
+        ff::ff_farm::add_workers(w);
         // add default collector
-        ff_farm::add_collector(nullptr);
+        ff::ff_farm::add_collector(nullptr);
         // when the Accumulator will be destroyed we need aslo to destroy the emitter, workers and collector
-        ff_farm::cleanup_all();
+        ff::ff_farm::cleanup_all();
     }
 };
+
+} // namespace wf
 
 #endif

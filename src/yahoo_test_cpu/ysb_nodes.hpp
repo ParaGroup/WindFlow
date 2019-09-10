@@ -33,7 +33,7 @@
 #include <yahoo_app.hpp>
 #include <campaign_generator.hpp>
 
-using namespace ff;
+using namespace wf;
 
 // global variable: starting time of the execution
 volatile unsigned long start_time_usec;

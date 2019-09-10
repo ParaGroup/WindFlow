@@ -44,11 +44,14 @@
 #define PANE_FARM_GPU_H
 
 /// includes
-#include <ff/combine.hpp>
 #include <ff/pipeline.hpp>
+#include <ff/farm.hpp>
 #include <win_farm.hpp>
 #include <win_farm_gpu.hpp>
-#include <ordering_node.hpp>
+#include <basic.hpp>
+#include <meta_utils.hpp>
+
+namespace wf {
 
 /** 
  *  \class Pane_Farm_GPU
@@ -64,17 +67,17 @@
  *  in the Pane_Farm pattern.
  */ 
 template<typename tuple_t, typename result_t, typename F_t, typename input_t>
-class Pane_Farm_GPU: public ff_pipeline
+class Pane_Farm_GPU: public ff::ff_pipeline
 {
 public:
     /// function type of the non-incremental pane processing
-    using plq_func_t = function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
+    using plq_func_t = std::function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
     /// Function type of the incremental pane processing
-    using plqupdate_func_t = function<void(uint64_t, const tuple_t &, result_t &)>;
+    using plqupdate_func_t = std::function<void(uint64_t, const tuple_t &, result_t &)>;
     /// function type of the non-incremental window processing
-    using wlq_func_t = function<void(uint64_t, Iterable<result_t> &, result_t &)>;
+    using wlq_func_t = std::function<void(uint64_t, Iterable<result_t> &, result_t &)>;
     /// function type of the incremental window function
-    using wlqupdate_func_t = function<void(uint64_t, const result_t &, result_t &)>;
+    using wlqupdate_func_t = std::function<void(uint64_t, const result_t &, result_t &)>;
 
 private:
     // friendships with other classes in the library
@@ -87,7 +90,7 @@ private:
     template<typename T>
     friend class KeyFarmGPU_Builder;
     // compute the gcd between two numbers
-    function<uint64_t(uint64_t, uint64_t)> gcd = [](uint64_t u, uint64_t v) {
+    std::function<uint64_t(uint64_t, uint64_t)> gcd = [](uint64_t u, uint64_t v) {
         while (v != 0) {
             unsigned long r = u % v;
             u = v;
@@ -112,7 +115,7 @@ private:
     size_t wlq_degree;
     size_t batch_len;
     size_t n_thread_block;
-    string name;
+    std::string name;
     size_t scratchpad_size;
     bool ordered;
     opt_level_t opt_level;
@@ -128,12 +131,11 @@ private:
                   size_t _wlq_degree,
                   size_t _batch_len,
                   size_t _n_thread_block,
-                  string _name,
+                  std::string _name,
                   size_t _scratchpad_size,
                   bool _ordered,
                   opt_level_t _opt_level,
-                  PatternConfig _config)
-                  :
+                  PatternConfig _config):
                   gpuFunction(_gpuFunction),
                   wlq_func(_wlq_func),
                   isGPUPLQ(true),
@@ -155,22 +157,22 @@ private:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the parallelism degrees
         if (_plq_degree == 0 || _wlq_degree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degrees cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: parallelism degrees cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // the Pane_Farm_GPU can be utilized with sliding windows only
         if (_win_len <= _slide_len) {
-            cerr << RED << "WindFlow Error: Pane_Farm_GPU can be used with sliding windows only (s<w)" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: Pane_Farm_GPU can be used with sliding windows only (s<w)" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // compute the pane length (no. of tuples or in time units)
@@ -205,11 +207,11 @@ private:
             wlq_stage = wlq_seq;
         }
         // add to this the pipeline optimized according to the provided optimization level
-        ff_pipeline::add_stage(optimize_PaneFarmGPU(plq_stage, wlq_stage, _opt_level));
+        ff::ff_pipeline::add_stage(optimize_PaneFarmGPU(plq_stage, wlq_stage, _opt_level));
         // when the Pane_Farm_GPU will be destroyed we need aslo to destroy the two stages
-        ff_pipeline::cleanup_nodes();
+        ff::ff_pipeline::cleanup_nodes();
         // flatten the pipeline
-        ff_pipeline::flatten();
+        ff::ff_pipeline::flatten();
     }
 
     // Private Constructor II
@@ -222,12 +224,11 @@ private:
                   size_t _wlq_degree,
                   size_t _batch_len,
                   size_t _n_thread_block,
-                  string _name,
+                  std::string _name,
                   size_t _scratchpad_size,
                   bool _ordered,
                   opt_level_t _opt_level,
-                  PatternConfig _config)
-                  :
+                  PatternConfig _config):
                   gpuFunction(_gpuFunction),
                   wlqupdate_func(_wlqupdate_func),
                   isGPUPLQ(true),
@@ -249,22 +250,22 @@ private:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the parallelism degrees
         if (_plq_degree == 0 || _wlq_degree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degrees cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: parallelism degrees cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // the Pane_Farm_GPU can be utilized with sliding windows only
         if (_win_len <= _slide_len) {
-            cerr << RED << "WindFlow Error: Pane_Farm_GPU can be used with sliding windows only (s<w)" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: Pane_Farm_GPU can be used with sliding windows only (s<w)" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // compute the pane length (no. of tuples or in time units)
@@ -299,11 +300,11 @@ private:
             wlq_stage = wlq_seq;
         }
         // add to this the pipeline optimized according to the provided optimization level
-        ff_pipeline::add_stage(optimize_PaneFarmGPU(plq_stage, wlq_stage, _opt_level));
+        ff::ff_pipeline::add_stage(optimize_PaneFarmGPU(plq_stage, wlq_stage, _opt_level));
         // when the Pane_Farm_GPU will be destroyed we need aslo to destroy the two stages
-        ff_pipeline::cleanup_nodes();
+        ff::ff_pipeline::cleanup_nodes();
         // flatten the pipeline
-        ff_pipeline::flatten();
+        ff::ff_pipeline::flatten();
     }
 
     // Private Constructor III
@@ -316,12 +317,11 @@ private:
                   size_t _wlq_degree,
                   size_t _batch_len,
                   size_t _n_thread_block,
-                  string _name,
+                  std::string _name,
                   size_t _scratchpad_size,
                   bool _ordered,
                   opt_level_t _opt_level,
-                  PatternConfig _config)
-                  :
+                  PatternConfig _config):
                   plq_func(_plq_func),
                   gpuFunction(_gpuFunction),
                   isGPUPLQ(false),
@@ -343,22 +343,22 @@ private:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the parallelism degrees
         if (_plq_degree == 0 || _wlq_degree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degrees cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: parallelism degrees cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // the Pane_Farm_GPU can be utilized with sliding windows only
         if (_win_len <= _slide_len) {
-            cerr << RED << "WindFlow Error: Pane_Farm_GPU can be used with sliding windows only (s<w)" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: Pane_Farm_GPU can be used with sliding windows only (s<w)" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // compute the pane length (no. of tuples or in time units)
@@ -393,11 +393,11 @@ private:
             wlq_stage = wlq_seq;
         }
         // add to this the pipeline optimized according to the provided optimization level
-        ff_pipeline::add_stage(optimize_PaneFarmGPU(plq_stage, wlq_stage, _opt_level));
+        ff::ff_pipeline::add_stage(optimize_PaneFarmGPU(plq_stage, wlq_stage, _opt_level));
         // when the Pane_Farm_GPU will be destroyed we need aslo to destroy the two stages
-        ff_pipeline::cleanup_nodes();
+        ff::ff_pipeline::cleanup_nodes();
         // flatten the pipeline
-        ff_pipeline::flatten();
+        ff::ff_pipeline::flatten();
     }
 
     // Private Constructor IV
@@ -410,12 +410,11 @@ private:
                   size_t _wlq_degree,
                   size_t _batch_len,
                   size_t _n_thread_block,
-                  string _name,
+                  std::string _name,
                   size_t _scratchpad_size,
                   bool _ordered,
                   opt_level_t _opt_level,
-                  PatternConfig _config)
-                  :
+                  PatternConfig _config):
                   plqupdate_func(_plqupdate_func),
                   gpuFunction(_gpuFunction),
                   isGPUPLQ(false),
@@ -437,22 +436,22 @@ private:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the parallelism degrees
         if (_plq_degree == 0 || _wlq_degree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degrees cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: parallelism degrees cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // the Pane_Farm_GPU can be utilized with sliding windows only
         if (_win_len <= _slide_len) {
-            cerr << RED << "WindFlow Error: Pane_Farm_GPU can be used with sliding windows only (s<w)" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: Pane_Farm_GPU can be used with sliding windows only (s<w)" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // compute the pane length (no. of tuples or in time units)
@@ -487,18 +486,18 @@ private:
             wlq_stage = wlq_seq;
         }
         // add to this the pipeline optimized according to the provided optimization level
-        ff_pipeline::add_stage(optimize_PaneFarmGPU(plq_stage, wlq_stage, _opt_level));
+        ff::ff_pipeline::add_stage(optimize_PaneFarmGPU(plq_stage, wlq_stage, _opt_level));
         // when the Pane_Farm_GPU will be destroyed we need aslo to destroy the two stages
-        ff_pipeline::cleanup_nodes();
+        ff::ff_pipeline::cleanup_nodes();
         // flatten the pipeline
-        ff_pipeline::flatten();
+        ff::ff_pipeline::flatten();
     }
 
     // method to optimize the structure of the Pane_Farm_GPU pattern
-    const ff_pipeline optimize_PaneFarmGPU(ff_node *plq, ff_node *wlq, opt_level_t opt)
+    const ff::ff_pipeline optimize_PaneFarmGPU(ff_node *plq, ff_node *wlq, opt_level_t opt)
     {
         if (opt == LEVEL0) { // no optimization
-            ff_pipeline pipe;
+            ff::ff_pipeline pipe;
             pipe.add_stage(plq);
             pipe.add_stage(wlq);
             pipe.cleanup_nodes();
@@ -506,8 +505,8 @@ private:
         }
         else if (opt == LEVEL1) { // optimization level 1
             if (plq_degree == 1 && wlq_degree == 1) {
-                ff_pipeline pipe;
-                pipe.add_stage(new ff_comb(plq, wlq, true, true));
+                ff::ff_pipeline pipe;
+                pipe.add_stage(new ff::ff_comb(plq, wlq, true, true));
                 pipe.cleanup_nodes();
                 return pipe;
             }
@@ -516,19 +515,19 @@ private:
         else { // optimization level 2
             if (!plq->isFarm() || !wlq->isFarm()) // like level 1
                 if (plq_degree == 1 && wlq_degree == 1) {
-                    ff_pipeline pipe;
-                    pipe.add_stage(new ff_comb(plq, wlq, true, true));
+                    ff::ff_pipeline pipe;
+                    pipe.add_stage(new ff::ff_comb(plq, wlq, true, true));
                     pipe.cleanup_nodes();
                     return pipe;
                 }
                 else return combine_nodes_in_pipeline(*plq, *wlq, true, true);
             else {
                 using emitter_wlq_t = WF_Emitter<result_t, result_t>;
-                ff_farm *farm_plq = static_cast<ff_farm *>(plq);
-                ff_farm *farm_wlq = static_cast<ff_farm *>(wlq);
+                ff::ff_farm *farm_plq = static_cast<ff::ff_farm *>(plq);
+                ff::ff_farm *farm_wlq = static_cast<ff::ff_farm *>(wlq);
                 emitter_wlq_t *emitter_wlq = static_cast<emitter_wlq_t *>(farm_wlq->getEmitter());
                 Ordering_Node<result_t, wrapper_tuple_t<result_t>> *buf_node = new Ordering_Node<result_t, wrapper_tuple_t<result_t>>();
-                const ff_pipeline result = combine_farms(*farm_plq, emitter_wlq, *farm_wlq, buf_node, false);
+                const ff::ff_pipeline result = combine_farms(*farm_plq, emitter_wlq, *farm_wlq, buf_node, false);
                 delete farm_plq;
                 delete farm_wlq;
                 delete buf_node;
@@ -551,7 +550,7 @@ public:
      *  \param _wlq_degree parallelism degree of the WLQ stage
      *  \param _batch_len no. of panes in a batch (i.e. 1 pane mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. panes) per block
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the pattern
@@ -565,7 +564,7 @@ public:
                   size_t _wlq_degree,
                   size_t _batch_len,
                   size_t _n_thread_block,
-                  string _name,
+                  std::string _name,
                   size_t _scratchpad_size,
                   bool _ordered,
                   opt_level_t _opt_level):
@@ -584,7 +583,7 @@ public:
      *  \param _wlq_degree parallelism degree of the WLQ stage
      *  \param _batch_len no. of panes in a batch (i.e. 1 pane mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. panes) per block
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the pattern
@@ -598,7 +597,7 @@ public:
                   size_t _wlq_degree,
                   size_t _batch_len,
                   size_t _n_thread_block,
-                  string _name,
+                  std::string _name,
                   size_t _scratchpad_size,
                   bool _ordered,
                   opt_level_t _opt_level):
@@ -617,7 +616,7 @@ public:
      *  \param _wlq_degree parallelism degree of the WLQ stage
      *  \param _batch_len no. of panes in a batch (i.e. 1 pane mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. panes) per block
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the pattern
@@ -631,7 +630,7 @@ public:
                   size_t _wlq_degree,
                   size_t _batch_len,
                   size_t _n_thread_block,
-                  string _name,
+                  std::string _name,
                   size_t _scratchpad_size,
                   bool _ordered,
                   opt_level_t _opt_level):
@@ -650,7 +649,7 @@ public:
      *  \param _wlq_degree parallelism degree of the WLQ stage
      *  \param _batch_len no. of panes in a batch (i.e. 1 pane mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. panes) per block
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the pattern
@@ -664,7 +663,7 @@ public:
                   size_t _wlq_degree,
                   size_t _batch_len,
                   size_t _n_thread_block,
-                  string _name,
+                  std::string _name,
                   size_t _scratchpad_size,
                   bool _ordered,
                   opt_level_t _opt_level):
@@ -695,5 +694,7 @@ public:
      */ 
     size_t getWLQParallelism() const { return wlq_degree; }
 };
+
+} // namespace wf
 
 #endif

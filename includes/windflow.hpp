@@ -45,7 +45,4 @@
 #include <multipipe.hpp>
 #include <sink.hpp>
 
-/// namespace
-using namespace ff;
-
 #endif

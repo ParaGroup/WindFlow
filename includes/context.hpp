@@ -36,7 +36,7 @@
 /// includes
 #include <local_storage.hpp>
 
-using namespace std;
+namespace wf {
 
 /** 
  *  \class RuntimeContext
@@ -97,5 +97,7 @@ public:
         return storage;
     }
 };
+
+} // namespace wf
 
 #endif

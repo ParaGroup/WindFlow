@@ -42,6 +42,8 @@
 #endif
 #include <basic.hpp>
 
+namespace wf {
+
 // window events
 enum win_event_t { CONTINUE, FIRED, BATCHED };
 
@@ -56,8 +58,15 @@ private:
 
 public:
     // Constructor
-    Triggerer_CB(uint64_t _win_len, uint64_t _slide_len, uint64_t _wid, uint64_t _initial_id=0):
-                 win_len(_win_len), slide_len(_slide_len), wid(_wid), initial_id(_initial_id) {}
+    Triggerer_CB(uint64_t _win_len,
+                 uint64_t _slide_len,
+                 uint64_t _wid,
+                 uint64_t _initial_id=0):
+                 win_len(_win_len),
+                 slide_len(_slide_len),
+                 wid(_wid),
+                 initial_id(_initial_id)
+    {}
 
     // method to trigger a new event from a tuple's identifier
     win_event_t operator()(uint64_t _id) const
@@ -77,8 +86,15 @@ private:
 
 public:
     // Constructor 
-    Triggerer_TB(uint64_t _win_len, uint64_t _slide_len, uint64_t _wid, uint64_t _starting_ts=0):
-                 win_len(_win_len), slide_len(_slide_len), wid(_wid), starting_ts(_starting_ts) {}
+    Triggerer_TB(uint64_t _win_len,
+                 uint64_t _slide_len,
+                 uint64_t _wid,
+                 uint64_t _starting_ts=0):
+                 win_len(_win_len),
+                 slide_len(_slide_len),
+                 wid(_wid),
+                 starting_ts(_starting_ts)
+    {}
 
     // method to trigger a new event from a tuple's identifier
     win_event_t operator()(uint64_t _ts) const
@@ -93,15 +109,15 @@ class Window
 {
 private:
     // triggerer type of the window
-    using triggerer_t = function<win_event_t(uint64_t)>;
+    using triggerer_t = std::function<win_event_t(uint64_t)>;
     tuple_t tmp; // never used
     // key data type
-    using key_t = typename remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
+    using key_t = typename std::remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
     win_type_t winType; // type of the window (CB or TB)
     triggerer_t triggerer; // triggerer used by the window (it must be compliant with its type)
     result_t *result; // pointer to the result of the window processing
-    optional<tuple_t> firstTuple; // optional object containing the first tuple raising a CONTINUE event
-    optional<tuple_t> firingTuple; // optional object containing the first tuple raising a FIRED event
+    std::optional<tuple_t> firstTuple; // optional object containing the first tuple raising a CONTINUE event
+    std::optional<tuple_t> firingTuple; // optional object containing the first tuple raising a FIRED event
     key_t key; // key attribute
     uint64_t lwid; // local identifier of the window (starting from zero)
     uint64_t gwid; // global identifier of the window (starting from zero)
@@ -110,7 +126,13 @@ private:
 
 public:
     // Constructor 
-    Window(key_t _key, uint64_t _lwid, uint64_t _gwid, triggerer_t _triggerer, win_type_t _winType, uint64_t _win_len, uint64_t _slide_len):
+    Window(key_t _key,
+           uint64_t _lwid,
+           uint64_t _gwid,
+           triggerer_t _triggerer,
+           win_type_t _winType,
+           uint64_t _win_len,
+           uint64_t _slide_len):
            winType(_winType),
            triggerer(_triggerer),
            result(new result_t()),
@@ -152,13 +174,13 @@ public:
         if (event == CONTINUE) {
             no_tuples++;
             if (!firstTuple)
-                firstTuple = make_optional(_t); // need a copy Constructor for tuple_t
+                firstTuple = std::make_optional(_t); // need a copy Constructor for tuple_t
             if (winType == CB)
                 result->setControlFields(key, gwid, std::get<2>(_t.getControlFields()));
         }
         if (event == FIRED) {
             if (!firingTuple)
-                firingTuple = make_optional(_t); // need a copy Constructor for tuple_t
+                firingTuple = std::make_optional(_t); // need a copy Constructor for tuple_t
         }
         if (batched)
             return BATCHED;
@@ -178,13 +200,13 @@ public:
     }
 
     // method to get an optional object to the first tuple raising a CONTINUE event on the window
-    optional<tuple_t> getFirstTuple() const
+    std::optional<tuple_t> getFirstTuple() const
     {
         return firstTuple;
     }
 
     // method to get an optional object to the first tuple raising a FIRED event on the window
-    optional<tuple_t> getFiringTuple() const
+    std::optional<tuple_t> getFiringTuple() const
     {
         return firingTuple;
     }
@@ -219,5 +241,7 @@ public:
         return batched;
     }
 };
+
+} // namespace wf
 
 #endif

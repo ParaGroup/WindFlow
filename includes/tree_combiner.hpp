@@ -35,25 +35,30 @@
 #include <vector>
 #include <ff/multinode.hpp>
 
-using namespace ff;
-using namespace std;
+namespace wf {
 
 // class TreeComb
 template<typename root_t, typename child_t>
-class TreeComb: public ff_monode_t<typename root_t::in_type, typename child_t::out_type>
+class TreeComb: public ff::ff_monode_t<typename root_t::in_type, typename child_t::out_type>
 {
 private:
     using input_t = typename root_t::in_type;
     using output_t = typename child_t::out_type;
     root_t *root; // root node
-    vector<child_t *> child; // vector of children nodes
+    std::vector<child_t *> child; // std::vector of children nodes
     bool cleanUpRoot; // flag to control the cleanup of the root node
     bool cleanUpChildren; // flag to control the cleanup of the children nodes
 
 public:
     // Constructor
-    TreeComb(root_t *_root, vector<child_t *> _child, bool _cleanUpRoot=true, bool _cleanUpChildren=true):
-             root(_root), child(_child), cleanUpRoot(_cleanUpRoot), cleanUpChildren(_cleanUpChildren)
+    TreeComb(root_t *_root,
+             std::vector<child_t *> _child,
+             bool _cleanUpRoot=true,
+             bool _cleanUpChildren=true):
+             root(_root),
+             child(_child),
+             cleanUpRoot(_cleanUpRoot),
+             cleanUpChildren(_cleanUpChildren)
     {
         // configure all the nodes to work with the TreeComb
         root->setTreeCombMode(true);
@@ -151,7 +156,9 @@ public:
     root_t *getRootNode() const { return root; }
 
     // method to return the children nodes
-    vector<child_t> getChildrenNodes() const { return child; }
+    std::vector<child_t> getChildrenNodes() const { return child; }
 };
+
+} // namespace wf
 
 #endif

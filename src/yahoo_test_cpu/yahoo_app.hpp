@@ -29,6 +29,7 @@
 #include <tuple>
 
 using namespace std;
+using namespace wf;
 
 // event_t struct
 struct event_t

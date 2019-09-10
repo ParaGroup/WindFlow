@@ -37,13 +37,14 @@
 /// includes
 #include <string>
 #include <ff/node.hpp>
+#include <ff/pipeline.hpp>
 #include <ff/all2all.hpp>
+#include <basic.hpp>
 #include <shipper.hpp>
 #include <context.hpp>
 #include <standard.hpp>
 
-using namespace ff;
-using namespace std;
+namespace wf {
 
 /** 
  *  \class Source
@@ -53,25 +54,25 @@ using namespace std;
  *  This class implements the Source pattern generating a data stream of items.
  */ 
 template<typename tuple_t>
-class Source: public ff_a2a
+class Source: public ff::ff_a2a
 {
 public:
     /// type of the generation function (item-by-item version, briefly "itemized")
-    using source_item_func_t = function<bool(tuple_t &)>;
+    using source_item_func_t = std::function<bool(tuple_t &)>;
     /// type of the rich generation function (item-by-item version, briefly "itemized")
-    using rich_source_item_func_t = function<bool(tuple_t &, RuntimeContext &)>;
+    using rich_source_item_func_t = std::function<bool(tuple_t &, RuntimeContext &)>;
     /// type of the generation function (single-loop version, briefly "loop")
-    using source_loop_func_t = function<void(Shipper<tuple_t>&)>;
+    using source_loop_func_t = std::function<void(Shipper<tuple_t>&)>;
     /// type of the rich generation function (single-loop version, briefly "loop")
-    using rich_source_loop_func_t = function<void(Shipper<tuple_t>&, RuntimeContext &)>;
+    using rich_source_loop_func_t = std::function<void(Shipper<tuple_t>&, RuntimeContext &)>;
     /// type of the closing function
-    using closing_func_t = function<void(RuntimeContext &)>;
+    using closing_func_t = std::function<void(RuntimeContext &)>;
 
 private:
     // friendships with other classes in the library
     friend class MultiPipe;
     // class Source_Node
-    class Source_Node: public ff_node_t<tuple_t>
+    class Source_Node: public ff::ff_node_t<tuple_t>
     {
     private:
         source_item_func_t source_func_item; // generation function (item-by-item version)
@@ -79,7 +80,7 @@ private:
         source_loop_func_t source_func_loop; // generation function (single-loop version)
         rich_source_loop_func_t rich_source_func_loop; // rich generation function (single-loop version)
         closing_func_t closing_func; // closing function
-        string name; // string of the unique name of the pattern
+        std::string name; // string of the unique name of the pattern
         bool isItemized; // flag stating whether we are using the item-by-item version of the generation function
         bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
         bool isEND; // flag stating whether the Source_Node has completed to generate items
@@ -87,30 +88,74 @@ private:
         RuntimeContext context; // RuntimeContext
 #if defined(LOG_DIR)
         unsigned long sentTuples = 0;
-        ofstream *logfile = nullptr;
+        std::ofstream *logfile = nullptr;
 #endif
 
     public:
         // Constructor I
-        Source_Node(source_item_func_t _source_func_item, string _name, RuntimeContext _context, closing_func_t _closing_func): source_func_item(_source_func_item), name(_name), isItemized(true), isRich(false), isEND(false), context(_context), closing_func(_closing_func) {}
+        Source_Node(source_item_func_t _source_func_item,
+                    std::string _name,
+                    RuntimeContext _context,
+                    closing_func_t _closing_func):
+                    source_func_item(_source_func_item),
+                    name(_name),
+                    isItemized(true),
+                    isRich(false),
+                    isEND(false),
+                    context(_context),
+                    closing_func(_closing_func)
+        {}
 
         // Constructor II
-        Source_Node(rich_source_item_func_t _rich_source_func_item, string _name, RuntimeContext _context, closing_func_t _closing_func): rich_source_func_item(_rich_source_func_item), name(_name), isItemized(true), isRich(true), isEND(false), context(_context), closing_func(_closing_func) {}
+        Source_Node(rich_source_item_func_t _rich_source_func_item,
+                    std::string _name,
+                    RuntimeContext _context,
+                    closing_func_t _closing_func):
+                    rich_source_func_item(_rich_source_func_item),
+                    name(_name),
+                    isItemized(true),
+                    isRich(true),
+                    isEND(false), 
+                    context(_context),
+                    closing_func(_closing_func)
+        {}
 
         // Constructor III
-        Source_Node(source_loop_func_t _source_func_loop, string _name, RuntimeContext _context, closing_func_t _closing_func): source_func_loop(_source_func_loop), name(_name), isItemized(false), isRich(false), isEND(false), context(_context), closing_func(_closing_func) {}
+        Source_Node(source_loop_func_t _source_func_loop,
+                    std::string _name,
+                    RuntimeContext _context,
+                    closing_func_t _closing_func):
+                    source_func_loop(_source_func_loop),
+                    name(_name),
+                    isItemized(false),
+                    isRich(false),
+                    isEND(false),
+                    context(_context),
+                    closing_func(_closing_func)
+        {}
 
         // Constructor IV
-        Source_Node(rich_source_loop_func_t _rich_source_func_loop, string _name, RuntimeContext _context, closing_func_t _closing_func): rich_source_func_loop(_rich_source_func_loop), name(_name), isItemized(false), isRich(true), isEND(false), context(_context), closing_func(_closing_func) {}
+        Source_Node(rich_source_loop_func_t _rich_source_func_loop,
+                    std::string _name,
+                    RuntimeContext _context,
+                    closing_func_t _closing_func):
+                    rich_source_func_loop(_rich_source_func_loop),
+                    name(_name),
+                    isItemized(false),
+                    isRich(true),
+                    isEND(false),
+                    context(_context),
+                    closing_func(_closing_func)
+        {}
 
         // svc_init method (utilized by the FastFlow runtime)
         int svc_init()
         {
             shipper = new Shipper<tuple_t>(*this);
 #if defined(LOG_DIR)
-            logfile = new ofstream();
-            name += "_node_" + to_string(ff_node_t<tuple_t>::get_my_id()) + ".log";
-            string filename = string(STRINGIFY(LOG_DIR)) + "/" + name;
+            logfile = new std::ofstream();
+            name += "_node_" + std::to_string(ff::ff_node_t<tuple_t>::get_my_id()) + ".log";
+            std::string filename = std::string(STRINGIFY(LOG_DIR)) + "/" + name;
             logfile->open(filename);
 #endif
             return 0;
@@ -157,7 +202,7 @@ private:
             closing_func(context);
             delete shipper;
 #if defined (LOG_DIR)
-            ostringstream stream;
+            std::ostringstream stream;
             stream << "************************************LOG************************************\n";
             stream << "Generated tuples: " << sentTuples << "\n";
             stream << "***************************************************************************\n";
@@ -177,25 +222,28 @@ public:
      *  \param _name string with the unique name of the Source pattern
      *  \param _closing_func closing function
      */ 
-    Source(source_item_func_t _func, size_t _pardegree, string _name, closing_func_t _closing_func)
+    Source(source_item_func_t _func,
+           size_t _pardegree,
+           std::string _name,
+           closing_func_t _closing_func)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Source_Node
-        vector<ff_node *> first_set;
+        std::vector<ff_node *> first_set;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new Source_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             first_set.push_back(seq);
         }
         // add first set
-        ff_a2a::add_firstset(first_set, 0, true);
-        vector<ff_node *> second_set;
+        ff::ff_a2a::add_firstset(first_set, 0, true);
+        std::vector<ff_node *> second_set;
         second_set.push_back(new Standard_Collector());
         // add second set
-        ff_a2a::add_secondset(second_set, true);
+        ff::ff_a2a::add_secondset(second_set, true);
     }
 
     /** 
@@ -206,25 +254,28 @@ public:
      *  \param _name string with the unique name of the Source pattern
      *  \param _closing_func closing function
      */ 
-    Source(rich_source_item_func_t _func, size_t _pardegree, string _name, closing_func_t _closing_func)
+    Source(rich_source_item_func_t _func,
+           size_t _pardegree,
+           std::string _name,
+           closing_func_t _closing_func)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Source_Node
-        vector<ff_node *> first_set;
+        std::vector<ff_node *> first_set;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new Source_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             first_set.push_back(seq);
         }
         // add first set
-        ff_a2a::add_firstset(first_set, 0, true);
-        vector<ff_node *> second_set;
+        ff::ff_a2a::add_firstset(first_set, 0, true);
+        std::vector<ff_node *> second_set;
         second_set.push_back(new Standard_Collector());
         // add second set
-        ff_a2a::add_secondset(second_set, true);
+        ff::ff_a2a::add_secondset(second_set, true);
     }
 
     /** 
@@ -235,25 +286,28 @@ public:
      *  \param _name string with the unique name of the Source pattern
      *  \param _closing_func closing function
      */ 
-    Source(source_loop_func_t _func, size_t _pardegree, string _name, closing_func_t _closing_func)
+    Source(source_loop_func_t _func,
+           size_t _pardegree,
+           std::string _name,
+           closing_func_t _closing_func)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Source_Node
-        vector<ff_node *> first_set;
+        std::vector<ff_node *> first_set;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new Source_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             first_set.push_back(seq);
         }
         // add first set
-        ff_a2a::add_firstset(first_set, 0, true);
-        vector<ff_node *> second_set;
+        ff::ff_a2a::add_firstset(first_set, 0, true);
+        std::vector<ff_node *> second_set;
         second_set.push_back(new Standard_Collector());
         // add second set
-        ff_a2a::add_secondset(second_set, true);
+        ff::ff_a2a::add_secondset(second_set, true);
     }
 
     /** 
@@ -264,26 +318,31 @@ public:
      *  \param _name string with the unique name of the Source pattern
      *  \param _closing_func closing function
      */ 
-    Source(rich_source_loop_func_t _func, size_t _pardegree, string _name, closing_func_t _closing_func)
+    Source(rich_source_loop_func_t _func,
+           size_t _pardegree,
+           std::string _name,
+           closing_func_t _closing_func)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Source_Node
-        vector<ff_node *> first_set;
+        std::vector<ff_node *> first_set;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new Source_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
             first_set.push_back(seq);
         }
         // add first set
-        ff_a2a::add_firstset(first_set, 0, true);
-        vector<ff_node *> second_set;
+        ff::ff_a2a::add_firstset(first_set, 0, true);
+        std::vector<ff_node *> second_set;
         second_set.push_back(new Standard_Collector());
         // add second set
-        ff_a2a::add_secondset(second_set, true);
+        ff::ff_a2a::add_secondset(second_set, true);
     }
 };
+
+} // namespace wf
 
 #endif

@@ -39,11 +39,13 @@
 #define WIN_MAPREDUCE_H
 
 /// includes
-#include <ff/combine.hpp>
 #include <ff/pipeline.hpp>
+#include <ff/farm.hpp>
 #include <win_farm.hpp>
-#include <wm_nodes.hpp>
-#include <ordering_node.hpp>
+#include <basic.hpp>
+#include <meta_utils.hpp>
+
+namespace wf {
 
 /** 
  *  \class Win_MapReduce
@@ -57,27 +59,27 @@
  *  REDUCE stage.
  */ 
 template<typename tuple_t, typename result_t, typename input_t>
-class Win_MapReduce: public ff_pipeline
+class Win_MapReduce: public ff::ff_pipeline
 {
 public:
     /// function type of the non-incremental MAP processing
-    using map_func_t = function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
+    using map_func_t = std::function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
     /// function type of the rich non-incremental MAP processing
-    using rich_map_func_t = function<void(uint64_t, Iterable<tuple_t> &, result_t &, RuntimeContext &)>;
+    using rich_map_func_t = std::function<void(uint64_t, Iterable<tuple_t> &, result_t &, RuntimeContext &)>;
     /// function type of the incremental MAP processing
-    using mapupdate_func_t = function<void(uint64_t, const tuple_t &, result_t &)>;
+    using mapupdate_func_t = std::function<void(uint64_t, const tuple_t &, result_t &)>;
     /// function type of the rich incremental MAP processing
-    using rich_mapupdate_func_t = function<void(uint64_t, const tuple_t &, result_t &, RuntimeContext &)>;
+    using rich_mapupdate_func_t = std::function<void(uint64_t, const tuple_t &, result_t &, RuntimeContext &)>;
     /// function type of the non-incremental REDUCE processing
-    using reduce_func_t = function<void(uint64_t, Iterable<result_t> &, result_t &)>;
+    using reduce_func_t = std::function<void(uint64_t, Iterable<result_t> &, result_t &)>;
     /// function type of the rich non-incremental REDUCE processing
-    using rich_reduce_func_t = function<void(uint64_t, Iterable<result_t> &, result_t &, RuntimeContext &)>;
+    using rich_reduce_func_t = std::function<void(uint64_t, Iterable<result_t> &, result_t &, RuntimeContext &)>;
     /// function type of the incremental REDUCE processing
-    using reduceupdate_func_t = function<void(uint64_t, const result_t &, result_t &)>;
+    using reduceupdate_func_t = std::function<void(uint64_t, const result_t &, result_t &)>;
     /// function type of the rich incremental REDUCE processing
-    using rich_reduceupdate_func_t = function<void(uint64_t, const result_t &, result_t &, RuntimeContext &)>;
+    using rich_reduceupdate_func_t = std::function<void(uint64_t, const result_t &, result_t &, RuntimeContext &)>;
     /// type of the closing function
-    using closing_func_t = function<void(RuntimeContext &)>;
+    using closing_func_t = std::function<void(RuntimeContext &)>;
 
 private:
     // type of the wrapper of input tuples
@@ -114,7 +116,7 @@ private:
     win_type_t winType;
     size_t map_degree;
     size_t reduce_degree;
-    string name;
+    std::string name;
     bool ordered;
     opt_level_t opt_level;
     PatternConfig config;
@@ -128,12 +130,11 @@ private:
                   win_type_t _winType,
                   size_t _map_degree,
                   size_t _reduce_degree,
-                  string _name,
+                  std::string _name,
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level,
-                  PatternConfig _config)
-                  :
+                  PatternConfig _config):
                   win_len(_win_len),
                   slide_len(_slide_len),
                   winType(_winType),
@@ -147,25 +148,25 @@ private:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // the Win_MapReduce must have a parallel MAP stage
         if (_map_degree < 2) {
-            cerr << RED << "WindFlow Error: Win_MapReduce must have a parallel MAP stage" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: Win_MapReduce must have a parallel MAP stage" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the reduce parallelism degree
         if (_reduce_degree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degree of the REDUCE cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: parallelism degree of the REDUCE cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // general fastflow pointers to the MAP and REDUCE stages
         ff_node *map_stage, *reduce_stage;
         // create the MAP phase
         if (_map_degree > 1) {
-            // vector of Win_Seq
-            vector<ff_node *> w(_map_degree);
+            // std::vector of Win_Seq
+            std::vector<ff_node *> w(_map_degree);
             // create the Win_Seq
             for (size_t i = 0; i < _map_degree; i++) {
                 // configuration structure of the Win_Seq (MAP)
@@ -174,7 +175,7 @@ private:
                 seq->setMapIndexes(i, _map_degree);
                 w[i] = seq;
             }
-            ff_farm *farm_map = new ff_farm(w);
+            ff::ff_farm *farm_map = new ff::ff_farm(w);
             farm_map->remove_collector();
             farm_map->add_collector(new map_collector_t());
             farm_map->add_emitter(new map_emitter_t(_map_degree, _winType));
@@ -202,18 +203,18 @@ private:
             reduce_stage = seq_reduce;
         }
         // add to this the pipeline optimized according to the provided optimization level
-        ff_pipeline::add_stage(optimize_WinMapReduce(map_stage, reduce_stage, _opt_level));
+        ff::ff_pipeline::add_stage(optimize_WinMapReduce(map_stage, reduce_stage, _opt_level));
         // when the Win_MapReduce will be destroyed we need aslo to destroy the two internal stages
-        ff_pipeline::cleanup_nodes();
+        ff::ff_pipeline::cleanup_nodes();
         // flatten the pipeline
-        ff_pipeline::flatten();
+        ff::ff_pipeline::flatten();
     }
 
     // method to optimize the structure of the Win_MapReduce pattern
-    const ff_pipeline optimize_WinMapReduce(ff_node *map, ff_node *reduce, opt_level_t opt)
+    const ff::ff_pipeline optimize_WinMapReduce(ff_node *map, ff_node *reduce, opt_level_t opt)
     {
         if (opt == LEVEL0) { // no optimization
-            ff_pipeline pipe;
+            ff::ff_pipeline pipe;
             pipe.add_stage(map);
             pipe.add_stage(reduce);
             pipe.cleanup_nodes();
@@ -227,11 +228,11 @@ private:
                 return combine_nodes_in_pipeline(*map, *reduce, true, true);
             else {
                 using emitter_reduce_t = WF_Emitter<result_t, result_t>;
-                ff_farm *farm_map = static_cast<ff_farm *>(map);
-                ff_farm *farm_reduce = static_cast<ff_farm *>(reduce);
+                ff::ff_farm *farm_map = static_cast<ff::ff_farm *>(map);
+                ff::ff_farm *farm_reduce = static_cast<ff::ff_farm *>(reduce);
                 emitter_reduce_t *emitter_reduce = static_cast<emitter_reduce_t *>(farm_reduce->getEmitter());
                 Ordering_Node<result_t, wrapper_tuple_t<result_t>> *buf_node = new Ordering_Node<result_t, wrapper_tuple_t<result_t>>();
-                const ff_pipeline result = combine_farms(*farm_map, emitter_reduce, *farm_reduce, buf_node, false);
+                const ff::ff_pipeline result = combine_farms(*farm_map, emitter_reduce, *farm_reduce, buf_node, false);
                 delete farm_map;
                 delete farm_reduce;
                 delete buf_node;
@@ -252,7 +253,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -264,7 +265,7 @@ public:
                   win_type_t _winType,
                   size_t _map_degree,
                   size_t _reduce_degree,
-                  string _name,
+                  std::string _name,
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
@@ -288,7 +289,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -300,7 +301,7 @@ public:
                   win_type_t _winType,
                   size_t _map_degree,
                   size_t _reduce_degree,
-                  string _name,
+                  std::string _name,
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
@@ -324,7 +325,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -336,7 +337,7 @@ public:
                   win_type_t _winType,
                   size_t _map_degree,
                   size_t _reduce_degree,
-                  string _name,
+                  std::string _name,
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
@@ -360,7 +361,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -372,7 +373,7 @@ public:
                   win_type_t _winType,
                   size_t _map_degree,
                   size_t _reduce_degree,
-                  string _name,
+                  std::string _name,
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
@@ -396,7 +397,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -408,7 +409,7 @@ public:
                   win_type_t _winType,
                   size_t _map_degree,
                   size_t _reduce_degree,
-                  string _name,
+                  std::string _name,
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
@@ -432,7 +433,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -444,7 +445,7 @@ public:
                   win_type_t _winType,
                   size_t _map_degree,
                   size_t _reduce_degree,
-                  string _name,
+                  std::string _name,
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
@@ -468,7 +469,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -480,7 +481,7 @@ public:
                   win_type_t _winType,
                   size_t _map_degree,
                   size_t _reduce_degree,
-                  string _name,
+                  std::string _name,
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
@@ -504,7 +505,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -516,7 +517,7 @@ public:
                   win_type_t _winType,
                   size_t _map_degree,
                   size_t _reduce_degree,
-                  string _name,
+                  std::string _name,
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
@@ -540,7 +541,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -552,7 +553,7 @@ public:
                   win_type_t _winType,
                   size_t _map_degree,
                   size_t _reduce_degree,
-                  string _name,
+                  std::string _name,
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
@@ -576,7 +577,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -588,7 +589,7 @@ public:
                   win_type_t _winType,
                   size_t _map_degree,
                   size_t _reduce_degree,
-                  string _name,
+                  std::string _name,
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
@@ -612,7 +613,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -624,7 +625,7 @@ public:
                   win_type_t _winType,
                   size_t _map_degree,
                   size_t _reduce_degree,
-                  string _name,
+                  std::string _name,
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
@@ -648,7 +649,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -660,7 +661,7 @@ public:
                   win_type_t _winType,
                   size_t _map_degree,
                   size_t _reduce_degree,
-                  string _name,
+                  std::string _name,
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
@@ -684,7 +685,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -696,7 +697,7 @@ public:
                   win_type_t _winType,
                   size_t _map_degree,
                   size_t _reduce_degree,
-                  string _name,
+                  std::string _name,
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
@@ -720,7 +721,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -732,7 +733,7 @@ public:
                   win_type_t _winType,
                   size_t _map_degree,
                   size_t _reduce_degree,
-                  string _name,
+                  std::string _name,
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
@@ -756,7 +757,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -768,7 +769,7 @@ public:
                   win_type_t _winType,
                   size_t _map_degree,
                   size_t _reduce_degree,
-                  string _name,
+                  std::string _name,
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
@@ -792,7 +793,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the pattern
@@ -804,7 +805,7 @@ public:
                   win_type_t _winType,
                   size_t _map_degree,
                   size_t _reduce_degree,
-                  string _name,
+                  std::string _name,
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
@@ -842,5 +843,7 @@ public:
      */ 
     size_t getREDUCEParallelism() const { return reduce_degree; }
 };
+
+} // namespace wf
 
 #endif

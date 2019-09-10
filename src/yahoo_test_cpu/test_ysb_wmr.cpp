@@ -35,6 +35,10 @@
 #include <ysb_nodes.hpp>
 #include <campaign_generator.hpp>
 
+using namespace std;
+using namespace chrono;
+using namespace wf;
+
 // global variable: starting time of the execution
 extern volatile unsigned long start_time_usec;
 

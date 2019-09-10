@@ -27,8 +27,9 @@
 #include <ff/ff.hpp>
 #include <windflow.hpp>
 
-using namespace ff;
 using namespace std;
+using namespace ff;
+using namespace wf;
 
 // global variable (stream length)
 size_t stream_len_global;

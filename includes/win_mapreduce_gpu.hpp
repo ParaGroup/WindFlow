@@ -43,11 +43,14 @@
 #define WIN_MAPREDUCE_GPU_H
 
 /// includes
-#include <ff/combine.hpp>
 #include <ff/pipeline.hpp>
+#include <ff/farm.hpp>
 #include <win_farm.hpp>
-#include <wm_nodes.hpp>
 #include <win_farm_gpu.hpp>
+#include <basic.hpp>
+#include <meta_utils.hpp>
+
+namespace wf {
 
 /** 
  *  \class Win_MapReduce_GPU
@@ -62,17 +65,17 @@
  *  on the GPU device while the others is executed on the CPU as in the Win_MapReduce pattern.
  */ 
 template<typename tuple_t, typename result_t, typename F_t, typename input_t>
-class Win_MapReduce_GPU: public ff_pipeline
+class Win_MapReduce_GPU: public ff::ff_pipeline
 {
 public:
     /// function type of the non-incremental MAP processing
-    using map_func_t = function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
+    using map_func_t = std::function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
     /// function type of the incremental MAP processing
-    using mapupdate_func_t = function<void(uint64_t, const tuple_t &, result_t &)>;
+    using mapupdate_func_t = std::function<void(uint64_t, const tuple_t &, result_t &)>;
     /// function type of the non-incremental REDUCE processing
-    using reduce_func_t = function<void(uint64_t, Iterable<result_t> &, result_t &)>;
+    using reduce_func_t = std::function<void(uint64_t, Iterable<result_t> &, result_t &)>;
     /// function type of the incremental REDUCE processing
-    using reduceupdate_func_t = function<void(uint64_t, const result_t &, result_t &)>;
+    using reduceupdate_func_t = std::function<void(uint64_t, const result_t &, result_t &)>;
 
 private:
     // type of the wrapper of input tuples
@@ -107,7 +110,7 @@ private:
     size_t reduce_degree;
     size_t batch_len;
     size_t n_thread_block;
-    string name;
+    std::string name;
     size_t scratchpad_size;
     bool ordered;
     opt_level_t opt_level;
@@ -123,12 +126,11 @@ private:
                       size_t _reduce_degree,
                       size_t _batch_len,
                       size_t _n_thread_block,
-                      string _name,
+                      std::string _name,
                       size_t _scratchpad_size,
                       bool _ordered,
                       opt_level_t _opt_level,
-                      PatternConfig _config)
-                      :
+                      PatternConfig _config):
                       gpuFunction(_gpuFunction),
                       reduce_func(_reduce_func),
                       isGPUMAP(true),
@@ -150,22 +152,22 @@ private:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // the Win_MapReduce_GPU must have a parallel MAP stage
         if (_map_degree < 2) {
-            cerr << RED << "WindFlow Error: Win_MapReduce_GPU must have a parallel MAP stage" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: Win_MapReduce_GPU must have a parallel MAP stage" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the reduce parallelism degree
         if (_reduce_degree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degree of the REDUCE cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: parallelism degree of the REDUCE cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // general fastflow pointers to the MAP and REDUCE stages
@@ -173,8 +175,8 @@ private:
         auto closing_func = [] (RuntimeContext &) { return; };
         // create the MAP phase
         if (_map_degree > 1) {
-            // vector of Win_Seq_GPU
-            vector<ff_node *> w(_map_degree);
+            // std::vector of Win_Seq_GPU
+            std::vector<ff_node *> w(_map_degree);
             // create the Win_Seq_GPU
             for (size_t i = 0; i < _map_degree; i++) {
                 // configuration structure of the Win_Seq_GPU (MAP)
@@ -183,7 +185,7 @@ private:
                 seq->setMapIndexes(i, _map_degree);
                 w[i] = seq;
             }
-            ff_farm *farm_map = new ff_farm(w);
+            ff::ff_farm *farm_map = new ff::ff_farm(w);
             farm_map->remove_collector();
             farm_map->add_collector(new map_collector_t());
             farm_map->add_emitter(new map_emitter_t(_map_degree, _winType));
@@ -211,11 +213,11 @@ private:
             reduce_stage = seq_reduce;
         }
         // add to this the pipeline optimized according to the provided optimization level
-        ff_pipeline::add_stage(optimize_WinMapReduceGPU(map_stage, reduce_stage, _opt_level));
+        ff::ff_pipeline::add_stage(optimize_WinMapReduceGPU(map_stage, reduce_stage, _opt_level));
         // when the Win_MapReduce_GPU will be destroyed we need aslo to destroy the two internal stages
-        ff_pipeline::cleanup_nodes();
+        ff::ff_pipeline::cleanup_nodes();
         // flatten the pipeline
-        ff_pipeline::flatten();
+        ff::ff_pipeline::flatten();
     }
 
     // Private Constructor II
@@ -228,12 +230,11 @@ private:
                       size_t _reduce_degree,
                       size_t _batch_len,
                       size_t _n_thread_block,
-                      string _name,
+                      std::string _name,
                       size_t _scratchpad_size,
                       bool _ordered,
                       opt_level_t _opt_level,
-                      PatternConfig _config)
-                      :
+                      PatternConfig _config):
                       gpuFunction(_gpuFunction),
                       reduceupdate_func(_reduceupdate_func),
                       isGPUMAP(true),
@@ -255,22 +256,22 @@ private:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // the Win_MapReduce_GPU must have a parallel MAP stage
         if (_map_degree < 2) {
-            cerr << RED << "WindFlow Error: Win_MapReduce_GPU must have a parallel MAP stage" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: Win_MapReduce_GPU must have a parallel MAP stage" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the reduce parallelism degree
         if (_reduce_degree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degree of the REDUCE cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: parallelism degree of the REDUCE cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // general fastflow pointers to the MAP and REDUCE stages
@@ -278,8 +279,8 @@ private:
         auto closing_func = [] (RuntimeContext &) { return; };
         // create the MAP phase
         if (_map_degree > 1) {
-            // vector of Win_Seq_GPU
-            vector<ff_node *> w(_map_degree);
+            // std::vector of Win_Seq_GPU
+            std::vector<ff_node *> w(_map_degree);
             // create the Win_Seq_GPU
             for (size_t i = 0; i < _map_degree; i++) {
                 // configuration structure of the Win_Seq_GPU (MAP)
@@ -288,7 +289,7 @@ private:
                 seq->setMapIndexes(i, _map_degree);
                 w[i] = seq;
             }
-            ff_farm *farm_map = new ff_farm(w);
+            ff::ff_farm *farm_map = new ff::ff_farm(w);
             farm_map->remove_collector();
             farm_map->add_collector(new map_collector_t());
             farm_map->add_emitter(new map_emitter_t(_map_degree, _winType));
@@ -316,11 +317,11 @@ private:
             reduce_stage = seq_reduce;
         }
         // add to this the pipeline optimized according to the provided optimization level
-        ff_pipeline::add_stage(optimize_WinMapReduceGPU(map_stage, reduce_stage, _opt_level));
+        ff::ff_pipeline::add_stage(optimize_WinMapReduceGPU(map_stage, reduce_stage, _opt_level));
         // when the Win_MapReduce_GPU will be destroyed we need aslo to destroy the two internal stages
-        ff_pipeline::cleanup_nodes();
+        ff::ff_pipeline::cleanup_nodes();
         // flatten the pipeline
-        ff_pipeline::flatten();
+        ff::ff_pipeline::flatten();
     }
 
     // Private Constructor III
@@ -333,12 +334,11 @@ private:
                       size_t _reduce_degree,
                       size_t _batch_len,
                       size_t _n_thread_block,
-                      string _name,
+                      std::string _name,
                       size_t _scratchpad_size,
                       bool _ordered,
                       opt_level_t _opt_level,
-                      PatternConfig _config)
-                      :
+                      PatternConfig _config):
                       map_func(_map_func),
                       gpuFunction(_gpuFunction),
                       isGPUMAP(false),
@@ -360,22 +360,22 @@ private:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // the Win_MapReduce_GPU must have a parallel MAP stage
         if (_map_degree < 2) {
-            cerr << RED << "WindFlow Error: Win_MapReduce_GPU must have a parallel MAP stage" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: Win_MapReduce_GPU must have a parallel MAP stage" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the reduce parallelism degree
         if (_reduce_degree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degree of the REDUCE cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: parallelism degree of the REDUCE cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // general fastflow pointers to the MAP and REDUCE stages
@@ -383,8 +383,8 @@ private:
         auto closing_func = [] (RuntimeContext &) { return; };
         // create the MAP phase
         if (_map_degree > 1) {
-            // vector of Win_Seq
-            vector<ff_node *> w(_map_degree);
+            // std::vector of Win_Seq
+            std::vector<ff_node *> w(_map_degree);
             // create the Win_Seq
             for (size_t i = 0; i < _map_degree; i++) {
                 // configuration structure of the Win_Seq (MAP)
@@ -393,7 +393,7 @@ private:
                 seq->setMapIndexes(i, _map_degree);
                 w[i] = seq;
             }
-            ff_farm *farm_map = new ff_farm(w);
+            ff::ff_farm *farm_map = new ff::ff_farm(w);
             farm_map->remove_collector();
             farm_map->add_collector(new map_collector_t());
             farm_map->add_emitter(new map_emitter_t(_map_degree, _winType));
@@ -421,11 +421,11 @@ private:
             reduce_stage = seq_reduce;
         }
         // add to this the pipeline optimized according to the provided optimization level
-        ff_pipeline::add_stage(optimize_WinMapReduceGPU(map_stage, reduce_stage, _opt_level));
+        ff::ff_pipeline::add_stage(optimize_WinMapReduceGPU(map_stage, reduce_stage, _opt_level));
         // when the Win_MapReduce_GPU will be destroyed we need aslo to destroy the two internal stages
-        ff_pipeline::cleanup_nodes();
+        ff::ff_pipeline::cleanup_nodes();
         // flatten the pipeline
-        ff_pipeline::flatten();
+        ff::ff_pipeline::flatten();
     }
 
     // Private Constructor IV
@@ -438,12 +438,11 @@ private:
                       size_t _reduce_degree,
                       size_t _batch_len,
                       size_t _n_thread_block,
-                      string _name,
+                      std::string _name,
                       size_t _scratchpad_size,
                       bool _ordered,
                       opt_level_t _opt_level,
-                      PatternConfig _config)
-                      :
+                      PatternConfig _config):
                       mapupdate_func(_mapupdate_func),
                       gpuFunction(_gpuFunction),
                       isGPUMAP(false),
@@ -465,22 +464,22 @@ private:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // the Win_MapReduce_GPU must have a parallel MAP stage
         if (_map_degree < 2) {
-            cerr << RED << "WindFlow Error: Win_MapReduce_GPU must have a parallel MAP stage" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: Win_MapReduce_GPU must have a parallel MAP stage" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the reduce parallelism degree
         if (_reduce_degree == 0) {
-            cerr << RED << "WindFlow Error: parallelism degree of the REDUCE cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: parallelism degree of the REDUCE cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << endl;
+            std::cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // general fastflow pointers to the MAP and REDUCE stages
@@ -488,8 +487,8 @@ private:
         auto closing_func = [] (RuntimeContext &) { return; };
         // create the MAP phase
         if (_map_degree > 1) {
-            // vector of Win_Seq
-            vector<ff_node *> w(_map_degree);
+            // std::vector of Win_Seq
+            std::vector<ff_node *> w(_map_degree);
             // create the Win_Seq
             for (size_t i = 0; i < _map_degree; i++) {
                 // configuration structure of the Win_Seq (MAP)
@@ -498,7 +497,7 @@ private:
                 seq->setMapIndexes(i, _map_degree);
                 w[i] = seq;
             }
-            ff_farm *farm_map = new ff_farm(w);
+            ff::ff_farm *farm_map = new ff::ff_farm(w);
             farm_map->remove_collector();
             farm_map->add_collector(new map_collector_t());
             farm_map->add_emitter(new map_emitter_t(_map_degree, _winType));
@@ -526,18 +525,18 @@ private:
             reduce_stage = seq_reduce;
         }
         // add to this the pipeline optimized according to the provided optimization level
-        ff_pipeline::add_stage(optimize_WinMapReduceGPU(map_stage, reduce_stage, _opt_level));
+        ff::ff_pipeline::add_stage(optimize_WinMapReduceGPU(map_stage, reduce_stage, _opt_level));
         // when the Win_MapReduce_GPU will be destroyed we need aslo to destroy the two internal stages
-        ff_pipeline::cleanup_nodes();
+        ff::ff_pipeline::cleanup_nodes();
         // flatten the pipeline
-        ff_pipeline::flatten();
+        ff::ff_pipeline::flatten();
     }
 
     // method to optimize the structure of the Win_MapReduce_GPU pattern
-    const ff_pipeline optimize_WinMapReduceGPU(ff_node *map, ff_node *reduce, opt_level_t opt)
+    const ff::ff_pipeline optimize_WinMapReduceGPU(ff_node *map, ff_node *reduce, opt_level_t opt)
     {
         if (opt == LEVEL0) { // no optimization
-            ff_pipeline pipe;
+            ff::ff_pipeline pipe;
             pipe.add_stage(map);
             pipe.add_stage(reduce);
             pipe.cleanup_nodes();
@@ -551,11 +550,11 @@ private:
                 return combine_nodes_in_pipeline(*map, *reduce, true, true);
             else {
                 using emitter_reduce_t = WF_Emitter<result_t, result_t>;
-                ff_farm *farm_map = static_cast<ff_farm *>(map);
-                ff_farm *farm_reduce = static_cast<ff_farm *>(reduce);
+                ff::ff_farm *farm_map = static_cast<ff::ff_farm *>(map);
+                ff::ff_farm *farm_reduce = static_cast<ff::ff_farm *>(reduce);
                 emitter_reduce_t *emitter_reduce = static_cast<emitter_reduce_t *>(farm_reduce->getEmitter());
                 Ordering_Node<result_t, wrapper_tuple_t<result_t>> *buf_node = new Ordering_Node<result_t, wrapper_tuple_t<result_t>>();
-                const ff_pipeline result = combine_farms(*farm_map, emitter_reduce, *farm_reduce, buf_node, false);
+                const ff::ff_pipeline result = combine_farms(*farm_map, emitter_reduce, *farm_reduce, buf_node, false);
                 delete farm_map;
                 delete farm_reduce;
                 delete buf_node;
@@ -578,7 +577,7 @@ public:
      *  \param _reduce_degree parallelism degree of the REDUCE stage
      *  \param _batch_len no. of window partitions in a batch (i.e. 1 window patition mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. window patitions) per block
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU) 
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the pattern
@@ -592,7 +591,7 @@ public:
                       size_t _reduce_degree,
                       size_t _batch_len,
                       size_t _n_thread_block,
-                      string _name,
+                      std::string _name,
                       size_t _scratchpad_size,
                       bool _ordered,
                       opt_level_t _opt_level):
@@ -611,7 +610,7 @@ public:
      *  \param _reduce_degree parallelism degree of the REDUCE stage
      *  \param _batch_len no. of window partitions in a batch (i.e. 1 window patition mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. window patitions) per block
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the pattern
@@ -625,7 +624,7 @@ public:
                       size_t _reduce_degree,
                       size_t _batch_len,
                       size_t _n_thread_block,
-                      string _name,
+                      std::string _name,
                       size_t _scratchpad_size,
                       bool _ordered,
                       opt_level_t _opt_level):
@@ -644,7 +643,7 @@ public:
      *  \param _reduce_degree parallelism degree of the REDUCE stage
      *  \param _batch_len no. of window partitions in a batch (i.e. 1 window patition mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. window patitions) per block
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the pattern
@@ -658,7 +657,7 @@ public:
                       size_t _reduce_degree,
                       size_t _batch_len,
                       size_t _n_thread_block,
-                      string _name,
+                      std::string _name,
                       size_t _scratchpad_size,
                       bool _ordered,
                       opt_level_t _opt_level):
@@ -677,7 +676,7 @@ public:
      *  \param _reduce_degree parallelism degree of the REDUCE stage
      *  \param _batch_len no. of window partitions in a batch (i.e. 1 window patition mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. window patitions) per block
-     *  \param _name string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the pattern
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the pattern
@@ -691,7 +690,7 @@ public:
                       size_t _reduce_degree,
                       size_t _batch_len,
                       size_t _n_thread_block,
-                      string _name,
+                      std::string _name,
                       size_t _scratchpad_size,
                       bool _ordered,
                       opt_level_t _opt_level):
@@ -722,5 +721,7 @@ public:
      */ 
     size_t getREDUCEParallelism() const { return reduce_degree; }
 };
+
+} // namespace wf
 
 #endif
