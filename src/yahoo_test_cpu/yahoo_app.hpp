@@ -164,7 +164,7 @@ void reduceFunctionINC(size_t wid, const win_result &r1, win_result &r2)
 }
 
 // function for computing the final aggregates on tumbling windows (Non InCremental version)
-void aggregateFunctionNIC(size_t wid, Iterable<joined_event_t> &win, win_result &result)
+void aggregateFunctionNIC(size_t wid, const Iterable<joined_event_t> &win, win_result &result)
 {
     result.count = win.size();
     for (auto t : win) {

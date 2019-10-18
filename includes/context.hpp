@@ -57,7 +57,9 @@ private:
 
 public:
     /// Constructor I
-    RuntimeContext(): parallelism(0), index(0) {}
+    RuntimeContext(): parallelism(0),
+                      index(0)
+    {}
 
     /** 
      *  \brief Constructor II
@@ -65,7 +67,11 @@ public:
      *  \param _parallelism number of replicas of the pattern
      *  \param _index index of the replica invoking the functional logic
      */ 
-    RuntimeContext(size_t _parallelism, size_t _index): parallelism(_parallelism), index(_index) {}
+    RuntimeContext(size_t _parallelism,
+                   size_t _index):
+                   parallelism(_parallelism),
+                   index(_index)
+    {}
 
     /** 
      *  \brief Return the parallelism of the pattern in which the RuntimeContext is used

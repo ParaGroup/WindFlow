@@ -34,7 +34,7 @@
  *  incremental or an incremental query definition.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with a
- *  copy Constructor and copy assignment operator, and they must provide and implement
+ *  copy constructor and copy assignment operator, and they must provide and implement
  *  the setControlFields() and getControlFields() methods. The third template argument F_t
  *  is the type of the callable object to be used for GPU processing (either for the PLQ
  *  or for the WLQ).
@@ -71,11 +71,11 @@ class Pane_Farm_GPU: public ff::ff_pipeline
 {
 public:
     /// function type of the non-incremental pane processing
-    using plq_func_t = std::function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
+    using plq_func_t = std::function<void(uint64_t, const Iterable<tuple_t> &, result_t &)>;
     /// Function type of the incremental pane processing
     using plqupdate_func_t = std::function<void(uint64_t, const tuple_t &, result_t &)>;
     /// function type of the non-incremental window processing
-    using wlq_func_t = std::function<void(uint64_t, Iterable<result_t> &, result_t &)>;
+    using wlq_func_t = std::function<void(uint64_t, const Iterable<result_t> &, result_t &)>;
     /// function type of the incremental window function
     using wlqupdate_func_t = std::function<void(uint64_t, const result_t &, result_t &)>;
 
@@ -184,7 +184,7 @@ private:
         if (_plq_degree > 1) {
             // configuration structure of the Win_Farm_GPU (PLQ)
             PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *plq_wf = new Win_Farm_GPU<tuple_t, result_t, F_t, input_t>(_gpuFunction, _pane_len, _pane_len, _winType, 1, _plq_degree, _batch_len, _n_thread_block, _name + "_plq", _scratchpad_size, true, LEVEL0, configWFPLQ, PLQ);
+            auto *plq_wf = new Win_Farm_GPU<tuple_t, result_t, F_t, input_t>(_gpuFunction, _pane_len, _pane_len, _winType, _plq_degree, _batch_len, _n_thread_block, _name + "_plq", _scratchpad_size, true, LEVEL0, configWFPLQ, PLQ);
             plq_stage = plq_wf;
         }
         else {
@@ -197,7 +197,7 @@ private:
         if (_wlq_degree > 1) {
             // configuration structure of the Win_Farm (WLQ)
             PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlq_func, (_win_len/_pane_len), (_slide_len/_pane_len), CB, 1, _wlq_degree, _name + "_wlq", closing_func, _ordered, LEVEL0, configWFWLQ, WLQ);
+            auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlq_func, (_win_len/_pane_len), (_slide_len/_pane_len), CB, _wlq_degree, _name + "_wlq", closing_func, _ordered, LEVEL0, configWFWLQ, WLQ);
             wlq_stage = wlq_wf;
         }
         else {
@@ -277,7 +277,7 @@ private:
         if (_plq_degree > 1) {
             // configuration structure of the Win_Farm_GPU (PLQ)
             PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *plq_wf = new Win_Farm_GPU<tuple_t, result_t, F_t, input_t>(_gpuFunction, _pane_len, _pane_len, _winType, 1, _plq_degree, _batch_len, _n_thread_block, _name + "_plq", _scratchpad_size, true, LEVEL0, configWFPLQ, PLQ);
+            auto *plq_wf = new Win_Farm_GPU<tuple_t, result_t, F_t, input_t>(_gpuFunction, _pane_len, _pane_len, _winType, _plq_degree, _batch_len, _n_thread_block, _name + "_plq", _scratchpad_size, true, LEVEL0, configWFPLQ, PLQ);
             plq_stage = plq_wf;
         }
         else {
@@ -290,7 +290,7 @@ private:
         if (_wlq_degree > 1) {
             // configuration structure of the Win_Farm (WLQ)
             PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqupdate_func, (_win_len/_pane_len), (_slide_len/_pane_len), CB, 1, _wlq_degree, _name + "_wlq", closing_func, _ordered, LEVEL0, configWFWLQ, WLQ);
+            auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqupdate_func, (_win_len/_pane_len), (_slide_len/_pane_len), CB, _wlq_degree, _name + "_wlq", closing_func, _ordered, LEVEL0, configWFWLQ, WLQ);
             wlq_stage = wlq_wf;
         }
         else {
@@ -370,7 +370,7 @@ private:
         if (_plq_degree > 1) {
             // configuration structure of the Win_Farm (PLQ)
             PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plq_func, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", closing_func, true, LEVEL0, configWFPLQ, PLQ);
+            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plq_func, _pane_len, _pane_len, _winType, _plq_degree, _name + "_plq", closing_func, true, LEVEL0, configWFPLQ, PLQ);
             plq_stage = plq_wf;
         }
         else {
@@ -383,7 +383,7 @@ private:
         if (_wlq_degree > 1) {
             // configuration structure of the Win_Farm_GPU (WLQ)
             PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *wlq_wf = new Win_Farm_GPU<result_t, result_t, F_t>(_gpuFunction, (_win_len/_pane_len), (_slide_len/_pane_len), CB, 1, _wlq_degree, _batch_len, _n_thread_block, _name + "_wlq", scratchpad_size, _ordered, LEVEL0, configWFWLQ, WLQ);
+            auto *wlq_wf = new Win_Farm_GPU<result_t, result_t, F_t>(_gpuFunction, (_win_len/_pane_len), (_slide_len/_pane_len), CB, _wlq_degree, _batch_len, _n_thread_block, _name + "_wlq", scratchpad_size, _ordered, LEVEL0, configWFWLQ, WLQ);
             wlq_stage = wlq_wf;
         }
         else {
@@ -463,7 +463,7 @@ private:
         if (_plq_degree > 1) {
             // configuration structure of the Win_Farm (PLQ)
             PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqupdate_func, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", closing_func, true, LEVEL0, configWFPLQ, PLQ);
+            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqupdate_func, _pane_len, _pane_len, _winType, _plq_degree, _name + "_plq", closing_func, true, LEVEL0, configWFPLQ, PLQ);
             plq_stage = plq_wf;
         }
         else {
@@ -476,7 +476,7 @@ private:
         if (_wlq_degree > 1) {
             // configuration structure of the Win_Farm_GPU (WLQ)
             PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *wlq_wf = new Win_Farm_GPU<result_t, result_t, F_t>(_gpuFunction, (_win_len/_pane_len), (_slide_len/_pane_len), CB, 1, _wlq_degree, _batch_len, _n_thread_block, _name + "_wlq", scratchpad_size, _ordered, LEVEL0, configWFWLQ, WLQ);
+            auto *wlq_wf = new Win_Farm_GPU<result_t, result_t, F_t>(_gpuFunction, (_win_len/_pane_len), (_slide_len/_pane_len), CB, _wlq_degree, _batch_len, _n_thread_block, _name + "_wlq", scratchpad_size, _ordered, LEVEL0, configWFWLQ, WLQ);
             wlq_stage = wlq_wf;
         }
         else {
@@ -526,12 +526,13 @@ private:
                 ff::ff_farm *farm_plq = static_cast<ff::ff_farm *>(plq);
                 ff::ff_farm *farm_wlq = static_cast<ff::ff_farm *>(wlq);
                 emitter_wlq_t *emitter_wlq = static_cast<emitter_wlq_t *>(farm_wlq->getEmitter());
+                farm_wlq->cleanup_emitter(false);
                 Ordering_Node<result_t, wrapper_tuple_t<result_t>> *buf_node = new Ordering_Node<result_t, wrapper_tuple_t<result_t>>();
                 const ff::ff_pipeline result = combine_farms(*farm_plq, emitter_wlq, *farm_wlq, buf_node, false);
                 delete farm_plq;
                 delete farm_wlq;
                 delete buf_node;
-                // delete emitter_wlq; // --> should be executed, why not?
+                delete emitter_wlq;
                 return result;
             }
         }
@@ -674,25 +675,37 @@ public:
      *  \brief Get the optimization level used to build the pattern
      *  \return adopted utilization level by the pattern
      */ 
-    opt_level_t getOptLevel() const { return opt_level; }
+    opt_level_t getOptLevel() const
+    {
+      return opt_level;
+    }
 
     /** 
      *  \brief Get the window type (CB or TB) utilized by the pattern
      *  \return adopted windowing semantics (count- or time-based)
      */ 
-    win_type_t getWinType() const { return winType; }
+    win_type_t getWinType() const
+    {
+      return winType;
+    }
 
     /** 
      *  \brief Get the parallelism degree of the PLQ stage
      *  \return PLQ parallelism degree
      */ 
-    size_t getPLQParallelism() const { return plq_degree; }
+    size_t getPLQParallelism() const
+    {
+      return plq_degree;
+    }
 
     /** 
      *  \brief Get the parallelism degree of the WLQ stage
      *  \return WLQ parallelism degree
      */ 
-    size_t getWLQParallelism() const { return wlq_degree; }
+    size_t getWLQParallelism() const
+    {
+      return wlq_degree;
+    }
 };
 
 } // namespace wf

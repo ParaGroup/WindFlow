@@ -70,36 +70,6 @@ public:
     // destructor
     ~YSBSource() {}
 
-#if 0
-    // generation function
-    void operator()(Shipper<event_t> &shipper)
-    {
-        // generation loop
-        while (true) {
-            current_time_us = current_time_usecs();
-            double elapsed_time_sec = (current_time_us - start_time_usec) / 1000000.0;
-            if (elapsed_time_sec >= execution_time_sec)
-                break;
-            else {
-                // generation of a new tuple
-                event_t out;
-                // fill the tuple's fields
-                out.ts = current_time_usecs() - start_time_usec;
-                out.user_id = 0; // not meaningful
-                out.page_id = 0; // not meaningful
-                out.ad_id = ads_arrays[(value % 100000) % (N_CAMPAIGNS * adsPerCampaign)][1];
-                out.ad_type = (value % 100000) % 5;
-                out.event_type = (value % 100000) % 3;
-                out.ip = 1; // not meaningful
-                value++;
-                shipper.push(out);
-                num_sent++;
-            }
-        }
-        cout << "[EventSource] Generated " << num_sent << " events" << endl;
-    }
-#endif
-
     // generation function
     bool operator()(event_t &event)
     {

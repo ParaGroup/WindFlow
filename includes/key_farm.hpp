@@ -31,7 +31,7 @@
  *  windows of the same sub-stream are executed rigorously in order.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with
- *  a copy Constructor and copy assignment operator, and they must provide and implement
+ *  a copy constructor and copy assignment operator, and they must provide and implement
  *  the setControlFields() and getControlFields() methods.
  */ 
 
@@ -48,7 +48,8 @@
 #include <kf_nodes.hpp>
 #include <wf_nodes.hpp>
 #include <wm_nodes.hpp>
-#include <tree_combiner.hpp>
+#include <tree_emitter.hpp>
+#include <basic_emitter.hpp>
 #include <transformations.hpp>
 
 namespace wf {
@@ -67,9 +68,9 @@ class Key_Farm: public ff::ff_farm
 {
 public:
     /// type of the non-incremental window processing function
-    using win_func_t = std::function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
+    using win_func_t = std::function<void(uint64_t, const Iterable<tuple_t> &, result_t &)>;
     /// type of the rich non-incremental window processing function
-    using rich_win_func_t = std::function<void(uint64_t, Iterable<tuple_t> &, result_t &, RuntimeContext &)>;
+    using rich_win_func_t = std::function<void(uint64_t, const Iterable<tuple_t> &, result_t &, RuntimeContext &)>;
     /// type of the incremental window processing function
     using winupdate_func_t = std::function<void(uint64_t, const tuple_t &, result_t &)>;
     /// type of the rich incremental window processing function
@@ -89,7 +90,7 @@ private:
     // type of the KF_Emitter node
     using kf_emitter_t = KF_Emitter<tuple_t>;
     // type of the KF_Collector node
-    using kf_collector_t = KF_NestedCollector<result_t>;
+    using kf_collector_t = KF_Collector<result_t>;
     // type of the Win_Seq to be created within the regular Constructor
     using win_seq_t = Win_Seq<tuple_t, result_t>;
     // friendships with other classes in the library
@@ -168,7 +169,6 @@ private:
     }
 
     // method to optimize the structure of the Key_Farm pattern
-    template<typename inner_emitter_t>
     void optimize_KeyFarm(opt_level_t opt)
     {
         if (opt == LEVEL0) // no optimization
@@ -178,7 +178,7 @@ private:
         else { // optimization level 2
             kf_emitter_t *kf_e = static_cast<kf_emitter_t *>(this->getEmitter());
             auto &oldWorkers = this->getWorkers();
-            std::vector<inner_emitter_t *> Es;
+            std::vector<Basic_Emitter *> Es;
             bool tobeTransformmed = true;
             // change the workers by removing their first emitter (if any)
             for (auto *w: oldWorkers) {
@@ -187,13 +187,13 @@ private:
                 if (e == nullptr)
                     tobeTransformmed = false;
                 else {
-                    inner_emitter_t *my_e = static_cast<inner_emitter_t *>(e);
+                    Basic_Emitter *my_e = static_cast<Basic_Emitter *>(e);
                     Es.push_back(my_e);
                 }
             }
             if (tobeTransformmed) {
                 // create the tree emitter
-                auto *treeEmitter = new TreeComb<kf_emitter_t, inner_emitter_t>(kf_e, Es);
+                auto *treeEmitter = new Tree_Emitter(kf_e, Es, true, true);
                 this->cleanup_emitter(false);
                 this->change_emitter(treeEmitter, true);
             }
@@ -331,8 +331,6 @@ public:
              parallelism(_pardegree),
              winType(_winType)
     {
-        // type of the PLQ emitter in the first stage of the Pane_Farm
-        using plq_emitter_t = WF_Emitter<tuple_t>;
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
             std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
@@ -398,7 +396,7 @@ public:
         ff::ff_farm::add_collector(new kf_collector_t());
         ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _pardegree));
         // optimization process according to the provided optimization level
-        this->optimize_KeyFarm<plq_emitter_t>(_opt_level);
+        this->optimize_KeyFarm(_opt_level);
         // when the Key_Farm will be destroyed we need aslo to destroy the emitter, workers and collector
         ff::ff_farm::cleanup_all();
     }
@@ -431,8 +429,6 @@ public:
              parallelism(_pardegree),
              winType(_winType)
     {
-        // type of the MAP emitter in the first stage of the Win_MapReduce
-        using map_emitter_t = WinMap_Emitter<tuple_t>;
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
             std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
@@ -498,7 +494,7 @@ public:
         ff::ff_farm::add_collector(new kf_collector_t());
         ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _pardegree));
         // optimization process according to the provided optimization level
-        this->optimize_KeyFarm<map_emitter_t>(_opt_level);
+        this->optimize_KeyFarm(_opt_level);
         // when the Key_Farm will be destroyed we need aslo to destroy the emitter, workers and collector
         ff::ff_farm::cleanup_all();
     }
@@ -507,43 +503,64 @@ public:
      *  \brief Check whether the Key_Farm has been instantiated with complex patterns inside
      *  \return true if the Key_Farm has complex patterns inside
      */ 
-    bool useComplexNesting() const { return hasComplexWorkers; }
+    bool useComplexNesting() const
+    {
+        return hasComplexWorkers;
+    }
 
     /** 
      *  \brief Get the optimization level used to build the pattern
      *  \return adopted utilization level by the pattern
      */ 
-    opt_level_t getOptLevel() const { return outer_opt_level; }
+    opt_level_t getOptLevel() const
+    {
+        return outer_opt_level;
+    }
 
     /** 
      *  \brief Type of the inner patterns used by this Key_Farm
      *  \return type of the inner patterns
      */ 
-    pattern_t getInnerType() const { return inner_type; }
+    pattern_t getInnerType() const
+    {
+        return inner_type;
+    }
 
     /** 
      *  \brief Get the optimization level of the inner patterns within this Key_Farm
      *  \return adopted utilization level by the inner patterns
      */ 
-    opt_level_t getInnerOptLevel() const { return inner_opt_level; }
+    opt_level_t getInnerOptLevel() const
+    {
+        return inner_opt_level;
+    }
 
     /** 
      *  \brief Get the parallelism degree of the Key_Farm
      *  \return parallelism degree of the Key_Farm
      */ 
-    size_t getParallelism() const { return parallelism; }        
+    size_t getParallelism() const
+    {
+        return parallelism;
+    }        
 
     /** 
      *  \brief Get the parallelism degrees of the inner patterns within this Key_Farm
      *  \return parallelism degrees of the inner patterns
      */ 
-    std::pair<size_t, size_t> getInnerParallelism() const { return std::make_pair(inner_parallelism_1, inner_parallelism_2); }
+    std::pair<size_t, size_t> getInnerParallelism() const
+    {
+        return std::make_pair(inner_parallelism_1, inner_parallelism_2);
+    }
 
     /** 
      *  \brief Get the window type (CB or TB) utilized by the pattern
      *  \return adopted windowing semantics (count- or time-based)
      */ 
-    win_type_t getWinType() const { return winType; }
+    win_type_t getWinType() const
+    {
+        return winType;
+    }
 };
 
 } // namespace wf

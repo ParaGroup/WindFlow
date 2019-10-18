@@ -38,7 +38,7 @@
 #include <string>
 #if __cplusplus < 201703L //not C++17
     #include <experimental/optional>
-    using namespace std::experimental;
+    namespace std { using namespace experimental; } // ugly but necessary until CUDA will support C++17!
 #else
     #include <optional>
 #endif
@@ -47,7 +47,7 @@
 #include <ff/multinode.hpp>
 #include <basic.hpp>
 #include <context.hpp>
-#include <standard.hpp>
+#include <standard_nodes.hpp>
 
 namespace wf {
 
@@ -332,7 +332,10 @@ public:
      *  \brief Check whether the Sink has been instantiated with a key-based distribution or not
      *  \return true if the Filter is configured with keyBy
      */
-    bool isKeyed() { return keyed; }
+    bool isKeyed() const
+    {
+        return keyed;
+    }
 };
 
 } // namespace wf

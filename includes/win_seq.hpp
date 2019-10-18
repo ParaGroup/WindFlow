@@ -28,7 +28,7 @@
  *  core and supports both a non-incremental and an incremental query definition.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with
- *  a copy Constructor and copy assignment operator, and they must provide and implement
+ *  a copy constructor and copy assignment operator, and they must provide and implement
  *  the setControlFields() and getControlFields() methods.
  */ 
 
@@ -62,9 +62,9 @@ class Win_Seq: public ff::ff_node_t<input_t, result_t>
 {
 public:
     /// type of the non-incremental window processing function
-    using win_func_t = std::function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
+    using win_func_t = std::function<void(uint64_t, const Iterable<tuple_t> &, result_t &)>;
     /// type of the rich non-incremental window processing function
-    using rich_win_func_t = std::function<void(uint64_t, Iterable<tuple_t> &, result_t &, RuntimeContext &)>;
+    using rich_win_func_t = std::function<void(uint64_t, const Iterable<tuple_t> &, result_t &, RuntimeContext &)>;
     /// type of the incremental window processing function
     using winupdate_func_t = std::function<void(uint64_t, const tuple_t &, result_t &)>;
     /// type of the rich incremental window processing function
@@ -73,8 +73,8 @@ public:
     using closing_func_t = std::function<void(RuntimeContext &)>;
 
 private:
-    // const iterator type for accessing tuples
-    using const_input_iterator_t = typename std::deque<tuple_t>::const_iterator;
+    // iterator type for accessing tuples
+    using input_iterator_t = typename std::deque<tuple_t>::iterator;
     // type of the stream archive used by the Win_Seq pattern
     using archive_t = StreamArchive<tuple_t, std::deque<tuple_t>>;
     // window type used by the Win_Seq pattern
@@ -439,9 +439,9 @@ public:
                 if (!isNIC && !isEOSMarker<tuple_t, input_t>(*wt)) {
                     // incremental query -> call rich_/winupdate_func
                     if (!isRich)
-                        winupdate_func(win.getGWID(), *t, *(win.getResult()));
+                        winupdate_func(win.getGWID(), *t, win.getResult());
                     else
-                        rich_winupdate_func(win.getGWID(), *t, *(win.getResult()), context);
+                        rich_winupdate_func(win.getGWID(), *t, win.getResult(), context);
                 }
             }
             else { // window is fired
@@ -454,7 +454,7 @@ public:
                     rcvTuplesTriggering++;
                     isTriggering = true;
 #endif
-                    std::pair<const_input_iterator_t, const_input_iterator_t> its;
+                    std::pair<input_iterator_t, input_iterator_t> its;
                     // empty window
                     if (!t_s) {
                         its.first = (key_d.archive).end();
@@ -466,16 +466,16 @@ public:
                     Iterable<tuple_t> iter(its.first, its.second);
                     // non-incremental query -> call rich_/win_func
                     if (!isRich)
-                        win_func(win.getGWID(), iter, *(win.getResult()));
+                        win_func(win.getGWID(), iter, win.getResult());
                     else
-                        rich_win_func(win.getGWID(), iter, *(win.getResult()), context);
+                        rich_win_func(win.getGWID(), iter, win.getResult(), context);
                 }
                 // purge the tuples from the archive (if the window is not empty)
                 if (t_s)
                     (key_d.archive).purge(*t_s);
                 cnt_fired++;
                 // send the result of the fired window
-                result_t *out = win.getResult();
+                result_t *out = new result_t(win.getResult());
                 // special cases: role is PLQ or MAP
                 if (role == MAP) {
                     out->setControlFields(key, key_d.emit_counter, std::get<2>(out->getControlFields()));
@@ -524,7 +524,7 @@ public:
                 if (isNIC) {
                     // acquire from the archive the optional to the first tuple of the window
                     std::optional<tuple_t> t_s = win.getFirstTuple();
-                    std::pair<const_input_iterator_t,const_input_iterator_t> its;
+                    std::pair<input_iterator_t, input_iterator_t> its;
                     // empty window
                     if (!t_s) {
                         its.first = ((k.second).archive).end();
@@ -536,12 +536,12 @@ public:
                     Iterable<tuple_t> iter(its.first, its.second);
                     // non-incremental query -> call rich_/win_func
                     if (!isRich)
-                        win_func(win.getGWID(), iter, *(win.getResult()));
+                        win_func(win.getGWID(), iter, win.getResult());
                     else
-                        rich_win_func(win.getGWID(), iter, *(win.getResult()), context);
+                        rich_win_func(win.getGWID(), iter, win.getResult(), context);
                 }
                 // send the result of the window
-                result_t *out = win.getResult();
+                result_t *out = new result_t(win.getResult());
                 // special cases: role is PLQ or MAP
                 if (role == MAP) {
                     out->setControlFields(k.first, (k.second).emit_counter, std::get<2>(out->getControlFields()));
@@ -594,7 +594,10 @@ public:
      *  \brief Get the window type (CB or TB) utilized by the pattern
      *  \return adopted windowing semantics (count- or time-based)
      */
-    win_type_t getWinType() { return winType; }
+    win_type_t getWinType() const
+    {
+        return winType;
+    }
 
     /// Method to start the pattern execution asynchronously
     virtual int run(bool)

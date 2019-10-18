@@ -19,7 +19,7 @@
  *  @author  Gabriele Mencagli
  *  @date    19/08/2018
  *  
- *  @brief FastFlow node used for reordering data items received from multiple streams
+ *  @brief Node used for reordering data items received from multiple streams
  *  
  *  @section Ordering_Node (Description)
  *  
@@ -145,9 +145,10 @@ public:
         else if (isEOSMarker<tuple_t, input_t>(*wr)) {
             tuple_t *tmp = extractTuple<tuple_t, input_t>(key_d.eos_marker);
             uint64_t tmp_id = (mode == ID) ? std::get<1>(tmp->getControlFields()) : std::get<2>(tmp->getControlFields());
-            if (wid > tmp_id)
-                // here maybe we have a small memory leak (to be fixed)
+            if (wid > tmp_id) {
+                deleteTuple<tuple_t, input_t>(key_d.eos_marker);
                 key_d.eos_marker = wr;
+            }
             else
                 deleteTuple<tuple_t, input_t>(wr);
             return this->GO_ON;
@@ -219,7 +220,7 @@ public:
                     this->ff_send_out(copy_wt);
                 }
                 else
-                    this->ff_send_out(wnext);           
+                    this->ff_send_out(wnext);
             }
             for (auto &k: keyMap) {
                 auto key = k.first;

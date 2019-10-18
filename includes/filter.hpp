@@ -26,7 +26,7 @@
  *  This file implements the Filter pattern able to drop all the input items that do not
  *  respect a given predicate given by the user.
  *  
- *  The template parameter tuple_t must be default constructible, with a copy Constructor
+ *  The template parameter tuple_t must be default constructible, with a copy constructor
  *  and copy assignment operator, and it must provide and implement the setControlFields()
  *  and getControlFields() methods.
  */ 
@@ -42,7 +42,7 @@
 #include <ff/farm.hpp>
 #include <basic.hpp>
 #include <context.hpp>
-#include <standard.hpp>
+#include <standard_nodes.hpp>
 
 namespace wf {
 
@@ -74,7 +74,7 @@ private:
     // class Filter_Node
     class Filter_Node: public ff::ff_node_t<tuple_t>
     {
-    private:
+private:
         filter_func_t filter_func; // filter function (predicate)
         rich_filter_func_t rich_filter_func; // rich filter function (predicate)
         closing_func_t closing_func; // closing function
@@ -89,7 +89,7 @@ private:
         std::ofstream *logfile = nullptr;
 #endif
 
-    public:
+public:
         // Constructor I
         Filter_Node(filter_func_t _filter_func,
                     std::string _name,
@@ -325,7 +325,10 @@ public:
      *  \brief Check whether the Filter has been instantiated with a key-based distribution or not
      *  \return true if the Filter is configured with keyBy
      */
-    bool isKeyed() { return keyed; }
+    bool isKeyed() const
+    {
+        return keyed;
+    }
 };
 
 } // namespace wf

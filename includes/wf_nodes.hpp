@@ -19,11 +19,11 @@
  *  @author  Gabriele Mencagli
  *  @date    01/10/2018
  *  
- *  @brief Emitter and Collector nodes of the Win_Farm and Win_Farm_GPU patterns
+ *  @brief Emitter and collector of the Win_Farm and Win_Farm_GPU patterns
  *  
- *  @section Win_Farm_Nodes (Description)
+ *  @section Win_Farm and Win_Farm_GPU Emitter and Collector (Description)
  *  
- *  This file implements the Emitter and the Collector nodes used in the Win_Farm
+ *  This file implements the emitter and the collector used in the Win_Farm
  *  and Win_Farm_GPU patterns in the library.
  */ 
 
@@ -35,12 +35,13 @@
 #include <vector>
 #include <ff/multinode.hpp>
 #include <meta_utils.hpp>
+#include <basic_emitter.hpp>
 
 namespace wf {
 
 // class WF_Emitter
 template<typename tuple_t, typename input_t=tuple_t>
-class WF_Emitter: public ff::ff_monode_t<input_t, wrapper_tuple_t<tuple_t>>
+class WF_Emitter: public Basic_Emitter
 {
 private:
     // type of the wrapper of input tuples
@@ -67,8 +68,8 @@ private:
         Key_Descriptor(): rcv_counter(0) {}
     };
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
-    bool isCombined; // true if this node is used within a treeComb node
-    std::vector<std::pair<wrapper_in_t *, int>> output_queue; // used in case of treeComb mode
+    bool isCombined; // true if this node is used within a Tree_Emitter node
+    std::vector<std::pair<void *, int>> output_queue; // used in case of Tree_Emitter mode
 
 public:
     // Constructor
@@ -92,6 +93,13 @@ public:
                isCombined(false)
     {}
 
+    // clone method
+    Basic_Emitter *clone() const
+    {
+        WF_Emitter<tuple_t, input_t> *copy = new WF_Emitter<tuple_t, input_t>(*this);
+        return copy;
+    }
+
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
     {
@@ -99,8 +107,9 @@ public:
     }
 
     // svc method (utilized by the FastFlow runtime)
-    wrapper_in_t *svc(input_t *wt)
+    void *svc(void *in)
     {
+        input_t *wt = reinterpret_cast<input_t *>(in);
         // extract the key and id/timestamp fields from the input tuple
         tuple_t *t = extractTuple<tuple_t, input_t>(wt);
         auto key = std::get<0>(t->getControlFields()); // key
@@ -131,6 +140,11 @@ public:
                 key_d.rcv_counter++;
                 key_d.last_tuple = *t;
             }
+        }
+        // delete the input if it is an EOS marker
+        if (isEOSMarker<tuple_t, input_t>(*wt)) {
+            deleteTuple<tuple_t, input_t>(wt);
+            return this->GO_ON;
         }
         // gwid of the first window of that key assigned to this Win_Farm
         uint64_t first_gwid_key = (id_outer - (hashcode % n_outer) + n_outer) % n_outer;
@@ -215,19 +229,19 @@ public:
     void svc_end() {}
 
     // get the number of destinations
-    size_t getNDestinations()
+    size_t getNDestinations() const
     {
         return pardegree;
     }
 
-    // set/unset the treeComb mode
-    void setTreeCombMode(bool _val)
+    // set/unset the Tree_Emitter mode
+    void setTree_EmitterMode(bool _val)
     {
         isCombined = _val;
     }
 
-    // method to get a reference to the internal output queue (used in treeComb mode)
-    std::vector<std::pair<wrapper_in_t *, int>> &getOutputQueue()
+    // method to get a reference to the internal output queue (used in Tree_Emitter mode)
+    std::vector<std::pair<void *, int>> &getOutputQueue()
     {
         return output_queue;
     }

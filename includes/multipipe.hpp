@@ -19,13 +19,12 @@
  *  @author  Gabriele Mencagli
  *  @date    14/01/2019
  *  
- *  @brief MultiPipe construct to compose a complex pipeline of streaming patterns
+ *  @brief MultiPipe construct to build a parallel pipeline
  *  
- *  @section MultiPipe Construct (Description)
+ *  @section MultiPipe (Description)
  *  
- *  This file implements the MultiPipe construct used to build a complex pipeline
- *  of WindFlow patterns. A runnable MultiPipe starts with a Source, has a
- *  sequence of pattern inside, and terminates with a Sink.
+ *  This file implements the MultiPipe construct. A MultiPipe consists of a set of
+ *  pipelines with cross-connections that jump from a pipeline to another one.
  */ 
 
 #ifndef MULTIPIPE_H
@@ -37,39 +36,48 @@
 #include <math.h>
 #include <ff/ff.hpp>
 #include <basic.hpp>
-#include <standard.hpp>
 #include <wm_nodes.hpp>
 #include <wf_nodes.hpp>
 #include <kf_nodes.hpp>
+#include <tree_emitter.hpp>
+#include <basic_emitter.hpp>
 #include <ordering_node.hpp>
-#include <tree_combiner.hpp>
-#include <broadcast_node.hpp>
+#include <standard_nodes.hpp>
 #include <transformations.hpp>
+#include <splitting_emitter.hpp>
+#include <broadcast_emitter.hpp>
 
 namespace wf {
 
 /** 
  *  \class MultiPipe
  *  
- *  \brief MultiPipe construct to compose a complex pipeline of streaming patterns
+ *  \brief MultiPipe construct to build a parallel pipeline
  *  
- *  This class implements the MultiPipe construct used to build a complex linear composition
- *  of patterns available in the WindFlow library.
+ *  This class implements the MultiPipe construct used to build a set of pipelines of patterns
+ *  (operators) with cross-connections jumping from a pipeline to another one.
  */ 
 class MultiPipe: public ff::ff_pipeline
 {
 private:
     // enumeration of the routing types
     enum routing_types_t { SIMPLE, COMPLEX };
-	std::string name; // std::string with the unique name of the MultiPipe
+	std::string name; // string with the unique name of the MultiPipe
 	bool has_source; // true if the MultiPipe has a Source
 	bool has_sink; // true if the MultiPipe ends with a Sink
 	ff::ff_a2a *last; // pointer to the last matrioska
-    ff::ff_a2a *secondToLast; // pointer to the second to last matrioska
-    bool isUnified; // true if the MultiPipe is used in a union with other MultiPipe
-    bool forceShuffling; // true if we force the use of a shuffling for adding the next operator to the MultiPipe
+    ff::ff_a2a *secondToLast; // pointer to the second-to-last matrioska
+    bool isMerged; // true if the MultiPipe has been merged with other MultiPipe instances
+    bool isSplitted; // true if the MultiPipe has been splitted into other MultiPipe instances
+    bool fromSplitting; // true if the MultiPipe originates from a splitting of another MultiPipe
+    size_t splittingBranches; // number of splitting branches (meaningful if isSplitted is true)
+    MultiPipe *splittingParent = nullptr; // pointer to the parent MultiPipe (meaningful if fromSplitting is true)
+    Basic_Emitter *splittingEmitterRoot = nullptr; // splitting emitter (meaningful if isSplitted is true)
+    std::vector<Basic_Emitter *> splittingEmitterLeaves; // vector of emitters (meaningful if isSplitted is true)
+    std::vector<MultiPipe *> splittingChildren; // vector of children MultiPipe instances (meaningful if isSplitted is true)
+    bool forceShuffling; // true if the next operator that will be added to the MultiPipe is forced to generate a shuffling
     size_t lastParallelism; // parallelism of the last operator added to the MultiPipe (0 if not defined)
-    // class of the self-killer multi-input node (selfkiller_node)
+    // class selfkiller_node (placeholder in the right set of matrioskas)
     class selfkiller_node: public ff::ff_minode
     {
         // svc_init (utilized by the FastFlow runtime)
@@ -86,12 +94,15 @@ private:
         }
     };
 
-    // Private Constructor (used by union only)
+    // Private Constructor (used for merge only)
     MultiPipe(std::string _name, std::vector<ff_node *> _init_set):
               name(_name),
               has_source(true),
               has_sink(false),
-              isUnified(false),
+              isMerged(false),
+              isSplitted(false),
+              fromSplitting(false),
+              splittingBranches(0),
               forceShuffling(true),
               lastParallelism(0)
     {
@@ -114,16 +125,53 @@ private:
     {
         // check the Source and Sink presence
         if (!this->has_source) {
-            std::cerr << RED << "WindFlow Error: Source is not defined for the MultiPipe [" << name << "]" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Source is not defined for the MultiPipe [" << name << "], operator (pattern) cannot be added" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         if (this->has_sink) {
-            std::cerr << RED << "WindFlow Error: MultiPipe [" << name << "]" << " is terminated by a Sink" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: MultiPipe [" << name << "]" << " has been already terminated by a Sink, operator (pattern) cannot be added" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
+        }
+        // merged MultiPipe cannot be modified
+        if (this->isMerged) {
+            std::cerr << RED << "WindFlow Error: MultiPipe [" << name << "] has been merged, operator (pattern) cannot be added" << DEFAULT << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        // splitted MultiPipe cannot be modified
+        if (this->isSplitted) {
+            std::cerr << RED << "WindFlow Error: MultiPipe [" << name << "] has been splitted, operator (pattern) cannot be added" << DEFAULT << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        // Case 1: first operator added after splitting
+        if (fromSplitting && last == nullptr) {
+            // create the initial matrioska
+            ff::ff_a2a *matrioska = new ff::ff_a2a();
+            std::vector<ff_node *> first_set;
+            auto workers = _pattern->getWorkers();
+            for (size_t i=0; i<workers.size(); i++) {
+                ff::ff_pipeline *stage = new ff::ff_pipeline();
+                stage->add_stage(workers[i], false);
+                combine_with_firststage(*stage, new collector_t(_ordering), true);
+                first_set.push_back(stage);
+            }
+            matrioska->add_firstset(first_set, 0, true);
+            std::vector<ff_node *> second_set;
+            ff::ff_pipeline *stage = new ff::ff_pipeline();
+            stage->add_stage(new selfkiller_node(), true);
+            second_set.push_back(stage);
+            matrioska->add_secondset(second_set, true);
+            this->add_stage(matrioska, true);
+            this->last = matrioska;
+            // save parallelism of the operator
+            lastParallelism = workers.size();
+            // save what is needed for splitting with the parent MultiPipe
+            Basic_Emitter *be = static_cast<Basic_Emitter *>(_pattern->getEmitter());
+            (this->splittingParent)->prepareSplittingEmitters(be);
+            return;
         }
         size_t n1 = (last->getFirstSet()).size();
         size_t n2 = (_pattern->getWorkers()).size();
-        // Case 1: direct connection
+        // Case 2: direct connection
         if ((n1 == n2) && _type == SIMPLE && !forceShuffling) {
             auto first_set = last->getFirstSet();
             auto worker_set = _pattern->getWorkers();
@@ -133,7 +181,7 @@ private:
                 stage->add_stage(worker_set[i], false);
             }
         }
-        // Case 2: shuffling connection
+        // Case 3: shuffling connection
         else {
             // prepare the nodes of the first_set of the last matrioska for the shuffling
             auto first_set_m = last->getFirstSet();
@@ -180,13 +228,26 @@ private:
     {
         // check the Source and Sink presence
         if (!this->has_source) {
-            std::cerr << RED << "WindFlow Error: Source is not defined for the MultiPipe [" << name << "]" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Source is not defined for the MultiPipe [" << name << "], operator (pattern) cannot be chained" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         if (this->has_sink) {
-            std::cerr << RED << "WindFlow Error: MultiPipe [" << name << "]" << " is terminated by a Sink" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: MultiPipe [" << name << "]" << " has been already terminated by a Sink, operator (pattern) cannot be chained" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
+        // merged MultiPipe cannot be modified
+        if (this->isMerged) {
+            std::cerr << RED << "WindFlow Error: MultiPipe [" << name << "] has been merged, operator (pattern) cannot be chained" << DEFAULT << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        // splitted MultiPipe cannot be modified
+        if (this->isSplitted) {
+            std::cerr << RED << "WindFlow Error: MultiPipe [" << name << "] has been splitted, operator (pattern) cannot be chained" << DEFAULT << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        // first operator added to a MultiPipe after splitting (chain cannot work -> add instead)
+        if (fromSplitting && last == nullptr)
+            return false;
         size_t n1 = (last->getFirstSet()).size();
         size_t n2 = (_pattern->getWorkers()).size();
         // _pattern is for sure SIMPLE: check additional conditions for chaining
@@ -199,7 +260,7 @@ private:
                 worker_t *worker = static_cast<worker_t *>(worker_set[i]);
                 combine_with_laststage(*stage, worker, false);
             }
-            // save parallelism of the operator
+            // save parallelism of the operator (not necessary: n1 == n2)
             lastParallelism = n2;
             return true;
         }
@@ -207,8 +268,8 @@ private:
             return false;
     }
 
-    // method to prepare the MultiPipe for the union with other MultiPipe
-    std::vector<ff_node *> prepare4Union()
+    // method to normalize a MultiPipe
+    std::vector<ff_node *> normalize()
     {
         // check the Source and Sink presence
         if (!this->has_source) {
@@ -216,7 +277,22 @@ private:
             exit(EXIT_FAILURE);
         }
         if (this->has_sink) {
-            std::cerr << RED << "WindFlow Error: MultiPipe [" << name << "]" << " is terminated by a Sink" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: MultiPipe [" << name << "]" << " has been already terminated by a Sink" << DEFAULT << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        // merged MultiPipe cannot be normalized
+        if (this->isMerged) {
+            std::cerr << RED << "WindFlow Error: MultiPipe [" << name << "] has been merged" << DEFAULT << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        // splitted MultiPipe cannot be normalized
+        if (this->isSplitted) {
+            std::cerr << RED << "WindFlow Error: MultiPipe [" << name << "] has been splitted" << DEFAULT << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        // empty MultiPipe cannot be normalized
+        if (last == nullptr) {
+            std::cerr << RED << "WindFlow Error: MultiPipe [" << name << "] is empty" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         std::vector<ff_node *> result;
@@ -237,34 +313,97 @@ private:
             delete last;
             last = secondToLast;
             secondToLast = nullptr;
-            result.push_back(this);
+            ff::ff_pipeline *p = new ff::ff_pipeline(); // <-- Memory leak?
+            p->add_stage((this->getStages())[0], false);
+            result.push_back(p);
         }
-        this->isUnified = true;
         return result;
     }
 
-    // prepareInitSet method: base case 1
-    std::vector<ff_node *> prepareInitSet() { return std::vector<ff_node *>(); }
-
-    // prepareInitSet method: base case 2
-    template<typename MULTIPIPE>
-    std::vector<ff_node *> prepareInitSet(MULTIPIPE &_pipe) { return _pipe.prepare4Union(); }
-
-    // prepareInitSet method: generic case
-    template<typename MULTIPIPE, typename ...MULTIPIPES>
-    std::vector<ff_node *> prepareInitSet(MULTIPIPE &_first, MULTIPIPES&... _pipes)
+    // prepareMerge method: base case 1
+    std::vector<ff_node *> prepareMerge()
     {
-        std::vector<ff_node *> v1 = _first.prepare4Union();
-        std::vector<ff_node *> v2 = prepareInitSet(_pipes...);
+        return std::vector<ff_node *>();
+    }
+
+    // prepareMerge method: base case 2
+    template<typename MULTIPIPE>
+    std::vector<ff_node *> prepareMerge(MULTIPIPE &_pipe)
+    {
+        // check whether the MultiPipe has been already splitted
+        if (_pipe.fromSplitting) {
+            std::cerr << RED << "WindFlow Error: MultiPipe obtained from splitting cannot be merged" << DEFAULT << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        auto v = _pipe.normalize();
+        _pipe.isMerged = true;
+        return v;
+    }
+
+    // prepareMerge method: generic case
+    template<typename MULTIPIPE, typename ...MULTIPIPES>
+    std::vector<ff_node *> prepareMerge(MULTIPIPE &_first, MULTIPIPES&... _pipes)
+    {
+        // check whether the MultiPipe has been already splitted
+        if (_first.fromSplitting) {
+            std::cerr << RED << "WindFlow Error: MultiPipe obtained from splitting cannot be merged" << DEFAULT << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        std::vector<ff_node *> v1 = _first.normalize();
+        _first.isMerged = true;
+        std::vector<ff_node *> v2 = prepareMerge(_pipes...);
         v1.insert(v1.end(), v2.begin(), v2.end());
         return v1;
+    }
+
+    // prepareSplit method
+    template<typename F_t>
+    void prepareSplit(F_t _splitting_func, size_t _cardinality)
+    {
+        std::vector<ff_node *> v1 = this->normalize();
+        this->isSplitted = true;
+        this->splittingBranches = _cardinality;
+        this->splittingEmitterRoot = new Splitting_Emitter<decltype(get_tuple_split_t(_splitting_func))>(_splitting_func, _cardinality);
+        ff::ff_a2a *container = new ff::ff_a2a();
+        container->add_firstset(v1, 0, false);
+        std::vector<ff_node *> second_set;
+        for (size_t i=0; i<_cardinality; i++) {
+            MultiPipe *mp = new MultiPipe(this->name + "_split_" + std::to_string(i));
+            mp->has_source = true;
+            mp->fromSplitting = true;
+            mp->splittingParent = this;
+            second_set.push_back(mp);
+            splittingChildren.push_back(mp);
+        }
+        container->add_secondset(second_set, true);
+        this->remove_stage(0);
+        this->add_stage(container, true);
+        last = container;
+        secondToLast = nullptr;
+    }
+
+    // prepareSplittingEmitters method
+    void prepareSplittingEmitters(Basic_Emitter *_e)
+    {
+        assert(this->isSplitted);
+        (this->splittingEmitterLeaves).push_back(_e->clone());
+        if ((this->splittingEmitterLeaves).size() == this->splittingBranches) {
+            Tree_Emitter *tE = new Tree_Emitter(this->splittingEmitterRoot, this->splittingEmitterLeaves, true, true);
+            // combine tE with the nodes in the first set
+            auto first_set = last->getFirstSet();
+            for (size_t i=0; i<first_set.size(); i++) {
+                ff::ff_pipeline *stage = static_cast<ff::ff_pipeline *>(first_set[i]);
+                combine_with_laststage(*stage, new Tree_Emitter(*tE), true);
+            }
+            delete tE;
+        }
     }
 
 public:
 	/** 
      *  \brief Constructor
      *  
-     *  \param _name std::string with the unique name of the MultiPipe
+     *  \param _name string with the unique name of the MultiPipe
      */ 
     MultiPipe(std::string _name="anonymous_pipe"):
               name(_name),
@@ -272,7 +411,10 @@ public:
               has_sink(false),
               last(nullptr),
               secondToLast(nullptr),
-              isUnified(false),
+              isMerged(false),
+              isSplitted(false),
+              fromSplitting(false),
+              splittingBranches(0),
               forceShuffling(false),
               lastParallelism(0)
     {}
@@ -287,7 +429,7 @@ public:
     {
         // check the Source presence
         if (this->has_source) {
-            std::cerr << RED << "WindFlow Error: Source is already defined for the MultiPipe [" << name << "]" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Source has been already defined for the MultiPipe [" << name << "]" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // create the initial matrioska
@@ -434,7 +576,7 @@ public:
         // check whether the internal replicas of the Win_Farm are complex or not
         if (_wf.useComplexNesting()) {
             if (_wf.getOptLevel() != LEVEL2 || _wf.getInnerOptLevel() != LEVEL2) {
-                std::cerr << RED << "WindFlow Error: LEVEL2 optimization needed to add a complex nesting of patterns to the multipipe" << DEFAULT << std::endl;
+                std::cerr << RED << "WindFlow Error: tried a nesting without preparing the inner operator (pattern)" << DEFAULT << std::endl;
                 exit(EXIT_FAILURE);
             }
             else {
@@ -444,14 +586,14 @@ public:
                     if ((_wf.getInnerParallelism()).first > 1) {
                         if (_wf.getWinType() == TB) {
                             // call the generic method to add the operator to the MultiPipe
-                            add_operator<TreeComb<WF_Emitter<tuple_t>, WF_Emitter<tuple_t, wrapper_tuple_t<tuple_t>>>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, ordering_mode);
+                            add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, ordering_mode);
                         }
                         else {
                             // special case count-based windows
-                            _wf.cleanup_emitter(false);
-                            _wf.change_emitter(new Broadcast_Node<tuple_t>(_wf.getParallelism() * (_wf.getInnerParallelism()).first), true);
+                            //_wf.cleanup_emitter(false);
+                            _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getParallelism() * (_wf.getInnerParallelism()).first), true);
                             // call the generic method to add the operator to the MultiPipe
-                            add_operator<Broadcast_Node<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, ordering_mode);
+                            add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, ordering_mode);
                         }
                     }
                     else {
@@ -461,9 +603,9 @@ public:
                         }
                         else {
                             // special case count-based windows
-                            _wf.change_emitter(new Broadcast_Node<tuple_t>(_wf.getParallelism()), true);
+                            _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getParallelism()), true);
                             // call the generic method to add the operator to the MultiPipe
-                            add_operator<Broadcast_Node<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
+                            add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
                         }
                     }
                 }
@@ -471,12 +613,12 @@ public:
                 else if(_wf.getInnerType() == WMR_CPU) {
                     if (_wf.getWinType() == TB) {
                         // call the generic method to add the operator to the MultiPipe
-                        add_operator<TreeComb<WF_Emitter<tuple_t>, WinMap_Emitter<tuple_t, wrapper_tuple_t<tuple_t>>>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, ordering_mode); 
+                        add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, ordering_mode); 
                     }
                     else {
                         // special case count-based windows
-                        _wf.cleanup_emitter(false);
-                        _wf.change_emitter(new Broadcast_Node<tuple_t>(_wf.getParallelism() * (_wf.getInnerParallelism()).first), true);
+                        //_wf.cleanup_emitter(false);
+                        _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getParallelism() * (_wf.getInnerParallelism()).first), true);
                         size_t n_map = (_wf.getInnerParallelism()).first;
                         for (size_t i=0; i<_wf.getParallelism(); i++) {
                             ff::ff_pipeline *pipe = static_cast<ff::ff_pipeline *>((_wf.getWorkers())[i]);
@@ -488,7 +630,7 @@ public:
                             combine_a2a_withFirstNodes(a2a, nodes, true);
                         }
                         // call the generic method to add the operator to the MultiPipe
-                        add_operator<Broadcast_Node<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, ordering_mode);                    
+                        add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, ordering_mode);                    
                     }
                 }
                 forceShuffling = true;
@@ -501,9 +643,9 @@ public:
             }
             else {
                 // special case count-based windows
-                _wf.change_emitter(new Broadcast_Node<tuple_t>(_wf.getParallelism()), true);
+                _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getParallelism()), true);
                 // call the generic method to add the operator to the MultiPipe
-                add_operator<Broadcast_Node<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);        
+                add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);        
             }
         }
         return *this;
@@ -522,7 +664,7 @@ public:
         // check whether the internal replicas of the Win_Farm_GPU are complex or not
         if (_wf.useComplexNesting()) {
             if (_wf.getOptLevel() != LEVEL2 || _wf.getInnerOptLevel() != LEVEL2) {
-                std::cerr << RED << "WindFlow Error: LEVEL2 optimization needed to add a complex nesting of patterns to the multipipe" << DEFAULT << std::endl;
+                std::cerr << RED << "WindFlow Error: tried a nesting without preparing the inner operator (pattern)" << DEFAULT << std::endl;
                 exit(EXIT_FAILURE);
             }
             else {
@@ -532,14 +674,14 @@ public:
                     if ((_wf.getInnerParallelism()).first > 1) {
                         if (_wf.getWinType() == TB) {
                             // call the generic method to add the operator to the MultiPipe
-                            add_operator<TreeComb<WF_Emitter<tuple_t>, WF_Emitter<tuple_t, wrapper_tuple_t<tuple_t>>>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, ordering_mode);
+                            add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, ordering_mode);
                         }
                         else {
                             // special case count-based windows
-                            _wf.cleanup_emitter(false);
-                            _wf.change_emitter(new Broadcast_Node<tuple_t>(_wf.getParallelism() * (_wf.getInnerParallelism()).first), true);
+                            //_wf.cleanup_emitter(false);
+                            _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getParallelism() * (_wf.getInnerParallelism()).first), true);
                             // call the generic method to add the operator to the MultiPipe
-                            add_operator<Broadcast_Node<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, ordering_mode);
+                            add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, ordering_mode);
                         }
                     }
                     else {
@@ -549,9 +691,9 @@ public:
                         }
                         else {
                             // special case count-based windows
-                            _wf.change_emitter(new Broadcast_Node<tuple_t>(_wf.getParallelism()), true);
+                            _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getParallelism()), true);
                             // call the generic method to add the operator to the MultiPipe
-                            add_operator<Broadcast_Node<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
+                            add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
                         }
                     }
                 }
@@ -559,12 +701,12 @@ public:
                 else if(_wf.getInnerType() == WMR_GPU) {
                     if (_wf.getWinType() == TB) {
                         // call the generic method to add the operator to the MultiPipe
-                        add_operator<TreeComb<WF_Emitter<tuple_t>, WinMap_Emitter<tuple_t, wrapper_tuple_t<tuple_t>>>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, ordering_mode); 
+                        add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, ordering_mode); 
                     }
                     else {
                         // special case count-based windows
-                        _wf.cleanup_emitter(false);
-                        _wf.change_emitter(new Broadcast_Node<tuple_t>(_wf.getParallelism() * (_wf.getInnerParallelism()).first), true);
+                        //_wf.cleanup_emitter(false);
+                        _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getParallelism() * (_wf.getInnerParallelism()).first), true);
                         size_t n_map = (_wf.getInnerParallelism()).first;
                         for (size_t i=0; i<_wf.getParallelism(); i++) {
                             ff::ff_pipeline *pipe = static_cast<ff::ff_pipeline *>((_wf.getWorkers())[i]);
@@ -576,7 +718,7 @@ public:
                             combine_a2a_withFirstNodes(a2a, nodes, true);
                         }
                         // call the generic method to add the operator to the MultiPipe
-                        add_operator<Broadcast_Node<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, ordering_mode);                    
+                        add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, ordering_mode);                    
                     }
                 }
                 forceShuffling = true;
@@ -589,9 +731,9 @@ public:
             }
             else {
                 // special case count-based windows
-                _wf.change_emitter(new Broadcast_Node<tuple_t>(_wf.getParallelism()), true);
+                _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getParallelism()), true);
                 // call the generic method to add the operator to the MultiPipe
-                add_operator<Broadcast_Node<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);        
+                add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);        
             }
         }
         return *this;
@@ -610,7 +752,7 @@ public:
         // check whether the internal replicas of the Key_Farm are complex or not
         if (_kf.useComplexNesting()) {
             if (_kf.getOptLevel() != LEVEL2 || _kf.getInnerOptLevel() != LEVEL2) {
-                std::cerr << RED << "WindFlow Error: LEVEL2 optimization needed to add a complex nesting of patterns to the multipipe" << DEFAULT << std::endl;
+                std::cerr << RED << "WindFlow Error: tried a nesting without preparing the inner operator (pattern)" << DEFAULT << std::endl;
                 exit(EXIT_FAILURE);
             }
             else {
@@ -620,24 +762,24 @@ public:
                     if ((_kf.getInnerParallelism()).first > 1) {
                         if (_kf.getWinType() == TB) {
                             // call the generic method to add the operator to the MultiPipe
-                            add_operator<TreeComb<KF_Emitter<tuple_t>, WF_Emitter<tuple_t>>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, ordering_mode);
+                            add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, ordering_mode);
                         }
                         else {
                             // special case count-based windows
-                            auto *emitter = static_cast<TreeComb<KF_Emitter<tuple_t>, WF_Emitter<tuple_t>>*>(_kf.getEmitter());
-                            KF_Emitter<tuple_t> *rootnode = new KF_Emitter<tuple_t>(*(emitter->getRootNode()));
-                            std::vector<Broadcast_Node<tuple_t>*> children;
+                            auto *emitter = static_cast<Tree_Emitter *>(_kf.getEmitter());
+                            KF_Emitter<tuple_t> *rootnode = new KF_Emitter<tuple_t>(*(static_cast<KF_Emitter<tuple_t> *>(emitter->getRootNode())));
+                            std::vector<Basic_Emitter *> children;
                             size_t n_plq = (_kf.getInnerParallelism()).first;
                             for (size_t i=0; i<_kf.getParallelism(); i++) {
-                                auto *b_node = new Broadcast_Node<tuple_t>(n_plq);
-                                b_node->setTreeCombMode(true);
+                                auto *b_node = new Broadcast_Emitter<tuple_t>(n_plq);
+                                b_node->setTree_EmitterMode(true);
                                 children.push_back(b_node);
                             }
-                            auto *new_emitter = new TreeComb<KF_Emitter<tuple_t>, Broadcast_Node<tuple_t>>(rootnode, children, true, true);
+                            auto *new_emitter = new Tree_Emitter(rootnode, children, true, true);
                             _kf.cleanup_emitter(false);
                             _kf.change_emitter(new_emitter, true);
                             // call the generic method to add the operator to the MultiPipe
-                            add_operator<TreeComb<KF_Emitter<tuple_t>, Broadcast_Node<tuple_t>>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, ordering_mode);
+                            add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, ordering_mode);
                         }
                     }
                     else {
@@ -649,20 +791,20 @@ public:
                 else if(_kf.getInnerType() == WMR_CPU) {
                     if (_kf.getWinType() == TB) {
                         // call the generic method to add the operator to the MultiPipe
-                        add_operator<TreeComb<KF_Emitter<tuple_t>, WinMap_Emitter<tuple_t>>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, ordering_mode);           
+                        add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, ordering_mode);           
                     }
                     else {
                         // special case count-based windows
-                        auto *emitter = static_cast<TreeComb<KF_Emitter<tuple_t>, WinMap_Emitter<tuple_t>>*>(_kf.getEmitter());
-                        KF_Emitter<tuple_t> *rootnode = new KF_Emitter<tuple_t>(*(emitter->getRootNode()));
-                        std::vector<Broadcast_Node<tuple_t>*> children;
+                        auto *emitter = static_cast<Tree_Emitter *>(_kf.getEmitter());
+                        KF_Emitter<tuple_t> *rootnode = new KF_Emitter<tuple_t>(*(static_cast<KF_Emitter<tuple_t> *>(emitter->getRootNode())));
+                        std::vector<Basic_Emitter *> children;
                         size_t n_map = (_kf.getInnerParallelism()).first;
                         for (size_t i=0; i<_kf.getParallelism(); i++) {
-                            auto *b_node = new Broadcast_Node<tuple_t>(n_map);
-                            b_node->setTreeCombMode(true);
+                            auto *b_node = new Broadcast_Emitter<tuple_t>(n_map);
+                            b_node->setTree_EmitterMode(true);
                             children.push_back(b_node);
                         }
-                        auto *new_emitter = new TreeComb<KF_Emitter<tuple_t>, Broadcast_Node<tuple_t>>(rootnode, children, true, true);
+                        auto *new_emitter = new Tree_Emitter(rootnode, children, true, true);
                         _kf.cleanup_emitter(false);
                         _kf.change_emitter(new_emitter, true);
                         for (size_t i=0; i<_kf.getParallelism(); i++) {
@@ -675,7 +817,7 @@ public:
                             combine_a2a_withFirstNodes(a2a, nodes, true);
                         }
                         // call the generic method to add the operator to the MultiPipe
-                        add_operator<TreeComb<KF_Emitter<tuple_t>, Broadcast_Node<tuple_t>>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, ordering_mode);                    
+                        add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, ordering_mode);                    
                     }
                 }
                 forceShuffling = true;
@@ -701,7 +843,7 @@ public:
         // check whether the internal replicas of the Key_Farm_GPU are complex or not
         if (_kf.useComplexNesting()) {
             if (_kf.getOptLevel() != LEVEL2 || _kf.getInnerOptLevel() != LEVEL2) {
-                std::cerr << RED << "WindFlow Error: LEVEL2 optimization needed to add a complex nesting of patterns to the multipipe" << DEFAULT << std::endl;
+                std::cerr << RED << "WindFlow Error: tried a nesting without preparing the inner operator (pattern)" << DEFAULT << std::endl;
                 exit(EXIT_FAILURE);
             }
             else {
@@ -711,24 +853,24 @@ public:
                     if ((_kf.getInnerParallelism()).first > 1) {
                         if (_kf.getWinType() == TB) {
                             // call the generic method to add the operator to the MultiPipe
-                            add_operator<TreeComb<KF_Emitter<tuple_t>, WF_Emitter<tuple_t>>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, ordering_mode);
+                            add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, ordering_mode);
                         }
                         else {
                             // special case count-based windows
-                            auto *emitter = static_cast<TreeComb<KF_Emitter<tuple_t>, WF_Emitter<tuple_t>>*>(_kf.getEmitter());
-                            KF_Emitter<tuple_t> *rootnode = new KF_Emitter<tuple_t>(*(emitter->getRootNode()));
-                            std::vector<Broadcast_Node<tuple_t>*> children;
+                            auto *emitter = static_cast<Tree_Emitter *>(_kf.getEmitter());
+                            KF_Emitter<tuple_t> *rootnode = new KF_Emitter<tuple_t>(*(static_cast<KF_Emitter<tuple_t> *>(emitter->getRootNode())));
+                            std::vector<Basic_Emitter *> children;
                             size_t n_plq = (_kf.getInnerParallelism()).first;
                             for (size_t i=0; i<_kf.getParallelism(); i++) {
-                                auto *b_node = new Broadcast_Node<tuple_t>(n_plq);
-                                b_node->setTreeCombMode(true);
+                                auto *b_node = new Broadcast_Emitter<tuple_t>(n_plq);
+                                b_node->setTree_EmitterMode(true);
                                 children.push_back(b_node);
                             }
-                            auto *new_emitter = new TreeComb<KF_Emitter<tuple_t>, Broadcast_Node<tuple_t>>(rootnode, children, true, true);
+                            auto *new_emitter = new Tree_Emitter(rootnode, children, true, true);
                             _kf.cleanup_emitter(false);
                             _kf.change_emitter(new_emitter, true);
                             // call the generic method to add the operator to the MultiPipe
-                            add_operator<TreeComb<KF_Emitter<tuple_t>, Broadcast_Node<tuple_t>>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, ordering_mode);
+                            add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, ordering_mode);
                         }
                     }
                     else {
@@ -740,20 +882,20 @@ public:
                 else if(_kf.getInnerType() == WMR_GPU) {
                     if (_kf.getWinType() == TB) {
                         // call the generic method to add the operator to the MultiPipe
-                        add_operator<TreeComb<KF_Emitter<tuple_t>, WinMap_Emitter<tuple_t>>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, ordering_mode);           
+                        add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, ordering_mode);           
                     }
                     else {
                         // special case count-based windows
-                        auto *emitter = static_cast<TreeComb<KF_Emitter<tuple_t>, WinMap_Emitter<tuple_t>>*>(_kf.getEmitter());
-                        KF_Emitter<tuple_t> *rootnode = new KF_Emitter<tuple_t>(*(emitter->getRootNode()));
-                        std::vector<Broadcast_Node<tuple_t>*> children;
+                        auto *emitter = static_cast<Tree_Emitter *>(_kf.getEmitter());
+                        KF_Emitter<tuple_t> *rootnode = new KF_Emitter<tuple_t>(*(static_cast<KF_Emitter<tuple_t> *>(emitter->getRootNode())));
+                        std::vector<Basic_Emitter *> children;
                         size_t n_map = (_kf.getInnerParallelism()).first;
                         for (size_t i=0; i<_kf.getParallelism(); i++) {
-                            auto *b_node = new Broadcast_Node<tuple_t>(n_map);
-                            b_node->setTreeCombMode(true);
+                            auto *b_node = new Broadcast_Emitter<tuple_t>(n_map);
+                            b_node->setTree_EmitterMode(true);
                             children.push_back(b_node);
                         }
-                        auto *new_emitter = new TreeComb<KF_Emitter<tuple_t>, Broadcast_Node<tuple_t>>(rootnode, children, true, true);
+                        auto *new_emitter = new Tree_Emitter(rootnode, children, true, true);
                         _kf.cleanup_emitter(false);
                         _kf.change_emitter(new_emitter, true);
                         for (size_t i=0; i<_kf.getParallelism(); i++) {
@@ -766,7 +908,7 @@ public:
                             combine_a2a_withFirstNodes(a2a, nodes, true);
                         }
                         // call the generic method to add the operator to the MultiPipe
-                        add_operator<TreeComb<KF_Emitter<tuple_t>, Broadcast_Node<tuple_t>>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, ordering_mode);                    
+                        add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, ordering_mode);                    
                     }
                 }
                 forceShuffling = true;
@@ -789,7 +931,7 @@ public:
     {
         // check the optimization level of the Pane_Farm
         if (_pf.getOptLevel() != LEVEL0) {
-            std::cerr << RED << "WindFlow Error: LEVEL0 optimization needed to add the Pane_Farm to the multipipe" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Pane_Farm has been prepared for nesting, it cannot be added directly" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         ff::ff_pipeline *pipe = static_cast<ff::ff_pipeline *>(&_pf);
@@ -821,9 +963,9 @@ public:
             else {
                 // special case count-based windows
                 size_t n_plq = (plq->getWorkers()).size();
-                plq->change_emitter(new Broadcast_Node<tuple_t>(n_plq), true);
+                plq->change_emitter(new Broadcast_Emitter<tuple_t>(n_plq), true);
                 // call the generic method to add the operator
-                add_operator<Broadcast_Node<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, COMPLEX, TS_RENUMBERING);
+                add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, COMPLEX, TS_RENUMBERING);
             }
         }
         ff::ff_farm *wlq = nullptr;
@@ -859,7 +1001,7 @@ public:
     {
         // check the optimization level of the Pane_Farm_GPU
         if (_pf.getOptLevel() != LEVEL0) {
-            std::cerr << RED << "WindFlow Error: LEVEL0 optimization needed to add the Pane_Farm_GPU to the multipipe" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Pane_Farm_GPU has been prepared for nesting, it cannot be added directly" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         ff::ff_pipeline *pipe = static_cast<ff::ff_pipeline *>(&_pf);
@@ -891,9 +1033,9 @@ public:
             else {
                 // special case count-based windows
                 size_t n_plq = (plq->getWorkers()).size();
-                plq->change_emitter(new Broadcast_Node<tuple_t>(n_plq), true);
+                plq->change_emitter(new Broadcast_Emitter<tuple_t>(n_plq), true);
                 // call the generic method to add the operator
-                add_operator<Broadcast_Node<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, COMPLEX, TS_RENUMBERING);
+                add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, COMPLEX, TS_RENUMBERING);
             }
         }
         ff::ff_farm *wlq = nullptr;
@@ -929,7 +1071,7 @@ public:
     {
         // check the optimization level of the Win_MapReduce
         if (_wmr.getOptLevel() != LEVEL0) {
-            std::cerr << RED << "WindFlow Error: LEVEL0 optimization needed to add the Win_MapReduce to the multipipe" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Win_MapReduce has been prepared for nesting, it cannot be added directly" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // add the MAP stage
@@ -947,7 +1089,7 @@ public:
             ff::ff_farm *new_map = new ff::ff_farm();
             auto worker_set = map->getWorkers();
             std::vector<ff_node *> w;
-            new_map->add_emitter(new Broadcast_Node<tuple_t>(n_map));
+            new_map->add_emitter(new Broadcast_Emitter<tuple_t>(n_map));
             for (size_t i=0; i<n_map; i++) {
                 ff::ff_comb *comb = new ff::ff_comb(new WinMap_Dropper<tuple_t>(i, n_map), worker_set[i], true, false);
                 w.push_back(comb);
@@ -957,7 +1099,7 @@ public:
             new_map->cleanup_emitter(true);
             new_map->cleanup_workers(false);
             // call the generic method to add the operator (MAP stage) to the MultiPipe
-            add_operator<Broadcast_Node<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(new_map, COMPLEX, TS_RENUMBERING);
+            add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(new_map, COMPLEX, TS_RENUMBERING);
             delete new_map;
         }
         // add the REDUCE stage
@@ -994,7 +1136,7 @@ public:
     {
         // check the optimization level of the Win_MapReduce_GPU
         if (_wmr.getOptLevel() != LEVEL0) {
-            std::cerr << RED << "WindFlow Error: LEVEL0 optimization needed to add the Win_MapReduce_GPU to the multipipe" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Win_MapReduce_GPU has been prepared for nesting, it cannot be added directly" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // add the MAP stage
@@ -1012,7 +1154,7 @@ public:
             ff::ff_farm *new_map = new ff::ff_farm();
             auto worker_set = map->getWorkers();
             std::vector<ff_node *> w;
-            new_map->add_emitter(new Broadcast_Node<tuple_t>(n_map));
+            new_map->add_emitter(new Broadcast_Emitter<tuple_t>(n_map));
             for (size_t i=0; i<n_map; i++) {
                 ff::ff_comb *comb = new ff::ff_comb(new WinMap_Dropper<tuple_t>(i, n_map), worker_set[i], true, false);
                 w.push_back(comb);
@@ -1022,7 +1164,7 @@ public:
             new_map->cleanup_emitter(true);
             new_map->cleanup_workers(false);
             // call the generic method to add the operator (MAP stage) to the MultiPipe
-            add_operator<Broadcast_Node<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(new_map, COMPLEX, TS_RENUMBERING);
+            add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(new_map, COMPLEX, TS_RENUMBERING);
             delete new_map;
         }
         // add the REDUCE stage
@@ -1085,52 +1227,83 @@ public:
 
 #if __cplusplus >= 201703L
     /** 
-     *  \brief Union of the MultiPipe with a set of other MultiPipe (only C++17)
+     *  \brief Merge of the MultiPipe with a set of other MultiPipe (only C++17)
      *  \param _name std::string with the unique name of the new MultiPipe
      *  \param _pipes sequence of MultiPipe
-     *  \return a new MultiPipe (the result of the union between this and _pipes)
+     *  \return a new MultiPipe (the result of the merge between this and _pipes)
      */ 
     template<typename ...MULTIPIPES>
-    MultiPipe unionMultiPipes(std::string _name="anonymous_union_pipe", MULTIPIPES&... _pipes)
+    MultiPipe merge(std::string _name="anonymous_merged_pipe", MULTIPIPES&... _pipes)
     {
-        std::vector<ff_node *> init_set = prepareInitSet(*this, _pipes...);
+        std::vector<ff_node *> init_set = prepareMerge(*this, _pipes...);
         return MultiPipe(_name, init_set);
     }
 #endif
 
     /** 
-     *  \brief Union of the MultiPipe with a set of other MultiPipe
+     *  \brief Merge of the MultiPipe with a set of other MultiPipe
      *  \param _name std::string with the unique name of the new MultiPipe
      *  \param _pipes sequence of MultiPipe
-     *  \return a pointer to a new MultiPipe (the result of the union between this and _pipes)
+     *  \return a pointer to a new MultiPipe (the result of the merge between this and _pipes)
      */ 
     template<typename ...MULTIPIPES>
-    MultiPipe *unionMultiPipes_ptr(std::string _name="anonymous_union_pipe", MULTIPIPES&... _pipes)
+    MultiPipe *merge_ptr(std::string _name="anonymous_merged_pipe", MULTIPIPES&... _pipes)
     {
-        std::vector<ff_node *> init_set = prepareInitSet(*this, _pipes...);
+        std::vector<ff_node *> init_set = prepareMerge(*this, _pipes...);
         return new MultiPipe(_name, init_set);
     }
 
     /** 
-     *  \brief Union of the MultiPipe with a set of other MultiPipe
+     *  \brief Merge of the MultiPipe with a set of other MultiPipe
      *  \param _name std::string with the unique name of the new MultiPipe
      *  \param _pipes sequence of MultiPipe
-     *  \return a unique pointer to a new MultiPipe (the result of the union between this and _pipes)
+     *  \return a unique pointer to a new MultiPipe (the result of the merge between this and _pipes)
      */ 
     template<typename ...MULTIPIPES>
-    std::unique_ptr<MultiPipe> unionMultiPipes_unique(std::string _name="anonymous_union_pipe", MULTIPIPES&... _pipes)
+    std::unique_ptr<MultiPipe> merge_unique(std::string _name="anonymous_merged_pipe", MULTIPIPES&... _pipes)
     {
-        std::vector<ff_node *> init_set = prepareInitSet(*this, _pipes...);
+        std::vector<ff_node *> init_set = prepareMerge(*this, _pipes...);
         return std::make_unique<MultiPipe>(_name, init_set);
     }
 
+#if __cplusplus >= 201703L
+    /** 
+     *  \brief Split of the MultiPipe into a set of other MultiPipe instances (only C++17)
+     *  \param _splitting_func splitting function
+     *  \param _cardinality number of splitting branches
+     */ 
+    template<typename F_t>
+    void split(F_t _splitting_func, size_t _cardinality)
+    {
+       prepareSplit<F_t>(_splitting_func, _cardinality);
+    }
+#endif
+
+    /** 
+     *  \brief Select a MultiPipe upon a splitting of this
+     *  \param _idx index of the MultiPipe to be selected
+     *  \return reference to a MultiPipe to be filled with patterns/operators
+     */ 
+    MultiPipe& select(size_t _idx) const
+    {
+        if (!isSplitted) {
+            std::cerr << RED << "WindFlow Error: MultiPipe [" << name << "] has not been splitted" << DEFAULT << std::endl;
+            exit(EXIT_FAILURE);   
+        }
+        if (_idx >= splittingChildren.size()) {
+            std::cerr << RED << "WindFlow Error: index of select() is out of range" << DEFAULT << std::endl;
+            exit(EXIT_FAILURE);               
+        }
+        return *(splittingChildren[_idx]);
+    }
+
 	/** 
-     *  \brief Check whether the MultiPipe is runnable (i.e. it has a Source and a Sink)
+     *  \brief Check whether the MultiPipe is runnable
      *  \return true if it is runnable, false otherwise
      */ 
     bool isRunnable() const
     {
-    	return (has_source && has_sink);
+    	return (has_source && has_sink) || (isMerged) || (isSplitted);
     }
 
 	/** 
@@ -1157,7 +1330,20 @@ public:
      */ 
     size_t getNumThreads() const
     {
-        return this->cardinality()-1;
+        if (!this->isSplitted)
+            return this->cardinality()-1;
+        else {
+            size_t n = 0;
+            auto first_set = last->getFirstSet();
+            for (size_t i=0; i<first_set.size(); i++) {
+                ff::ff_pipeline *pipe = static_cast<ff::ff_pipeline *>(first_set[i]);
+                n += pipe->cardinality();
+            }
+            for (size_t i=0; i<splittingChildren.size(); i++) {
+                n += splittingChildren[i]->getNumThreads();
+            }
+            return n;
+        } 
     }
 
 	/** 
@@ -1166,10 +1352,14 @@ public:
      */
     int run()
     {
-        if (!this->isUnified)
+        if (!this->isRunnable()) {
+            std::cerr << RED << "WindFlow Error: MultiPipe [" << name << "] is not runnable" << DEFAULT << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        if ((!this->isMerged) && (!this->fromSplitting))
             std::cout << BOLDGREEN << "WindFlow Status Message: MultiPipe [" << name << "] is running with " << this->getNumThreads() << " threads" << DEFAULT << std::endl;
     	int status = ff::ff_pipeline::run();
-    	if (status != 0 && !this->isUnified)
+    	if (status != 0 && ((!this->isMerged) && (!this->fromSplitting)))
     		std::cerr << RED << "WindFlow Error: MultiPipe [" << name << "] run failed" << DEFAULT << std::endl;
     	return status;
     }
@@ -1180,10 +1370,14 @@ public:
      */ 
     int wait()
     {
+        if (!this->isRunnable()) {
+            std::cerr << RED << "WindFlow Error: MultiPipe [" << name << "] is not runnable" << DEFAULT << std::endl;
+            exit(EXIT_FAILURE);
+        }
     	int status = ff::ff_pipeline::wait();
-    	if (status == 0 && !this->isUnified)
+    	if (status == 0 && ((!this->isMerged) && (!this->fromSplitting)))
     		std::cout << BOLDGREEN << "WindFlow Status Message: MultiPipe [" << name << "] terminated successfully" << DEFAULT << std::endl;
-    	else if(!this->isUnified)
+    	else if((!this->isMerged) && (!this->fromSplitting))
     		std::cerr << RED << "WindFlow Error: MultiPipe [" << name << "] terminated with error" << DEFAULT << std::endl;
         return status;
     }
@@ -1195,7 +1389,11 @@ public:
      */ 
     int run_and_wait_end()
     {
-        if (!this->isUnified)
+        if (!this->isRunnable()) {
+            std::cerr << RED << "WindFlow Error: MultiPipe [" << name << "] is not runnable" << DEFAULT << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        if((!this->isMerged) && (!this->fromSplitting))
             std::cout << BOLDGREEN << "WindFlow Status Message: MultiPipe [" << name << "] is running with " << this->getNumThreads() << " threads" << DEFAULT << std::endl;
     	return ff::ff_pipeline::run_and_wait_end();
     }

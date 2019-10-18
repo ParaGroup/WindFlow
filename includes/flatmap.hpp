@@ -28,7 +28,7 @@
  *  must produce zero, one or more than one output result for each input tuple consumed.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with
- *  a copy Constructor and copy assignment operator, and they must provide and implement
+ *  a copy constructor and copy assignment operator, and they must provide and implement
  *  the setControlFields() and getControlFields() methods.
  */ 
 
@@ -43,7 +43,7 @@
 #include <basic.hpp>
 #include <shipper.hpp>
 #include <context.hpp>
-#include <standard.hpp>
+#include <standard_nodes.hpp>
 
 namespace wf {
 
@@ -75,7 +75,7 @@ private:
     // class FlatMap_Node
     class FlatMap_Node: public ff::ff_node_t<tuple_t, result_t>
     {
-    private:
+private:
         flatmap_func_t flatmap_func; // flatmap function
         rich_flatmap_func_t rich_flatmap_func; // rich flatmap function
         closing_func_t closing_func; // closing function
@@ -94,7 +94,7 @@ private:
         std::ofstream *logfile = nullptr;
 #endif
 
-    public:
+public:
         // Constructor I
         FlatMap_Node(flatmap_func_t _flatmap_func,
                      std::string _name,
@@ -331,7 +331,10 @@ public:
      *  \brief Check whether the FlatMap has been instantiated with a key-based distribution or not
      *  \return true if the FlatMap is configured with keyBy
      */
-    bool isKeyed() { return keyed; }
+    bool isKeyed() const
+    {
+        return keyed;
+    }
 };
 
 } // namespace wf

@@ -36,10 +36,22 @@
 namespace wf {
 
 // struct of the dummy multi-input node
-struct dummy_mi: ff::ff_minode { void *svc(void *in) { return in; } };
+struct dummy_mi: ff::ff_minode
+{
+    void *svc(void *in)
+    {
+        return in;
+    }
+};
 
 // struct of the dummy multi-ouput node
-struct dummy_mo: ff::ff_monode { void *svc(void *in) { return in; } };
+struct dummy_mo: ff::ff_monode
+{
+    void *svc(void *in)
+    {
+        return in;
+    }
+};
 
 // method to transform a farm into a all-to-all (with collector)
 ff::ff_a2a *farm2A2A_collector(ff::ff_farm *farm)
@@ -91,7 +103,7 @@ void combine_a2a_withFirstNodes(ff::ff_a2a *a2a, const std::vector<ff::ff_node*>
     a2a->change_firstset(new_firstset, 0, true);
 }
 
-// method to remove the first emitter in a pipeline
+// method to remove the first emitter in a pipeline (there might be memory leaks here! to be fixed)
 ff::ff_node *remove_emitter_from_pipe(ff::ff_pipeline &pipe_in)
 {
     auto &stages = pipe_in.getStages();

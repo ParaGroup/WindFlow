@@ -19,11 +19,11 @@
  *  @author  Gabriele Mencagli
  *  @date    02/10/2018
  *  
- *  @brief Utility nodes of the Win_MapReduce and Win_MapReduce_GPU patterns
+ *  @brief Emitter, dropper and collector used by the Win_MapReduce and Win_MapReduce_GPU patterns
  *  
- *  @section Win_MapReduce_Nodes (Description)
+ *  @section Win_MapReduce and Win_MapReduce_GPU Emitter, Dropper and Collector (Description)
  *  
- *  This file implements the utility nodes (Emitter, Collector and DroppingNode) of the
+ *  This file implements the utility nodes (emitter, dropper and collector) of the
  *  MAP stage of the Win_MapReduce and Win_MapReduce_GPU patterns in the library.
  */ 
 
@@ -34,12 +34,13 @@
 #include <vector>
 #include <meta_utils.hpp>
 #include <ff/multinode.hpp>
+#include <basic_emitter.hpp>
 
 namespace wf {
 
 // class WinMap_Emitter
 template<typename tuple_t, typename input_t=tuple_t>
-class WinMap_Emitter: public ff::ff_monode_t<input_t, wrapper_tuple_t<tuple_t>>
+class WinMap_Emitter: public Basic_Emitter
 {
 private:
     // type of the wrapper of input tuples
@@ -60,8 +61,8 @@ private:
         Key_Descriptor(size_t _nextDst): rcv_counter(0), nextDst(_nextDst) {}
     };
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
-    bool isCombined; // true if this node is used within a treeComb node
-    std::vector<std::pair<wrapper_in_t *, int>> output_queue; // used in case of treeComb mode
+    bool isCombined; // true if this node is used within a Tree_Emitter node
+    std::vector<std::pair<void *, int>> output_queue; // used in case of Tree_Emitter mode
 
 public:
     // Constructor
@@ -72,6 +73,13 @@ public:
                    isCombined(false)
     {}
 
+    // clone method
+    Basic_Emitter *clone() const
+    {
+        WinMap_Emitter<tuple_t, input_t> *copy = new WinMap_Emitter<tuple_t, input_t>(*this);
+        return copy;
+    }
+
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
     {
@@ -79,8 +87,9 @@ public:
     }
 
     // svc method (utilized by the FastFlow runtime)
-    wrapper_in_t *svc(input_t *wt)
+    void *svc(void *in)
     {
+        input_t *wt = reinterpret_cast<input_t *>(in);
         // extract the key and id/timestamp fields from the input tuple
         tuple_t *t = extractTuple<tuple_t, input_t>(wt);
         auto key = std::get<0>(t->getControlFields()); // key
@@ -111,6 +120,11 @@ public:
                 key_d.rcv_counter++;
                 key_d.last_tuple = *t;
             }
+        }
+        // delete the input if it is an EOS marker
+        if (isEOSMarker<tuple_t, input_t>(*wt)) {
+            deleteTuple<tuple_t, input_t>(wt);
+            return this->GO_ON;
         }
         // prepare the wrapper to be sent
         wrapper_in_t *out = prepareWrapper<input_t, wrapper_in_t>(wt, 1);
@@ -148,19 +162,19 @@ public:
     void svc_end() {}
 
     // get the number of destinations
-    size_t getNDestinations()
+    size_t getNDestinations() const
     {
         return map_degree;
     }
 
-    // set/unset the treeComb mode
-    void setTreeCombMode(bool _val)
+    // set/unset the Tree_Emitter mode
+    void setTree_EmitterMode(bool _val)
     {
         isCombined = _val;
     }
 
-    // method to get a reference to the internal output queue (used in treeComb mode)
-    std::vector<std::pair<wrapper_in_t *, int>> &getOutputQueue()
+    // method to get a reference to the internal output queue (used in Tree_Emitter mode)
+    std::vector<std::pair<void *, int>> &getOutputQueue()
     {
         return output_queue;
     }
@@ -180,12 +194,10 @@ private:
     // struct of a key descriptor
     struct Key_Descriptor
     {
-        uint64_t rcv_counter; // number of tuples received of this key
-        tuple_t last_tuple; // copy of the last tuple received of this key
         size_t nextDst; // id of the Win_Seq receiving the next tuple of this key
 
         // Constructor
-        Key_Descriptor(size_t _nextDst): rcv_counter(0), nextDst(_nextDst) {}
+        Key_Descriptor(size_t _nextDst): nextDst(_nextDst) {}
     };
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     size_t my_id; // identifier of the Win_Seq associated with this WinMap_Dropper istance
@@ -219,35 +231,23 @@ public:
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
-        key_d.rcv_counter++;
-        key_d.last_tuple = *t;
-        // decide whether to drop or send the tuple
-        if (key_d.nextDst == my_id) {
+        if (isEOSMarker<tuple_t, wrapper_in_t>(*wt)) {
             // sent the tuple
             this->ff_send_out(wt);
         }
         else {
-            // delete the tuple
-            deleteTuple<tuple_t, wrapper_in_t>(wt);
-        }
-        key_d.nextDst = (key_d.nextDst + 1) % map_degree;
-        return this->GO_ON;
-    }
-
-    // method to manage the EOS (utilized by the FastFlow runtime)
-    void eosnotify(ssize_t id)
-    {
-        // iterate over all the keys
-        for (auto &k: keyMap) {
-            Key_Descriptor &key_d = k.second;
-            if (key_d.rcv_counter > 0) {
-                // send the last tuple to the Win_Seq associated with this WinMap_Dropper
-                tuple_t *tuple = new tuple_t();
-                *tuple = key_d.last_tuple;
-                wrapper_in_t *out = new wrapper_in_t(tuple, 1, true); // eos marker enabled
-                this->ff_send_out(out);
+            // decide whether to drop or send the tuple
+            if (key_d.nextDst == my_id) {
+                // sent the tuple
+                this->ff_send_out(wt);
             }
+            else {
+                // delete the tuple
+                deleteTuple<tuple_t, wrapper_in_t>(wt);
+            }
+            key_d.nextDst = (key_d.nextDst + 1) % map_degree;
         }
+        return this->GO_ON;
     }
 
     // svc_end method (utilized by the FastFlow runtime)

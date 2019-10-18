@@ -157,7 +157,7 @@ private:
     std::string name = "anonymous_filter";
     bool isKeyed = false;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
-    routing_func_t routing_func;
+    routing_func_t routing_func = [](size_t k, size_t n) { return k%n; };
 
 public:
     /** 
@@ -194,13 +194,11 @@ public:
     /** 
      *  \brief Method to enable the key-based routing
      *  
-     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \return the object itself
      */ 
-    Filter_Builder<F_t>& enable_KeyBy(routing_func_t _routing_func=[](size_t k, size_t n) { return k%n; })
+    Filter_Builder<F_t>& enable_KeyBy()
     {
         isKeyed = true;
-        routing_func = _routing_func;
         return *this;
     }
 
@@ -281,7 +279,7 @@ private:
     std::string name = "anonymous_map";
     bool isKeyed = false;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
-    routing_func_t routing_func;
+    routing_func_t routing_func = [](size_t k, size_t n) { return k%n; };
 
 public:
     /** 
@@ -318,13 +316,11 @@ public:
     /** 
      *  \brief Method to enable the key-based routing
      *  
-     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \return the object itself
      */ 
-    Map_Builder<F_t>& enable_KeyBy(routing_func_t _routing_func=[](size_t k, size_t n) { return k%n; })
+    Map_Builder<F_t>& enable_KeyBy()
     {
         isKeyed = true;
-        routing_func = _routing_func;
         return *this;
     }
 
@@ -405,7 +401,7 @@ private:
     std::string name = "anonymous_flatmap";
     bool isKeyed = false;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
-    routing_func_t routing_func;
+    routing_func_t routing_func = [](size_t k, size_t n) { return k%n; };
 
 public:
     /** 
@@ -442,13 +438,11 @@ public:
     /** 
      *  \brief Method to enable the key-based routing
      *  
-     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \return the object itself
      */ 
-    FlatMap_Builder<F_t>& enable_KeyBy(routing_func_t _routing_func=[](size_t k, size_t n) { return k%n; })
+    FlatMap_Builder<F_t>& enable_KeyBy()
     {
         isKeyed = true;
-        routing_func = _routing_func;
         return *this;
     }
 
@@ -575,18 +569,6 @@ public:
     Accumulator_Builder<F_t>& withParallelism(size_t _pardegree)
     {
         pardegree = _pardegree;
-        return *this;
-    }
-
-    /** 
-     *  \brief Method to specify the routing function of input tuples to the internal patterns
-     *  
-     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     *  \return the object itself
-     */ 
-    Accumulator_Builder<F_t>& set_KeyBy(routing_func_t _routing_func)
-    {
-        routing_func = _routing_func;
         return *this;
     }
 
@@ -893,10 +875,8 @@ private:
     uint64_t win_len = 1;
     uint64_t slide_len = 1;
     win_type_t winType = CB;
-    size_t emitter_degree = 1;
     size_t pardegree = 1;
     std::string name = "anonymous_wf";
-    bool ordered = true;
     opt_level_t opt_level = LEVEL2;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
 
@@ -969,18 +949,6 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the number of parallel emitters within the Win_Farm pattern
-     *  
-     *  \param _emitter_degree number of emitters
-     *  \return the object itself
-     */ 
-    WinFarm_Builder<T>& withEmitters(size_t _emitter_degree)
-    {
-        emitter_degree = _emitter_degree;
-        return *this;
-    }
-
-    /** 
      *  \brief Method to specify the parallelism of the Win_Farm pattern
      *  
      *  \param _pardegree number of replicas
@@ -1001,18 +969,6 @@ public:
     WinFarm_Builder<T>& withName(std::string _name)
     {
         name = _name;
-        return *this;
-    }
-
-    /** 
-     *  \brief Method to specify the ordering behavior of the Win_Farm pattern
-     *  
-     *  \param _ordered boolean flag (true for total key-based ordering, false no ordering is provided)
-     *  \return the object itself
-     */ 
-    WinFarm_Builder<T>& withOrdering(bool _ordered)
-    {
-        ordered = _ordered;
         return *this;
     }
 
@@ -1050,7 +1006,7 @@ public:
      */ 
     winfarm_t build()
     {
-        return winfarm_t(input, win_len, slide_len, winType, emitter_degree, pardegree, name, closing_func, ordered, opt_level); // copy elision in C++17
+        return winfarm_t(input, win_len, slide_len, winType, pardegree, name, closing_func, true, opt_level); // copy elision in C++17
     }
 #endif
 
@@ -1061,7 +1017,7 @@ public:
      */ 
     winfarm_t *build_ptr()
     {
-        return new winfarm_t(input, win_len, slide_len, winType, emitter_degree, pardegree, name, closing_func, ordered, opt_level);
+        return new winfarm_t(input, win_len, slide_len, winType, pardegree, name, closing_func, true, opt_level);
     }
 
     /** 
@@ -1071,7 +1027,7 @@ public:
      */ 
     std::unique_ptr<winfarm_t> build_unique()
     {
-        return std::make_unique<winfarm_t>(input, win_len, slide_len, winType, emitter_degree, pardegree, name, closing_func, ordered, opt_level);
+        return std::make_unique<winfarm_t>(input, win_len, slide_len, winType, pardegree, name, closing_func, true, opt_level);
     }
 };
 
@@ -1092,13 +1048,11 @@ private:
     uint64_t win_len = 1;
     uint64_t slide_len = 1;
     win_type_t winType = CB;
-    size_t emitter_degree = 1;
     size_t pardegree = 1;
     size_t batch_len = 1;
     size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
     std::string name = "anonymous_wf_gpu";
     size_t scratchpad_size = 0;
-    bool ordered = true;
     opt_level_t opt_level = LEVEL2;
 
     // window parameters initialization (input is a Pane_Farm_GPU)
@@ -1175,18 +1129,6 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the number of parallel emitters within the Win_Farm_GPU pattern
-     *  
-     *  \param _emitter_degree number of emitters
-     *  \return the object itself
-     */ 
-    WinFarmGPU_Builder<T>& withEmitters(size_t _emitter_degree)
-    {
-        emitter_degree = _emitter_degree;
-        return *this;
-    }
-
-    /** 
      *  \brief Method to specify the parallelism of the Win_Farm_GPU pattern
      *  
      *  \param _pardegree number of replicas
@@ -1237,18 +1179,6 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the ordering behavior of the Win_Farm_GPU pattern
-     *  
-     *  \param _ordered boolean flag (true for total key-based ordering, false no ordering is provided)
-     *  \return the object itself
-     */ 
-    WinFarmGPU_Builder<T>& withOrdering(bool _ordered)
-    {
-        ordered = _ordered;
-        return *this;
-    }
-
-    /** 
      *  \brief Method to specify the optimization level to build the Win_Farm_GPU pattern
      *  
      *  \param _opt_level (optimization level)
@@ -1267,7 +1197,7 @@ public:
      */ 
     winfarm_gpu_t *build_ptr()
     {
-        return new winfarm_gpu_t(input, win_len, slide_len, winType, emitter_degree, pardegree, batch_len, n_thread_block, name, scratchpad_size, ordered, opt_level);
+        return new winfarm_gpu_t(input, win_len, slide_len, winType, pardegree, batch_len, n_thread_block, name, scratchpad_size, true, opt_level);
     }
 
     /** 
@@ -1277,7 +1207,7 @@ public:
      */ 
     std::unique_ptr<winfarm_gpu_t> build_unique()
     {
-        return std::make_unique<winfarm_gpu_t>(input, win_len, slide_len, winType, emitter_degree, pardegree, batch_len, n_thread_block, name, scratchpad_size, ordered, opt_level);
+        return std::make_unique<winfarm_gpu_t>(input, win_len, slide_len, winType, pardegree, batch_len, n_thread_block, name, scratchpad_size, true, opt_level);
     }
 };
 
@@ -1397,18 +1327,6 @@ public:
     KeyFarm_Builder<T>& withName(std::string _name)
     {
         name = _name;
-        return *this;
-    }
-
-    /** 
-     *  \brief Method to specify the routing function of input tuples to the internal patterns
-     *  
-     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     *  \return the object itself
-     */ 
-    KeyFarm_Builder<T>& set_KeyBy(routing_func_t _routing_func)
-    {
-        routing_func = _routing_func;
         return *this;
     }
 
@@ -1620,18 +1538,6 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the routing function of input tuples to the internal patterns
-     *  
-     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     *  \return the object itself
-     */ 
-    KeyFarmGPU_Builder<T>& set_KeyBy(routing_func_t _routing_func)
-    {
-        routing_func = _routing_func;
-        return *this;
-    }
-
-    /** 
      *  \brief Method to specify the optimization level to build the Key_Farm_GPU pattern
      *  
      *  \param _opt_level (optimization level)
@@ -1687,7 +1593,6 @@ private:
     size_t plq_degree = 1;
     size_t wlq_degree = 1;
     std::string name = "anonymous_pf";
-    bool ordered = true;
     opt_level_t opt_level = LEVEL0;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
 
@@ -1757,18 +1662,6 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the ordering behavior of the Pane_Farm pattern
-     *  
-     *  \param _ordered boolean flag (true for total key-based ordering, false no ordering is provided)
-     *  \return the object itself
-     */ 
-    PaneFarm_Builder<F_t, G_t>& withOrdering(bool _ordered)
-    {
-        ordered = _ordered;
-        return *this;
-    }
-
-    /** 
      *  \brief Method to specify the optimization level to build the Pane_Farm pattern
      *  
      *  \param _opt_level (optimization level)
@@ -1777,6 +1670,17 @@ public:
     PaneFarm_Builder<F_t, G_t>& withOptLevel(opt_level_t _opt_level)
     {
         opt_level = _opt_level;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to prepare the pattern for Nesting with Key_Farm or Win_Farm
+     *  
+     *  \return the object itself
+     */ 
+    PaneFarm_Builder<F_t, G_t>& prepare4Nesting()
+    {
+        opt_level = LEVEL2;
         return *this;
     }
 
@@ -1800,7 +1704,7 @@ public:
      */ 
     panefarm_t build()
     {
-        return panefarm_t(func_F, func_G, win_len, slide_len, winType, plq_degree, wlq_degree, name, closing_func, ordered, opt_level); // copy elision in C++17
+        return panefarm_t(func_F, func_G, win_len, slide_len, winType, plq_degree, wlq_degree, name, closing_func, true, opt_level); // copy elision in C++17
     }
 #endif
 
@@ -1811,7 +1715,7 @@ public:
      */ 
     panefarm_t *build_ptr()
     {
-        return new panefarm_t(func_F, func_G, win_len, slide_len, winType, plq_degree, wlq_degree, name, closing_func, ordered, opt_level);
+        return new panefarm_t(func_F, func_G, win_len, slide_len, winType, plq_degree, wlq_degree, name, closing_func, true, opt_level);
     }
 
     /** 
@@ -1821,7 +1725,7 @@ public:
      */ 
     std::unique_ptr<panefarm_t> build_unique()
     {
-        return std::make_unique<panefarm_t>(func_F, func_G, win_len, slide_len, winType, plq_degree, wlq_degree, name, closing_func, ordered, opt_level);
+        return std::make_unique<panefarm_t>(func_F, func_G, win_len, slide_len, winType, plq_degree, wlq_degree, name, closing_func, true, opt_level);
     }
 };
 
@@ -1850,7 +1754,6 @@ private:
     size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
     std::string name = "anonymous_pf_gpu";
     size_t scratchpad_size = 0;
-    bool ordered = true;
     opt_level_t opt_level = LEVEL0;
 
 public:
@@ -1947,18 +1850,6 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the ordering behavior of the Pane_Farm_GPU pattern
-     *  
-     *  \param _ordered boolean flag (true for total key-based ordering, false no ordering is provided)
-     *  \return the object itself
-     */ 
-    PaneFarmGPU_Builder<F_t, G_t>& withOrdering(bool _ordered)
-    {
-        ordered = _ordered;
-        return *this;
-    }
-
-    /** 
      *  \brief Method to specify the optimization level to build the Pane_Farm_GPU pattern
      *  
      *  \param _opt_level (optimization level)
@@ -1971,13 +1862,24 @@ public:
     }
 
     /** 
+     *  \brief Method to prepare the pattern for Nesting with Key_Farm_GPU or Win_Farm_GPU
+     *  
+     *  \return the object itself
+     */ 
+    PaneFarmGPU_Builder<F_t, G_t>& prepare4Nesting()
+    {
+        opt_level = LEVEL2;
+        return *this;
+    }
+
+    /** 
      *  \brief Method to create the Pane_Farm_GPU pattern
      *  
      *  \return a pointer to the created Pane_Farm_GPU pattern (to be explicitly deallocated/destroyed)
      */ 
     panefarm_gpu_t *build_ptr()
     {
-        return new panefarm_gpu_t(func_F, func_G, win_len, slide_len, winType, plq_degree, wlq_degree, batch_len, n_thread_block, name, scratchpad_size, ordered, opt_level);
+        return new panefarm_gpu_t(func_F, func_G, win_len, slide_len, winType, plq_degree, wlq_degree, batch_len, n_thread_block, name, scratchpad_size, true, opt_level);
     }
 
     /** 
@@ -1987,7 +1889,7 @@ public:
      */ 
     std::unique_ptr<panefarm_gpu_t> build_unique()
     {
-        return std::make_unique<panefarm_gpu_t>(func_F, func_G, win_len, slide_len, winType, plq_degree, wlq_degree, batch_len, n_thread_block, name, scratchpad_size, ordered, opt_level);
+        return std::make_unique<panefarm_gpu_t>(func_F, func_G, win_len, slide_len, winType, plq_degree, wlq_degree, batch_len, n_thread_block, name, scratchpad_size, true, opt_level);
     }
 };
 
@@ -2015,7 +1917,6 @@ private:
     size_t map_degree = 2;
     size_t reduce_degree = 1;
     std::string name = "anonymous_wmr";
-    bool ordered = true;
     opt_level_t opt_level = LEVEL0;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
 
@@ -2085,18 +1986,6 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the ordering feature of the Win_MapReduce pattern
-     *  
-     *  \param _ordered boolean flag (true for total key-based ordering, false no ordering is provided)
-     *  \return the object itself
-     */ 
-    WinMapReduce_Builder<F_t, G_t>& withOrdering(bool _ordered)
-    {
-        ordered = _ordered;
-        return *this;
-    }
-
-    /** 
      *  \brief Method to specify the optimization level to build the Win_MapReduce pattern
      *  
      *  \param _opt_level (optimization level)
@@ -2105,6 +1994,17 @@ public:
     WinMapReduce_Builder<F_t, G_t>& withOptLevel(opt_level_t _opt_level)
     {
         opt_level = _opt_level;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to prepare the pattern for Nesting with Key_Farm or Win_Farm
+     *  
+     *  \return the object itself
+     */ 
+    WinMapReduce_Builder<F_t, G_t>& prepare4Nesting()
+    {
+        opt_level = LEVEL2;
         return *this;
     }
 
@@ -2128,7 +2028,7 @@ public:
      */ 
     winmapreduce_t build()
     {
-        return winmapreduce_t(func_F, func_G, win_len, slide_len, winType, map_degree, reduce_degree, name, closing_func, ordered, opt_level); // copy elision in C++17
+        return winmapreduce_t(func_F, func_G, win_len, slide_len, winType, map_degree, reduce_degree, name, closing_func, true, opt_level); // copy elision in C++17
     }
 #endif
 
@@ -2139,7 +2039,7 @@ public:
      */ 
     winmapreduce_t *build_ptr()
     {
-        return new winmapreduce_t(func_F, func_G, win_len, slide_len, winType, map_degree, reduce_degree, name, closing_func, ordered, opt_level);
+        return new winmapreduce_t(func_F, func_G, win_len, slide_len, winType, map_degree, reduce_degree, name, closing_func, true, opt_level);
     }
 
     /** 
@@ -2149,7 +2049,7 @@ public:
      */ 
     std::unique_ptr<winmapreduce_t> build_unique()
     {
-        return std::make_unique<winmapreduce_t>(func_F, func_G, win_len, slide_len, winType, map_degree, reduce_degree, name, closing_func, ordered, opt_level);
+        return std::make_unique<winmapreduce_t>(func_F, func_G, win_len, slide_len, winType, map_degree, reduce_degree, name, closing_func, true, opt_level);
     }
 };
 
@@ -2178,7 +2078,6 @@ private:
     size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
     std::string name = "anonymous_wmw_gpu";
     size_t scratchpad_size = 0;
-    bool ordered = true;
     opt_level_t opt_level = LEVEL0;
 
 public:
@@ -2275,18 +2174,6 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the ordering behavior of the Win_MapReduce_GPU pattern
-     *  
-     *  \param _ordered boolean flag (true for total key-based ordering, false no ordering is provided)
-     *  \return the object itself
-     */ 
-    WinMapReduceGPU_Builder<F_t, G_t>& withOrdering(bool _ordered)
-    {
-        ordered = _ordered;
-        return *this;
-    }
-
-    /** 
      *  \brief Method to specify the optimization level to build the Win_MapReduce_GPU pattern
      *  
      *  \param _opt_level (optimization level)
@@ -2299,13 +2186,24 @@ public:
     }
 
     /** 
+     *  \brief Method to prepare the pattern for Nesting with Key_Farm_GPU or Win_Farm_GPU
+     *  
+     *  \return the object itself
+     */ 
+    WinMapReduceGPU_Builder<F_t, G_t>& prepare4Nesting()
+    {
+        opt_level = LEVEL2;
+        return *this;
+    }
+
+    /** 
      *  \brief Method to create the Pane_Farm_GPU pattern
      *  
      *  \return a pointer to the created Pane_Farm_GPU pattern (to be explicitly deallocated/destroyed)
      */ 
     winmapreduce_gpu_t *build_ptr()
     {
-        return new winmapreduce_gpu_t(func_F, func_G, win_len, slide_len, winType, map_degree, reduce_degree, batch_len, n_thread_block, name, scratchpad_size, ordered, opt_level);
+        return new winmapreduce_gpu_t(func_F, func_G, win_len, slide_len, winType, map_degree, reduce_degree, batch_len, n_thread_block, name, scratchpad_size, true, opt_level);
     }
 
     /** 
@@ -2315,7 +2213,7 @@ public:
      */ 
     std::unique_ptr<winmapreduce_gpu_t> build_unique()
     {
-        return std::make_unique<winmapreduce_gpu_t>(func_F, func_G, win_len, slide_len, winType, map_degree, reduce_degree, batch_len, n_thread_block, name, scratchpad_size, ordered, opt_level);
+        return std::make_unique<winmapreduce_gpu_t>(func_F, func_G, win_len, slide_len, winType, map_degree, reduce_degree, batch_len, n_thread_block, name, scratchpad_size, true, opt_level);
     }
 };
 
@@ -2341,7 +2239,7 @@ private:
     std::string name = "anonymous_sink";
     bool isKeyed = false;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
-    routing_func_t routing_func;
+    routing_func_t routing_func = [](size_t k, size_t n) { return k%n; };
 
 public:
     /** 
@@ -2378,13 +2276,11 @@ public:
     /** 
      *  \brief Method to enable the key-based routing
      *  
-     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \return the object itself
      */ 
-    Sink_Builder<F_t>& set_KeyBy(routing_func_t _routing_func=[](size_t k, size_t n) { return k%n; })
+    Sink_Builder<F_t>& set_KeyBy()
     {
         isKeyed = true;
-        routing_func = _routing_func;
         return *this;
     }
 

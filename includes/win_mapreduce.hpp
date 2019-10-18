@@ -31,7 +31,7 @@
  *  incremental and an incremental query definition in the two stages.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with a
- *  copy Constructor and copy assignment operator, and they must provide and implement
+ *  copy constructor and copy assignment operator, and they must provide and implement
  *  the setControlFields() and getControlFields() methods.
  */ 
 
@@ -63,17 +63,17 @@ class Win_MapReduce: public ff::ff_pipeline
 {
 public:
     /// function type of the non-incremental MAP processing
-    using map_func_t = std::function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
+    using map_func_t = std::function<void(uint64_t, const Iterable<tuple_t> &, result_t &)>;
     /// function type of the rich non-incremental MAP processing
-    using rich_map_func_t = std::function<void(uint64_t, Iterable<tuple_t> &, result_t &, RuntimeContext &)>;
+    using rich_map_func_t = std::function<void(uint64_t, const Iterable<tuple_t> &, result_t &, RuntimeContext &)>;
     /// function type of the incremental MAP processing
     using mapupdate_func_t = std::function<void(uint64_t, const tuple_t &, result_t &)>;
     /// function type of the rich incremental MAP processing
     using rich_mapupdate_func_t = std::function<void(uint64_t, const tuple_t &, result_t &, RuntimeContext &)>;
     /// function type of the non-incremental REDUCE processing
-    using reduce_func_t = std::function<void(uint64_t, Iterable<result_t> &, result_t &)>;
+    using reduce_func_t = std::function<void(uint64_t, const Iterable<result_t> &, result_t &)>;
     /// function type of the rich non-incremental REDUCE processing
-    using rich_reduce_func_t = std::function<void(uint64_t, Iterable<result_t> &, result_t &, RuntimeContext &)>;
+    using rich_reduce_func_t = std::function<void(uint64_t, const Iterable<result_t> &, result_t &, RuntimeContext &)>;
     /// function type of the incremental REDUCE processing
     using reduceupdate_func_t = std::function<void(uint64_t, const result_t &, result_t &)>;
     /// function type of the rich incremental REDUCE processing
@@ -193,7 +193,7 @@ private:
         if (_reduce_degree > 1) {
             // configuration structure of the Win_Farm (REDUCE)
             PatternConfig configWFREDUCE(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *farm_reduce = new Win_Farm<result_t, result_t>(_func_REDUCE, _map_degree, _map_degree, CB, 1, _reduce_degree, _name + "_reduce", _closing_func, _ordered, LEVEL0, configWFREDUCE, REDUCE);
+            auto *farm_reduce = new Win_Farm<result_t, result_t>(_func_REDUCE, _map_degree, _map_degree, CB, _reduce_degree, _name + "_reduce", _closing_func, _ordered, LEVEL0, configWFREDUCE, REDUCE);
             reduce_stage = farm_reduce;
         }
         else {
@@ -231,12 +231,13 @@ private:
                 ff::ff_farm *farm_map = static_cast<ff::ff_farm *>(map);
                 ff::ff_farm *farm_reduce = static_cast<ff::ff_farm *>(reduce);
                 emitter_reduce_t *emitter_reduce = static_cast<emitter_reduce_t *>(farm_reduce->getEmitter());
+                farm_reduce->cleanup_emitter(false);
                 Ordering_Node<result_t, wrapper_tuple_t<result_t>> *buf_node = new Ordering_Node<result_t, wrapper_tuple_t<result_t>>();
                 const ff::ff_pipeline result = combine_farms(*farm_map, emitter_reduce, *farm_reduce, buf_node, false);
                 delete farm_map;
                 delete farm_reduce;
                 delete buf_node;
-                // delete emitter_reduce; // --> should be executed, why not?
+                delete emitter_reduce;
                 return result;
             }
         }
@@ -823,25 +824,37 @@ public:
      *  \brief Get the optimization level used to build the pattern
      *  \return adopted utilization level by the pattern
      */ 
-    opt_level_t getOptLevel() const { return opt_level; }
+    opt_level_t getOptLevel() const
+    {
+      return opt_level;
+    }
 
     /** 
      *  \brief Get the window type (CB or TB) utilized by the pattern
      *  \return adopted windowing semantics (count- or time-based)
      */ 
-    win_type_t getWinType() const { return winType; }
+    win_type_t getWinType() const
+    {
+      return winType;
+    }
 
     /** 
      *  \brief Get the parallelism degree of the MAP stage
      *  \return MAP parallelism degree
      */ 
-    size_t getMAPParallelism() const { return map_degree; }
+    size_t getMAPParallelism() const
+    {
+      return map_degree;
+    }
 
     /** 
      *  \brief Get the parallelism degree of the REDUCE stage
      *  \return REDUCE parallelism degree
      */ 
-    size_t getREDUCEParallelism() const { return reduce_degree; }
+    size_t getREDUCEParallelism() const
+    {
+      return reduce_degree;
+    }
 };
 
 } // namespace wf

@@ -30,7 +30,7 @@
 #ifndef BASIC_H
 #define BASIC_H
 
-// includes
+/// includes
 #include <deque>
 #include <mutex>
 #include <sstream>
@@ -38,10 +38,6 @@
 #include <sys/time.h>
 
 namespace wf {
-
-// defines
-#define STRINGIFY(x) XSTRINGIFY(x)
-#define XSTRINGIFY(x) #x
 
 /** 
  *  \brief Function to return the number of microseconds from the epoch
@@ -78,6 +74,10 @@ inline unsigned long current_time_nsecs()
 #define gpuErrChk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 
 //@cond DOXY_IGNORE
+
+// defines
+#define STRINGIFY(x) XSTRINGIFY(x)
+#define XSTRINGIFY(x) #x
 
 // window types
 enum win_type_t { CB, TB };
@@ -122,7 +122,7 @@ std::mutex mutex_screen;
 	mutex_screen.unlock(); \
 }
 
-// struct of the pattern's configuration parameters
+// struct of the window-based pattern's configuration parameters
 struct PatternConfig {
     size_t id_outer; // identifier in the outermost pattern
     size_t n_outer; // parallelism degree in the outermost pattern

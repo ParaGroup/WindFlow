@@ -21,7 +21,7 @@
  *  
  *  @brief Stream archive
  *  
- *  @section Stream_Archive (Description)
+ *  @section StreamArchive (Description)
  *  
  *  Stream archive of tuples received from the input stream and still useful
  *  for the query processing.
@@ -46,8 +46,8 @@ class StreamArchive
 private:
     // function to compare two tuples
     using compare_func_t = std::function<bool(const tuple_t &t1, const tuple_t &t2)>;
-    // const iterator type
-    using const_iterator_t = typename container_t::const_iterator;
+    // iterator type
+    using iterator_t = typename container_t::iterator;
     compare_func_t lessThan; // function to compare two tuples
     container_t archive; // container implementing the archive (elements are stored in increasing order)
 
@@ -67,7 +67,7 @@ public:
             archive.insert(it, _t);
     }
 
-    // method to remove all the tuples prior to _t 
+    // method to remove all the tuples prior to _t
     size_t purge(const tuple_t &_t)
     {
         auto it = std::lower_bound(archive.begin(), archive.end(), _t, lessThan);
@@ -82,43 +82,42 @@ public:
         return archive.size();
     }
 
-    // method to return the iterator to the first tuple in the archive 
-    const_iterator_t begin() const
+    // method to return the iterator to the first tuple in the archive
+    iterator_t begin()
     {
         return archive.begin();
     }
 
     // method to return the iterator to the end of the archive
-    const_iterator_t end() const
+    iterator_t end()
     {
         return archive.end();
     }
 
     /*  
-     *  Method to get a pair of constant iterators that represent the window range [first, last) given
-     *  two tuples _t1 and _t2. Tuple _t1 must compare less than _t2. The method returns the constant
-     *  iterator (first) to the smallest tuple in the archive that compares greater or equal than _t1,
-     *  and the constant iterator (last) to the smallest tuple in the archive that compares greater or
-     *  equal than _t2.
+     *  Method to get a pair of iterators that represent the window range [first, last) given two tuples
+     *  _t1 and _t2. Tuple _t1 must compare less than _t2. The method returns the iterator (first) to
+     *  the smallest tuple in the archive that compares greater or equal than _t1, and the iterator (last)
+     *  to the smallest tuple in the archive that compares greater or equal than _t2.
      */ 
-    std::pair<const_iterator_t, const_iterator_t> getWinRange(const tuple_t &_t1, const tuple_t &_t2) const
+    std::pair<iterator_t, iterator_t> getWinRange(const tuple_t &_t1, const tuple_t &_t2)
     {
         assert(lessThan(_t1, _t2));
-        std::pair<const_iterator_t, const_iterator_t> its;
+        std::pair<iterator_t, iterator_t> its;
         its.first = std::lower_bound(archive.begin(), archive.end(), _t1, lessThan);
         its.second = std::lower_bound(archive.begin(), archive.end(), _t2, lessThan);
         return its;
     }
 
     /*  
-     *  Method to get a pair of constant iterators that represent the window range [first, end) given
-     *  an input tuple _t. The method returns the constant iterator (first) to the smallest tuple in
-     *  the archive that compares greater or equal than _t, and the constant iterator (end) to the end
+     *  Method to get a pair of iterators that represent the window range [first, end) given
+     *  an input tuple _t. The method returns the iterator (first) to the smallest tuple in
+     *  the archive that compares greater or equal than _t, and the iterator (end) to the end
      *  of the archive.
      */ 
-    std::pair<const_iterator_t, const_iterator_t> getWinRange(const tuple_t &_t) const
+    std::pair<iterator_t, iterator_t> getWinRange(const tuple_t &_t)
     {
-        std::pair<const_iterator_t, const_iterator_t> its;
+        std::pair<iterator_t, iterator_t> its;
         its.first = std::lower_bound(archive.begin(), archive.end(), _t, lessThan);
         its.second = archive.end();
         return its;
@@ -128,9 +127,9 @@ public:
      *  Method which, given a pair of two tuples _t1 and _t2 contained in the archive, returns
      *  the distance from _t1 to _t2.
      */ 
-    size_t getDistance(const tuple_t &_t1, const tuple_t &_t2) const
+    size_t getDistance(const tuple_t &_t1, const tuple_t &_t2)
     {
-        std::pair<const_iterator_t, const_iterator_t> its;
+        std::pair<iterator_t, iterator_t> its;
         its.first = std::lower_bound(archive.begin(), archive.end(), _t1, lessThan);
         its.second = std::lower_bound(archive.begin(), archive.end(), _t2, lessThan);
         return std::distance(its.first, its.second);
@@ -140,9 +139,9 @@ public:
      *  Method which, given a tuple _t contained in the archive, returns
      *  the distance from _t to the end of the archive.
      */ 
-    size_t getDistance(const tuple_t &_t1) const
+    size_t getDistance(const tuple_t &_t1)
     {
-        std::pair<const_iterator_t, const_iterator_t> its;
+        std::pair<iterator_t, iterator_t> its;
         its.first = std::lower_bound(archive.begin(), archive.end(), _t1, lessThan);
         return std::distance(its.first, archive.end());
     }
@@ -151,7 +150,7 @@ public:
      *  Method used to get an iterator to a given tuple in the archive. The tuple must be
      *  in the archive.
      */ 
-    const_iterator_t getIterator(const tuple_t &_t1) const
+    iterator_t getIterator(const tuple_t &_t1)
     {
         return std::lower_bound(archive.begin(), archive.end(), _t1, lessThan);
     }

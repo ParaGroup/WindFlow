@@ -42,7 +42,7 @@
 #include <ff/farm.hpp>
 #include <basic.hpp>
 #include <context.hpp>
-#include <standard.hpp>
+#include <standard_nodes.hpp>
 
 namespace wf {
 
@@ -78,7 +78,7 @@ private:
     // class Map_Node
     class Map_Node: public ff::ff_node_t<tuple_t, result_t>
     {
-    private:
+private:
         map_func_ip_t func_ip; // in-place map function
         rich_map_func_ip_t rich_func_ip; // in-place rich map function
         map_func_nip_t func_nip; // not in-place map function
@@ -96,7 +96,7 @@ private:
         std::ofstream *logfile = nullptr;
 #endif
 
-    public:
+public:
         // Constructor I
         template <typename T=std::string>
         Map_Node(typename std::enable_if<std::is_same<T,T>::value && std::is_same<tuple_t,result_t>::value, map_func_ip_t>::type _func,
@@ -524,7 +524,10 @@ public:
      *  \brief Check whether the Map has been instantiated with a key-based distribution or not
      *  \return true if the Map is configured with keyBy
      */
-    bool isKeyed() { return keyed; }
+    bool isKeyed() const
+    {
+        return keyed;
+    }
 };
 
 } // namespace wf

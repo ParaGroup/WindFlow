@@ -27,7 +27,7 @@
  *  functions on data streams.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with a copy
- *  Constructor and copy assignment operator, and thet must provide and implement the
+ *  constructor and copy assignment operator, and thet must provide and implement the
  *  setControlFields() and getControlFields() methods.
  */ 
 
@@ -43,7 +43,7 @@
 #include <ff/farm.hpp>
 #include <basic.hpp>
 #include <context.hpp>
-#include <standard.hpp>
+#include <standard_nodes.hpp>
 
 namespace wf {
 
@@ -77,7 +77,7 @@ private:
     // class Accumulator_Node
     class Accumulator_Node: public ff::ff_node_t<tuple_t, result_t>
     {
-    private:
+private:
         acc_func_t acc_func; // reduce/fold function
         rich_acc_func_t rich_acc_func; // rich reduce/fold function
         closing_func_t closing_func; // closing function
@@ -91,7 +91,9 @@ private:
             result_t result;
 
             // Constructor
-            Key_Descriptor(result_t _init_value): result(_init_value) {}
+            Key_Descriptor(result_t _init_value):
+                           result(_init_value)
+            {}
         };
         // hash table that maps key values onto key descriptors
         std::unordered_map<key_t, Key_Descriptor> keyMap;
@@ -103,7 +105,7 @@ private:
         std::ofstream *logfile = nullptr;
 #endif
 
-    public:
+public:
         // Constructor I
         Accumulator_Node(acc_func_t _acc_func,
                         result_t _init_value,

@@ -23,12 +23,12 @@
  *  
  *  @section Iterable (Description)
  *  
- *  An Iterable object gives to the user a read-only view of the tuples belonging
- *  to a window to be processed. This is used by queries instantiated with the
- *  non-incremental interface for patterns implemented on the CPU.
+ *  An Iterable object gives to the user a view of the tuples belonging to a window
+ *  to be processed. This is used by queries instantiated with the non-incremental
+ *  interface for patterns implemented on the CPU.
  *  
  *  The template parameter of the data items that can be used with the Iterable must be default
- *  constructible, with a copy Constructor and copy assignment operator, and they
+ *  constructible, with a copy constructor and copy assignment operator, and they
  *  must provide and implement the setControlFields() and getControlFields() methods.
  */ 
 
@@ -46,115 +46,72 @@ namespace wf {
  *  
  *  \brief Iterable class providing access to the tuples within a streaming window
  *  
- *  An Iterable object gives to the user a read-only view of the tuples belonging to a
- *  given window to be processed. The template parameter is the type of the items used
- *  by the Iterable.
+ *  An Iterable object gives to the user a view of the tuples belonging to a given window
+ *  to be processed. The template parameter is the type of the items used by the Iterable.
  */ 
 template<typename tuple_t>
 class Iterable
 {
 private:
-	// const iterator type
+	// iterator types
+    using iterator_t = typename std::deque<tuple_t>::iterator;
     using const_iterator_t = typename std::deque<tuple_t>::const_iterator;
-    const_iterator_t first; // const iterator to the first tuple
-    const_iterator_t last; // const iterator to the last tuple (excluded)
+    iterator_t first; // iterator to the first tuple
+    iterator_t last; // iterator to the last tuple (excluded)
     size_t n_size; // number of tuples that can be accessed through the iterable object
 
 public:
     /** 
-     *  \class Iterator
-     *  
-     *  \brief Iterator object to access the data items in an Iterable
-     *  
-     *  An Iterator object to access (read-only) the tuples in an Iterable.
-     */ 
-	class Iterator {
-	private:
-		const_iterator_t pos; // internal iterator
-
-	public:
-    	/** 
-     	 *  \brief Constructor
-     	 *  
-     	 *  \param _pos initial const iterator
-     	 */ 
-		Iterator(const_iterator_t _pos): pos(_pos) {}
-
-    	/** 
-     	 *  \brief Comparison operator
-     	 *  
-     	 *  \param _it Iterator to be compared with this
-     	 *  \return true if the comparison returns true, false otherwise
-     	 */ 
-    	bool operator!= (const Iterator &_it) const
-    	{
-        	return pos != _it.pos;
-    	}
-
-    	/** 
-     	 *  \brief Dereference operator
-     	 *  
-     	 *  \return a const reference to the tuple referred to this
-     	 */ 
-    	const tuple_t &operator* () const
-    	{
-        	return *pos;
-    	}
-
-     	/** 
-     	 *  \brief Increment operator
-     	 *  
-     	 *  \return move this to the next tuple in the Iterable
-     	 */ 
-    	const Iterator &operator++ ()
-    	{
-        	pos++;
-        	return *this;
-    	}
-
-        /** 
-         *  \brief Decrement operator
-         *  
-         *  \return move this to the previous tuple in the Iterable
-         */ 
-        const Iterator &operator-- ()
-        {
-            pos--;
-            return *this;
-        }
-	};
-
-    /** 
      *  \brief Constructor
      *  
-     *  \param _first first const iterator
-     *  \param _last last const iterator
+     *  \param _first first iterator
+     *  \param _last last iterator
      */ 
-    Iterable(const_iterator_t _first,
-             const_iterator_t _last):
+    Iterable(iterator_t _first,
+             iterator_t _last):
              first(_first),
              last(_last),
              n_size(distance(_first, _last))
     {}
 
     /** 
-     *  \brief Return an Iterator to the begin of the iterable object
+     *  \brief Return an iterator to the begin of the iterable object
      *  
-     *  \return Iterator to the begin of the iterable object
+     *  \return iterator to the begin of the iterable object
      */ 
-    Iterator begin() const
+    iterator_t begin()
     {
-    	return Iterator(first);
+    	return first;
     }
 
     /** 
-     *  \brief Return an Iterator to the end of the iterable object
+     *  \brief Return a const iterator to the begin of the iterable object
      *  
-     *  \return Iterator to the end of the iterable object
+     *  \return const iterator to the begin of the iterable object
      */ 
-    Iterator end() const
+    const_iterator_t begin() const
     {
-    	return Iterator(last);
+        return first;
+    }
+
+    /** 
+     *  \brief Return an iterator to the end of the iterable object
+     *  
+     *  \return iterator to the end of the iterable object
+     */ 
+    iterator_t end()
+    {
+    	return last;
+    }
+
+    /** 
+     *  \brief Return a const iterator to the end of the iterable object
+     *  
+     *  \return const iterator to the end of the iterable object
+     */ 
+    const_iterator_t end() const
+    {
+        return last;
     }
 
     /** 
@@ -168,6 +125,20 @@ public:
     }
 
     /** 
+     *  \brief Return a reference to the tuple at a given position
+     *  
+     *  \param i index of the tuple to be accessed
+     *  \return reference to the tuple at position i. Calling this method with
+     *          an invalid argument i causes an out_of_range exception to be thrown.
+     */ 
+    tuple_t &operator[](size_t i)
+    {
+    	if (i >= n_size)
+    		throw std::out_of_range ("Invalid index of the Iterable");
+    	return *(first+i);
+    }
+
+    /** 
      *  \brief Return a const reference to the tuple at a given position
      *  
      *  \param i index of the tuple to be accessed
@@ -175,6 +146,20 @@ public:
      *          an invalid argument i causes an out_of_range exception to be thrown.
      */ 
     const tuple_t &operator[](size_t i) const
+    {
+        if (i >= n_size)
+            throw std::out_of_range ("Invalid index of the Iterable");
+        return *(first+i);
+    }
+
+    /** 
+     *  \brief Return a reference to the tuple at a given position
+     *  
+     *  \param i index of the tuple to be accessed
+     *  \return reference to the tuple at position i. Calling this method with
+     *          an invalid argument i causes an out_of_range exception to be thrown.
+     */ 
+    tuple_t &at(size_t i)
     {
     	if (i >= n_size)
     		throw std::out_of_range ("Invalid index of the Iterable");
@@ -190,9 +175,22 @@ public:
      */ 
     const tuple_t &at(size_t i) const
     {
-    	if (i >= n_size)
+        if (i >= n_size)
+            throw std::out_of_range ("Invalid index of the Iterable");
+        return *(first+i);
+    }
+
+    /** 
+     *  \brief Return a reference to the first tuple of the iterable object
+     *  
+     *  \return reference to the first tuple. Calling this method on an empty iterable
+     *          object causes an out_of_range exception to be thrown.
+     */ 
+    tuple_t &front()
+    {
+    	if (n_size == 0)
     		throw std::out_of_range ("Invalid index of the Iterable");
-    	return *(first+i);
+    	return *(first);
     }
 
     /** 
@@ -203,9 +201,22 @@ public:
      */ 
     const tuple_t &front() const
     {
+        if (n_size == 0)
+            throw std::out_of_range ("Invalid index of the Iterable");
+        return *(first);
+    }
+
+    /** 
+     *  \brief Return a reference to the last tuple of the iterable object
+     *  
+     *  \return reference to the last tuple. Calling this method on an empty iterable
+     *          object causes an out_of_range exception to be thrown.
+     */ 
+    tuple_t &back()
+    {
     	if (n_size == 0)
     		throw std::out_of_range ("Invalid index of the Iterable");
-    	return *(first);
+    	return *(last-1);
     }
 
     /** 
@@ -216,9 +227,9 @@ public:
      */ 
     const tuple_t &back() const
     {
-    	if (n_size == 0)
-    		throw std::out_of_range ("Invalid index of the Iterable");
-    	return *(last-1);
+        if (n_size == 0)
+            throw std::out_of_range ("Invalid index of the Iterable");
+        return *(last-1);
     }
 };
 

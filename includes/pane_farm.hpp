@@ -33,7 +33,7 @@
  *  non-incremental and an incremental query definition in the two stages.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with a copy
- *  Constructor and copy assignment operator, and they must provide and implement the
+ *  constructor and copy assignment operator, and they must provide and implement the
  *  setControlFields() and getControlFields() methods.
  */ 
 
@@ -64,17 +64,17 @@ class Pane_Farm: public ff::ff_pipeline
 {
 public:
     /// type of the non-incremental pane processing function
-    using plq_func_t = std::function<void(uint64_t, Iterable<tuple_t> &, result_t &)>;
+    using plq_func_t = std::function<void(uint64_t, const Iterable<tuple_t> &, result_t &)>;
     /// type of the rich non-incremental pane processing function
-    using rich_plq_func_t = std::function<void(uint64_t, Iterable<tuple_t> &, result_t &, RuntimeContext &)>;
+    using rich_plq_func_t = std::function<void(uint64_t, const Iterable<tuple_t> &, result_t &, RuntimeContext &)>;
     /// type of the incremental pane processing function
     using plqupdate_funct_t = std::function<void(uint64_t, const tuple_t &, result_t &)>;
     /// type of the rich incremental pane processing function
     using rich_plqupdate_funct_t = std::function<void(uint64_t, const tuple_t &, result_t &, RuntimeContext &)>;
     /// type of the non-incremental window processing function
-    using wlq_func_t = std::function<void(uint64_t, Iterable<result_t> &, result_t &)>;
+    using wlq_func_t = std::function<void(uint64_t, const Iterable<result_t> &, result_t &)>;
     /// type of the rich non-incremental window processing function
-    using rich_wlq_func_t = std::function<void(uint64_t, Iterable<result_t> &, result_t &, RuntimeContext &)>;
+    using rich_wlq_func_t = std::function<void(uint64_t, const Iterable<result_t> &, result_t &, RuntimeContext &)>;
     /// type of the incremental window processing function
     using wlqupdate_func_t = std::function<void(uint64_t, const result_t &, result_t &)>;
     /// type of the rich incremental window processing function
@@ -173,7 +173,7 @@ private:
         if (_plq_degree > 1) {
             // configuration structure of the Win_Farm (PLQ)
             PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_func_PLQ, _pane_len, _pane_len, _winType, 1, _plq_degree, _name + "_plq", _closing_func, true, LEVEL0, configWFPLQ, PLQ);
+            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_func_PLQ, _pane_len, _pane_len, _winType, _plq_degree, _name + "_plq", _closing_func, true, LEVEL0, configWFPLQ, PLQ);
             plq_stage = plq_wf;
         }
         else {
@@ -186,7 +186,7 @@ private:
         if (_wlq_degree > 1) {
             // configuration structure of the Win_Farm (WLQ)
             PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *wlq_wf = new Win_Farm<result_t, result_t>(_func_WLQ, (_win_len/_pane_len), (_slide_len/_pane_len), CB, 1, _wlq_degree, _name + "_wlq", _closing_func, _ordered, LEVEL0, configWFWLQ, WLQ);
+            auto *wlq_wf = new Win_Farm<result_t, result_t>(_func_WLQ, (_win_len/_pane_len), (_slide_len/_pane_len), CB, _wlq_degree, _name + "_wlq", _closing_func, _ordered, LEVEL0, configWFWLQ, WLQ);
             wlq_stage = wlq_wf;
         }
         else {
@@ -223,7 +223,7 @@ private:
             else return combine_nodes_in_pipeline(*plq, *wlq, true, true);
         }
         else { // optimization level 2
-            if (!plq->isFarm() || !wlq->isFarm()) // like level 1
+            if (!plq->isFarm() || !wlq->isFarm()) { // like level 1
                 if (plq_degree == 1 && wlq_degree == 1) {
                     ff::ff_pipeline pipe;
                     pipe.add_stage(new ff::ff_comb(plq, wlq, true, true));
@@ -231,17 +231,19 @@ private:
                     return pipe;
                 }
                 else return combine_nodes_in_pipeline(*plq, *wlq, true, true);
+            }
             else {
                 using emitter_wlq_t = WF_Emitter<result_t, result_t>;
                 ff::ff_farm *farm_plq = static_cast<ff::ff_farm *>(plq);
                 ff::ff_farm *farm_wlq = static_cast<ff::ff_farm *>(wlq);
                 emitter_wlq_t *emitter_wlq = static_cast<emitter_wlq_t *>(farm_wlq->getEmitter());
-                Ordering_Node<result_t, wrapper_tuple_t<result_t>> *buf_node = new Ordering_Node<result_t, wrapper_tuple_t<result_t>>();
+                farm_wlq->cleanup_emitter(false);
+                Ordering_Node<result_t, wrapper_tuple_t<result_t>> *buf_node = new Ordering_Node<result_t, wrapper_tuple_t<result_t>>(ID);   
                 const ff::ff_pipeline result = combine_farms(*farm_plq, emitter_wlq, *farm_wlq, buf_node, false);
                 delete farm_plq;
                 delete farm_wlq;
                 delete buf_node;
-                // delete emitter_wlq; // --> should be executed, why not?
+                delete emitter_wlq;
                 return result;
             }
         }
@@ -828,25 +830,37 @@ public:
      *  \brief Get the optimization level used to build the pattern
      *  \return adopted utilization level by the pattern
      */ 
-    opt_level_t getOptLevel() const { return opt_level; }
+    opt_level_t getOptLevel() const
+    {
+      return opt_level;
+    }
 
     /** 
      *  \brief Get the window type (CB or TB) utilized by the pattern
      *  \return adopted windowing semantics (count- or time-based)
      */ 
-    win_type_t getWinType() const { return winType; }
+    win_type_t getWinType() const
+    {
+      return winType;
+    }
 
     /** 
      *  \brief Get the parallelism degree of the PLQ stage
      *  \return PLQ parallelism degree
      */ 
-    size_t getPLQParallelism() const { return plq_degree; }
+    size_t getPLQParallelism() const
+    {
+      return plq_degree;
+    }
 
     /** 
      *  \brief Get the parallelism degree of the WLQ stage
      *  \return WLQ parallelism degree
      */ 
-    size_t getWLQParallelism() const { return wlq_degree; }
+    size_t getWLQParallelism() const
+    {
+      return wlq_degree;
+    }
 };
 
 } // namespace wf

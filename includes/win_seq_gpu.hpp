@@ -29,7 +29,7 @@
  *  windows within each batch.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with
- *  a copy Constructor and copy assignment operator, and they must provide and implement
+ *  a copy constructor and copy assignment operator, and they must provide and implement
  *  the setControlFields() and getControlFields() methods. The third template argument
  *  win_F_t is the type of the callable object to be used for GPU processing.
  */ 
@@ -53,9 +53,15 @@ namespace wf {
 
 // CUDA KERNEL: it calls the user-defined function over the windows within a micro-batch
 template<typename win_F_t>
-__global__ void kernelBatch(void *input_data, size_t *start, size_t *end,
-                            uint64_t *gwids, void *results, win_F_t F, size_t batch_len,
-                            char *scratchpad_memory, size_t scratchpad_size)
+__global__ void kernelBatch(void *input_data,
+                            size_t *start,
+                            size_t *end,
+                            uint64_t *gwids,
+                            void *results,
+                            win_F_t F,
+                            size_t batch_len,
+                            char *scratchpad_memory,
+                            size_t scratchpad_size)
 {
     using input_t = decltype(get_tuple_t(F));
     using output_t = decltype(get_result_t(F));
@@ -69,7 +75,10 @@ __global__ void kernelBatch(void *input_data, size_t *start, size_t *end,
 }
 
 // assert function on GPU
-inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=false)
+inline void gpuAssert(cudaError_t code,
+                      const char *file,
+                      int line,
+                      bool abort=false)
 {
     if (code != cudaSuccess) {
         fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
@@ -92,8 +101,8 @@ template<typename tuple_t, typename result_t, typename win_F_t, typename input_t
 class Win_Seq_GPU: public ff::ff_node_t<input_t, result_t>
 {
 private:
-    // const iterator type for accessing tuples
-    using const_input_iterator_t = typename std::vector<tuple_t>::const_iterator;
+    // iterator type for accessing tuples
+    using input_iterator_t = typename std::vector<tuple_t>::iterator;
     // type of the stream archive used by the Win_Seq_GPU pattern
     using archive_t = StreamArchive<tuple_t, std::vector<tuple_t>>;
     // window type used by the Win_Seq_GPU pattern
@@ -404,11 +413,11 @@ public:
             if (win.onTuple(*t) == FIRED) {
                 key_d.batchedWin++;
                 (key_d.gwids).push_back(win.getGWID());
-                (key_d.tsWin).push_back(std::get<2>((win.getResult())->getControlFields()));
+                (key_d.tsWin).push_back(std::get<2>((win.getResult()).getControlFields()));
                 // acquire from the archive the optionals to the first and the last tuple of the window
                 std::optional<tuple_t> t_s = win.getFirstTuple();
                 std::optional<tuple_t> t_e = win.getFiringTuple();
-                std::pair<const_input_iterator_t, const_input_iterator_t> its;
+                std::pair<input_iterator_t, input_iterator_t> its;
                 // empty window
                 if (!t_s) {
                     if ((key_d.start).size() == 0)
@@ -549,8 +558,8 @@ public:
             for (auto &win: wins) {
                 std::optional<tuple_t> t_s = win.getFirstTuple();
                 std::optional<tuple_t> t_e = win.getFiringTuple();
-                std::pair<const_input_iterator_t, const_input_iterator_t> its;
-                result_t *out = win.getResult();
+                std::pair<input_iterator_t, input_iterator_t> its;
+                result_t *out = new result_t(win.getResult());
                 if (t_s) { // not-empty window
                     if (t_e) // BATCHED window
                         its = (key_d.archive).getWinRange(*t_s, *t_e);
@@ -620,7 +629,10 @@ public:
      *  \brief Get the window type (CB or TB) utilized by the pattern
      *  \return adopted windowing semantics (count- or time-based)
      */
-    win_type_t getWinType() { return winType; }
+    win_type_t getWinType() const
+    {
+        return winType;
+    }
 
     /// Method to start the pattern execution asynchronously
     virtual int run(bool)

@@ -28,11 +28,11 @@
  *  on a heterogeneous system (CPU+GPU). The pattern prepares batches of input tuples
  *  in parallel on the CPU cores and offloads on the GPU the parallel processing of the
  *  windows within each batch. Batches of different sub-streams can be executed in
- *  parallel while consecutive batches of the same sub-stream are preparel on the CPU and
+ *  parallel while consecutive batches of the same sub-stream are prepared on the CPU and
  *  offloaded on the GPU sequentially.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with a copy
- *  Constructor and copy assignment operator, and they must provide and implement the
+ *  constructor and copy assignment operator, and they must provide and implement the
  *  setControlFields() and getControlFields() methods. The third template argument win_F_t
  *  is the type of the callable object to be used for GPU processing.
  */ 
@@ -50,7 +50,8 @@
 #include <kf_nodes.hpp>
 #include <wf_nodes.hpp>
 #include <wm_nodes.hpp>
-#include <tree_combiner.hpp>
+#include <tree_emitter.hpp>
+#include <basic_emitter.hpp>
 #include <transformations.hpp>
 
 namespace wf {
@@ -84,7 +85,7 @@ private:
     // type of the KF_Emitter node
     using kf_emitter_t = KF_Emitter<tuple_t>;
     // type of the KF_Collector node
-    using kf_collector_t = KF_NestedCollector<result_t>;
+    using kf_collector_t = KF_Collector<result_t>;
     // friendships with other classes in the library
     template<typename T>
     friend auto get_KF_GPU_nested_type(T);
@@ -108,7 +109,6 @@ private:
     Key_Farm_GPU() {}
 
     // method to optimize the structure of the Key_Farm_GPU pattern
-    template<typename inner_emitter_t>
     void optimize_KeyFarmGPU(opt_level_t opt)
     {
         if (opt == LEVEL0) // no optimization
@@ -118,7 +118,7 @@ private:
         else { // optimization level 2
             kf_emitter_t *kf_e = static_cast<kf_emitter_t *>(this->getEmitter());
             auto &oldWorkers = this->getWorkers();
-            std::vector<inner_emitter_t *> Es;
+            std::vector<Basic_Emitter *> Es;
             bool tobeTransformmed = true;
             // change the workers by removing their first emitter (if any)
             for (auto *w: oldWorkers) {
@@ -127,13 +127,13 @@ private:
                 if (e == nullptr)
                     tobeTransformmed = false;
                 else {
-                    inner_emitter_t *my_e = static_cast<inner_emitter_t *>(e);
+                    Basic_Emitter *my_e = static_cast<Basic_Emitter *>(e);
                     Es.push_back(my_e);
                 }
             }
             if (tobeTransformmed) {
                 // create the tree emitter
-                auto *treeEmitter = new TreeComb<kf_emitter_t, inner_emitter_t>(kf_e, Es);
+                auto *treeEmitter = new Tree_Emitter(kf_e, Es, true, true);
                 this->cleanup_emitter(false);
                 this->change_emitter(treeEmitter, true);
             }
@@ -244,9 +244,7 @@ public:
                  inner_type(PF_GPU),
                  parallelism(_pardegree),
                  winType(_winType)
-    {
-        // type of the PLQ emitter in the first stage of the Pane_Farm_GPU
-        using plq_emitter_t = WF_Emitter<tuple_t>;        
+    {      
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
             std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
@@ -297,7 +295,7 @@ public:
         ff::ff_farm::add_collector(new kf_collector_t());
         ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _pardegree));
         // optimization process according to the provided optimization level
-        this->optimize_KeyFarmGPU<plq_emitter_t>(_opt_level);
+        this->optimize_KeyFarmGPU(_opt_level);
         // when the Key_Farm_GPU will be destroyed we need aslo to destroy the emitter, workers and collector
         ff::ff_farm::cleanup_all();
     }
@@ -333,9 +331,7 @@ public:
                  inner_type(WMR_GPU),
                  parallelism(_pardegree),
                  winType(_winType)
-    {
-        // type of the MAP emitter in the first stage of the Win_MapReduce_GPU
-        using map_emitter_t = WinMap_Emitter<tuple_t>;        
+    {      
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
             std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
@@ -386,7 +382,7 @@ public:
         ff::ff_farm::add_collector(new kf_collector_t());
         ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _pardegree));
         // optimization process according to the provided optimization level
-        this->optimize_KeyFarmGPU<map_emitter_t>(_opt_level);
+        this->optimize_KeyFarmGPU(_opt_level);
         // when the Key_Farm_GPU will be destroyed we need aslo to destroy the emitter, workers and collector
         ff::ff_farm::cleanup_all();
     }
@@ -395,43 +391,64 @@ public:
      *  \brief Check whether the Key_Farm_GPU has been instantiated with complex patterns inside
      *  \return true if the Key_Farm_GPU has complex patterns inside
      */ 
-    bool useComplexNesting() const { return hasComplexWorkers; }
+    bool useComplexNesting() const
+    {
+        return hasComplexWorkers;
+    }
 
     /** 
      *  \brief Get the optimization level used to build the pattern
      *  \return adopted utilization level by the pattern
      */ 
-    opt_level_t getOptLevel() const { return outer_opt_level; }
+    opt_level_t getOptLevel() const
+    {
+        return outer_opt_level;
+    }
 
     /** 
      *  \brief Type of the inner patterns used by this Key_Farm_GPU
      *  \return type of the inner patterns
      */ 
-    pattern_t getInnerType() const { return inner_type; }
+    pattern_t getInnerType() const
+    {
+        return inner_type;
+    }
 
     /** 
      *  \brief Get the optimization level of the inner patterns within this Key_Farm_GPU
      *  \return adopted utilization level by the inner patterns
      */ 
-    opt_level_t getInnerOptLevel() const { return inner_opt_level; }
+    opt_level_t getInnerOptLevel() const
+    {
+        return inner_opt_level;
+    }
 
     /** 
      *  \brief Get the parallelism degree of the Key_Farm_GPU
      *  \return parallelism degree of the Key_Farm_GPU
      */ 
-    size_t getParallelism() const { return parallelism; }        
+    size_t getParallelism() const
+    {
+        return parallelism;
+    }        
 
     /** 
      *  \brief Get the parallelism degrees of the inner patterns within this Key_Farm_GPU
      *  \return parallelism degrees of the inner patterns
      */ 
-    std::pair<size_t, size_t> getInnerParallelism() const { return std::make_pair(inner_parallelism_1, inner_parallelism_2); }
+    std::pair<size_t, size_t> getInnerParallelism() const
+    {
+        return std::make_pair(inner_parallelism_1, inner_parallelism_2);
+    }
 
     /** 
      *  \brief Get the window type (CB or TB) utilized by the pattern
      *  \return adopted windowing semantics (count- or time-based)
      */ 
-    win_type_t getWinType() const { return winType; }
+    win_type_t getWinType() const
+    {
+        return winType;
+    }
 };
 
 } // namespace wf

@@ -19,11 +19,11 @@
  *  @author  Gabriele Mencagli
  *  @date    02/10/2018
  *  
- *  @brief Emitter and Collector nodes of the Key_Farm and Key_Farm_GPU patterns
+ *  @brief Emitter and collecto of the Key_Farm and Key_Farm_GPU patterns
  *  
- *  @section Key_Farm_Nodes (Description)
+ *  @section Key_Farm and Key_Farm_GPU Emitter and Collector (Description)
  *  
- *  This file implements the Emitter and the Collector nodes used in the Key_Farm
+ *  This file implements the emitter and the collector used in the Key_Farm
  *  and Key_Farm_GPU patterns in the library.
  */ 
 
@@ -33,20 +33,21 @@
 // includes
 #include <vector>
 #include <ff/multinode.hpp>
+#include <basic_emitter.hpp>
 
 namespace wf {
 
 // class KF_Emitter
 template<typename tuple_t>
-class KF_Emitter: public ff::ff_monode_t<tuple_t, tuple_t>
+class KF_Emitter: public Basic_Emitter
 {
 private:
     // type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
     using routing_func_t = std::function<size_t(size_t, size_t)>;
     routing_func_t routing_func; // routing function
     size_t pardegree; // parallelism degree (number of inner patterns)
-    bool isCombined; // true if this node is used within a treeComb node
-    std::vector<std::pair<tuple_t *, int>> output_queue; // used in case of treeComb mode
+    bool isCombined; // true if this node is used within a Tree_Emitter node
+    std::vector<std::pair<void *, int>> output_queue; // used in case of Tree_Emitter mode
 
 public:
     // Constructor
@@ -57,6 +58,13 @@ public:
                isCombined(false)
     {}
 
+    // clone method
+    Basic_Emitter *clone() const
+    {
+        KF_Emitter<tuple_t> *copy = new KF_Emitter<tuple_t>(*this);
+        return copy;
+    }
+
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
     {
@@ -64,8 +72,9 @@ public:
     }
 
     // svc method (utilized by the FastFlow runtime)
-    tuple_t *svc(tuple_t *t)
+    void *svc(void *in)
     {
+        tuple_t *t = reinterpret_cast<tuple_t *>(in);
         // extract the key from the input tuple
         auto key = std::get<0>(t->getControlFields()); // key
         size_t hashcode = std::hash<decltype(key)>()(key); // compute the hashcode of the key
@@ -82,27 +91,27 @@ public:
     void svc_end() {}
 
     // get the number of destinations
-    size_t getNDestinations()
+    size_t getNDestinations() const
     {
         return pardegree;
     }
 
-    // set/unset the treeComb mode
-    void setTreeCombMode(bool _val)
+    // set/unset the Tree_Emitter mode
+    void setTree_EmitterMode(bool _val)
     {
         isCombined = _val;
     }
 
-    // method to get a reference to the internal output queue (used in treeComb mode)
-    std::vector<std::pair<tuple_t *, int>> &getOutputQueue()
+    // method to get a reference to the internal output queue (used in Tree_Emitter mode)
+    std::vector<std::pair<void *, int>> &getOutputQueue()
     {
         return output_queue;
     }
 };
 
-// class KF_NestedCollector
+// class KF_Collector
 template<typename result_t>
-class KF_NestedCollector: public ff::ff_minode_t<result_t, result_t>
+class KF_Collector: public ff::ff_minode_t<result_t, result_t>
 {
 private:
     result_t tmp; // never used
@@ -123,7 +132,7 @@ private:
 
 public:
     // Constructor
-    KF_NestedCollector() {}
+    KF_Collector() {}
 
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
@@ -136,7 +145,6 @@ public:
     {
         // extract key and identifier from the result
         auto key = std::get<0>(r->getControlFields()); // key
-        size_t hashcode = std::hash<decltype(key)>()(key); // compute the hashcode of the key
         uint64_t wid = std::get<1>(r->getControlFields()); // identifier
         // find the corresponding key descriptor
         auto it = keyMap.find(key);

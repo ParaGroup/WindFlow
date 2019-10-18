@@ -91,17 +91,33 @@ int main(int argc, char *argv[])
     MultiPipe application("ysb");
     // create source operator
     YSBSource source_functor(exec_time_sec, campaign_gen.getArrays(), campaign_gen.getAdsCompaign());
-    Source source = Source_Builder(source_functor).withName("ysb_source").withParallelism(pardegree1).build();
+    Source source = Source_Builder(source_functor)
+                        .withName("ysb_source")
+                        .withParallelism(pardegree1)
+                        .build();
     // create filter operator
     YSBFilter filter_functor;
-    Filter filter = Filter_Builder(filter_functor).withName("ysb_filter").withParallelism(pardegree1).build();
+    Filter filter = Filter_Builder(filter_functor)
+                        .withName("ysb_filter")
+                        .withParallelism(pardegree1)
+                        .build();
     YSBJoin join_functor(campaign_gen.getHashMap(), campaign_gen.getRelationalTable());
-    FlatMap join = FlatMap_Builder(join_functor).withName("ysb_join").withParallelism(pardegree1).build();
+    FlatMap join = FlatMap_Builder(join_functor)
+                        .withName("ysb_join")
+                        .withParallelism(pardegree1)
+                        .build();
     // create the aggregation operator
-    Key_Farm aggregation = KeyFarm_Builder(aggregateFunctionINC).withTBWindows(seconds(10), seconds(10)).withName("ysb_kf").withParallelism(pardegree2).build();
+    Key_Farm aggregation = KeyFarm_Builder(aggregateFunctionINC)
+                                .withTBWindows(seconds(10), seconds(10))
+                                .withName("ysb_kf")
+                                .withParallelism(pardegree2)
+                                .build();
     // create the sink operator
     YSBSink sink_functor;
-    Sink sink = Sink_Builder(sink_functor).withName("ysb_sink").withParallelism(pardegree2).build();
+    Sink sink = Sink_Builder(sink_functor)
+                    .withName("ysb_sink")
+                    .withParallelism(pardegree2)
+                    .build();
     // set the starting time of the application
     volatile unsigned long start_time_main_us = current_time_usecs();
     start_time_usec = start_time_main_us;

@@ -21,7 +21,7 @@
  *  
  *  @brief Streaming windows
  *  
- *  @section Windows (Description)
+ *  @section Window (Description)
  *  
  *  This file implements the classes used by the WindFlow library to support
  *  streaming windows. The library natively supports count-based and time-
@@ -36,7 +36,7 @@
 #include <functional>
 #if __cplusplus < 201703L //not C++17
     #include <experimental/optional>
-    using namespace std::experimental;
+    namespace std { using namespace experimental; } // ugly but necessary until CUDA will support C++17!
 #else
     #include <optional>
 #endif
@@ -115,7 +115,7 @@ private:
     using key_t = typename std::remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
     win_type_t winType; // type of the window (CB or TB)
     triggerer_t triggerer; // triggerer used by the window (it must be compliant with its type)
-    result_t *result; // pointer to the result of the window processing
+    result_t result; // result of the window processing
     std::optional<tuple_t> firstTuple; // optional object containing the first tuple raising a CONTINUE event
     std::optional<tuple_t> firingTuple; // optional object containing the first tuple raising a FIRED event
     key_t key; // key attribute
@@ -135,7 +135,6 @@ public:
            uint64_t _slide_len):
            winType(_winType),
            triggerer(_triggerer),
-           result(new result_t()),
            key(_key),
            lwid(_lwid),
            gwid(_gwid),
@@ -144,9 +143,9 @@ public:
     {
         // initialize the key, gwid and timestamp of the window result
         if (winType == CB)
-            result->setControlFields(_key, _gwid, 0);
+            result.setControlFields(_key, _gwid, 0);
         else
-            result->setControlFields(_key, _gwid, _gwid * _slide_len + _win_len - 1);
+            result.setControlFields(_key, _gwid, _gwid * _slide_len + _win_len - 1);
     }
 
     // copy Constructor
@@ -154,7 +153,7 @@ public:
     {
         winType = win.winType;
         triggerer = win.triggerer;
-        result = new result_t(*win.result);
+        result = win.result;
         firstTuple = win.firstTuple;
         firingTuple = win.firingTuple;
         key = win.key;
@@ -176,7 +175,7 @@ public:
             if (!firstTuple)
                 firstTuple = std::make_optional(_t); // need a copy Constructor for tuple_t
             if (winType == CB)
-                result->setControlFields(key, gwid, std::get<2>(_t.getControlFields()));
+                result.setControlFields(key, gwid, std::get<2>(_t.getControlFields()));
         }
         if (event == FIRED) {
             if (!firingTuple)
@@ -193,8 +192,8 @@ public:
         batched = true;
     }
 
-    // method to return the pointer to the result
-    result_t *getResult() const
+    // method to return a reference to the result
+    result_t &getResult()
     {
         return result;
     }
