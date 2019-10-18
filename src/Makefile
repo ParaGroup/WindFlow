@@ -16,28 +16,34 @@
 # Author: Gabriele Mencagli <mencagli@di.unipi.it>
 # Date:   June 2017
 
-all: merge_test mp_test_cpu mp_test_gpu split_test yahoo_test_cpu
+all: mp_test_cpu mp_test_gpu merge_test split_test yahoo_test_cpu
 
 mp_test_cpu:
+	mkdir -p ../bin/mp_test_cpu
 	$(MAKE) -C mp_test_cpu
 
 mp_test_gpu:
+	mkdir -p ../bin/mp_test_gpu
 	$(MAKE) -C mp_test_gpu
 
 merge_test:
+	mkdir -p ../bin/merge_test
 	$(MAKE) -C merge_test
 
 split_test:
+	mkdir -p ../bin/split_test
 	$(MAKE) -C split_test
 
 yahoo_test_cpu:
+	mkdir -p ../bin/yahoo_test_cpu
 	$(MAKE) -C yahoo_test_cpu
 
 clean:
 	$(MAKE) clean -C mp_test_cpu
 	$(MAKE) clean -C mp_test_gpu
 	$(MAKE) clean -C merge_test
+	$(MAKE) clean -C split_test
 	$(MAKE) clean -C yahoo_test_cpu
-	
+
 .DEFAULT_GOAL := all
-.PHONY: all merge_test mp_test_cpu mp_test_gpu split_test yahoo_test_cpu clean
+.PHONY: all mp_test_cpu mp_test_gpu merge_test split_test yahoo_test_cpu clean

@@ -23,7 +23,7 @@ INCLUDE_DIR		= ../../includes
 CXX 			= g++
 CXXFLAGS		= -std=c++17
 INCLUDES		= -I $(FF_ROOT) -I $(INCLUDE_DIR) -I .
-MACROS 			= # -DTRACE_FASTFLOW -DLOG_DIR="../../log"
+MACROS 			= -DFF_BOUNDED_BUFFER # -DLOG_DIR="../../log"
 OPTFLAGS		= -g -O3 -finline-functions
 LDFLAGS			= -pthread
 
@@ -36,7 +36,7 @@ all: $(TGTS)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) $(MACROS) $(OPTFLAGS) -o $(OUT_DIR)/$@ $< $(LDFLAGS)
 
 clean:
-	rm -f $(OUT_DIR)/*
+	rm -rf $(OUT_DIR)
 
 .DEFAULT_GOAL := all
 .PHONY: all clean

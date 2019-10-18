@@ -23,7 +23,7 @@ INCLUDE_DIR		= ../../includes
 INCLUDES		= -I $(FF_ROOT) -I $(INCLUDE_DIR) -I .
 NCXX			= nvcc
 NCXXFLAGS		= -g -x cu -w -std=c++14 --expt-extended-lambda
-MACROS 			= # -DTRACE_FASTFLOW -DLOG_DIR="/home/mencagli/WindFlow/log"
+MACROS 			= -DFF_BOUNDED_BUFFER # -DLOG_DIR="../../log"
 NOPTFLAGS		= -O3
 NLDFLAGS      	= 
 
@@ -36,7 +36,7 @@ all: $(TGTS)
 	$(NCXX) $(NCXXFLAGS) $(NOPTFLAGS) $(INCLUDES) $(MACROS) -o $(OUT_DIR)/$@ $< $(NLDFLAGS)
 
 clean:
-	rm -f $(OUT_DIR)/*
+	rm -rf $(OUT_DIR)
 
 .DEFAULT_GOAL := all
 .PHONY: all clean
