@@ -42,7 +42,7 @@
 #include <key_farm.hpp>
 #include <pane_farm.hpp>
 #include <win_mapreduce.hpp>
-#include <multipipe.hpp>
+#include <pipegraph.hpp>
 #include <sink.hpp>
 
 #endif

@@ -39,6 +39,10 @@ split_test: fastflow
 	mkdir -p ./bin
 	$(MAKE) split_test -C src
 
+graph_test: fastflow
+	mkdir -p ./bin
+	$(MAKE) graph_test -C src
+
 yahoo_test_cpu: fastflow
 	mkdir -p ./bin
 	$(MAKE) yahoo_test_cpu -C src
@@ -54,4 +58,4 @@ clean:
 	$(MAKE) clean -C src
 
 .DEFAULT_GOAL := all
-.PHONY: all mp_test_cpu mp_test_gpu merge_test split_test yahoo_test_cpu fastflow clean
+.PHONY: all mp_test_cpu mp_test_gpu merge_test split_test graph_test yahoo_test_cpu fastflow clean

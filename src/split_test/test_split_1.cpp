@@ -78,24 +78,23 @@ int main(int argc, char *argv[])
         cout << "Run " << i << " Source(" << source_degree <<")->Map(" << map1_degree << ")-|" << endl;
         cout << "      ->Filter(" << filter_degree << ")->Map(" << map2_degree << ")->Sink(1)" << endl;
         cout << "      ->Sink(1)" << endl;
-
+        // pepare the test
+        PipeGraph graph("test_split_1");
         // prepare the first MultiPipe
-        MultiPipe pipe1("pipe1");
         // source
         Source_Functor source_functor(stream_len, n_keys);
         Source source = Source_Builder(source_functor)
                                 .withName("pipe1_source")
                                 .withParallelism(source_degree)
                                 .build();
-        pipe1.add_source(source);
+        MultiPipe &pipe1 = graph.add_source(source);
         // map 1
         Map_Functor1 map_functor1;
         Map map1 = Map_Builder(map_functor1)
                             .withName("pipe1_map")
                             .withParallelism(map1_degree)
                             .build();
-        pipe1.add(map1);
-
+        pipe1.chain(map1);
         // split
         pipe1.split([](const tuple_t &t) {
             if (t.value % 2 == 0)
@@ -103,7 +102,6 @@ int main(int argc, char *argv[])
             else
                 return 1;
         }, 2);
-
         // prepare the second MultiPipe
         MultiPipe &pipe2 = pipe1.select(0);
         // filter
@@ -112,7 +110,7 @@ int main(int argc, char *argv[])
                                 .withName("pipe2_filter")
                                 .withParallelism(filter_degree)
                                 .build();
-        pipe2.add(filter);
+        pipe2.chain(filter);
         // map 2
         Map_Functor2 map_functor2;
         Map map2 = Map_Builder(map_functor2)
@@ -126,8 +124,7 @@ int main(int argc, char *argv[])
                             .withName("pipe2_sink")
                             .withParallelism(1)
                             .build();
-        pipe2.add_sink(sink);
-
+        pipe2.chain_sink(sink);
         // prepare the third MultiPipe
         MultiPipe &pipe3 = pipe1.select(1);
         // sink
@@ -136,10 +133,9 @@ int main(int argc, char *argv[])
                             .withName("pipe3_sink")
                             .withParallelism(1)
                             .build();
-        pipe3.add_sink(sink2);
-
+        pipe3.chain_sink(sink2);
         // run the application
-        pipe1.run_and_wait_end();
+        graph.run();
         if (i == 0) {
             last_result = global_sum;
             cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT << endl;

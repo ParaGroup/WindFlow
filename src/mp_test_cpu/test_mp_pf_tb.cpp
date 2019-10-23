@@ -88,51 +88,51 @@ int main(int argc, char *argv[])
     	wlq_degree = dist6(rng);
     	cout << "Run " << i << " Source(" << source_degree <<")->Filter(" << filter_degree << ")->FlatMap(" << flatmap_degree << ")->Map(" << map_degree << ")->Pane_Farm_TB(" << plq_degree << "," << wlq_degree << ")->Sink(1)" << endl;
 	    // prepare the test
-	    MultiPipe application("test_pf_tb");
+	    PipeGraph graph("test_pf_tb");
 	    // source
 	    Source_Functor source_functor(stream_len, n_keys);
 	    Source source = Source_Builder(source_functor)
 	    					.withName("test_pf_tb_source")
 	    					.withParallelism(source_degree)
 	    					.build();
-	    application.add_source(source);
+	    MultiPipe &mp = graph.add_source(source);
 	    // filter
 	    Filter_Functor filter_functor;
 	    Filter filter = Filter_Builder(filter_functor)
 	    						.withName("test_pf_tb_filter")
 	    						.withParallelism(filter_degree)
 	    						.build();
-	    application.add(filter);
+	    mp.add(filter);
 	    // flatmap
 	    FlatMap_Functor flatmap_functor;
 	    FlatMap flatmap = FlatMap_Builder(flatmap_functor)
 	    						.withName("test_pf_tb_flatmap")
 	    						.withParallelism(flatmap_degree)
 	    						.build();
-	    application.add(flatmap);
+	    mp.add(flatmap);
 	    // map
 	    Map_Functor map_functor;
 	    Map map = Map_Builder(map_functor)
 	    				.withName("test_pf_tb_map")
 	    				.withParallelism(map_degree)
 	    				.build();
-	    application.add(map);
+	    mp.add(map);
 	    // pf
 	    Pane_Farm pf = PaneFarm_Builder(plq_function, wlq_function)
 	    					.withName("test_pf_tb_pf")
 	    					.withParallelism(plq_degree, wlq_degree)
 	    					.withTBWindows(microseconds(win_len), microseconds(win_slide))
 	    					.build();
-	    application.add(pf);
+	    mp.add(pf);
 	    // sink
 	    Sink_Functor sink_functor(n_keys);
 	    Sink sink = Sink_Builder(sink_functor)
 	    					.withName("test_pf_tb_sink")
 	    					.withParallelism(1)
 	    					.build();
-	    application.add_sink(sink);
+	    mp.add_sink(sink);
 	   	// run the application
-	   	application.run_and_wait_end();
+	   	graph.run();
 	   	if (i == 0) {
 	   		last_result = global_sum;
 	   		cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT << endl;

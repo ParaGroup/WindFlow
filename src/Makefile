@@ -16,7 +16,7 @@
 # Author: Gabriele Mencagli <mencagli@di.unipi.it>
 # Date:   June 2017
 
-all: mp_test_cpu mp_test_gpu merge_test split_test yahoo_test_cpu
+all: mp_test_cpu mp_test_gpu merge_test split_test graph_test yahoo_test_cpu
 
 mp_test_cpu:
 	mkdir -p ../bin/mp_test_cpu
@@ -34,6 +34,10 @@ split_test:
 	mkdir -p ../bin/split_test
 	$(MAKE) -C split_test
 
+graph_test:
+	mkdir -p ../bin/graph_test
+	$(MAKE) -C graph_test
+
 yahoo_test_cpu:
 	mkdir -p ../bin/yahoo_test_cpu
 	$(MAKE) -C yahoo_test_cpu
@@ -43,7 +47,8 @@ clean:
 	$(MAKE) clean -C mp_test_gpu
 	$(MAKE) clean -C merge_test
 	$(MAKE) clean -C split_test
+	$(MAKE) clean -C graph_test
 	$(MAKE) clean -C yahoo_test_cpu
 
 .DEFAULT_GOAL := all
-.PHONY: all mp_test_cpu mp_test_gpu merge_test split_test yahoo_test_cpu clean
+.PHONY: all mp_test_cpu mp_test_gpu merge_test split_test graph_test yahoo_test_cpu clean

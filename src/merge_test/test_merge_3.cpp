@@ -82,16 +82,16 @@ int main(int argc, char *argv[])
         cout << "Run " << i << " Source1(" << source1_degree <<")->Map(" << map1_degree << ")-|" << endl;
         cout << "      Source2(" << source2_degree << ")->Map(" << map2_degree << ")-|" << endl;
         cout << "      Source3(" << source3_degree <<")->Filter(" << filter_degree << ")->Map(" << map3_degree << ")-|->Map(" << map4_degree << ")->Sink(1)" << endl;
-
+        // prepare the test
+        PipeGraph graph("test_merge_3");
         // prepare the first MultiPipe
-        MultiPipe pipe1("pipe1");
         // source 1
         Source_Even_Functor source_functor1(stream_len, n_keys);
         Source source1 = Source_Builder(source_functor1)
                                 .withName("pipe1_source")
                                 .withParallelism(source1_degree)
                                 .build();
-        pipe1.add_source(source1);
+        MultiPipe &pipe1 = graph.add_source(source1);
         // map 1
         Map_Functor1 map_functor1;
         Map map1 = Map_Builder(map_functor1)
@@ -99,16 +99,14 @@ int main(int argc, char *argv[])
                         .withParallelism(map1_degree)
                         .build();
         pipe1.chain(map1);
-
         // prepare the second MultiPipe
-        MultiPipe pipe2("pipe2");
         // source 2
         Source_Odd_Functor source_functor2(stream_len, n_keys);
         Source source2 = Source_Builder(source_functor2)
                                 .withName("pipe2_source")
                                 .withParallelism(source2_degree)
                                 .build();
-        pipe2.add_source(source2);
+        MultiPipe &pipe2 = graph.add_source(source2);
         // map 2
         Map_Functor2 map_functor2;
         Map map2 = Map_Builder(map_functor2)
@@ -116,19 +114,16 @@ int main(int argc, char *argv[])
                         .withParallelism(map2_degree)
                         .build();
         pipe2.chain(map2);
-
         // prepare the third MultiPipe
-        MultiPipe pipe3 = pipe1.merge("pipe3", pipe2);
-
+        MultiPipe &pipe3 = pipe1.merge(pipe2);
         // prepare the fourth MultiPipe
-        MultiPipe pipe4("pipe4");
         // source 3
         Source_Negative_Functor source_functor3(stream_len, n_keys);
         Source source3 = Source_Builder(source_functor3)
                                 .withName("pipe4_source")
                                 .withParallelism(source3_degree)
                                 .build();
-        pipe4.add_source(source3);
+        MultiPipe &pipe4 = graph.add_source(source3);
         // filter
         Filter_Functor filter_functor;
         Filter filter = Filter_Builder(filter_functor)
@@ -143,9 +138,8 @@ int main(int argc, char *argv[])
                                 .withParallelism(map3_degree)
                                 .build();
         pipe4.chain(map3);
-
         // prepare the fifth MultiPipe
-        MultiPipe pipe5 = pipe3.merge("pipe5", pipe4);
+        MultiPipe &pipe5 = pipe3.merge(pipe4);
         // map 4
         Map_Functor4 map_functor4;
         Map map4 = Map_Builder(map_functor4)
@@ -160,9 +154,8 @@ int main(int argc, char *argv[])
                                 .withParallelism(1)
                                 .build();
         pipe5.chain_sink(sink);
-
         // run the application
-        pipe5.run_and_wait_end();
+        graph.run();
         if (i == 0) {
             last_result = global_sum;
             cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT << endl;

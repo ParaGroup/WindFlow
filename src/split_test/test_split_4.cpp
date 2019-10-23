@@ -84,17 +84,16 @@ int main(int argc, char *argv[])
         cout << "               ->Map(" << map2_degree << ")->Sink(1)" << endl;
         cout << "               ->KF(PF(" << plq_degree << ", " << wlq_degree << "), " << kf_degree << ")->Sink(1)" << endl;
         cout << "      ->FlatMap(" << flatmap_degree << ")->Sink(1)" << endl;
-
+        // prepare the test
+        PipeGraph graph("test_split_4");
         // prepare the first MultiPipe
-        MultiPipe pipe1("pipe1");
         // source
         Source_Functor source_functor(stream_len, n_keys);
         Source source = Source_Builder(source_functor)
                             .withName("pipe1_source")
                             .withParallelism(source_degree)
                             .build();
-        pipe1.add_source(source);
-
+        MultiPipe &pipe1 = graph.add_source(source);
         // split
         pipe1.split([](const tuple_t &t) {
             if (t.value % 2 == 0)
@@ -102,7 +101,6 @@ int main(int argc, char *argv[])
             else
                 return 1;
         }, 2);
-
         // prepare the second MultiPipe
         MultiPipe &pipe2 = pipe1.select(0);
         // map 1
@@ -111,15 +109,14 @@ int main(int argc, char *argv[])
                         .withName("pipe2_map")
                         .withParallelism(map1_degree)
                         .build();
-        pipe2.add(map1);
+        pipe2.chain(map1);
         // filter
         Filter_Functor filter_functor;
         Filter filter = Filter_Builder(filter_functor)
                                 .withName("pipe2_filter")
                                 .withParallelism(filter_degree)
                                 .build();
-        pipe2.add(filter);
-
+        pipe2.chain(filter);
         // split
         pipe2.split([](const tuple_t &t) {
             if (t.value % 5 == 0)
@@ -127,7 +124,6 @@ int main(int argc, char *argv[])
             else
                 return 1;
         }, 2);     
-
         // prepare the third MultiPipe
         MultiPipe &pipe3 = pipe2.select(0);
         // map 2
@@ -136,7 +132,7 @@ int main(int argc, char *argv[])
                             .withName("pipe3_map")
                             .withParallelism(map2_degree)
                             .build();
-        pipe3.add(map2);
+        pipe3.chain(map2);
         // sink
         Sink_Functor sink_functor(n_keys);
         Sink sink = Sink_Builder(sink_functor)
@@ -144,7 +140,6 @@ int main(int argc, char *argv[])
                             .withParallelism(1)
                             .build();
         pipe3.chain_sink(sink);
-
         // prepare the fourth MultiPipe
         MultiPipe &pipe4 = pipe2.select(1);
         // user-defined pane function (Non-Incremental Query)
@@ -184,7 +179,6 @@ int main(int argc, char *argv[])
                             .withParallelism(1)
                             .build();
         pipe4.chain_sink(sink2);
-
         // prepare the fifth MultiPipe
         MultiPipe &pipe5 = pipe1.select(1);
         // flatmap
@@ -193,7 +187,7 @@ int main(int argc, char *argv[])
                                 .withName("pipe5_flatmap")
                                 .withParallelism(flatmap_degree)
                                 .build();
-        pipe5.add(flatmap);
+        pipe5.chain(flatmap);
         // sink
         Sink_Functor sink_functor3(n_keys);
         Sink sink3 = Sink_Builder(sink_functor3)
@@ -201,9 +195,8 @@ int main(int argc, char *argv[])
                             .withParallelism(1)
                             .build();
         pipe5.chain_sink(sink3);
-
         // run the application
-        pipe1.run_and_wait_end();
+        graph.run();
         if (i == 0) {
             last_result = global_sum;
             cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT << endl;

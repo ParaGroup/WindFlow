@@ -90,32 +90,32 @@ int main(int argc, char *argv[])
     	wf_degree = dist6(rng);
     	cout << "Run " << i << " Source(" << source_degree <<")->Filter(" << degree1 << ")-?->FlatMap(" << degree2 << ")-c->Map(" << degree2 << ")->Win_Farm_GPU_CB(" << wf_degree << ")-?->Sink(1)" << endl;
 	    // prepare the test
-	    MultiPipe application("test_wf_cb_gpu_ch");
+	    PipeGraph graph("test_wf_cb_gpu_ch");
 	    // source
 	    Source_Functor source_functor(stream_len, n_keys);
 	    auto *source = Source_Builder<decltype(source_functor)>(source_functor)
 	    							.withName("test_wf_cb_gpu_ch_source")
 	    							.withParallelism(source_degree)
 	    							.build_ptr();
-	    application.add_source(*source);
+	    MultiPipe &mp = graph.add_source(*source);
 	    // filter
 	    Filter_Functor filter_functor;
 	    auto *filter = Filter_Builder<decltype(filter_functor)>(filter_functor)
 	    						.withName("test_wf_cb_gpu_ch_filter")
 	    						.withParallelism(degree1)
 	    						.build_ptr();
-	    application.chain(*filter);
+	    mp.chain(*filter);
 	    // flatmap
 	    FlatMap_Functor flatmap_functor;
 	    auto *flatmap = FlatMap_Builder<decltype(flatmap_functor)>(flatmap_functor)
 	    						.withName("test_wf_cb_gpu_ch_flatmap")
 	    						.withParallelism(degree2)
 	    						.build_ptr();
-	    application.chain(*flatmap);
+	    mp.chain(*flatmap);
 	    // map
 	    Map_Functor map_functor;
 	    auto *map = Map_Builder<decltype(map_functor)>(map_functor).withName("test_wf_cb_gpu_ch_map").withParallelism(degree2).build_ptr();
-	    application.chain(*map);
+	    mp.chain(*map);
 	    // wf
 		// Win_Farm function (non-incremental) on GPU
 		auto wf_function_gpu = [] __host__ __device__ (size_t wid, const tuple_t *data, output_t *res, size_t size, char *memory) {
@@ -131,16 +131,16 @@ int main(int argc, char *argv[])
 	    					.withCBWindows(win_len, win_slide)
 	    					.withBatch(batch_len)
 	    					.build_ptr();
-	    application.add(*wf);
+	    mp.add(*wf);
 	    // sink
 	    Sink_Functor sink_functor(n_keys);
 	    auto *sink = Sink_Builder<decltype(sink_functor)>(sink_functor)
 	    						.withName("test_wf_cb_gpu_ch_sink")
 	    						.withParallelism(1)
 	    						.build_ptr();
-	    application.chain_sink(*sink);
+	    mp.chain_sink(*sink);
 	   	// run the application
-	   	application.run_and_wait_end();
+	   	graph.run();
 	   	if (i == 0) {
 	   		last_result = global_sum;
 	   		cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT << endl;

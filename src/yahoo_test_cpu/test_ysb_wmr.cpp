@@ -88,46 +88,45 @@ int main(int argc, char *argv[])
     // create the campaigns
     CampaignGenerator campaign_gen;
     // create the application pipeline
-    MultiPipe application("ysb");
+    PipeGraph graph("ysb");
     // create source operator
     YSBSource source_functor(exec_time_sec, campaign_gen.getArrays(), campaign_gen.getAdsCompaign());
     Source source = Source_Builder(source_functor)
                         .withName("ysb_source")
                         .withParallelism(pardegree1)
                         .build();
+    MultiPipe &pipe = graph.add_source(source);
     // create filter operator
     YSBFilter filter_functor;
     Filter filter = Filter_Builder(filter_functor)
                         .withName("ysb_filter")
                         .withParallelism(pardegree1)
                         .build();
+    pipe.chain(filter);
     YSBJoin join_functor(campaign_gen.getHashMap(), campaign_gen.getRelationalTable());
     FlatMap join = FlatMap_Builder(join_functor)
                         .withName("ysb_join")
                         .withParallelism(pardegree1)
                         .build();
+    pipe.chain(join);
     // create the aggregation operator
     Win_MapReduce aggregation = WinMapReduce_Builder(aggregateFunctionINC, reduceFunctionINC)
                                         .withTBWindows(seconds(10), seconds(10))
                                         .withName("ysb_wmr")
                                         .withParallelism(pardegree2, 1)
                                         .build();
+    pipe.add(aggregation);
     // create the sink operator
     YSBSink sink_functor;
     Sink sink = Sink_Builder(sink_functor)
                         .withName("ysb_sink")
                         .withParallelism(1)
                         .build();
+    pipe.chain_sink(sink);
     // set the starting time of the application
     volatile unsigned long start_time_main_us = current_time_usecs();
     start_time_usec = start_time_main_us;
-    application.add_source(source);
-    application.chain(filter);
-    //application.chain(project);
-    application.chain(join);
-    application.add(aggregation);
-    application.chain_sink(sink);
-	application.run_and_wait_end();
+    graph.run();
 	volatile unsigned long end_time_main_us = current_time_usecs();
 	double elapsed_time_sec = (end_time_main_us - start_time_main_us) / (1000000.0);
     cout << "[Main] Total generated messages are " << sentCounter << endl;

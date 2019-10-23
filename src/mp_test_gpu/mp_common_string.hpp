@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Data types and operator functors for running the MultiPipe tests on GPU.
+ *  Data types and operator functors for running the MultiPipe tests on GPU
  */ 
 
 // includes

@@ -225,6 +225,9 @@ class Sink;
 /// forward declaration of the MultiPipe construct
 class MultiPipe;
 
+/// forward declaration of the PipeGraph construct
+class PipeGraph;
+
 } // namespace wf
 
 #endif

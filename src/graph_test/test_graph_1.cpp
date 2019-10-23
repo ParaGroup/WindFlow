@@ -1,0 +1,167 @@
+/******************************************************************************
+ *  This program is free software; you can redistribute it and/or modify it
+ *  under the terms of the GNU Lesser General Public License version 3 as
+ *  published by the Free Software Foundation.
+ *  
+ *  This program is distributed in the hope that it will be useful, but WITHOUT
+ *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+ *  License for more details.
+ *  
+ *  You should have received a copy of the GNU Lesser General Public License
+ *  along with this program; if not, write to the Free Software Foundation,
+ *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ ******************************************************************************
+ */
+
+/*  
+ *  First Test Program of general PipeGraph instances
+ *  
+ *  (MP1, MP2)|->(MP3, MP4)
+ */ 
+
+// include
+#include <random>
+#include <iostream>
+#include <ff/ff.hpp>
+#include <windflow.hpp>
+#include "graph_common.hpp"
+
+using namespace std;
+using namespace wf;
+
+// global variable for the result
+extern atomic<long> global_sum;
+
+// main
+int main(int argc, char *argv[])
+{
+	int option = 0;
+    size_t runs = 1;
+    size_t stream_len = 0;
+    size_t n_keys = 1;
+    // initalize global variable
+    global_sum = 0;
+    // arguments from command line
+    if (argc != 7) {
+        cout << argv[0] << " -r [runs] -l [stream_length] -k [n_keys]" << endl;
+        exit(EXIT_SUCCESS);
+    }
+    while ((option = getopt(argc, argv, "r:l:k:")) != -1) {
+        switch (option) {
+            case 'r': runs = atoi(optarg);
+                     break;
+            case 'l': stream_len = atoi(optarg);
+                     break;
+            case 'k': n_keys = atoi(optarg);
+                     break;
+            default: {
+                cout << argv[0] << " -r [runs] -l [stream_length] -k [n_keys]" << endl;
+                exit(EXIT_SUCCESS);
+            }
+        }
+    }
+    // set random seed
+    mt19937 rng;
+    rng.seed(std::random_device()());
+    size_t min = 1;
+    size_t max = 10;
+    std::uniform_int_distribution<std::mt19937::result_type> dist6(min, max);
+    int map1_degree, map2_degree, filter_degree;
+    size_t source1_degree = dist6(rng);
+    size_t source2_degree = dist6(rng);
+    long last_result = 0;
+    // executes the runs
+    for (size_t i=0; i<runs; i++) {
+        map1_degree = dist6(rng);
+        map2_degree = dist6(rng);
+        filter_degree = dist6(rng);
+        cout << "Run " << i << " Source1(" << source1_degree <<")->Map1(" << map1_degree << ")-|" << endl;
+        cout << "Run " << i << " Source2(" << source2_degree <<")->Map2(" << map2_degree << ")-|" << endl;
+        cout << "          ->Filter(" << filter_degree << ")-|" << endl;
+        cout << "                     ->Sink(1)" << endl;
+        cout << "                     ->Sink(1)" << endl;
+        // prepare the test
+        PipeGraph graph("test_graph_1");
+        // prepare the first MultiPipe
+        // source 1
+        Source_Positive_Functor source_functor_positive(stream_len, n_keys);
+        Source source1 = Source_Builder(source_functor_positive)
+                            .withName("pipe1_source")
+                            .withParallelism(source1_degree)
+                            .build();
+        MultiPipe &pipe1 = graph.add_source(source1);
+        // map 1
+        Map_Functor map_functor1;
+        Map map1 = Map_Builder(map_functor1)
+                        .withName("pipe1_map")
+                        .withParallelism(map1_degree)
+                        .build();
+        pipe1.chain(map1);
+        // prepare the second MultiPipe
+        // source 2
+        Source_Negative_Functor source_functor_negative(stream_len, n_keys);
+        Source source2 = Source_Builder(source_functor_negative)
+                            .withName("pipe2_source")
+                            .withParallelism(source2_degree)
+                            .build();
+        MultiPipe &pipe2 = graph.add_source(source2);
+        // map 2
+        Map_Functor map_functor2;
+        Map map2 = Map_Builder(map_functor2)
+                        .withName("pipe2_map")
+                        .withParallelism(map2_degree)
+                        .build();
+        pipe2.chain(map2);
+        // prepare the third MultiPipe
+        MultiPipe &pipe3 = pipe1.merge(pipe2);
+        // filter
+        Filter_Functor filter_functor;
+        Filter filter = Filter_Builder(filter_functor)
+                        .withName("pipe3_filter")
+                        .withParallelism(filter_degree)
+                        .build();
+        pipe3.chain(filter);
+        // split
+        pipe3.split([](const tuple_t &t) {
+            if (t.value >= 0)
+                return 0;
+            else
+                return 1;
+        }, 2);
+        // prepare the fourth MultiPipe
+        MultiPipe &pipe4 = pipe3.select(0);
+        // sink
+        Sink_Functor sink_functor1(n_keys);
+        Sink sink1 = Sink_Builder(sink_functor1)
+                        .withName("pipe4_sink")
+                        .withParallelism(1)
+                        .build();
+        pipe4.chain_sink(sink1);
+        // prepare the fifth MultiPipe
+        MultiPipe &pipe5 = pipe3.select(1);
+        // sink
+        Sink_Functor sink_functor2(n_keys);
+        Sink sink2 = Sink_Builder(sink_functor2)
+                        .withName("pipe5_sink")
+                        .withParallelism(1)
+                        .build();
+        pipe5.chain_sink(sink2);
+        // run the application
+        graph.run();
+        if (i == 0) {
+            last_result = global_sum;
+            cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT << endl;
+        }
+        else {
+            if (last_result == global_sum) {
+                cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT << endl;
+            }
+            else {
+                cout << "Result is --> " << RED << "FAILED" << "!!!" << DEFAULT << endl;
+            }
+        }
+        global_sum = 0;
+    }
+	return 0;
+}

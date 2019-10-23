@@ -86,51 +86,51 @@ int main(int argc, char *argv[])
     	kf_degree = dist6(rng);
     	cout << "Run " << i << " Source(" << source_degree <<")->Filter(" << degree1 << ")-?->FlatMap(" << degree2 << ")-c->Map(" << degree2 << ")->Key_Farm_CB(" << kf_degree << ")-?->Sink(1)" << endl;
 	    // prepare the test
-	    MultiPipe application("test_kf_cb_ch");
+	    PipeGraph graph("test_kf_cb_ch");
 	    // source
 	    Source_Functor source_functor(stream_len, n_keys);
 	    Source source = Source_Builder(source_functor)
 	    					.withName("test_kf_cb_ch_source")
 	    					.withParallelism(source_degree)
 	    					.build();
-	    application.add_source(source);
+	    MultiPipe &mp = graph.add_source(source);
 	    // filter
 	    Filter_Functor filter_functor;
 	    Filter filter = Filter_Builder(filter_functor)
 	    						.withName("test_kf_cb_ch_filter")
 	    						.withParallelism(degree1)
 	    						.build();
-	    application.chain(filter);
+	    mp.chain(filter);
 	    // flatmap
 	    FlatMap_Functor flatmap_functor;
 	    FlatMap flatmap = FlatMap_Builder(flatmap_functor)
 	    						.withName("test_kf_cb_ch_flatmap")
 	    						.withParallelism(degree2)
 	    						.build();
-	    application.chain(flatmap);
+	    mp.chain(flatmap);
 	    // map
 	    Map_Functor map_functor;
 	    Map map = Map_Builder(map_functor)
 	    				.withName("test_kf_cb_ch_map")
 	    				.withParallelism(degree2)
 	    				.build();
-	    application.chain(map);
+	    mp.chain(map);
 	    // kf
 	    Key_Farm kf = KeyFarm_Builder(kf_function)
 	    					.withName("test_kf_cb_ch_kf")
 	    					.withParallelism(kf_degree)
 	    					.withCBWindows(win_len, win_slide)
 	    					.build();
-	    application.add(kf);
+	    mp.add(kf);
 	    // sink
 	    Sink_Functor sink_functor(n_keys);
 	    Sink sink = Sink_Builder(sink_functor)
 	    				.withName("test_kf_cb_ch_sink")
 	    				.withParallelism(1)
 	    				.build();
-	    application.chain_sink(sink);
+	    mp.chain_sink(sink);
 	   	// run the application
-	   	application.run_and_wait_end();
+	   	graph.run();
 	   	if (i == 0) {
 	   		last_result = global_sum;
 	   		cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT << endl;
