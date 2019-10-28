@@ -3,7 +3,7 @@
 
 # WindFlow
 
-WindFlow is a C++17 library for parallel data stream processing applications targeting heterogeneous shared-memory architectures featuring multi-core CPUs and GPU devices. The library provides common stream processing operators like map, flatmap, filter, fold/reduce as well as sliding-window operators designed with complex parallel features. Such operators are called <b>patterns</b> in the library, where each pattern is an instance of a class that can be built and connected with other pattern instances to create data-flow graphs. Applications are built through the <b>MultiPipe</b> and the <b>PipeGraph</b> programming constructs. The first is used to create parallel pipelines, while the second allows several <b>MultiPipe</b> instances to be interconnected through <b>merge</b> and <b>split</b> operations.
+WindFlow is a C++17 library for parallel data stream processing applications targeting heterogeneous shared-memory architectures featuring multi-core CPUs and GPU devices. The library provides common stream processing operators like map, flatmap, filter, fold/reduce as well as sliding-window operators designed with complex parallel features. Applications are built through the <b>MultiPipe</b> and the <b>PipeGraph</b> programming constructs. The first is used to create parallel pipelines, while the second allows several <b>MultiPipe</b> instances to be interconnected through <b>merge</b> and <b>split</b> operations.
 
 The web site of the library is available at https://paragroup.github.io/WindFlow/.
 
