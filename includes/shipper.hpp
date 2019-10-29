@@ -19,7 +19,7 @@
  *  @author  Gabriele Mencagli
  *  @date    10/01/2019
  *  
- *  @brief Shipper class used to send output data items by the Source and FlatMap patterns
+ *  @brief Shipper class used to send output data items by the Source and FlatMap operators
  *  
  *  @section Shipper (Description)
  *  
@@ -42,10 +42,10 @@ namespace wf {
 /** 
  *  \class Shipper
  *  
- *  \brief Shipper class used to send output data items by the Source and FlatMap patterns
+ *  \brief Shipper class used to send output data items by the Source and FlatMap operators
  *  
  *  This class implements the Shipper object to send produced output results to
- *  the next stage of the application. It is used by the FlatMap pattern.
+ *  the next stage of the application. It is used by the FlatMap operator.
  */ 
 template<typename result_t>
 class Shipper

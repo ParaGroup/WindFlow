@@ -19,13 +19,13 @@
  *  @author  Gabriele Mencagli
  *  @date    21/05/2018
  *  
- *  @brief Key_Farm_GPU pattern executing a windowed transformation in parallel
+ *  @brief Key_Farm_GPU operator executing a windowed transformation in parallel
  *         on a CPU+GPU system
  *  
  *  @section Key_Farm_GPU (Description)
  *  
- *  This file implements the Key_Farm_GPU pattern able to executes windowed queries
- *  on a heterogeneous system (CPU+GPU). The pattern prepares batches of input tuples
+ *  This file implements the Key_Farm_GPU operator able to executes windowed queries
+ *  on a heterogeneous system (CPU+GPU). The operator prepares batches of input tuples
  *  in parallel on the CPU cores and offloads on the GPU the parallel processing of the
  *  windows within each batch. Batches of different sub-streams can be executed in
  *  parallel while consecutive batches of the same sub-stream are prepared on the CPU and
@@ -59,9 +59,9 @@ namespace wf {
 /** 
  *  \class Key_Farm_GPU
  *  
- *  \brief Key_Farm_GPU pattern executing a windowed transformation in parallel on a CPU+GPU system
+ *  \brief Key_Farm_GPU operator executing a windowed transformation in parallel on a CPU+GPU system
  *  
- *  This class implements the Key_Farm_GPU pattern. The pattern prepares in parallel distinct
+ *  This class implements the Key_Farm_GPU operator. The operator prepares in parallel distinct
  *  batches of tuples (on the CPU cores) and offloads the processing of the batches on the GPU
  *  by computing in parallel all the windows within a batch on the CUDA cores of the GPU. Batches
  *  with tuples of same sub-stream are prepared/offloaded sequentially on the CPU.
@@ -93,13 +93,13 @@ private:
     bool hasComplexWorkers;
     // optimization level of the Key_Farm_GPU
     opt_level_t outer_opt_level;
-    // optimization level of the inner patterns
+    // optimization level of the inner operators
     opt_level_t inner_opt_level;
-    // type of the inner patterns
+    // type of the inner operators
     pattern_t inner_type;
     // parallelism of the Key_Farm_GPU
     size_t parallelism;
-    // parallelism degrees of the inner patterns
+    // parallelism degrees of the inner operators
     size_t inner_parallelism_1;
     size_t inner_parallelism_2;
     // window type (CB or TB)
@@ -108,7 +108,7 @@ private:
     // Private Constructor (stub)
     Key_Farm_GPU() {}
 
-    // method to optimize the structure of the Key_Farm_GPU pattern
+    // method to optimize the structure of the Key_Farm_GPU operator
     void optimize_KeyFarmGPU(opt_level_t opt)
     {
         if (opt == LEVEL0) // no optimization
@@ -150,13 +150,13 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _pardegree parallelism degree of the Key_Farm_GPU pattern
+     *  \param _pardegree parallelism degree of the Key_Farm_GPU operator
      *  \param _batch_len no. of windows in a batch (i.e. 1 window mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. windows) per block
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Key_Farm_GPU(win_F_t _win_func,
                  uint64_t _win_len,
@@ -180,17 +180,17 @@ public:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: window length or slide in Key_Farm_GPU cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Key_Farm_GPU has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            std::cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: batch length in Key_Farm_GPU cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the optimization level
@@ -216,17 +216,17 @@ public:
     /** 
      *  \brief Constructor II (Nesting with Pane_Farm_GPU)
      *  
-     *  \param _pf Pane_Farm_GPU to be replicated within the Key_Farm_GPU pattern
+     *  \param _pf Pane_Farm_GPU to be replicated within the Key_Farm_GPU operator
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _pardegree parallelism degree of the Key_Farm_GPU pattern
+     *  \param _pardegree parallelism degree of the Key_Farm_GPU operator
      *  \param _batch_len no. of windows in a batch (i.e. 1 window mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. windows) per block
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Key_Farm_GPU(const pane_farm_gpu_t &_pf,
                  uint64_t _win_len,
@@ -247,22 +247,22 @@ public:
     {      
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: window length or slide in Key_Farm_GPU cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Key_Farm_GPU has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            std::cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: batch length in Key_Farm_GPU cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the compatibility of the windowing/batching parameters
         if (_pf.win_len != _win_len || _pf.slide_len != _slide_len || _pf.winType != _winType || _pf.batch_len != _batch_len || _pf.n_thread_block != _n_thread_block) {
-            std::cerr << RED << "WindFlow Error: incompatible windowing and batching parameters" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: incompatible windowing and batching parameters between Key_Farm_GPU and Pane_Farm_GPU" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         inner_opt_level = _pf.opt_level;
@@ -295,7 +295,7 @@ public:
         ff::ff_farm::add_collector(new kf_collector_t());
         ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _pardegree));
         // optimization process according to the provided optimization level
-        this->optimize_KeyFarmGPU(_opt_level);
+        optimize_KeyFarmGPU(_opt_level);
         // when the Key_Farm_GPU will be destroyed we need aslo to destroy the emitter, workers and collector
         ff::ff_farm::cleanup_all();
     }
@@ -303,17 +303,17 @@ public:
     /** 
      *  \brief Constructor III (Nesting with Win_MapReduce_GPU)
      *  
-     *  \param _wm Win_MapReduce_GPU to be replicated within the Key_Farm_GPU pattern
+     *  \param _wm Win_MapReduce_GPU to be replicated within the Key_Farm_GPU operator
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _pardegree parallelism degree of the Key_Farm_GPU pattern
+     *  \param _pardegree parallelism degree of the Key_Farm_GPU operator
      *  \param _batch_len no. of windows in a batch (i.e. 1 window mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. windows) per block
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Key_Farm_GPU(const win_mapreduce_gpu_t &_wm,
                  uint64_t _win_len,
@@ -334,22 +334,22 @@ public:
     {      
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: window length or slide in Key_Farm_GPU cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Key_Farm_GPU has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            std::cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: batch length in Key_Farm_GPU cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the compatibility of the windowing/batching parameters
         if (_wm.win_len != _win_len || _wm.slide_len != _slide_len || _wm.winType != _winType || _wm.batch_len != _batch_len || _wm.n_thread_block != _n_thread_block) {
-            std::cerr << RED << "WindFlow Error: incompatible windowing and batching parameters" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: incompatible windowing and batching parameters between Key_Farm_GPU and Win_MapReduce_GPU" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         inner_opt_level = _wm.opt_level;
@@ -382,14 +382,14 @@ public:
         ff::ff_farm::add_collector(new kf_collector_t());
         ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _pardegree));
         // optimization process according to the provided optimization level
-        this->optimize_KeyFarmGPU(_opt_level);
+        optimize_KeyFarmGPU(_opt_level);
         // when the Key_Farm_GPU will be destroyed we need aslo to destroy the emitter, workers and collector
         ff::ff_farm::cleanup_all();
     }
 
     /** 
-     *  \brief Check whether the Key_Farm_GPU has been instantiated with complex patterns inside
-     *  \return true if the Key_Farm_GPU has complex patterns inside
+     *  \brief Check whether the Key_Farm_GPU has been instantiated with complex operators inside
+     *  \return true if the Key_Farm_GPU has complex operators inside
      */ 
     bool useComplexNesting() const
     {
@@ -397,8 +397,8 @@ public:
     }
 
     /** 
-     *  \brief Get the optimization level used to build the pattern
-     *  \return adopted utilization level by the pattern
+     *  \brief Get the optimization level used to build the operator
+     *  \return adopted utilization level by the operator
      */ 
     opt_level_t getOptLevel() const
     {
@@ -406,8 +406,8 @@ public:
     }
 
     /** 
-     *  \brief Type of the inner patterns used by this Key_Farm_GPU
-     *  \return type of the inner patterns
+     *  \brief Type of the inner operators used by this Key_Farm_GPU
+     *  \return type of the inner operators
      */ 
     pattern_t getInnerType() const
     {
@@ -415,8 +415,8 @@ public:
     }
 
     /** 
-     *  \brief Get the optimization level of the inner patterns within this Key_Farm_GPU
-     *  \return adopted utilization level by the inner patterns
+     *  \brief Get the optimization level of the inner operators within this Key_Farm_GPU
+     *  \return adopted utilization level by the inner operators
      */ 
     opt_level_t getInnerOptLevel() const
     {
@@ -433,8 +433,8 @@ public:
     }        
 
     /** 
-     *  \brief Get the parallelism degrees of the inner patterns within this Key_Farm_GPU
-     *  \return parallelism degrees of the inner patterns
+     *  \brief Get the parallelism degrees of the inner operators within this Key_Farm_GPU
+     *  \return parallelism degrees of the inner operators
      */ 
     std::pair<size_t, size_t> getInnerParallelism() const
     {
@@ -442,7 +442,7 @@ public:
     }
 
     /** 
-     *  \brief Get the window type (CB or TB) utilized by the pattern
+     *  \brief Get the window type (CB or TB) utilized by the operator
      *  \return adopted windowing semantics (count- or time-based)
      */ 
     win_type_t getWinType() const

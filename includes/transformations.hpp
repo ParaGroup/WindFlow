@@ -19,12 +19,12 @@
  *  @author  Gabriele Mencagli
  *  @date    15/06/2019
  *  
- *  @brief Set of transformations useful for patterns optimization
+ *  @brief Set of transformations useful for operators optimization
  *  
  *  @section Transformations (Description)
  *  
  *  This file implements a set of transformations useful to optimize
- *  the structure of the WindFlow patterns.
+ *  the structure of the WindFlow operators.
  */ 
 
 #ifndef TRANSF_H

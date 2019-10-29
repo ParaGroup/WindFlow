@@ -24,7 +24,7 @@
  *  @section Basic Definitions and Macros (Description)
  *  
  *  Set of definitions and macros used by the WindFlow library and by its
- *  patterns.
+ *  operators.
  */ 
 
 #ifndef BASIC_H
@@ -69,8 +69,8 @@ inline unsigned long current_time_nsecs()
 
 /// utility macros
 #define DEFAULT_VECTOR_CAPACITY 500 //< default capacity of vectors used internally by the library
-#define DEFAULT_BATCH_SIZE_TB 1000 //< inital batch size (in no. of tuples) used by GPU patterns with time-based windows
-#define DEFAULT_CUDA_NUM_THREAD_BLOCK 256 //< default number of threads per block used by GPU patterns
+#define DEFAULT_BATCH_SIZE_TB 1000 //< inital batch size (in no. of tuples) used by GPU operators with time-based windows
+#define DEFAULT_CUDA_NUM_THREAD_BLOCK 256 //< default number of threads per block used by GPU operators
 #define gpuErrChk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 
 //@cond DOXY_IGNORE
@@ -82,10 +82,10 @@ inline unsigned long current_time_nsecs()
 // window types
 enum win_type_t { CB, TB };
 
-// supported roles of the Win_Seq pattern
+// supported roles of the Win_Seq operator
 enum role_t { SEQ, PLQ, WLQ, MAP, REDUCE };
 
-// window-based patterns of the library
+// window-based operators of the library
 enum pattern_t { SEQ_CPU, SEQ_GPU, KF_CPU, KF_GPU, WF_CPU, WF_GPU, PF_CPU, PF_GPU, WMR_CPU, WMR_GPU };
 
 // optimization levels
@@ -122,14 +122,14 @@ std::mutex mutex_screen;
 	mutex_screen.unlock(); \
 }
 
-// struct of the window-based pattern's configuration parameters
+// struct of the window-based operator's configuration parameters
 struct PatternConfig {
-    size_t id_outer; // identifier in the outermost pattern
-    size_t n_outer; // parallelism degree in the outermost pattern
-    uint64_t slide_outer; // sliding factor of the outermost pattern
-    size_t id_inner; // identifier in the innermost pattern
-    size_t n_inner; // parallelism degree in the innermost pattern
-    uint64_t slide_inner; // sliding factor of the innermost pattern
+    size_t id_outer; // identifier in the outermost operator
+    size_t n_outer; // parallelism degree in the outermost operator
+    uint64_t slide_outer; // sliding factor of the outermost operator
+    size_t id_inner; // identifier in the innermost operator
+    size_t n_inner; // parallelism degree in the innermost operator
+    uint64_t slide_inner; // sliding factor of the innermost operator
 
     // Constructor I
     PatternConfig(): id_outer(0),
@@ -158,67 +158,67 @@ struct PatternConfig {
 
 //@endcond
 
-/// forward declaration of the Source pattern
+/// forward declaration of the Source operator
 template<typename tuple_t>
 class Source;
 
-/// forward declaration of the Map pattern
+/// forward declaration of the Map operator
 template<typename tuple_t, typename result_t>
 class Map;
 
-/// forward declaration of the Filter pattern
+/// forward declaration of the Filter operator
 template<typename tuple_t>
 class Filter;
 
-/// forward declaration of the FlatMap pattern
+/// forward declaration of the FlatMap operator
 template<typename tuple_t, typename result_t>
 class FlatMap;
 
-/// forward declaration of the Accumulator pattern
+/// forward declaration of the Accumulator operator
 template<typename tuple_t, typename result_t>
 class Accumulator;
 
-/// forward declaration of the Win_Seq pattern
+/// forward declaration of the Win_Seq operator
 template<typename tuple_t, typename result_t, typename input_t=tuple_t>
 class Win_Seq;
 
-/// forward declaration of the Win_Farm pattern
+/// forward declaration of the Win_Farm operator
 template<typename tuple_t, typename result_t, typename input_t=tuple_t>
 class Win_Farm;
 
-/// forward declaration of the Key_Farm pattern
+/// forward declaration of the Key_Farm operator
 template<typename tuple_t, typename result_t>
 class Key_Farm;
 
-/// forward declaration of the Pane_Farm pattern
+/// forward declaration of the Pane_Farm operator
 template<typename tuple_t, typename result_t, typename input_t=tuple_t>
 class Pane_Farm;
 
-/// forward declaration of the Win_MapReduce pattern
+/// forward declaration of the Win_MapReduce operator
 template<typename tuple_t, typename result_t, typename input_t=tuple_t>
 class Win_MapReduce;
 
-/// forward declaration of the Win_Seq_GPU pattern
+/// forward declaration of the Win_Seq_GPU operator
 template<typename tuple_t, typename result_t, typename fun_t, typename input_t=tuple_t>
 class Win_Seq_GPU;
 
-/// forward declaration of the Win_Farm_GPU pattern
+/// forward declaration of the Win_Farm_GPU operator
 template<typename tuple_t, typename result_t, typename fun_t, typename input_t=tuple_t>
 class Win_Farm_GPU;
 
-/// forward declaration of the Key_Farm_GPU pattern
+/// forward declaration of the Key_Farm_GPU operator
 template<typename tuple_t, typename result_t, typename fun_t>
 class Key_Farm_GPU;
 
-/// forward declaration of the Pane_Farm_GPU pattern
+/// forward declaration of the Pane_Farm_GPU operator
 template<typename tuple_t, typename result_t, typename fun_t, typename input_t=tuple_t>
 class Pane_Farm_GPU;
 
-/// forward declaration of the Win_MapReduce_GPU pattern
+/// forward declaration of the Win_MapReduce_GPU operator
 template<typename tuple_t, typename result_t, typename fun_t, typename input_t=tuple_t>
 class Win_MapReduce_GPU;
 
-/// forward declaration of the Sink pattern
+/// forward declaration of the Sink operator
 template<typename tuple_t>
 class Sink;
 

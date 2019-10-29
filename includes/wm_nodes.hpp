@@ -19,12 +19,12 @@
  *  @author  Gabriele Mencagli
  *  @date    02/10/2018
  *  
- *  @brief Emitter, dropper and collector used by the Win_MapReduce and Win_MapReduce_GPU patterns
+ *  @brief Emitter, dropper and collector used by the Win_MapReduce and Win_MapReduce_GPU operators
  *  
  *  @section Win_MapReduce and Win_MapReduce_GPU Emitter, Dropper and Collector (Description)
  *  
  *  This file implements the utility nodes (emitter, dropper and collector) of the
- *  MAP stage of the Win_MapReduce and Win_MapReduce_GPU patterns in the library.
+ *  MAP stage of the Win_MapReduce and Win_MapReduce_GPU operators in the library.
  */ 
 
 #ifndef WM_NODES_H
@@ -144,7 +144,7 @@ public:
         for (auto &k: keyMap) {
             Key_Descriptor &key_d = k.second;
             if (key_d.rcv_counter > 0) {
-                // send the last tuple to all the internal patterns
+                // send the last tuple to all the internal operators
                 tuple_t *tuple = new tuple_t();
                 *tuple = key_d.last_tuple;
                 wrapper_in_t *out = new wrapper_in_t(tuple, map_degree, true); // eos marker enabled

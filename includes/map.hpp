@@ -19,11 +19,11 @@
  *  @author  Gabriele Mencagli
  *  @date    08/01/2019
  *  
- *  @brief Map pattern executing a one-to-one transformation on the input stream
+ *  @brief Map operator executing a one-to-one transformation on the input stream
  *  
  *  @section Map (Description)
  *  
- *  This file implements the Map pattern able to execute a one-to-one transformation
+ *  This file implements the Map operator able to execute a one-to-one transformation
  *  on each tuple of the input data stream. The transformation should be stateless and
  *  must produce one output result for each input tuple consumed.
  *  
@@ -49,9 +49,9 @@ namespace wf {
 /** 
  *  \class Map
  *  
- *  \brief Map pattern executing a one-to-one transformation on the input stream
+ *  \brief Map operator executing a one-to-one transformation on the input stream
  *  
- *  This class implements the Map pattern executing a one-to-one stateless transformation
+ *  This class implements the Map operator executing a one-to-one stateless transformation
  *  on each tuple of the input stream.
  */ 
 template<typename tuple_t, typename result_t>
@@ -84,7 +84,7 @@ private:
         map_func_nip_t func_nip; // not in-place map function
         rich_map_func_nip_t rich_func_nip; // not in-place rich map function
         closing_func_t closing_func; // closing function
-        std::string name; // string of the unique name of the pattern
+        std::string name; // string of the unique name of the operator
         bool isIP; // flag stating if the in-place map function should be used (otherwise the not in-place version)
         bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
         RuntimeContext context; // RuntimeContext
@@ -228,8 +228,8 @@ public:
      *  \brief Constructor I
      *  
      *  \param _func function to be executed on each input tuple (in-place version)
-     *  \param _pardegree parallelism degree of the Map pattern
-     *  \param _name string with the unique name of the Map pattern
+     *  \param _pardegree parallelism degree of the Map operator
+     *  \param _name string with the unique name of the Map operator
      *  \param _closing_func closing function
      */ 
     template <typename T=size_t>
@@ -241,7 +241,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Map has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Map_Node
@@ -264,8 +264,8 @@ public:
      *  \brief Constructor II
      *  
      *  \param _func function to be executed on each input tuple (in-place version)
-     *  \param _pardegree parallelism degree of the Map pattern
-     *  \param _name string with the unique name of the Map pattern
+     *  \param _pardegree parallelism degree of the Map operator
+     *  \param _name string with the unique name of the Map operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
@@ -279,7 +279,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Map has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Map_Node
@@ -302,8 +302,8 @@ public:
      *  \brief Constructor III
      *  
      *  \param _func rich function to be executed on each input tuple (in-place version)
-     *  \param _pardegree parallelism degree of the Map pattern
-     *  \param _name string with the unique name of the Map pattern
+     *  \param _pardegree parallelism degree of the Map operator
+     *  \param _name string with the unique name of the Map operator
      *  \param _closing_func closing function
      */ 
     template <typename T=size_t>
@@ -315,7 +315,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Map has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Map_Node
@@ -338,8 +338,8 @@ public:
      *  \brief Constructor IV
      *  
      *  \param _func rich function to be executed on each input tuple (in-place version)
-     *  \param _pardegree parallelism degree of the Map pattern
-     *  \param _name string with the unique name of the Map pattern
+     *  \param _pardegree parallelism degree of the Map operator
+     *  \param _name string with the unique name of the Map operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
@@ -353,7 +353,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Map has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Map_Node
@@ -376,8 +376,8 @@ public:
      *  \brief Constructor V
      *  
      *  \param _func function to be executed on each input tuple (not in-place version)
-     *  \param _pardegree parallelism degree of the Map pattern
-     *  \param _name string with the unique name of the Map pattern
+     *  \param _pardegree parallelism degree of the Map operator
+     *  \param _name string with the unique name of the Map operator
      *  \param _closing_func closing function
      */ 
     template <typename T=size_t>
@@ -389,7 +389,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Map has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Map_Node
@@ -412,8 +412,8 @@ public:
      *  \brief Constructor VI
      *  
      *  \param _func function to be executed on each input tuple (not in-place version)
-     *  \param _pardegree parallelism degree of the Map pattern
-     *  \param _name string with the unique name of the Map pattern
+     *  \param _pardegree parallelism degree of the Map operator
+     *  \param _name string with the unique name of the Map operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
@@ -427,7 +427,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Map has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Map_Node
@@ -450,8 +450,8 @@ public:
      *  \brief Constructor VII
      *  
      *  \param _func rich function to be executed on each input tuple (not in-place version)
-     *  \param _pardegree parallelism degree of the Map pattern
-     *  \param _name string with the unique name of the Map pattern
+     *  \param _pardegree parallelism degree of the Map operator
+     *  \param _name string with the unique name of the Map operator
      *  \param _closing_func closing function
      */ 
     template <typename T=size_t>
@@ -463,7 +463,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Map has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Map_Node
@@ -486,8 +486,8 @@ public:
      *  \brief Constructor VIII
      *  
      *  \param _func rich function to be executed on each input tuple (not in-place version)
-     *  \param _pardegree parallelism degree of the Map pattern
-     *  \param _name string with the unique name of the Map pattern
+     *  \param _pardegree parallelism degree of the Map operator
+     *  \param _name string with the unique name of the Map operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
@@ -501,7 +501,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Map has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Map_Node

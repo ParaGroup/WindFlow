@@ -20,12 +20,12 @@
  *  @date    23/02/2019
  *  
  *  @brief RuntimeContext class to access the run-time system information
- *         used by a pattern's functional logic
+ *         used by a operator's functional logic
  *  
  *  @section RuntimeContext (Description)
  *  
  *  This file implements the RuntimeContext class used to access the run-time system
- *  information used by the functional logic of a pattern (static information such
+ *  information used by the functional logic of a operator (static information such
  *  as the parallelism degree of the operator and which is the current replica invoking
  *  the operator's functional logic).
  */ 
@@ -42,16 +42,16 @@ namespace wf {
  *  \class RuntimeContext
  *  
  *  \brief RuntimeContext class used to access to run-time system information
- *         used by a pattern's functional logic
+ *         used by a operator's functional logic
  *  
  *  This class implements the RuntimeContext object used to access the run-time system
- *  information used by the pattern's functiona logic (access to static information like
+ *  information used by the operator's functiona logic (access to static information like
  *  number of replicas and identifier of the replica which is invoking the functional logic).
  */ 
 class RuntimeContext
 {
 private:
-    size_t parallelism; // parallelism degree of the pattern
+    size_t parallelism; // parallelism degree of the operator
     size_t index; // index of the replica
     LocalStorage storage; // local storage
 
@@ -64,7 +64,7 @@ public:
     /** 
      *  \brief Constructor II
      *  
-     *  \param _parallelism number of replicas of the pattern
+     *  \param _parallelism number of replicas of the operator
      *  \param _index index of the replica invoking the functional logic
      */ 
     RuntimeContext(size_t _parallelism,
@@ -74,7 +74,7 @@ public:
     {}
 
     /** 
-     *  \brief Return the parallelism of the pattern in which the RuntimeContext is used
+     *  \brief Return the parallelism of the operator in which the RuntimeContext is used
      *  
      *  \return parallelism degree (number of operator's replicas)
      */  

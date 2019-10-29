@@ -25,7 +25,7 @@
  *  
  *  An Iterable object gives to the user a view of the tuples belonging to a window
  *  to be processed. This is used by queries instantiated with the non-incremental
- *  interface for patterns implemented on the CPU.
+ *  interface for operators implemented on the CPU.
  *  
  *  The template parameter of the data items that can be used with the Iterable must be default
  *  constructible, with a copy constructor and copy assignment operator, and they

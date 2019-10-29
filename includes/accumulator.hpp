@@ -19,11 +19,11 @@
  *  @author  Gabriele Mencagli
  *  @date    13/02/2019
  *  
- *  @brief Accumulator pattern executing "rolling" reduce/fold functions on data streams
+ *  @brief Accumulator operator executing "rolling" reduce/fold functions on data streams
  *  
  *  @section Accumulator (Description)
  *  
- *  This file implements the Accumulator pattern able to execute "rolling" reduce/fold
+ *  This file implements the Accumulator operator able to execute "rolling" reduce/fold
  *  functions on data streams.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with a copy
@@ -50,9 +50,9 @@ namespace wf {
 /** 
  *  \class Accumulator
  *  
- *  \brief Accumulator pattern executing "rolling" reduce/fold functions on data streams
+ *  \brief Accumulator operator executing "rolling" reduce/fold functions on data streams
  *  
- *  This class implements the Accumulator pattern able to execute "rolling" reduce/fold
+ *  This class implements the Accumulator operator able to execute "rolling" reduce/fold
  *  functions on data streams.
  */ 
 template<typename tuple_t, typename result_t>
@@ -81,7 +81,7 @@ private:
         acc_func_t acc_func; // reduce/fold function
         rich_acc_func_t rich_acc_func; // rich reduce/fold function
         closing_func_t closing_func; // closing function
-        std::string name; // string of the unique name of the pattern
+        std::string name; // string of the unique name of the operator
         bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
         RuntimeContext context; // RuntimeContext
         result_t init_value; // initial value of the results
@@ -209,8 +209,8 @@ public:
      *  
      *  \param _func reduce/fold function
      *  \param _init_value initial value to be used by the fold function (for reduce the initial value is the one obtained by the default Constructor of result_t)
-     *  \param _pardegree parallelism degree of the Accumulator pattern
-     *  \param _name string with the unique name of the Accumulator pattern
+     *  \param _pardegree parallelism degree of the Accumulator operator
+     *  \param _name string with the unique name of the Accumulator operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
@@ -223,7 +223,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Accumulator has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Accumulator_Node
@@ -245,8 +245,8 @@ public:
      *  
      *  \param _func rich reduce/fold function
      *  \param _init_value initial value to be used by the fold function (for reduce the initial value is the one obtained by the default Constructor of result_t)
-     *  \param _pardegree parallelism degree of the Accumulator pattern
-     *  \param _name string with the unique name of the Accumulator pattern
+     *  \param _pardegree parallelism degree of the Accumulator operator
+     *  \param _name string with the unique name of the Accumulator operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
@@ -259,7 +259,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Accumulator has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Accumulator_Node

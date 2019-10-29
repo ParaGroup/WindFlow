@@ -15,9 +15,28 @@
  */
 
 /*  
- *  Third Test Program of the Merge between MultiPipe instances
+ *  Test of the merge of MultiPipe instances:
  *  
- *  ((MP1, MP2)|->MP3, MP4)|->MP5
+ *  +---------------------+
+ *  |  +-----+   +-----+  |
+ *  |  |  S  |   |  M  |  |
+ *  |  | (*) +-->+ (*) |  +---------+
+ *  |  +-----+   +-----+  |         |
+ *  +---------------------+         |
+ *                                  |
+ *  +---------------------+         +-----+
+ *  |  +-----+   +-----+  |         |     |
+ *  |  |  S  |   |  M  |  |         |     |    +---------------------+
+ *  |  | (*) +-->+ (*) |  +---------+     |    |  +-----+   +-----+  |
+ *  |  +-----+   +-----+  |               |    |  |  M  |   |  S  |  |
+ *  +---------------------+               +--->+  | (*) +-->+ (1) |  |
+ *                                        |    |  +-----+   +-----+  |
+ *  +-------------------------------+     |    +---------------------+
+ *  |  +-----+   +-----+   +-----+  |     |
+ *  |  |  S  |   |  F  |   |  M  |  |     |
+ *  |  | (*) +-->+ (*) +-->+ (*) |  +-----+
+ *  |  +-----+   +-----+   +-----+  |
+ *  +-------------------------------+
  */ 
 
 // include
@@ -65,7 +84,7 @@ int main(int argc, char *argv[])
     mt19937 rng;
     rng.seed(std::random_device()());
     size_t min = 1;
-    size_t max = 10;
+    size_t max = 9;
     std::uniform_int_distribution<std::mt19937::result_type> dist6(min, max);
     int map1_degree, map2_degree, filter_degree, map3_degree, map4_degree;
     size_t source1_degree = dist6(rng);
@@ -79,9 +98,42 @@ int main(int argc, char *argv[])
         map3_degree = dist6(rng);
         map4_degree = dist6(rng);
         filter_degree = dist6(rng);
-        cout << "Run " << i << " Source1(" << source1_degree <<")->Map(" << map1_degree << ")-|" << endl;
-        cout << "      Source2(" << source2_degree << ")->Map(" << map2_degree << ")-|" << endl;
-        cout << "      Source3(" << source3_degree <<")->Filter(" << filter_degree << ")->Map(" << map3_degree << ")-|->Map(" << map4_degree << ")->Sink(1)" << endl;
+        cout << "Run " << i << endl;
+        cout << "+---------------------+" << endl;
+        cout << "|  +-----+   +-----+  |" << endl;
+        cout << "|  |  S  |   |  M  |  |" << endl;
+        cout << "|  | (" << source1_degree << ") +-->+ (" << map1_degree << ") |  +---------+" << endl;
+        cout << "|  +-----+   +-----+  |         |" << endl;
+        cout << "+---------------------+         |" << endl;
+        cout << "                                |" << endl;
+        cout << "+---------------------+         +-----+" << endl;
+        cout << "|  +-----+   +-----+  |         |     |" << endl;
+        cout << "|  |  S  |   |  M  |  |         |     |    +---------------------+" << endl;
+        cout << "|  | (" << source2_degree << ") +-->+ (" << map2_degree << ") |  +---------+     |    |  +-----+   +-----+  |" << endl;
+        cout << "|  +-----+   +-----+  |               |    |  |  M  |   |  S  |  |" << endl;
+        cout << "+---------------------+               +--->+  | (" << map4_degree << ") +-->+ (1) |  |" << endl;
+        cout << "                                      |    |  +-----+   +-----+  |" << endl;
+        cout << "+-------------------------------+     |    +---------------------+" << endl;
+        cout << "|  +-----+   +-----+   +-----+  |     |" << endl;
+        cout << "|  |  S  |   |  F  |   |  M  |  |     |" << endl;
+        cout << "|  | (" << source3_degree << ") +-->+ (" << filter_degree << ") +-->+ (" << map3_degree << ") |  +-----+" << endl;
+        cout << "|  +-----+   +-----+   +-----+  |" << endl;
+        cout << "+-------------------------------+" << endl;
+        // compute the total parallelism degree of the PipeGraph
+        size_t check_degree = source1_degree;
+        if (source1_degree != map1_degree)
+            check_degree += map1_degree;
+        check_degree += source2_degree;
+        if (source2_degree != map2_degree)
+            check_degree += map2_degree;
+        check_degree += source3_degree;
+        if (source3_degree != filter_degree)
+            check_degree += filter_degree;
+        if (filter_degree != map3_degree)
+            check_degree += map3_degree;
+        check_degree += map4_degree;
+        if (map4_degree != 1)
+            check_degree++;
         // prepare the test
         PipeGraph graph("test_merge_3");
         // prepare the first MultiPipe
@@ -154,6 +206,7 @@ int main(int argc, char *argv[])
                                 .withParallelism(1)
                                 .build();
         pipe5.chain_sink(sink);
+        assert(graph.getNumThreads() == check_degree);
         // run the application
         graph.run();
         if (i == 0) {

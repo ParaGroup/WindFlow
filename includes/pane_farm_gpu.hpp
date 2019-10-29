@@ -19,17 +19,17 @@
  *  @author  Gabriele Mencagli
  *  @date    22/05/2018
  *  
- *  @brief Pane_Farm_GPU pattern executing a windowed transformation in parallel
+ *  @brief Pane_Farm_GPU operator executing a windowed transformation in parallel
  *         on a CPU+GPU system
  *  
  *  @section Pane_Farm_GPU (Description)
  *  
- *  This file implements the Pane_Farm_GPU pattern able to execute windowed queries on a
- *  heterogeneous system (CPU+GPU). The pattern processes (possibly in parallel) panes of
+ *  This file implements the Pane_Farm_GPU operator able to execute windowed queries on a
+ *  heterogeneous system (CPU+GPU). The operator processes (possibly in parallel) panes of
  *  the windows in the so-called PLQ stage (Pane-Level Sub-Query) and computes (possibly
  *  in parallel) results of tne windows from the pane results in the so-called WLQ stage
  *  (Window-Level Sub-Query). Panes shared by more than one window are not recomputed by
- *  saving processing time. The pattern allows the user to offload either the PLQ or the WLQ
+ *  saving processing time. The operator allows the user to offload either the PLQ or the WLQ
  *  processing on the GPU while the other stage is executed on the CPU with either a non
  *  incremental or an incremental query definition.
  *  
@@ -56,15 +56,15 @@ namespace wf {
 /** 
  *  \class Pane_Farm_GPU
  *  
- *  \brief Pane_Farm_GPU pattern executing a windowed transformation in parallel
+ *  \brief Pane_Farm_GPU operator executing a windowed transformation in parallel
  *         on a CPU+GPU system
  *  
- *  This class implements the Pane_Farm_GPU pattern executing windowed queries in
- *  parallel on a heterogeneous system (CPU+GPU). The pattern processes (possibly
+ *  This class implements the Pane_Farm_GPU operator executing windowed queries in
+ *  parallel on a heterogeneous system (CPU+GPU). The operator processes (possibly
  *  in parallel) panes in the PLQ stage while window results are built out from the
  *  pane results (possibly in parallel) in the WLQ stage. Either the PLQ or the WLQ
  *  stage are executed on the GPU device while the others is executed on the CPU as
- *  in the Pane_Farm pattern.
+ *  in the Pane_Farm operator.
  */ 
 template<typename tuple_t, typename result_t, typename F_t, typename input_t>
 class Pane_Farm_GPU: public ff::ff_pipeline
@@ -157,17 +157,17 @@ private:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: window length or slide in Pane_Farm_GPU cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the parallelism degrees
         if (_plq_degree == 0 || _wlq_degree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degrees cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Pane_Farm_GPU has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            std::cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: batch length in Pane_Farm_GPU cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // the Pane_Farm_GPU can be utilized with sliding windows only
@@ -250,17 +250,17 @@ private:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: window length or slide in Pane_Farm_GPU cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the parallelism degrees
         if (_plq_degree == 0 || _wlq_degree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degrees cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Pane_Farm_GPU has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            std::cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: batch length in Pane_Farm_GPU cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // the Pane_Farm_GPU can be utilized with sliding windows only
@@ -343,17 +343,17 @@ private:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: window length or slide in Pane_Farm_GPU cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the parallelism degrees
         if (_plq_degree == 0 || _wlq_degree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degrees cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Pane_Farm_GPU has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            std::cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: batch length in Pane_Farm_GPU cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // the Pane_Farm_GPU can be utilized with sliding windows only
@@ -436,17 +436,17 @@ private:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: window length or slide in Pane_Farm_GPU cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the parallelism degrees
         if (_plq_degree == 0 || _wlq_degree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degrees cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Pane_Farm_GPU has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            std::cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: batch length in Pane_Farm_GPU cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // the Pane_Farm_GPU can be utilized with sliding windows only
@@ -551,10 +551,10 @@ public:
      *  \param _wlq_degree parallelism degree of the WLQ stage
      *  \param _batch_len no. of panes in a batch (i.e. 1 pane mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. panes) per block
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _ordered true if the results of the same key must be emitted in order (default)
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Pane_Farm_GPU(F_t _plq_func,
                   wlq_func_t _wlq_func,
@@ -584,10 +584,10 @@ public:
      *  \param _wlq_degree parallelism degree of the WLQ stage
      *  \param _batch_len no. of panes in a batch (i.e. 1 pane mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. panes) per block
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _ordered true if the results of the same key must be emitted in order (default)
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Pane_Farm_GPU(F_t _plq_func,
                   wlqupdate_func_t _wlqupdate_func,
@@ -617,10 +617,10 @@ public:
      *  \param _wlq_degree parallelism degree of the WLQ stage
      *  \param _batch_len no. of panes in a batch (i.e. 1 pane mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. panes) per block
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _ordered true if the results of the same key must be emitted in order (default)
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Pane_Farm_GPU(plq_func_t _plq_func,
                   F_t _wlq_func,
@@ -650,10 +650,10 @@ public:
      *  \param _wlq_degree parallelism degree of the WLQ stage
      *  \param _batch_len no. of panes in a batch (i.e. 1 pane mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. panes) per block
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _ordered true if the results of the same key must be emitted in order (default)
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Pane_Farm_GPU(plqupdate_func_t _plqupdate_func,
                   F_t _wlq_func,
@@ -672,8 +672,8 @@ public:
     {}
 
     /** 
-     *  \brief Get the optimization level used to build the pattern
-     *  \return adopted utilization level by the pattern
+     *  \brief Get the optimization level used to build the operator
+     *  \return adopted utilization level by the operator
      */ 
     opt_level_t getOptLevel() const
     {
@@ -681,7 +681,7 @@ public:
     }
 
     /** 
-     *  \brief Get the window type (CB or TB) utilized by the pattern
+     *  \brief Get the window type (CB or TB) utilized by the operator
      *  \return adopted windowing semantics (count- or time-based)
      */ 
     win_type_t getWinType() const

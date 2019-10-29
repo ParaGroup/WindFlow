@@ -19,12 +19,12 @@
  *  @author  Gabriele Mencagli
  *  @date    30/06/2017
  *  
- *  @brief Win_Seq pattern executing a windowed transformation on a multi-core CPU
+ *  @brief Win_Seq operator executing a windowed transformation on a multi-core CPU
  *  
  *  @section Win_Seq (Description)
  *  
- *  This file implements the Win_Seq pattern able to execute windowed queries on a
- *  multicore. The pattern executes streaming windows in a serial fashion on a CPU
+ *  This file implements the Win_Seq operator able to execute windowed queries on a
+ *  multicore. The operator executes streaming windows in a serial fashion on a CPU
  *  core and supports both a non-incremental and an incremental query definition.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with
@@ -52,9 +52,9 @@ namespace wf {
 /** 
  *  \class Win_Seq
  *  
- *  \brief Win_Seq pattern executing a windowed transformation on a multi-core CPU
+ *  \brief Win_Seq operator executing a windowed transformation on a multi-core CPU
  *  
- *  This class implements the Win_Seq pattern executing windowed queries on a multicore
+ *  This class implements the Win_Seq operator executing windowed queries on a multicore
  *  in a serial fashion.
  */ 
 template<typename tuple_t, typename result_t, typename input_t>
@@ -75,9 +75,9 @@ public:
 private:
     // iterator type for accessing tuples
     using input_iterator_t = typename std::deque<tuple_t>::iterator;
-    // type of the stream archive used by the Win_Seq pattern
+    // type of the stream archive used by the Win_Seq operator
     using archive_t = StreamArchive<tuple_t, std::deque<tuple_t>>;
-    // window type used by the Win_Seq pattern
+    // window type used by the Win_Seq operator
     using win_t = Window<tuple_t, result_t>;
     // function type to compare two tuples
     using compare_func_t = std::function<bool(const tuple_t &, const tuple_t &)>;
@@ -135,11 +135,11 @@ private:
     uint64_t win_len; // window length (no. of tuples or in time units)
     uint64_t slide_len; // slide length (no. of tuples or in time units)
     win_type_t winType; // window type (CB or TB)
-    std::string name; // std::string of the unique name of the pattern
-    bool isNIC; // this flag is true if the pattern is instantiated with a non-incremental query function
+    std::string name; // std::string of the unique name of the operator
+    bool isNIC; // this flag is true if the operator is instantiated with a non-incremental query function
     bool isRich; // flag stating whether the function to be used is rich
     RuntimeContext context; // RuntimeContext
-    PatternConfig config; // configuration structure of the Win_Seq pattern
+    PatternConfig config; // configuration structure of the Win_Seq operator
     role_t role; // role of the Win_Seq
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     std::pair<size_t, size_t> map_indexes = std::make_pair(0, 1); // indexes useful is the role is MAP
@@ -160,7 +160,7 @@ private:
     {
         // check the validity of the windowing parameters
         if (win_len == 0 || slide_len == 0) {
-            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: window length or slide in Win_Seq cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // define the compare function depending on the window type
@@ -190,11 +190,11 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _context RuntimeContext object to be used
-     *  \param _config configuration of the pattern
-     *  \param _role role of the pattern
+     *  \param _config configuration of the operator
+     *  \param _role role of the operator
      */ 
     Win_Seq(win_func_t _win_func,
             uint64_t _win_len,
@@ -227,11 +227,11 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _context RuntimeContext object to be used
-     *  \param _config configuration of the pattern
-     *  \param _role role of the pattern
+     *  \param _config configuration of the operator
+     *  \param _role role of the operator
      */ 
     Win_Seq(rich_win_func_t _rich_win_func,
             uint64_t _win_len,
@@ -264,11 +264,11 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _context RuntimeContext object to be used
-     *  \param _config configuration of the pattern
-     *  \param _role role of the pattern
+     *  \param _config configuration of the operator
+     *  \param _role role of the operator
      */ 
     Win_Seq(winupdate_func_t _winupdate_func,
             uint64_t _win_len,
@@ -301,11 +301,11 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _context RuntimeContext object to be used
-     *  \param _config configuration of the pattern
-     *  \param _role role of the pattern
+     *  \param _config configuration of the operator
+     *  \param _role role of the operator
      */ 
     Win_Seq(rich_winupdate_func_t _rich_winupdate_func,
             uint64_t _win_len,
@@ -591,7 +591,7 @@ public:
 //@endcond
 
     /** 
-     *  \brief Get the window type (CB or TB) utilized by the pattern
+     *  \brief Get the window type (CB or TB) utilized by the operator
      *  \return adopted windowing semantics (count- or time-based)
      */
     win_type_t getWinType() const
@@ -599,13 +599,13 @@ public:
         return winType;
     }
 
-    /// Method to start the pattern execution asynchronously
+    /// Method to start the operator execution asynchronously
     virtual int run(bool)
     {
         return ff::ff_node::run();
     }
 
-    /// Method to wait the pattern termination
+    /// Method to wait the operator termination
     virtual int wait()
     {
         return ff::ff_node::wait();

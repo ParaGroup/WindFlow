@@ -19,12 +19,12 @@
  *  @author  Gabriele Mencagli
  *  @date    02/10/2018
  *  
- *  @brief Emitter and collecto of the Key_Farm and Key_Farm_GPU patterns
+ *  @brief Emitter and collecto of the Key_Farm and Key_Farm_GPU operators
  *  
  *  @section Key_Farm and Key_Farm_GPU Emitter and Collector (Description)
  *  
  *  This file implements the emitter and the collector used in the Key_Farm
- *  and Key_Farm_GPU patterns in the library.
+ *  and Key_Farm_GPU operators in the library.
  */ 
 
 #ifndef KF_NODES_H
@@ -45,7 +45,7 @@ private:
     // type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
     using routing_func_t = std::function<size_t(size_t, size_t)>;
     routing_func_t routing_func; // routing function
-    size_t pardegree; // parallelism degree (number of inner patterns)
+    size_t pardegree; // parallelism degree (number of inner operators)
     bool isCombined; // true if this node is used within a Tree_Emitter node
     std::vector<std::pair<void *, int>> output_queue; // used in case of Tree_Emitter mode
 

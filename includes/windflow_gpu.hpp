@@ -19,12 +19,12 @@
  *  @author  Gabriele Mencagli
  *  @date    28/01/2019
  *  
- *  @brief General header file of the WindFlow library (GPU patterns)
+ *  @brief General header file of the WindFlow library (GPU operators)
  *  
- *  @section General Header File (GPU patterns)
+ *  @section General Header File (GPU operators)
  *  
  *  General header file to be included in any WindFlow program for using the
- *  GPU version of the patterns.
+ *  GPU version of the operators.
  */ 
 
 #ifndef WINDFLOW_GPU_H

@@ -19,12 +19,12 @@
  *  @author  Gabriele Mencagli
  *  @date    01/10/2018
  *  
- *  @brief Emitter and collector of the Win_Farm and Win_Farm_GPU patterns
+ *  @brief Emitter and collector of the Win_Farm and Win_Farm_GPU operators
  *  
  *  @section Win_Farm and Win_Farm_GPU Emitter and Collector (Description)
  *  
  *  This file implements the emitter and the collector used in the Win_Farm
- *  and Win_Farm_GPU patterns in the library.
+ *  and Win_Farm_GPU operators in the library.
  */ 
 
 #ifndef WF_NODES_H
@@ -52,11 +52,11 @@ private:
     win_type_t winType; // type of the windows (CB or TB)
     uint64_t win_len; // window length (in no. of tuples or in time units)
     uint64_t slide_len; // window slide (in no. of tuples or in time units)
-    size_t pardegree; // parallelism degree (number of inner patterns)
-    size_t id_outer; // identifier in the outermost pattern
-    size_t n_outer; // parallelism degree in the outermost pattern
-    uint64_t slide_outer; // sliding factor utilized by the outermost pattern
-    role_t role; // role of the innermost pattern
+    size_t pardegree; // parallelism degree (number of inner operators)
+    size_t id_outer; // identifier in the outermost operator
+    size_t n_outer; // parallelism degree in the outermost operator
+    uint64_t slide_outer; // sliding factor utilized by the outermost operator
+    role_t role; // role of the innermost operator
     std::vector<size_t> to_workers; // std::vector of identifiers used for scheduling purposes
     // struct of a key descriptor
     struct Key_Descriptor
@@ -182,7 +182,7 @@ public:
                 return this->GO_ON;
             }
         }
-        // determine the set of internal patterns that will receive the tuple
+        // determine the set of internal operators that will receive the tuple
         uint64_t countRcv = 0;
         uint64_t i = first_w;
         // the first window of the key is assigned to worker startDstIdx
@@ -211,7 +211,7 @@ public:
         for (auto &k: keyMap) {
             Key_Descriptor &key_d = k.second;
             if (key_d.rcv_counter > 0) {
-                // send the last tuple to all the internal patterns as an EOS marker
+                // send the last tuple to all the internal operators as an EOS marker
                 tuple_t *t = new tuple_t();
                 *t = key_d.last_tuple;
                 wrapper_in_t *wt = new wrapper_in_t(t, pardegree, true); // eos marker enabled

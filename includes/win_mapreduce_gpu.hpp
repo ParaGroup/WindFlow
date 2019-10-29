@@ -19,16 +19,16 @@
  *  @author  Gabriele Mencagli
  *  @date    22/05/2018
  *  
- *  @brief Win_MapReduce_GPU pattern executing a windowed transformation in
+ *  @brief Win_MapReduce_GPU operator executing a windowed transformation in
  *         parallel on a CPU+GPU system
  *  
  *  @section Win_MapReduce_GPU (Description)
  *  
- *  This file implements the Win_MapReduce_GPU pattern able to execute windowed
- *  queries on a heterogeneous system (CPU+GPU). The pattern processes (possibly
+ *  This file implements the Win_MapReduce_GPU operator able to execute windowed
+ *  queries on a heterogeneous system (CPU+GPU). The operator processes (possibly
  *  in parallel) partitions of the windows in the so-called MAP stage, and computes
  *  (possibly in parallel) results of the windows out of the partition results in the
- *  REDUCE stage. The pattern allows the user to offload either the MAP or the REDUCE
+ *  REDUCE stage. The operator allows the user to offload either the MAP or the REDUCE
  *  processing on the GPU while the other stage is executed on the CPU with either a
  *  non-incremental or an incremental query definition.
  *  
@@ -55,14 +55,14 @@ namespace wf {
 /** 
  *  \class Win_MapReduce_GPU
  *  
- *  \brief Win_MapReduce_GPU pattern executing a windowed transformation in parallel
+ *  \brief Win_MapReduce_GPU operator executing a windowed transformation in parallel
  *         on a CPU+GPU system
  *  
- *  This class implements the Win_MapReduce_GPU pattern executing windowed queries in
- *  parallel on heterogeneous system (CPU+GPU). The pattern processes (possibly in parallel)
+ *  This class implements the Win_MapReduce_GPU operator executing windowed queries in
+ *  parallel on heterogeneous system (CPU+GPU). The operator processes (possibly in parallel)
  *  window partitions in the MAP stage and builds window results out from partition results
  *  (possibly in parallel) in the REDUCE stage. Either the MAP or the REDUCE stage are executed
- *  on the GPU device while the others is executed on the CPU as in the Win_MapReduce pattern.
+ *  on the GPU device while the others is executed on the CPU as in the Win_MapReduce operator.
  */ 
 template<typename tuple_t, typename result_t, typename F_t, typename input_t>
 class Win_MapReduce_GPU: public ff::ff_pipeline
@@ -152,7 +152,7 @@ private:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: window length or slide in Win_MapReduce_GPU cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // the Win_MapReduce_GPU must have a parallel MAP stage
@@ -162,12 +162,12 @@ private:
         }
         // check the validity of the reduce parallelism degree
         if (_reduce_degree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree of the REDUCE cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: parallelism degree of the REDUCE stage cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            std::cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: batch length in Win_MapReduce_GPU cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // general fastflow pointers to the MAP and REDUCE stages
@@ -256,7 +256,7 @@ private:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: window length or slide in Win_MapReduce_GPU cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // the Win_MapReduce_GPU must have a parallel MAP stage
@@ -266,12 +266,12 @@ private:
         }
         // check the validity of the reduce parallelism degree
         if (_reduce_degree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree of the REDUCE cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: parallelism degree of the REDUCE stage cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            std::cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: batch length in Win_MapReduce_GPU cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // general fastflow pointers to the MAP and REDUCE stages
@@ -360,7 +360,7 @@ private:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: window length or slide in Win_MapReduce_GPU cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // the Win_MapReduce_GPU must have a parallel MAP stage
@@ -370,12 +370,12 @@ private:
         }
         // check the validity of the reduce parallelism degree
         if (_reduce_degree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree of the REDUCE cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: parallelism degree of the REDUCE stage cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            std::cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: batch length in Win_MapReduce_GPU cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // general fastflow pointers to the MAP and REDUCE stages
@@ -464,7 +464,7 @@ private:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: window length or slide in Win_MapReduce_GPU cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // the Win_MapReduce_GPU must have a parallel MAP stage
@@ -474,12 +474,12 @@ private:
         }
         // check the validity of the reduce parallelism degree
         if (_reduce_degree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree of the REDUCE cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: parallelism degree of the REDUCE stage cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            std::cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: batch length in Win_MapReduce_GPU cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // general fastflow pointers to the MAP and REDUCE stages
@@ -532,7 +532,7 @@ private:
         ff::ff_pipeline::flatten();
     }
 
-    // method to optimize the structure of the Win_MapReduce_GPU pattern
+    // method to optimize the structure of the Win_MapReduce_GPU operator
     const ff::ff_pipeline optimize_WinMapReduceGPU(ff_node *map, ff_node *reduce, opt_level_t opt)
     {
         if (opt == LEVEL0) { // no optimization
@@ -578,10 +578,10 @@ public:
      *  \param _reduce_degree parallelism degree of the REDUCE stage
      *  \param _batch_len no. of window partitions in a batch (i.e. 1 window patition mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. window patitions) per block
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU) 
      *  \param _ordered true if the results of the same key must be emitted in order (default)
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Win_MapReduce_GPU(F_t _map_func,
                       reduce_func_t _reduce_func,
@@ -611,10 +611,10 @@ public:
      *  \param _reduce_degree parallelism degree of the REDUCE stage
      *  \param _batch_len no. of window partitions in a batch (i.e. 1 window patition mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. window patitions) per block
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _ordered true if the results of the same key must be emitted in order (default)
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Win_MapReduce_GPU(F_t _map_func,
                       reduceupdate_func_t _reduceupdate_func,
@@ -644,10 +644,10 @@ public:
      *  \param _reduce_degree parallelism degree of the REDUCE stage
      *  \param _batch_len no. of window partitions in a batch (i.e. 1 window patition mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. window patitions) per block
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _ordered true if the results of the same key must be emitted in order (default)
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Win_MapReduce_GPU(map_func_t _map_func,
                       F_t _reduce_func,
@@ -677,10 +677,10 @@ public:
      *  \param _reduce_degree parallelism degree of the REDUCE stage
      *  \param _batch_len no. of window partitions in a batch (i.e. 1 window patition mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. window patitions) per block
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _ordered true if the results of the same key must be emitted in order (default)
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Win_MapReduce_GPU(mapupdate_func_t _mapupdate_func,
                       F_t _reduceupdate_func,
@@ -699,8 +699,8 @@ public:
     {}
 
     /** 
-     *  \brief Get the optimization level used to build the pattern
-     *  \return adopted utilization level by the pattern
+     *  \brief Get the optimization level used to build the operator
+     *  \return adopted utilization level by the operator
      */ 
     opt_level_t getOptLevel() const
     {
@@ -708,7 +708,7 @@ public:
     }
 
     /** 
-     *  \brief Get the window type (CB or TB) utilized by the pattern
+     *  \brief Get the window type (CB or TB) utilized by the operator
      *  \return adopted windowing semantics (count- or time-based)
      */ 
     win_type_t getWinType() const

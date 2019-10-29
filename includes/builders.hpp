@@ -19,11 +19,11 @@
  *  @author  Gabriele Mencagli
  *  @date    06/09/2018
  *  
- *  @brief Builders used to simplify the creation of the WindFlow patterns
+ *  @brief Builders used to simplify the creation of the WindFlow operators
  *  
  *  @section Builders (Description)
  *  
- *  Set of builders to facilitate the creation of the WindFlow patterns.
+ *  Set of builders to facilitate the creation of the WindFlow operators.
  */ 
 
 #ifndef BUILDERS_H
@@ -41,16 +41,16 @@ namespace wf {
 /** 
  *  \class Source_Builder
  *  
- *  \brief Builder of the Source pattern
+ *  \brief Builder of the Source operator
  *  
- *  Builder class to ease the creation of the Source pattern.
+ *  Builder class to ease the creation of the Source operator.
  */ 
 template<typename F_t>
 class Source_Builder
 {
 private:
     F_t func;
-    // type of the pattern to be created by this builder
+    // type of the operator to be created by this builder
     using source_t = Source<decltype(get_tuple_t(func))>;
     // type of the closing function
     using closing_func_t = std::function<void(RuntimeContext&)>;
@@ -67,7 +67,7 @@ public:
     Source_Builder(F_t _func): func(_func) {}
 
     /** 
-     *  \brief Method to specify the name of the Source pattern
+     *  \brief Method to specify the name of the Source operator
      *  
      *  \param _name std::string with the name to be given
      *  \return the object itself
@@ -79,7 +79,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the parallelism of the Source pattern
+     *  \brief Method to specify the parallelism of the Source operator
      *  
      *  \param _pardegree number of source replicas
      *  \return the object itself
@@ -91,9 +91,9 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the closing function used by the pattern
+     *  \brief Method to specify the closing function used by the operator
      *  
-     *  \param _closing_func closing function to be used by the pattern
+     *  \param _closing_func closing function to be used by the operator
      *  \return the object itself
      */ 
     Source_Builder<F_t>& withClosingFunction(closing_func_t _closing_func)
@@ -104,9 +104,9 @@ public:
 
 #if __cplusplus >= 201703L
     /** 
-     *  \brief Method to create the Source pattern (only C++17)
+     *  \brief Method to create the Source operator (only C++17)
      *  
-     *  \return a copy of the created Source pattern
+     *  \return a copy of the created Source operator
      */ 
     source_t build()
     {
@@ -115,9 +115,9 @@ public:
 #endif
 
     /** 
-     *  \brief Method to create the Source pattern
+     *  \brief Method to create the Source operator
      *  
-     *  \return a pointer to the created Source pattern (to be explicitly deallocated/destroyed)
+     *  \return a pointer to the created Source operator (to be explicitly deallocated/destroyed)
      */ 
     source_t *build_ptr()
     {
@@ -125,9 +125,9 @@ public:
     }
 
     /** 
-     *  \brief Method to create the Source pattern
+     *  \brief Method to create the Source operator
      *  
-     *  \return a unique_ptr to the created Source pattern
+     *  \return a unique_ptr to the created Source operator
      */ 
     std::unique_ptr<source_t> build_unique()
     {
@@ -138,16 +138,16 @@ public:
 /** 
  *  \class Filter_Builder
  *  
- *  \brief Builder of the Filter pattern
+ *  \brief Builder of the Filter operator
  *  
- *  Builder class to ease the creation of the Filter pattern.
+ *  Builder class to ease the creation of the Filter operator.
  */ 
 template<typename F_t>
 class Filter_Builder
 {
 private:
     F_t func;
-    // type of the pattern to be created by this builder
+    // type of the operator to be created by this builder
     using filter_t = Filter<decltype(get_tuple_t(func))>;
     // type of the closing function
     using closing_func_t = std::function<void(RuntimeContext&)>;
@@ -168,7 +168,7 @@ public:
     Filter_Builder(F_t _func): func(_func) {}
 
     /** 
-     *  \brief Method to specify the name of the Filter pattern
+     *  \brief Method to specify the name of the Filter operator
      *  
      *  \param _name std::string with the name to be given
      *  \return the object itself
@@ -180,7 +180,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the parallelism of the Filter pattern
+     *  \brief Method to specify the parallelism of the Filter operator
      *  
      *  \param _pardegree number of filter replicas
      *  \return the object itself
@@ -203,9 +203,9 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the closing function used by the pattern
+     *  \brief Method to specify the closing function used by the operator
      *  
-     *  \param _closing_func closing function to be used by the pattern
+     *  \param _closing_func closing function to be used by the operator
      *  \return the object itself
      */ 
     Filter_Builder<F_t>& withClosingFunction(closing_func_t _closing_func)
@@ -216,9 +216,9 @@ public:
 
 #if __cplusplus >= 201703L
     /** 
-     *  \brief Method to create the Filter pattern (only C++17)
+     *  \brief Method to create the Filter operator (only C++17)
      *  
-     *  \return a copy of the created Map pattern
+     *  \return a copy of the created Map operator
      */ 
     filter_t build()
     {
@@ -230,9 +230,9 @@ public:
 #endif
 
     /** 
-     *  \brief Method to create the Filter pattern
+     *  \brief Method to create the Filter operator
      *  
-     *  \return a pointer to the created Filter pattern (to be explicitly deallocated/destroyed)
+     *  \return a pointer to the created Filter operator (to be explicitly deallocated/destroyed)
      */ 
     filter_t *build_ptr()
     {
@@ -243,9 +243,9 @@ public:
     }
 
     /** 
-     *  \brief Method to create the Filter pattern
+     *  \brief Method to create the Filter operator
      *  
-     *  \return a unique_ptr to the created Filter pattern
+     *  \return a unique_ptr to the created Filter operator
      */ 
     std::unique_ptr<filter_t> build_unique()
     {
@@ -259,16 +259,16 @@ public:
 /** 
  *  \class Map_Builder
  *  
- *  \brief Builder of the Map pattern
+ *  \brief Builder of the Map operator
  *  
- *  Builder class to ease the creation of the Map pattern.
+ *  Builder class to ease the creation of the Map operator.
  */ 
 template<typename F_t>
 class Map_Builder
 {
 private:
     F_t func;
-    // type of the pattern to be created by this builder
+    // type of the operator to be created by this builder
     using map_t = Map<decltype(get_tuple_t(func)),
                              decltype(get_result_t(func))>;
     // type of the closing function
@@ -290,7 +290,7 @@ public:
     Map_Builder(F_t _func): func(_func) {}
 
     /** 
-     *  \brief Method to specify the name of the Map pattern
+     *  \brief Method to specify the name of the Map operator
      *  
      *  \param _name std::string with the name to be given
      *  \return the object itself
@@ -302,7 +302,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the parallelism of the Map pattern
+     *  \brief Method to specify the parallelism of the Map operator
      *  
      *  \param _pardegree number of map replicas
      *  \return the object itself
@@ -325,9 +325,9 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the closing function used by the pattern
+     *  \brief Method to specify the closing function used by the operator
      *  
-     *  \param _closing_func closing function to be used by the pattern
+     *  \param _closing_func closing function to be used by the operator
      *  \return the object itself
      */ 
     Map_Builder<F_t>& withClosingFunction(closing_func_t _closing_func)
@@ -338,9 +338,9 @@ public:
 
 #if __cplusplus >= 201703L
     /** 
-     *  \brief Method to create the Map pattern (only C++17)
+     *  \brief Method to create the Map operator (only C++17)
      *  
-     *  \return a copy of the created Map pattern
+     *  \return a copy of the created Map operator
      */ 
     map_t build()
     {
@@ -352,9 +352,9 @@ public:
 #endif
 
     /** 
-     *  \brief Method to create the Map pattern
+     *  \brief Method to create the Map operator
      *  
-     *  \return a pointer to the created Map pattern (to be explicitly deallocated/destroyed)
+     *  \return a pointer to the created Map operator (to be explicitly deallocated/destroyed)
      */ 
     map_t *build_ptr()
     {
@@ -365,9 +365,9 @@ public:
     }
 
     /** 
-     *  \brief Method to create the Map pattern
+     *  \brief Method to create the Map operator
      *  
-     *  \return a unique_ptr to the created Map pattern
+     *  \return a unique_ptr to the created Map operator
      */ 
     std::unique_ptr<map_t> build_unique()
     {
@@ -381,16 +381,16 @@ public:
 /** 
  *  \class FlatMap_Builder
  *  
- *  \brief Builder of the FlatMap pattern
+ *  \brief Builder of the FlatMap operator
  *  
- *  Builder class to ease the creation of the FlatMap pattern.
+ *  Builder class to ease the creation of the FlatMap operator.
  */ 
 template<typename F_t>
 class FlatMap_Builder
 {
 private:
     F_t func;
-    // type of the pattern to be created by this builder
+    // type of the operator to be created by this builder
     using flatmap_t = FlatMap<decltype(get_tuple_t(func)),
                              decltype(get_result_t(func))>;
     // type of the closing function
@@ -412,7 +412,7 @@ public:
     FlatMap_Builder(F_t _func): func(_func) {}
 
     /** 
-     *  \brief Method to specify the name of the FlatMap pattern
+     *  \brief Method to specify the name of the FlatMap operator
      *  
      *  \param _name std::string with the name to be given
      *  \return the object itself
@@ -424,7 +424,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the parallelism of the FlatMap pattern
+     *  \brief Method to specify the parallelism of the FlatMap operator
      *  
      *  \param _pardegree number of flatmap replicas
      *  \return the object itself
@@ -447,9 +447,9 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the closing function used by the pattern
+     *  \brief Method to specify the closing function used by the operator
      *  
-     *  \param _closing_func closing function to be used by the pattern
+     *  \param _closing_func closing function to be used by the operator
      *  \return the object itself
      */ 
     FlatMap_Builder<F_t>& withClosingFunction(closing_func_t _closing_func)
@@ -460,9 +460,9 @@ public:
 
 #if __cplusplus >= 201703L
     /** 
-     *  \brief Method to create the FlatMap pattern (only C++17)
+     *  \brief Method to create the FlatMap operator (only C++17)
      *  
-     *  \return a copy of the created FlatMap pattern
+     *  \return a copy of the created FlatMap operator
      */ 
     flatmap_t build()
     {
@@ -474,9 +474,9 @@ public:
 #endif
 
     /** 
-     *  \brief Method to create the FlatMap pattern
+     *  \brief Method to create the FlatMap operator
      *  
-     *  \return a pointer to the created FlatMap pattern (to be explicitly deallocated/destroyed)
+     *  \return a pointer to the created FlatMap operator (to be explicitly deallocated/destroyed)
      */ 
     flatmap_t *build_ptr()
     {
@@ -487,9 +487,9 @@ public:
     }
 
     /** 
-     *  \brief Method to create the FlatMap pattern
+     *  \brief Method to create the FlatMap operator
      *  
-     *  \return a unique_ptr to the created FlatMap pattern
+     *  \return a unique_ptr to the created FlatMap operator
      */ 
     std::unique_ptr<flatmap_t> build_unique()
     {
@@ -503,16 +503,16 @@ public:
 /** 
  *  \class Accumulator_Builder
  *  
- *  \brief Builder of the Accumulator pattern
+ *  \brief Builder of the Accumulator operator
  *  
- *  Builder class to ease the creation of the Accumulator pattern.
+ *  Builder class to ease the creation of the Accumulator operator.
  */ 
 template<typename F_t>
 class Accumulator_Builder
 {
 private:
     F_t func;
-    // type of the pattern to be created by this builder
+    // type of the operator to be created by this builder
     using accumulator_t = Accumulator<decltype(get_tuple_t(func)), decltype(get_result_t(func))>;
     // type of the closing function
     using closing_func_t = std::function<void(RuntimeContext&)>;
@@ -535,7 +535,7 @@ public:
     Accumulator_Builder(F_t _func): func(_func) {}
 
     /** 
-     *  \brief Method to specify the name of the Accumulator pattern
+     *  \brief Method to specify the name of the Accumulator operator
      *  
      *  \param _name std::string with the name to be given
      *  \return the object itself
@@ -561,7 +561,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the parallelism of the Accumulator pattern
+     *  \brief Method to specify the parallelism of the Accumulator operator
      *  
      *  \param _pardegree number of accumulator replicas
      *  \return the object itself
@@ -573,9 +573,9 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the closing function used by the pattern
+     *  \brief Method to specify the closing function used by the operator
      *  
-     *  \param _closing_func closing function to be used by the pattern
+     *  \param _closing_func closing function to be used by the operator
      *  \return the object itself
      */ 
     Accumulator_Builder<F_t>& withClosingFunction(closing_func_t _closing_func)
@@ -586,9 +586,9 @@ public:
 
 #if __cplusplus >= 201703L
     /** 
-     *  \brief Method to create the Accumulator pattern (only C++17)
+     *  \brief Method to create the Accumulator operator (only C++17)
      *  
-     *  \return a copy of the created Accumulator pattern
+     *  \return a copy of the created Accumulator operator
      */ 
     accumulator_t build()
     {
@@ -597,9 +597,9 @@ public:
 #endif
 
     /** 
-     *  \brief Method to create the Accumulator pattern
+     *  \brief Method to create the Accumulator operator
      *  
-     *  \return a pointer to the created Accumulator pattern (to be explicitly deallocated/destroyed)
+     *  \return a pointer to the created Accumulator operator (to be explicitly deallocated/destroyed)
      */ 
     accumulator_t *build_ptr()
     {
@@ -607,9 +607,9 @@ public:
     }
 
     /** 
-     *  \brief Method to create the Accumulator pattern
+     *  \brief Method to create the Accumulator operator
      *  
-     *  \return a unique_ptr to the created Accumulator pattern
+     *  \return a unique_ptr to the created Accumulator operator
      */ 
     std::unique_ptr<accumulator_t> build_unique()
     {
@@ -620,16 +620,16 @@ public:
 /** 
  *  \class WinSeq_Builder
  *  
- *  \brief Builder of the Win_Seq pattern
+ *  \brief Builder of the Win_Seq operator
  *  
- *  Builder class to ease the creation of the Win_Seq pattern.
+ *  Builder class to ease the creation of the Win_Seq operator.
  */ 
 template<typename F_t>
 class WinSeq_Builder
 {
 private:
     F_t func;
-    // type of the pattern to be created by this builder
+    // type of the operator to be created by this builder
     using winseq_t = Win_Seq<decltype(get_tuple_t(func)),
                              decltype(get_result_t(func))>;
     // type of the closing function
@@ -679,7 +679,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the name of the Win_Seq pattern
+     *  \brief Method to specify the name of the Win_Seq operator
      *  
      *  \param _name std::string with the name to be given
      *  \return the object itself
@@ -691,9 +691,9 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the closing function used by the pattern
+     *  \brief Method to specify the closing function used by the operator
      *  
-     *  \param _closing_func closing function to be used by the pattern
+     *  \param _closing_func closing function to be used by the operator
      *  \return the object itself
      */ 
     WinSeq_Builder<F_t>& withClosingFunction(closing_func_t _closing_func)
@@ -704,9 +704,9 @@ public:
 
 #if __cplusplus >= 201703L
     /** 
-     *  \brief Method to create the Win_Seq pattern (only C++17)
+     *  \brief Method to create the Win_Seq operator (only C++17)
      *  
-     *  \return a copy of the created Win_Seq pattern
+     *  \return a copy of the created Win_Seq operator
      */ 
     winseq_t build()
     {
@@ -715,9 +715,9 @@ public:
 #endif
 
     /** 
-     *  \brief Method to create the Win_Seq pattern
+     *  \brief Method to create the Win_Seq operator
      *  
-     *  \return a pointer to the created Win_Seq pattern (to be explicitly deallocated/destroyed)
+     *  \return a pointer to the created Win_Seq operator (to be explicitly deallocated/destroyed)
      */ 
     winseq_t *build_ptr()
     {
@@ -725,9 +725,9 @@ public:
     }
 
     /** 
-     *  \brief Method to create the Win_Seq pattern
+     *  \brief Method to create the Win_Seq operator
      *  
-     *  \return a unique_ptr to the created Win_Seq pattern
+     *  \return a unique_ptr to the created Win_Seq operator
      */ 
     std::unique_ptr<winseq_t> build_unique()
     {
@@ -738,16 +738,16 @@ public:
 /** 
  *  \class WinSeqGPU_Builder
  *  
- *  \brief Builder of the Win_Seq_GPU pattern
+ *  \brief Builder of the Win_Seq_GPU operator
  *  
- *  Builder class to ease the creation of the Win_Seq_GPU pattern.
+ *  Builder class to ease the creation of the Win_Seq_GPU operator.
  */ 
 template<typename F_t>
 class WinSeqGPU_Builder
 {
 private:
     F_t func;
-    // type of the pattern to be created by this builder
+    // type of the operator to be created by this builder
     using winseq_gpu_t = Win_Seq_GPU<decltype(get_tuple_t(func)),
                                      decltype(get_result_t(func)),
                                      decltype(func)>;
@@ -812,7 +812,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the name of the Win_Seq_GPU pattern
+     *  \brief Method to specify the name of the Win_Seq_GPU operator
      *  
      *  \param _name std::string with the name to be given
      *  \return the object itself
@@ -836,9 +836,9 @@ public:
     }
 
     /** 
-     *  \brief Method to create the Win_Seq_GPU pattern
+     *  \brief Method to create the Win_Seq_GPU operator
      *  
-     *  \return a pointer to the created Win_Seq_GPU pattern (to be explicitly deallocated/destroyed)
+     *  \return a pointer to the created Win_Seq_GPU operator (to be explicitly deallocated/destroyed)
      */ 
     winseq_gpu_t *build_ptr()
     {
@@ -846,9 +846,9 @@ public:
     }
 
     /** 
-     *  \brief Method to create the Win_Seq_GPU pattern
+     *  \brief Method to create the Win_Seq_GPU operator
      *  
-     *  \return a unique_ptr to the created Win_Seq_GPU pattern
+     *  \return a unique_ptr to the created Win_Seq_GPU operator
      */ 
     std::unique_ptr<winseq_gpu_t> build_unique()
     {
@@ -859,16 +859,16 @@ public:
 /** 
  *  \class WinFarm_Builder
  *  
- *  \brief Builder of the Win_Farm pattern
+ *  \brief Builder of the Win_Farm operator
  *  
- *  Builder class to ease the creation of the Win_Farm pattern.
+ *  Builder class to ease the creation of the Win_Farm operator.
  */ 
 template<typename T>
 class WinFarm_Builder
 {
 private:
     T input;
-    // type of the pattern to be created by this builder
+    // type of the operator to be created by this builder
     using winfarm_t = decltype(get_WF_nested_type(input));
     // type of the closing function
     using closing_func_t = std::function<void(RuntimeContext&)>;
@@ -911,7 +911,7 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _input can be either a function or an already instantiated Pane_Farm or Win_MapReduce pattern.
+     *  \param _input can be either a function or an already instantiated Pane_Farm or Win_MapReduce operator.
      */ 
     WinFarm_Builder(T _input): input(_input)
     {
@@ -949,7 +949,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the parallelism of the Win_Farm pattern
+     *  \brief Method to specify the parallelism of the Win_Farm operator
      *  
      *  \param _pardegree number of replicas
      *  \return the object itself
@@ -961,7 +961,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the name of the Win_Farm pattern
+     *  \brief Method to specify the name of the Win_Farm operator
      *  
      *  \param _name std::string with the name to be given
      *  \return the object itself
@@ -973,7 +973,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the optimization level to build the Win_Farm pattern
+     *  \brief Method to specify the optimization level to build the Win_Farm operator
      *  
      *  \param _opt_level (optimization level)
      *  \return the object itself
@@ -985,11 +985,11 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the closing function used by the pattern
+     *  \brief Method to specify the closing function used by the operator
      *         This method does not have any effect in case the Win_Farm
-     *         replicates complex patterns (i.e. Pane_Farm and Win_MapReduce).
+     *         replicates complex operators (i.e. Pane_Farm and Win_MapReduce).
      *  
-     *  \param _closing_func closing function to be used by the pattern
+     *  \param _closing_func closing function to be used by the operator
      *  \return the object itself
      */ 
     WinFarm_Builder<T>& withClosingFunction(closing_func_t _closing_func)
@@ -1000,9 +1000,9 @@ public:
 
 #if __cplusplus >= 201703L
     /** 
-     *  \brief Method to create the Win_Farm pattern (only C++17)
+     *  \brief Method to create the Win_Farm operator (only C++17)
      *  
-     *  \return a copy of the created Win_Farm pattern
+     *  \return a copy of the created Win_Farm operator
      */ 
     winfarm_t build()
     {
@@ -1011,9 +1011,9 @@ public:
 #endif
 
     /** 
-     *  \brief Method to create the Win_Farm pattern
+     *  \brief Method to create the Win_Farm operator
      *  
-     *  \return a pointer to the created Win_Farm pattern (to be explicitly deallocated/destroyed)
+     *  \return a pointer to the created Win_Farm operator (to be explicitly deallocated/destroyed)
      */ 
     winfarm_t *build_ptr()
     {
@@ -1021,9 +1021,9 @@ public:
     }
 
     /** 
-     *  \brief Method to create the Win_Farm pattern
+     *  \brief Method to create the Win_Farm operator
      *  
-     *  \return a unique_ptr to the created Win_Farm pattern
+     *  \return a unique_ptr to the created Win_Farm operator
      */ 
     std::unique_ptr<winfarm_t> build_unique()
     {
@@ -1034,16 +1034,16 @@ public:
 /** 
  *  \class WinFarmGPU_Builder
  *  
- *  \brief Builder of the Win_Farm_GPU pattern
+ *  \brief Builder of the Win_Farm_GPU operator
  *  
- *  Builder class to ease the creation of the Win_Farm_GPU pattern.
+ *  Builder class to ease the creation of the Win_Farm_GPU operator.
  */ 
 template<typename T>
 class WinFarmGPU_Builder
 {
 private:
     T input;
-    // type of the pattern to be created by this builder
+    // type of the operator to be created by this builder
     using winfarm_gpu_t = decltype(get_WF_GPU_nested_type(input));
     uint64_t win_len = 1;
     uint64_t slide_len = 1;
@@ -1092,7 +1092,7 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _input can be either a host/device function or an already instantiated Pane_Farm_GPU or Win_MapReduce_GPU pattern.
+     *  \param _input can be either a host/device function or an already instantiated Pane_Farm_GPU or Win_MapReduce_GPU operator.
      */ 
     WinFarmGPU_Builder(T _input): input(_input) {
         initWindowConf(input);
@@ -1129,7 +1129,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the parallelism of the Win_Farm_GPU pattern
+     *  \brief Method to specify the parallelism of the Win_Farm_GPU operator
      *  
      *  \param _pardegree number of replicas
      *  \return the object itself
@@ -1155,7 +1155,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the name of the Win_Farm_GPU pattern
+     *  \brief Method to specify the name of the Win_Farm_GPU operator
      *  
      *  \param _name std::string with the name to be given
      *  \return the object itself
@@ -1179,7 +1179,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the optimization level to build the Win_Farm_GPU pattern
+     *  \brief Method to specify the optimization level to build the Win_Farm_GPU operator
      *  
      *  \param _opt_level (optimization level)
      *  \return the object itself
@@ -1191,9 +1191,9 @@ public:
     }
 
     /** 
-     *  \brief Method to create the Win_Farm_GPU pattern
+     *  \brief Method to create the Win_Farm_GPU operator
      *  
-     *  \return a pointer to the created Win_Farm_GPU pattern (to be explicitly deallocated/destroyed)
+     *  \return a pointer to the created Win_Farm_GPU operator (to be explicitly deallocated/destroyed)
      */ 
     winfarm_gpu_t *build_ptr()
     {
@@ -1201,9 +1201,9 @@ public:
     }
 
     /** 
-     *  \brief Method to create the Win_Farm_GPU pattern
+     *  \brief Method to create the Win_Farm_GPU operator
      *  
-     *  \return a unique_ptr to the created Win_Farm_GPU pattern
+     *  \return a unique_ptr to the created Win_Farm_GPU operator
      */ 
     std::unique_ptr<winfarm_gpu_t> build_unique()
     {
@@ -1214,16 +1214,16 @@ public:
 /** 
  *  \class KeyFarm_Builder
  *  
- *  \brief Builder of the Key_Farm pattern
+ *  \brief Builder of the Key_Farm operator
  *  
- *  Builder class to ease the creation of the Key_Farm pattern.
+ *  Builder class to ease the creation of the Key_Farm operator.
  */ 
 template<typename T>
 class KeyFarm_Builder
 {
 private:
     T input;
-    // type of the pattern to be created by this builder
+    // type of the operator to be created by this builder
     using keyfarm_t = decltype(get_KF_nested_type(input));
     // type of the closing function
     using closing_func_t = std::function<void(RuntimeContext&)>;
@@ -1269,7 +1269,7 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _input can be either a function or an already instantiated Pane_Farm or Win_MapReduce pattern.
+     *  \param _input can be either a function or an already instantiated Pane_Farm or Win_MapReduce operator.
      */ 
     KeyFarm_Builder(T _input): input(_input)
     {
@@ -1307,7 +1307,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the parallelism of the Key_Farm pattern
+     *  \brief Method to specify the parallelism of the Key_Farm operator
      *  
      *  \param _pardegree number of replicas
      *  \return the object itself
@@ -1319,7 +1319,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the name of the Key_Farm pattern
+     *  \brief Method to specify the name of the Key_Farm operator
      *  
      *  \param _name std::string with the name to be given
      *  \return the object itself
@@ -1331,7 +1331,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the optimization level to build the Key_Farm pattern
+     *  \brief Method to specify the optimization level to build the Key_Farm operator
      *  
      *  \param _opt_level (optimization level)
      *  \return the object itself
@@ -1343,9 +1343,9 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the closing function used by the pattern
+     *  \brief Method to specify the closing function used by the operator
      *  
-     *  \param _closing_func closing function to be used by the pattern
+     *  \param _closing_func closing function to be used by the operator
      *  \return the object itself
      */ 
     KeyFarm_Builder<T>& withClosingFunction(closing_func_t _closing_func)
@@ -1356,9 +1356,9 @@ public:
 
 #if __cplusplus >= 201703L
     /** 
-     *  \brief Method to create the Key_Farm pattern (only C++17)
+     *  \brief Method to create the Key_Farm operator (only C++17)
      *  
-     *  \return a copy of the created Key_Farm pattern
+     *  \return a copy of the created Key_Farm operator
      */ 
     keyfarm_t build()
     {
@@ -1367,9 +1367,9 @@ public:
 #endif
 
     /** 
-     *  \brief Method to create the Key_Farm pattern
+     *  \brief Method to create the Key_Farm operator
      *  
-     *  \return a pointer to the created Key_Farm pattern (to be explicitly deallocated/destroyed)
+     *  \return a pointer to the created Key_Farm operator (to be explicitly deallocated/destroyed)
      */ 
     keyfarm_t *build_ptr()
     {
@@ -1377,9 +1377,9 @@ public:
     }
 
     /** 
-     *  \brief Method to create the Key_Farm pattern
+     *  \brief Method to create the Key_Farm operator
      *  
-     *  \return a unique_ptr to the created Key_Farm pattern
+     *  \return a unique_ptr to the created Key_Farm operator
      */ 
     std::unique_ptr<keyfarm_t> build_unique()
     {
@@ -1390,9 +1390,9 @@ public:
 /** 
  *  \class KeyFarmGPU_Builder
  *  
- *  \brief Builder of the Key_Farm_GPU pattern
+ *  \brief Builder of the Key_Farm_GPU operator
  *  
- *  Builder class to ease the creation of the Key_Farm_GPU pattern.
+ *  Builder class to ease the creation of the Key_Farm_GPU operator.
  */ 
 template<typename T>
 class KeyFarmGPU_Builder
@@ -1401,7 +1401,7 @@ private:
     T input;
     // type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
     using routing_func_t = std::function<size_t(size_t, size_t)>;
-    // type of the pattern to be created by this builder
+    // type of the operator to be created by this builder
     using keyfarm_gpu_t = decltype(get_KF_GPU_nested_type(input));
     uint64_t win_len = 1;
     uint64_t slide_len = 1;
@@ -1451,7 +1451,7 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _input can be either a host/device function or an already instantiated Pane_Farm_GPU or Win_MapReduce_GPU pattern.
+     *  \param _input can be either a host/device function or an already instantiated Pane_Farm_GPU or Win_MapReduce_GPU operator.
      */ 
     KeyFarmGPU_Builder(T _input): input(_input) {
         initWindowConf(input);
@@ -1488,7 +1488,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the parallelism of the Key_Farm_GPU pattern
+     *  \brief Method to specify the parallelism of the Key_Farm_GPU operator
      *  
      *  \param _pardegree number of replicas
      *  \return the object itself
@@ -1514,7 +1514,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the name of the Key_Farm_GPU pattern
+     *  \brief Method to specify the name of the Key_Farm_GPU operator
      *  
      *  \param _name std::string with the name to be given
      *  \return the object itself
@@ -1538,7 +1538,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the optimization level to build the Key_Farm_GPU pattern
+     *  \brief Method to specify the optimization level to build the Key_Farm_GPU operator
      *  
      *  \param _opt_level (optimization level)
      *  \return the object itself
@@ -1550,9 +1550,9 @@ public:
     }
 
     /** 
-     *  \brief Method to create the Key_Farm_GPU pattern
+     *  \brief Method to create the Key_Farm_GPU operator
      *  
-     *  \return a pointer to the created Key_Farm_GPU pattern (to be explicitly deallocated/destroyed)
+     *  \return a pointer to the created Key_Farm_GPU operator (to be explicitly deallocated/destroyed)
      */ 
     keyfarm_gpu_t *build_ptr()
     {
@@ -1560,9 +1560,9 @@ public:
     }
 
     /** 
-     *  \brief Method to create the Key_Farm_GPU pattern
+     *  \brief Method to create the Key_Farm_GPU operator
      *  
-     *  \return a unique_ptr to the created Key_Farm_GPU pattern
+     *  \return a unique_ptr to the created Key_Farm_GPU operator
      */ 
     std::unique_ptr<keyfarm_gpu_t> build_unique()
     {
@@ -1573,9 +1573,9 @@ public:
 /** 
  *  \class PaneFarm_Builder
  *  
- *  \brief Builder of the Pane_Farm pattern
+ *  \brief Builder of the Pane_Farm operator
  *  
- *  Builder class to ease the creation of the Pane_Farm pattern.
+ *  Builder class to ease the creation of the Pane_Farm operator.
  */ 
 template<typename F_t, typename G_t>
 class PaneFarm_Builder
@@ -1636,7 +1636,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the parallelism configuration within the Pane_Farm pattern
+     *  \brief Method to specify the parallelism configuration within the Pane_Farm operator
      *  
      *  \param _plq_degree number replicas in the PLQ stage
      *  \param _wlq_degree number replicas in the WLQ stage
@@ -1650,7 +1650,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the name of the Pane_Farm pattern
+     *  \brief Method to specify the name of the Pane_Farm operator
      *  
      *  \param _name std::string with the name to be given
      *  \return the object itself
@@ -1662,7 +1662,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the optimization level to build the Pane_Farm pattern
+     *  \brief Method to specify the optimization level to build the Pane_Farm operator
      *  
      *  \param _opt_level (optimization level)
      *  \return the object itself
@@ -1674,7 +1674,7 @@ public:
     }
 
     /** 
-     *  \brief Method to prepare the pattern for Nesting with Key_Farm or Win_Farm
+     *  \brief Method to prepare the operator for Nesting with Key_Farm or Win_Farm
      *  
      *  \return the object itself
      */ 
@@ -1685,9 +1685,9 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the closing function used by the pattern
+     *  \brief Method to specify the closing function used by the operator
      *  
-     *  \param _closing_func closing function to be used by the pattern
+     *  \param _closing_func closing function to be used by the operator
      *  \return the object itself
      */ 
     PaneFarm_Builder<F_t, G_t>& withClosingFunction(closing_func_t _closing_func)
@@ -1698,9 +1698,9 @@ public:
 
 #if __cplusplus >= 201703L
     /** 
-     *  \brief Method to create the Pane_Farm pattern (only C++17)
+     *  \brief Method to create the Pane_Farm operator (only C++17)
      *  
-     *  \return a copy of the created Pane_Farm pattern
+     *  \return a copy of the created Pane_Farm operator
      */ 
     panefarm_t build()
     {
@@ -1709,9 +1709,9 @@ public:
 #endif
 
     /** 
-     *  \brief Method to create the Pane_Farm pattern
+     *  \brief Method to create the Pane_Farm operator
      *  
-     *  \return a pointer to the created Pane_Farm pattern (to be explicitly deallocated/destroyed)
+     *  \return a pointer to the created Pane_Farm operator (to be explicitly deallocated/destroyed)
      */ 
     panefarm_t *build_ptr()
     {
@@ -1719,9 +1719,9 @@ public:
     }
 
     /** 
-     *  \brief Method to create the Pane_Farm pattern
+     *  \brief Method to create the Pane_Farm operator
      *  
-     *  \return a unique_ptr to the created Pane_Farm pattern
+     *  \return a unique_ptr to the created Pane_Farm operator
      */ 
     std::unique_ptr<panefarm_t> build_unique()
     {
@@ -1732,9 +1732,9 @@ public:
 /** 
  *  \class PaneFarmGPU_Builder
  *  
- *  \brief Builder of the Pane_Farm_GPU pattern
+ *  \brief Builder of the Pane_Farm_GPU operator
  *  
- *  Builder class to ease the creation of the Pane_Farm_GPU pattern.
+ *  Builder class to ease the creation of the Pane_Farm_GPU operator.
  */ 
 template<typename F_t, typename G_t>
 class PaneFarmGPU_Builder
@@ -1798,7 +1798,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the parallelism configuration within the Pane_Farm_GPU pattern
+     *  \brief Method to specify the parallelism configuration within the Pane_Farm_GPU operator
      *  
      *  \param _plq_degree number of replicas in the PLQ stage
      *  \param _wlq_degree number of replicas in the WLQ stage
@@ -1826,7 +1826,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the name of the Pane_Farm_GPU pattern
+     *  \brief Method to specify the name of the Pane_Farm_GPU operator
      *  
      *  \param _name std::string with the name to be given
      *  \return the object itself
@@ -1850,7 +1850,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the optimization level to build the Pane_Farm_GPU pattern
+     *  \brief Method to specify the optimization level to build the Pane_Farm_GPU operator
      *  
      *  \param _opt_level (optimization level)
      *  \return the object itself
@@ -1862,7 +1862,7 @@ public:
     }
 
     /** 
-     *  \brief Method to prepare the pattern for Nesting with Key_Farm_GPU or Win_Farm_GPU
+     *  \brief Method to prepare the operator for Nesting with Key_Farm_GPU or Win_Farm_GPU
      *  
      *  \return the object itself
      */ 
@@ -1873,9 +1873,9 @@ public:
     }
 
     /** 
-     *  \brief Method to create the Pane_Farm_GPU pattern
+     *  \brief Method to create the Pane_Farm_GPU operator
      *  
-     *  \return a pointer to the created Pane_Farm_GPU pattern (to be explicitly deallocated/destroyed)
+     *  \return a pointer to the created Pane_Farm_GPU operator (to be explicitly deallocated/destroyed)
      */ 
     panefarm_gpu_t *build_ptr()
     {
@@ -1883,9 +1883,9 @@ public:
     }
 
     /** 
-     *  \brief Method to create the Pane_Farm_GPU pattern
+     *  \brief Method to create the Pane_Farm_GPU operator
      *  
-     *  \return a unique_ptr to the created Pane_Farm_GPU pattern
+     *  \return a unique_ptr to the created Pane_Farm_GPU operator
      */ 
     std::unique_ptr<panefarm_gpu_t> build_unique()
     {
@@ -1896,9 +1896,9 @@ public:
 /** 
  *  \class WinMapReduce_Builder
  *  
- *  \brief Builder of the Win_MapReduce pattern
+ *  \brief Builder of the Win_MapReduce operator
  *  
- *  Builder class to ease the creation of the Win_MapReduce pattern.
+ *  Builder class to ease the creation of the Win_MapReduce operator.
  */ 
 template<typename F_t, typename G_t>
 class WinMapReduce_Builder
@@ -1906,7 +1906,7 @@ class WinMapReduce_Builder
 private:
     F_t func_F;
     G_t func_G;
-    // type of the pattern to be created by this builder
+    // type of the operator to be created by this builder
     using winmapreduce_t = Win_MapReduce<decltype(get_tuple_t(func_F)),
                                          decltype(get_result_t(func_F))>;
     // type of the closing function
@@ -1960,7 +1960,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the parallelism configuration within the Win_MapReduce pattern
+     *  \brief Method to specify the parallelism configuration within the Win_MapReduce operator
      *  
      *  \param _map_degree number of replicas in the MAP stage
      *  \param _reduce_degree number of replicas in the REDUCE stage
@@ -1974,7 +1974,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the name of the Win_MapReduce pattern
+     *  \brief Method to specify the name of the Win_MapReduce operator
      *  
      *  \param _name std::string with the name to be given
      *  \return the object itself
@@ -1986,7 +1986,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the optimization level to build the Win_MapReduce pattern
+     *  \brief Method to specify the optimization level to build the Win_MapReduce operator
      *  
      *  \param _opt_level (optimization level)
      *  \return the object itself
@@ -1998,7 +1998,7 @@ public:
     }
 
     /** 
-     *  \brief Method to prepare the pattern for Nesting with Key_Farm or Win_Farm
+     *  \brief Method to prepare the operator for Nesting with Key_Farm or Win_Farm
      *  
      *  \return the object itself
      */ 
@@ -2009,9 +2009,9 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the closing function used by the pattern
+     *  \brief Method to specify the closing function used by the operator
      *  
-     *  \param _closing_func closing function to be used by the pattern
+     *  \param _closing_func closing function to be used by the operator
      *  \return the object itself
      */ 
     WinMapReduce_Builder<F_t, G_t>& withClosingFunction(closing_func_t _closing_func)
@@ -2022,9 +2022,9 @@ public:
 
 #if __cplusplus >= 201703L
     /** 
-     *  \brief Method to create the Win_MapReduce pattern (only C++17)
+     *  \brief Method to create the Win_MapReduce operator (only C++17)
      *  
-     *  \return a copy of the created Win_MapReduce pattern
+     *  \return a copy of the created Win_MapReduce operator
      */ 
     winmapreduce_t build()
     {
@@ -2033,9 +2033,9 @@ public:
 #endif
 
     /** 
-     *  \brief Method to create the Win_MapReduce pattern
+     *  \brief Method to create the Win_MapReduce operator
      *  
-     *  \return a pointer to the created Win_MapReduce pattern (to be explicitly deallocated/destroyed)
+     *  \return a pointer to the created Win_MapReduce operator (to be explicitly deallocated/destroyed)
      */ 
     winmapreduce_t *build_ptr()
     {
@@ -2043,9 +2043,9 @@ public:
     }
 
     /** 
-     *  \brief Method to create the Win_MapReduce pattern
+     *  \brief Method to create the Win_MapReduce operator
      *  
-     *  \return a unique_ptr to the created Win_MapReduce pattern
+     *  \return a unique_ptr to the created Win_MapReduce operator
      */ 
     std::unique_ptr<winmapreduce_t> build_unique()
     {
@@ -2056,9 +2056,9 @@ public:
 /** 
  *  \class WinMapReduceGPU_Builder
  *  
- *  \brief Builder of the Win_MapReduce_GPU pattern
+ *  \brief Builder of the Win_MapReduce_GPU operator
  *  
- *  Builder class to ease the creation of the Win_MapReduce_GPU pattern.
+ *  Builder class to ease the creation of the Win_MapReduce_GPU operator.
  */ 
 template<typename F_t, typename G_t>
 class WinMapReduceGPU_Builder
@@ -2122,7 +2122,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the parallelism configuration within the Win_MapReduce_GPU pattern
+     *  \brief Method to specify the parallelism configuration within the Win_MapReduce_GPU operator
      *  
      *  \param _map_degree number of replicas in the MAP stage
      *  \param _reduce_degree number of replicas in the REDUCE stage
@@ -2150,7 +2150,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the name of the Win_MapReduce_GPU pattern
+     *  \brief Method to specify the name of the Win_MapReduce_GPU operator
      *  
      *  \param _name std::string with the name to be given
      *  \return the object itself
@@ -2174,7 +2174,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the optimization level to build the Win_MapReduce_GPU pattern
+     *  \brief Method to specify the optimization level to build the Win_MapReduce_GPU operator
      *  
      *  \param _opt_level (optimization level)
      *  \return the object itself
@@ -2186,7 +2186,7 @@ public:
     }
 
     /** 
-     *  \brief Method to prepare the pattern for Nesting with Key_Farm_GPU or Win_Farm_GPU
+     *  \brief Method to prepare the operator for Nesting with Key_Farm_GPU or Win_Farm_GPU
      *  
      *  \return the object itself
      */ 
@@ -2197,9 +2197,9 @@ public:
     }
 
     /** 
-     *  \brief Method to create the Pane_Farm_GPU pattern
+     *  \brief Method to create the Pane_Farm_GPU operator
      *  
-     *  \return a pointer to the created Pane_Farm_GPU pattern (to be explicitly deallocated/destroyed)
+     *  \return a pointer to the created Pane_Farm_GPU operator (to be explicitly deallocated/destroyed)
      */ 
     winmapreduce_gpu_t *build_ptr()
     {
@@ -2207,9 +2207,9 @@ public:
     }
 
     /** 
-     *  \brief Method to create the Pane_Farm_GPU pattern
+     *  \brief Method to create the Pane_Farm_GPU operator
      *  
-     *  \return a unique_ptr to the created Pane_Farm_GPU pattern
+     *  \return a unique_ptr to the created Pane_Farm_GPU operator
      */ 
     std::unique_ptr<winmapreduce_gpu_t> build_unique()
     {
@@ -2220,16 +2220,16 @@ public:
 /** 
  *  \class Sink_Builder
  *  
- *  \brief Builder of the Sink pattern
+ *  \brief Builder of the Sink operator
  *  
- *  Builder class to ease the creation of the Sink pattern.
+ *  Builder class to ease the creation of the Sink operator.
  */ 
 template<typename F_t>
 class Sink_Builder
 {
 private:
     F_t func;
-    // type of the pattern to be created by this builder
+    // type of the operator to be created by this builder
     using sink_t = Sink<decltype(get_tuple_t(func))>;
     // type of the closing function
     using closing_func_t = std::function<void(RuntimeContext&)>;
@@ -2250,7 +2250,7 @@ public:
     Sink_Builder(F_t _func): func(_func) {}
 
     /** 
-     *  \brief Method to specify the name of the Sink pattern
+     *  \brief Method to specify the name of the Sink operator
      *  
      *  \param _name std::string with the name to be given
      *  \return the object itself
@@ -2262,7 +2262,7 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the parallelism of the Sink pattern
+     *  \brief Method to specify the parallelism of the Sink operator
      *  
      *  \param _pardegree number of sink replicas
      *  \return the object itself
@@ -2285,9 +2285,9 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the closing function used by the pattern
+     *  \brief Method to specify the closing function used by the operator
      *  
-     *  \param _closing_func closing function to be used by the pattern
+     *  \param _closing_func closing function to be used by the operator
      *  \return the object itself
      */ 
     Sink_Builder<F_t>& withClosingFunction(closing_func_t _closing_func)
@@ -2298,9 +2298,9 @@ public:
 
 #if __cplusplus >= 201703L
     /** 
-     *  \brief Method to create the Sink pattern (only C++17)
+     *  \brief Method to create the Sink operator (only C++17)
      *  
-     *  \return a copy of the created Sink pattern
+     *  \return a copy of the created Sink operator
      */ 
     sink_t build()
     {
@@ -2312,9 +2312,9 @@ public:
 #endif
 
     /** 
-     *  \brief Method to create the Sink pattern
+     *  \brief Method to create the Sink operator
      *  
-     *  \return a pointer to the created Sink pattern (to be explicitly deallocated/destroyed)
+     *  \return a pointer to the created Sink operator (to be explicitly deallocated/destroyed)
      */ 
     sink_t *build_ptr()
     {
@@ -2325,9 +2325,9 @@ public:
     }
 
     /** 
-     *  \brief Method to create the Sink pattern
+     *  \brief Method to create the Sink operator
      *  
-     *  \return a unique_ptr to the created Sink pattern
+     *  \return a unique_ptr to the created Sink operator
      */ 
     std::unique_ptr<sink_t> build_unique()
     {

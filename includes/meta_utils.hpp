@@ -166,49 +166,49 @@ Arg get_tuple_t(void (F_t::*)(std::optional<Arg> &, RuntimeContext&));
 template<typename Arg> // Sink
 Arg get_tuple_t(void (*)(std::optional<Arg> &, RuntimeContext&));
 
-template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (non-incremental)
+template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based operators (non-incremental)
 Arg1 get_tuple_t(Ret (F_t::*)(uint64_t, const Iterable<Arg1>&, Arg2&) const);
 
-template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (non-incremental)
+template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based operators (non-incremental)
 Arg1 get_tuple_t(Ret (F_t::*)(uint64_t, const Iterable<Arg1>&, Arg2&, RuntimeContext&) const);
 
-template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (non-incremental)
+template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based operators (non-incremental)
 Arg1 get_tuple_t(Ret (F_t::*)(uint64_t, const Iterable<Arg1>&, Arg2&));
 
-template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (non-incremental)
+template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based operators (non-incremental)
 Arg1 get_tuple_t(Ret (F_t::*)(uint64_t, const Iterable<Arg1>&, Arg2&, RuntimeContext&));
 
-template<typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (non-incremental)
+template<typename Ret, typename Arg1, typename Arg2> // Window-based operators (non-incremental)
 Arg1 get_tuple_t(Ret (*)(uint64_t, const Iterable<Arg1>&, Arg2&));
 
-template<typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (non-incremental)
+template<typename Ret, typename Arg1, typename Arg2> // Window-based operators (non-incremental)
 Arg1 get_tuple_t(Ret (*)(uint64_t, const Iterable<Arg1>&, Arg2&, RuntimeContext&));
 
-template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (incremental)
+template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based operators (incremental)
 Arg1 get_tuple_t(Ret (F_t::*)(uint64_t, const Arg1&, Arg2&) const);
 
-template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (incremental)
+template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based operators (incremental)
 Arg1 get_tuple_t(Ret (F_t::*)(uint64_t, const Arg1&, Arg2&, RuntimeContext&) const);
 
-template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (incremental)
+template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based operators (incremental)
 Arg1 get_tuple_t(Ret (F_t::*)(uint64_t, const Arg1&, Arg2&));
 
-template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (incremental)
+template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based operators (incremental)
 Arg1 get_tuple_t(Ret (F_t::*)(uint64_t, const Arg1&, Arg2&, RuntimeContext&));
 
-template<typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (incremental)
+template<typename Ret, typename Arg1, typename Arg2> // Window-based operators (incremental)
 Arg1 get_tuple_t(Ret (*)(uint64_t, const Arg1&, Arg2&));
 
-template<typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (incremental)
+template<typename Ret, typename Arg1, typename Arg2> // Window-based operators (incremental)
 Arg1 get_tuple_t(Ret (*)(uint64_t, const Arg1&, Arg2&, RuntimeContext&));
 
-template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (non-incremental on GPU)
+template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based operators (non-incremental on GPU)
 Arg1 get_tuple_t(Ret (F_t::*)(uint64_t, const Arg1*, Arg2*, size_t, char*) const);
 
-template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (non-incremental on GPU)
+template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based operators (non-incremental on GPU)
 Arg1 get_tuple_t(Ret (F_t::*)(uint64_t, const Arg1*, Arg2*, size_t, char*));
 
-template<typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (non-incremental on GPU)
+template<typename Ret, typename Arg1, typename Arg2> // Window-based operators (non-incremental on GPU)
 Arg1 get_tuple_t(Ret (*)(uint64_t, const Arg1*, Arg2*, size_t, char*));
 
 template<typename F_t>
@@ -269,41 +269,41 @@ Arg2 get_result_t(void (F_t::*)(const Arg1 &, Shipper<Arg2>&, RuntimeContext&));
 template<typename Arg1, typename Arg2> // FlatMap
 Arg2 get_result_t(void (*)(const Arg1 &, Shipper<Arg2>&, RuntimeContext&));
 
-template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns
+template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based operators
 Arg2 get_result_t(Ret (F_t::*)(uint64_t, Arg1&, Arg2&) const);
 
-template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns
+template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based operators
 Arg2 get_result_t(Ret (F_t::*)(uint64_t, Arg1&, Arg2&, RuntimeContext&) const);
 
-template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns
+template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based operators
 Arg2 get_result_t(Ret (F_t::*)(uint64_t, Arg1&, Arg2&));
 
-template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns
+template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based operators
 Arg2 get_result_t(Ret (F_t::*)(uint64_t, Arg1&, Arg2&, RuntimeContext&));
 
-template<typename Ret, typename Arg1, typename Arg2> // Window-based Patterns
+template<typename Ret, typename Arg1, typename Arg2> // Window-based operators
 Arg2 get_result_t(Ret (*)(uint64_t, Arg1&, Arg2&));
 
-template<typename Ret, typename Arg1, typename Arg2> // Window-based Patterns
+template<typename Ret, typename Arg1, typename Arg2> // Window-based operators
 Arg2 get_result_t(Ret (*)(uint64_t, Arg1&, Arg2&, RuntimeContext&));
 
-template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (on GPU)
+template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based operators (on GPU)
 Arg2 get_result_t(Ret (F_t::*)(uint64_t, const Arg1*, Arg2*, size_t, char*) const);
 
-template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (on GPU)
+template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based operators (on GPU)
 Arg2 get_result_t(Ret (F_t::*)(uint64_t, const Arg1*, Arg2*, size_t, char*));
 
-template<typename Ret, typename Arg1, typename Arg2> // Window-based Patterns (on GPU)
+template<typename Ret, typename Arg1, typename Arg2> // Window-based operators (on GPU)
 Arg2 get_result_t(Ret (*)(uint64_t, const Arg1*, Arg2*, size_t, char*));
 
 template<typename F_t>
 decltype(get_result_t(&F_t::operator())) get_result_t(F_t);
 
-// metafunction to extract the type of Win_Farm from the inner pattern of type Pane_Farm
+// metafunction to extract the type of Win_Farm from the inner operator of type Pane_Farm
 template<typename ...Args>
 Win_Farm<Args...> get_WF_nested_type(Pane_Farm<Args...> const);
 
-// metafunction to extract the type of Win_Farm from the inner pattern of type Win_MapReduce
+// metafunction to extract the type of Win_Farm from the inner operator of type Win_MapReduce
 template<typename ...Args>
 Win_Farm<Args...> get_WF_nested_type(Win_MapReduce<Args...> const);
 
@@ -315,11 +315,11 @@ auto get_WF_nested_type(F_t _f)
                     decltype(get_result_t(_f))>(); // stub Constructor
 }
 
-// metafunction to extract the type of Win_Farm_GPU from the inner pattern of type Pane_Farm_GPU
+// metafunction to extract the type of Win_Farm_GPU from the inner operator of type Pane_Farm_GPU
 template<typename ...Args>
 Win_Farm_GPU<Args...> get_WF_GPU_nested_type(Pane_Farm_GPU<Args...> const);
 
-// metafunction to extract the type of Win_Farm_GPU from the inner pattern of type Win_MapReduce_GPU
+// metafunction to extract the type of Win_Farm_GPU from the inner operator of type Win_MapReduce_GPU
 template<typename ...Args>
 Win_Farm_GPU<Args...> get_WF_GPU_nested_type(Win_MapReduce_GPU<Args...> const);
 
@@ -332,11 +332,11 @@ auto get_WF_GPU_nested_type(F_t _f)
                         decltype(_f)>(); // stub Constructor
 }
 
-// metafunction to extract the type of Key_Farm from the inner pattern of type Pane_Farm
+// metafunction to extract the type of Key_Farm from the inner operator of type Pane_Farm
 template<typename arg1, typename arg2, typename arg3>
 Key_Farm<arg1, arg2> get_KF_nested_type(Pane_Farm<arg1, arg2, arg3> const);
 
-// metafunction to extract the type of Key_Farm from the inner pattern of type Win_MapReduce
+// metafunction to extract the type of Key_Farm from the inner operator of type Win_MapReduce
 template<typename arg1, typename arg2, typename arg3>
 Key_Farm<arg1, arg2> get_KF_nested_type(Win_MapReduce<arg1, arg2, arg3> const);
 
@@ -348,11 +348,11 @@ auto get_KF_nested_type(F_t _f)
                     decltype(get_result_t(_f))>(); // stub Constructor
 }
 
-// metafunction to extract the type of Key_Farm_GPU from the inner pattern of type Pane_Farm_GPU
+// metafunction to extract the type of Key_Farm_GPU from the inner operator of type Pane_Farm_GPU
 template<typename arg1, typename arg2, typename arg3, typename arg4>
 Key_Farm_GPU<arg1, arg2, arg3> get_KF_GPU_nested_type(Pane_Farm_GPU<arg1, arg2, arg3, arg4> const);
 
-// metafunction to extract the type of Key_Farm_GPU from the inner pattern of type Win_MapReduce_GPU
+// metafunction to extract the type of Key_Farm_GPU from the inner operator of type Win_MapReduce_GPU
 template<typename arg1, typename arg2, typename arg3, typename arg4>
 Key_Farm_GPU<arg1, arg2, arg3> get_KF_GPU_nested_type(Win_MapReduce_GPU<arg1, arg2, arg3, arg4> const);
 

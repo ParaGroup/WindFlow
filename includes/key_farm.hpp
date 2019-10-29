@@ -19,13 +19,13 @@
  *  @author  Gabriele Mencagli
  *  @date    17/10/2017
  *  
- *  @brief Key_Farm pattern executing a windowed transformation in parallel
+ *  @brief Key_Farm operator executing a windowed transformation in parallel
  *         on multi-core CPUs
  *  
  *  @section Key_Farm (Description)
  *  
- *  This file implements the Key_Farm pattern able to execute windowed queries on a
- *  multicore. The pattern executes streaming windows in parallel on the CPU cores
+ *  This file implements the Key_Farm operator able to execute windowed queries on a
+ *  multicore. The operator executes streaming windows in parallel on the CPU cores
  *  and supports both a non-incremental and an incremental query definition. Only
  *  windows belonging to different sub-streams can be executed in parallel, while
  *  windows of the same sub-stream are executed rigorously in order.
@@ -57,10 +57,10 @@ namespace wf {
 /** 
  *  \class Key_Farm
  *  
- *  \brief Key_Farm pattern executing a windowed transformation in parallel on multi-core CPUs
+ *  \brief Key_Farm operator executing a windowed transformation in parallel on multi-core CPUs
  *  
- *  This class implements the Key_Farm pattern executing windowed queries in parallel on
- *  a multicore. In the pattern, only windows belonging to different sub-streams can be
+ *  This class implements the Key_Farm operator executing windowed queries in parallel on
+ *  a multicore. In the operator, only windows belonging to different sub-streams can be
  *  executed in parallel.
  */ 
 template<typename tuple_t, typename result_t>
@@ -100,13 +100,13 @@ private:
     bool hasComplexWorkers;
     // optimization level of the Key_Farm
     opt_level_t outer_opt_level;
-    // optimization level of the inner patterns
+    // optimization level of the inner operators
     opt_level_t inner_opt_level;
-    // type of the inner patterns
+    // type of the inner operators
     pattern_t inner_type;
     // parallelism of the Key_Farm
     size_t parallelism;
-    // parallelism degrees of the inner patterns
+    // parallelism degrees of the inner operators
     size_t inner_parallelism_1;
     size_t inner_parallelism_2;
     // window type (CB or TB)
@@ -139,12 +139,12 @@ private:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error window length or slide in Key_Farm cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Key_Farm has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the optimization level
@@ -168,7 +168,7 @@ private:
         ff::ff_farm::cleanup_all();
     }
 
-    // method to optimize the structure of the Key_Farm pattern
+    // method to optimize the structure of the Key_Farm operator
     void optimize_KeyFarm(opt_level_t opt)
     {
         if (opt == LEVEL0) // no optimization
@@ -210,11 +210,11 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _pardegree parallelism degree of the Key_Farm pattern
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _pardegree parallelism degree of the Key_Farm operator
+     *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Key_Farm(win_func_t _win_func,
              uint64_t _win_len,
@@ -235,11 +235,11 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _pardegree parallelism degree of the Key_Farm pattern
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _pardegree parallelism degree of the Key_Farm operator
+     *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Key_Farm(rich_win_func_t _rich_win_func,
              uint64_t _win_len,
@@ -260,11 +260,11 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _pardegree parallelism degree of the Key_Farm pattern
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _pardegree parallelism degree of the Key_Farm operator
+     *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Key_Farm(winupdate_func_t _winupdate_func,
              uint64_t _win_len,
@@ -285,11 +285,11 @@ public:
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _pardegree parallelism degree of the Key_Farm pattern
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _pardegree parallelism degree of the Key_Farm operator
+     *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Key_Farm(rich_winupdate_func_t _rich_winupdate_func,
              uint64_t _win_len,
@@ -306,15 +306,15 @@ public:
     /** 
      *  \brief Constructor V (Nesting with Pane_Farm)
      *  
-     *  \param _pf Pane_Farm to be replicated within the Key_Farm pattern
+     *  \param _pf Pane_Farm to be replicated within the Key_Farm operator
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _pardegree parallelism degree of the Key_Farm pattern
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _pardegree parallelism degree of the Key_Farm operator
+     *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Key_Farm(const pane_farm_t &_pf,
              uint64_t _win_len,
@@ -333,17 +333,17 @@ public:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: window length or slide in Key_Farm cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Key_Farm has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the compatibility of the windowing parameters
         if (_pf.win_len != _win_len || _pf.slide_len != _slide_len || _pf.winType != _winType) {
-            std::cerr << RED << "WindFlow Error: incompatible windowing parameters" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: incompatible windowing parameters between Key_Farm and Pane_Farm" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         inner_opt_level = _pf.opt_level;
@@ -396,7 +396,7 @@ public:
         ff::ff_farm::add_collector(new kf_collector_t());
         ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _pardegree));
         // optimization process according to the provided optimization level
-        this->optimize_KeyFarm(_opt_level);
+        optimize_KeyFarm(_opt_level);
         // when the Key_Farm will be destroyed we need aslo to destroy the emitter, workers and collector
         ff::ff_farm::cleanup_all();
     }
@@ -404,15 +404,15 @@ public:
     /** 
      *  \brief Constructor VI (Nesting with Win_MapReduce)
      *  
-     *  \param _wm Win_MapReduce to be replicated within the Key_Farm pattern
+     *  \param _wm Win_MapReduce to be replicated within the Key_Farm operator
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _pardegree parallelism degree of the Key_Farm pattern
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _pardegree parallelism degree of the Key_Farm operator
+     *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Key_Farm(const win_mapreduce_t &_wm,
              uint64_t _win_len,
@@ -431,17 +431,17 @@ public:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: window length or slide in Key_Farm cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Key_Farm has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the compatibility of the windowing parameters
         if (_wm.win_len != _win_len || _wm.slide_len != _slide_len || _wm.winType != _winType) {
-            std::cerr << RED << "WindFlow Error: incompatible windowing parameters" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: incompatible windowing parameters between Key_Farm and Win_MapReduce" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         inner_opt_level = _wm.opt_level;
@@ -494,14 +494,14 @@ public:
         ff::ff_farm::add_collector(new kf_collector_t());
         ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _pardegree));
         // optimization process according to the provided optimization level
-        this->optimize_KeyFarm(_opt_level);
+        optimize_KeyFarm(_opt_level);
         // when the Key_Farm will be destroyed we need aslo to destroy the emitter, workers and collector
         ff::ff_farm::cleanup_all();
     }
 
     /** 
-     *  \brief Check whether the Key_Farm has been instantiated with complex patterns inside
-     *  \return true if the Key_Farm has complex patterns inside
+     *  \brief Check whether the Key_Farm has been instantiated with complex operators inside
+     *  \return true if the Key_Farm has complex operators inside
      */ 
     bool useComplexNesting() const
     {
@@ -509,8 +509,8 @@ public:
     }
 
     /** 
-     *  \brief Get the optimization level used to build the pattern
-     *  \return adopted utilization level by the pattern
+     *  \brief Get the optimization level used to build the operator
+     *  \return adopted utilization level by the operator
      */ 
     opt_level_t getOptLevel() const
     {
@@ -518,8 +518,8 @@ public:
     }
 
     /** 
-     *  \brief Type of the inner patterns used by this Key_Farm
-     *  \return type of the inner patterns
+     *  \brief Type of the inner operators used by this Key_Farm
+     *  \return type of the inner operators
      */ 
     pattern_t getInnerType() const
     {
@@ -527,8 +527,8 @@ public:
     }
 
     /** 
-     *  \brief Get the optimization level of the inner patterns within this Key_Farm
-     *  \return adopted utilization level by the inner patterns
+     *  \brief Get the optimization level of the inner operators within this Key_Farm
+     *  \return adopted utilization level by the inner operators
      */ 
     opt_level_t getInnerOptLevel() const
     {
@@ -545,8 +545,8 @@ public:
     }        
 
     /** 
-     *  \brief Get the parallelism degrees of the inner patterns within this Key_Farm
-     *  \return parallelism degrees of the inner patterns
+     *  \brief Get the parallelism degrees of the inner operators within this Key_Farm
+     *  \return parallelism degrees of the inner operators
      */ 
     std::pair<size_t, size_t> getInnerParallelism() const
     {
@@ -554,7 +554,7 @@ public:
     }
 
     /** 
-     *  \brief Get the window type (CB or TB) utilized by the pattern
+     *  \brief Get the window type (CB or TB) utilized by the operator
      *  \return adopted windowing semantics (count- or time-based)
      */ 
     win_type_t getWinType() const

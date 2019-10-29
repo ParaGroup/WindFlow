@@ -115,7 +115,7 @@ public:
         k = (k+1) % keys;
         double x = (1000 * 0.05) / 1.05;
         next_ts += ceil(pareto(1.05, x));
-        if (sent < len*keys-1)
+        if (sent < len*keys)
             return true;
         else
             return false;

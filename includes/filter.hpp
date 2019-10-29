@@ -19,11 +19,11 @@
  *  @author  Gabriele Mencagli
  *  @date    10/01/2019
  *  
- *  @brief Filter pattern dropping data items not respecting a given predicate
+ *  @brief Filter operator dropping data items not respecting a given predicate
  *  
  *  @section Filter (Description)
  *  
- *  This file implements the Filter pattern able to drop all the input items that do not
+ *  This file implements the Filter operator able to drop all the input items that do not
  *  respect a given predicate given by the user.
  *  
  *  The template parameter tuple_t must be default constructible, with a copy constructor
@@ -49,9 +49,9 @@ namespace wf {
 /** 
  *  \class Filter
  *  
- *  \brief Filter pattern dropping data items not respecting a given predicate
+ *  \brief Filter operator dropping data items not respecting a given predicate
  *  
- *  This class implements the Filter pattern applying a given predicate to all the input
+ *  This class implements the Filter operator applying a given predicate to all the input
  *  items and dropping out all of them for which the predicate evaluates to false.
  */ 
 template<typename tuple_t>
@@ -78,7 +78,7 @@ private:
         filter_func_t filter_func; // filter function (predicate)
         rich_filter_func_t rich_filter_func; // rich filter function (predicate)
         closing_func_t closing_func; // closing function
-        std::string name; // string of the unique name of the pattern
+        std::string name; // string of the unique name of the operator
         bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
         RuntimeContext context; // RuntimeContext
 #if defined(LOG_DIR)
@@ -181,8 +181,8 @@ public:
      *  \brief Constructor I
      *  
      *  \param _func filter function (boolean predicate)
-     *  \param _pardegree parallelism degree of the Filter pattern
-     *  \param _name string with the unique name of the Filter pattern
+     *  \param _pardegree parallelism degree of the Filter operator
+     *  \param _name string with the unique name of the Filter operator
      *  \param _closing_func closing function
      */ 
     Filter(filter_func_t _func,
@@ -193,7 +193,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Filter has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Filter_Node
@@ -216,8 +216,8 @@ public:
      *  \brief Constructor II
      *  
      *  \param _func filter function (boolean predicate)
-     *  \param _pardegree parallelism degree of the Filter pattern
-     *  \param _name string with the unique name of the Filter pattern
+     *  \param _pardegree parallelism degree of the Filter operator
+     *  \param _name string with the unique name of the Filter operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
@@ -230,7 +230,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Filter has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Filter_Node
@@ -253,8 +253,8 @@ public:
      *  \brief Constructor III
      *  
      *  \param _func rich filter function (boolean predicate)
-     *  \param _pardegree parallelism degree of the Filter pattern
-     *  \param _name string with the unique name of the Filter pattern
+     *  \param _pardegree parallelism degree of the Filter operator
+     *  \param _name string with the unique name of the Filter operator
      *  \param _closing_func closing function
      */ 
     Filter(rich_filter_func_t _func,
@@ -265,7 +265,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Filter has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Filter_Node
@@ -288,8 +288,8 @@ public:
      *  \brief Constructor IV
      *  
      *  \param _func rich filter function (boolean predicate)
-     *  \param _pardegree parallelism degree of the Filter pattern
-     *  \param _name string with the unique name of the Filter pattern
+     *  \param _pardegree parallelism degree of the Filter operator
+     *  \param _name string with the unique name of the Filter operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
@@ -302,7 +302,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Filter has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Filter_Node

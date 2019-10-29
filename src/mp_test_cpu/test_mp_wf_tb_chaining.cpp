@@ -15,9 +15,12 @@
  */
 
 /*  
- *  Test of the MultiPipe construct
+ *  Test of the MultiPipe construct:
  *  
- *  Composition: Source -> Filter -> FlatMap -> Map -> WF_TB -> Sink
+ *  +-----+   +-----+   +------+   +-----+   +-------+   +-----+
+ *  |  S  |   |  F  |   |  FM  |   |  M  |   | WF_TB |   |  S  |
+ *  | (1) +-->+ (*) +-->+  (*) +-->+ (*) +-->+  (*)  +-->+ (1) |
+ *  +-----+   +-----+   +------+   +-----+   +-------+   +-----+
  */ 
 
 // includes
@@ -74,7 +77,7 @@ int main(int argc, char *argv[])
     mt19937 rng;
     rng.seed(std::random_device()());
     size_t min = 1;
-    size_t max = 10;
+    size_t max = 9;
     std::uniform_int_distribution<std::mt19937::result_type> dist6(min, max);
     int source_degree, degree1, degree2, wf_degree;
     source_degree = 1;
@@ -84,8 +87,12 @@ int main(int argc, char *argv[])
     	degree1 = dist6(rng);
     	degree2 = dist6(rng);
     	wf_degree = dist6(rng);
-    	cout << "Run " << i << " Source(" << source_degree <<")->Filter(" << degree1 << ")-?->FlatMap(" << degree2 << ")-c->Map(" << degree2 << ")->Win_Farm_TB(" << wf_degree << ")-?->Sink(1)" << endl;
-	    // prepare the test
+		cout << "Run " << i << endl;
+		cout << "+-----+   +-----+   +------+   +-----+   +-------+   +-----+" << endl;
+		cout << "|  S  |   |  F  |   |  FM  |   |  M  |   | WF_TB |   |  S  |" << endl;
+		cout << "| (" << source_degree << ") +-->+ (" << degree1 << ") +-->+  (" << degree2 << ") +-->+ (" << degree2 << ") +-->+  (" << wf_degree << ")  +-->+ (1) |" << endl;
+		cout << "+-----+   +-----+   +------+   +-----+   +-------+   +-----+" << endl;
+		// prepare the test
 	    PipeGraph graph("test_wf_tb_ch");
 	    // source
 	    Source_Functor source_functor(stream_len, n_keys);

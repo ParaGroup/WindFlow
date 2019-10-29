@@ -19,11 +19,11 @@
  *  @author  Gabriele Mencagli
  *  @date    10/01/2019
  *  
- *  @brief Source pattern generating the input stream
+ *  @brief Source operator generating the input stream
  *  
  *  @section Source (Description)
  *  
- *  This file implements the Source pattern in charge of generating the items of
+ *  This file implements the Source operator in charge of generating the items of
  *  a data stream.
  *  
  *  The template parameter tuple_t must be default constructible, with a copy
@@ -49,9 +49,9 @@ namespace wf {
 /** 
  *  \class Source
  *  
- *  \brief Source pattern generating the input stream
+ *  \brief Source operator generating the input stream
  *  
- *  This class implements the Source pattern generating a data stream of items.
+ *  This class implements the Source operator generating a data stream of items.
  */ 
 template<typename tuple_t>
 class Source: public ff::ff_a2a
@@ -80,7 +80,7 @@ private:
         source_loop_func_t source_func_loop; // generation function (single-loop version)
         rich_source_loop_func_t rich_source_func_loop; // rich generation function (single-loop version)
         closing_func_t closing_func; // closing function
-        std::string name; // string of the unique name of the pattern
+        std::string name; // string of the unique name of the operator
         bool isItemized; // flag stating whether we are using the item-by-item version of the generation function
         bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
         bool isEND; // flag stating whether the Source_Node has completed to generate items
@@ -218,8 +218,8 @@ public:
      *  \brief Constructor I
      *  
      *  \param _func generation function (item-by-item version)
-     *  \param _pardegree parallelism degree of the Source pattern
-     *  \param _name string with the unique name of the Source pattern
+     *  \param _pardegree parallelism degree of the Source operator
+     *  \param _name string with the unique name of the Source operator
      *  \param _closing_func closing function
      */ 
     Source(source_item_func_t _func,
@@ -229,7 +229,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Source has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Source_Node
@@ -250,8 +250,8 @@ public:
      *  \brief Constructor II
      *  
      *  \param _func rich generation function (item-by-item version)
-     *  \param _pardegree parallelism degree of the Source pattern
-     *  \param _name string with the unique name of the Source pattern
+     *  \param _pardegree parallelism degree of the Source operator
+     *  \param _name string with the unique name of the Source operator
      *  \param _closing_func closing function
      */ 
     Source(rich_source_item_func_t _func,
@@ -261,7 +261,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Source has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Source_Node
@@ -282,8 +282,8 @@ public:
      *  \brief Constructor III
      *  
      *  \param _func generation function (single-loop version)
-     *  \param _pardegree parallelism degree of the Source pattern
-     *  \param _name string with the unique name of the Source pattern
+     *  \param _pardegree parallelism degree of the Source operator
+     *  \param _name string with the unique name of the Source operator
      *  \param _closing_func closing function
      */ 
     Source(source_loop_func_t _func,
@@ -293,7 +293,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Source has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Source_Node
@@ -314,8 +314,8 @@ public:
      *  \brief Constructor IV
      *  
      *  \param _func rich generation function (single-loop version)
-     *  \param _pardegree parallelism degree of the Source pattern
-     *  \param _name string with the unique name of the Source pattern
+     *  \param _pardegree parallelism degree of the Source operator
+     *  \param _name string with the unique name of the Source operator
      *  \param _closing_func closing function
      */ 
     Source(rich_source_loop_func_t _func,
@@ -325,7 +325,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Source has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Source_Node

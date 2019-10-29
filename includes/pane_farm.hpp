@@ -19,17 +19,17 @@
  *  @author  Gabriele Mencagli
  *  @date    17/10/2017
  *  
- *  @brief Pane_Farm pattern executing a windowed transformation in parallel
+ *  @brief Pane_Farm operator executing a windowed transformation in parallel
  *         on multi-core CPUs
  *  
  *  @section Pane_Farm (Description)
  *  
- *  This file implements the Pane_Farm pattern able to execute windowed queries
- *  on a multicore. The pattern processes (possibly in parallel) panes of the
+ *  This file implements the Pane_Farm operator able to execute windowed queries
+ *  on a multicore. The operator processes (possibly in parallel) panes of the
  *  windows in the so-called PLQ stage (Pane-Level Sub-Query) and computes
  *  (possibly in parallel) results of the windows from the pane results in the
  *  so-called WLQ stage (Window-Level Sub-Query). Panes shared by more than one window
- *  are not recomputed by saving processing time. The pattern supports both a
+ *  are not recomputed by saving processing time. The operator supports both a
  *  non-incremental and an incremental query definition in the two stages.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with a copy
@@ -52,10 +52,10 @@ namespace wf {
 /** 
  *  \class Pane_Farm
  *  
- *  \brief Pane_Farm pattern executing a windowed transformation in parallel on multi-core CPUs
+ *  \brief Pane_Farm operator executing a windowed transformation in parallel on multi-core CPUs
  *  
- *  This class implements the Pane_Farm pattern executing windowed queries in parallel on
- *  a multicore. The pattern processes (possibly in parallel) panes in the PLQ stage while
+ *  This class implements the Pane_Farm operator executing windowed queries in parallel on
+ *  a multicore. The operator processes (possibly in parallel) panes in the PLQ stage while
  *  window results are built out from the pane results (possibly in parallel) in the WLQ
  *  stage.
  */ 
@@ -152,12 +152,12 @@ private:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: window length or slide in Pane_Farm cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the parallelism degrees
         if (_plq_degree == 0 || _wlq_degree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degrees cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Pane_Farm has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // the Pane_Farm can be utilized with sliding windows only
@@ -203,7 +203,7 @@ private:
         ff::ff_pipeline::flatten();
     }
 
-    // method to optimize the structure of the Pane_Farm pattern
+    // method to optimize the structure of the Pane_Farm operator
     const ff::ff_pipeline optimize_PaneFarm(ff_node *plq, ff_node *wlq, opt_level_t opt)
     {
         if (opt == LEVEL0) { // no optimization
@@ -260,10 +260,10 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Pane_Farm(plq_func_t _plq_func,
               wlq_func_t _wlq_func,
@@ -296,10 +296,10 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Pane_Farm(rich_plq_func_t _rich_plq_func,
               wlq_func_t _wlq_func,
@@ -332,10 +332,10 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Pane_Farm(plq_func_t _plq_func,
               rich_wlq_func_t _rich_wlq_func,
@@ -368,10 +368,10 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Pane_Farm(rich_plq_func_t _rich_plq_func,
               rich_wlq_func_t _rich_wlq_func,
@@ -404,10 +404,10 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Pane_Farm(plqupdate_funct_t _plqupdate_func,
               wlqupdate_func_t _wlqupdate_func,
@@ -440,10 +440,10 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Pane_Farm(rich_plqupdate_funct_t _rich_plqupdate_func,
               wlqupdate_func_t _wlqupdate_func,
@@ -476,10 +476,10 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Pane_Farm(plqupdate_funct_t _plqupdate_func,
               rich_wlqupdate_func_t _rich_wlqupdate_func,
@@ -512,10 +512,10 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Pane_Farm(rich_plqupdate_funct_t _rich_plqupdate_func,
               rich_wlqupdate_func_t _rich_wlqupdate_func,
@@ -548,10 +548,10 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Pane_Farm(plq_func_t _plq_func,
               wlqupdate_func_t _wlqupdate_func,
@@ -584,10 +584,10 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Pane_Farm(rich_plq_func_t _rich_plq_func,
               wlqupdate_func_t _wlqupdate_func,
@@ -620,10 +620,10 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Pane_Farm(plq_func_t _plq_func,
               rich_wlqupdate_func_t _rich_wlqupdate_func,
@@ -656,10 +656,10 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Pane_Farm(rich_plq_func_t _rich_plq_func,
               rich_wlqupdate_func_t _rich_wlqupdate_func,
@@ -692,10 +692,10 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Pane_Farm(plqupdate_funct_t _plqupdate_func,
               wlq_func_t _wlq_func,
@@ -728,10 +728,10 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Pane_Farm(rich_plqupdate_funct_t _rich_plqupdate_func,
               wlq_func_t _wlq_func,
@@ -764,10 +764,10 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Pane_Farm(plqupdate_funct_t _plqupdate_func,
               rich_wlq_func_t _rich_wlq_func,
@@ -800,10 +800,10 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
-     *  \param _opt_level optimization level used to build the pattern
+     *  \param _opt_level optimization level used to build the operator
      */ 
     Pane_Farm(rich_plqupdate_funct_t _rich_plqupdate_func,
               rich_wlq_func_t _rich_wlq_func,
@@ -827,8 +827,8 @@ public:
     }
 
     /** 
-     *  \brief Get the optimization level used to build the pattern
-     *  \return adopted utilization level by the pattern
+     *  \brief Get the optimization level used to build the operator
+     *  \return adopted utilization level by the operator
      */ 
     opt_level_t getOptLevel() const
     {
@@ -836,7 +836,7 @@ public:
     }
 
     /** 
-     *  \brief Get the window type (CB or TB) utilized by the pattern
+     *  \brief Get the window type (CB or TB) utilized by the operator
      *  \return adopted windowing semantics (count- or time-based)
      */ 
     win_type_t getWinType() const

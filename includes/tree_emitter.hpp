@@ -100,7 +100,7 @@ public:
         for (size_t i=0; i<children.size(); i++)
             copy_children.push_back((children[i])->clone());
         auto *t = new Tree_Emitter(copy_root, copy_children, true, true);
-        t->isCombined = this->isCombined;
+        t->isCombined = isCombined;
         return t;
     }
 

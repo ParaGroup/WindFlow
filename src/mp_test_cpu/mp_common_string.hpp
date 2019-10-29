@@ -157,7 +157,7 @@ public:
         k = (k+1) % keys;
         double x = (1000 * 0.05) / 1.05;
         next_ts += ceil(pareto(1.05, x));
-        if (sent < len*keys-1)
+        if (sent < len*keys)
             return true;
         else
             return false;
@@ -293,7 +293,7 @@ public:
 			totalsum += (*out).value;
 		}
 		else {
-			LOCKED_PRINT("Received " << received << " window results, total sum " << totalsum << endl;)
+			LOCKED_PRINT("Received " << received << " results, total sum " << totalsum << endl;)
 			global_sum = totalsum;
 		}
 	}

@@ -15,9 +15,22 @@
  */
 
 /*  
- *  Test of the MultiPipe construct
+ *  Test of the MultiPipe construct:
  *  
- *  Composition: Source -> Filter -> FlatMap -> Map -> WF_GPU_TB(WMR_GPU_TB) -> Sink
+ *  +-------------------------------------------------------------------+
+ *  |                                             WF_TB(*)              |
+ *  |                                          +------------+           |
+ *  |                                          | +--------+ |           |
+ *  |                                          | | WMR_TB | |           |
+ *  | +-----+   +-----+   +------+   +-----+   | | (*,*)  | |   +-----+ |
+ *  | |  S  |   |  F  |   |  FM  |   |  M  |   | +--------+ |   |  S  | |
+ *  | | (*) +-->+ (*) +-->+  (*) +-->+ (*) +-->+            +-->+ (*) | |
+ *  | +-----+   +-----+   +------+   +-----+   | +--------+ |   +-----+ |
+ *  |                                          | | WMR_TB | |           |
+ *  |                                          | | (*,*)  | |           |
+ *  |                                          | +--------+ |           |
+ *  |                                          +------------+           |
+ *  +-------------------------------------------------------------------+
  */ 
 
 // includes
@@ -78,7 +91,7 @@ int main(int argc, char *argv[])
     mt19937 rng;
     rng.seed(std::random_device()());
     size_t min = 1;
-    size_t max = 10;
+    size_t max = 9;
     std::uniform_int_distribution<std::mt19937::result_type> dist6(min, max);
     int filter_degree, flatmap_degree, map_degree, wf_degree = 1, wmap_degree = 1, reduce_degree = 1;
     size_t source_degree = 1;
@@ -93,7 +106,21 @@ int main(int argc, char *argv[])
     	if (wmap_degree == 1)
     		wmap_degree = 2;
     	reduce_degree = dist6(rng);
-    	cout << "Run " << i << " Source(" << source_degree <<")->Filter(" << filter_degree << ")->FlatMap(" << flatmap_degree << ")->Map(" << map_degree << ")->Win_Farm_GPU_TB(Win_MapReduce_GPU_TB(" << wmap_degree << ", " << reduce_degree << "), " << wf_degree << ")->Sink(1)" << endl;
+    	cout << "Run " << i << endl;
+		cout << "+-------------------------------------------------------------------+" << endl;
+		cout << "|                                             WF_TB(" << wf_degree <<")              |" << endl;
+		cout << "|                                          +------------+           |" << endl;
+		cout << "|                                          | +--------+ |           |" << endl;
+		cout << "|                                          | | WMR_TB | |           |" << endl;
+		cout << "| +-----+   +-----+   +------+   +-----+   | | (" << wmap_degree << "," << reduce_degree << ")  | |   +-----+ |" << endl;
+		cout << "| |  S  |   |  F  |   |  FM  |   |  M  |   | +--------+ |   |  S  | |" << endl;
+		cout << "| | (1) +-->+ (" << filter_degree << ") +-->+  (" << flatmap_degree << ") +-->+ (" << map_degree << ") +-->+            +-->+ (1) | |" << endl;
+		cout << "| +-----+   +-----+   +------+   +-----+   | +--------+ |   +-----+ |" << endl;
+		cout << "|                                          | | WMR_TB | |           |" << endl;
+		cout << "|                                          | | (" << wmap_degree << "," << reduce_degree << ")  | |           |" << endl;
+		cout << "|                                          | +--------+ |           |" << endl;
+		cout << "|                                          +------------+           |" << endl;
+		cout << "+-------------------------------------------------------------------+" << endl;
 	    // prepare the test
 	    PipeGraph graph("test_wf+wmr_tb_gpu");
 	    // source

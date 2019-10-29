@@ -15,9 +15,12 @@
  */
 
 /*  
- *  Test of the MultiPipe construct (keys of type string)
+ *  Test of the MultiPipe construct:
  *  
- *  Composition: Source -> Filter -> FlatMap -> Map -> KF_GPU_CB -> Sink
+ *  +-----+   +-----+   +------+   +-----+   +-------+   +-----+
+ *  |  S  |   |  F  |   |  FM  |   |  M  |   | KF_CB |   |  S  |
+ *  | (1) +-->+ (*) +-->+  (*) +-->+ (*) +-->+  (*)  +-->+ (1) |
+ *  +-----+   +-----+   +------+   +-----+   +-------+   +-----+
  */ 
 
 // includes
@@ -78,7 +81,7 @@ int main(int argc, char *argv[])
     mt19937 rng;
     rng.seed(std::random_device()());
     size_t min = 1;
-    size_t max = 10;
+    size_t max = 9;
     std::uniform_int_distribution<std::mt19937::result_type> dist6(min, max);
     int filter_degree, flatmap_degree, map_degree, kf_degree;
     size_t source_degree = dist6(rng);
@@ -90,7 +93,11 @@ int main(int argc, char *argv[])
     	flatmap_degree = dist6(rng);
     	map_degree = dist6(rng);
     	kf_degree = dist6(rng);
-    	cout << "Run " << i << " Source(" << source_degree <<")->Filter(" << filter_degree << ")->FlatMap(" << flatmap_degree << ")->Map(" << map_degree << ")->Key_Farm_GPU_CB(" << kf_degree << ")->Sink(1)" << endl;
+		cout << "Run " << i << endl;
+		cout << "+-----+   +-----+   +------+   +-----+   +-------+   +-----+" << endl;
+		cout << "|  S  |   |  F  |   |  FM  |   |  M  |   | KF_CB |   |  S  |" << endl;
+		cout << "| (" << source_degree << ") +-->+ (" << filter_degree << ") +-->+  (" << flatmap_degree << ") +-->+ (" << map_degree << ") +-->+  (" << kf_degree << ")  +-->+ (1) |" << endl;
+		cout << "+-----+   +-----+   +------+   +-----+   +-------+   +-----+" << endl;
 	    // prepare the test
 	    PipeGraph graph("test_kf_cb_gpu");
 	    // source

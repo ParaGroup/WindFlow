@@ -15,9 +15,12 @@
  */
 
 /*  
- *  Test of the MultiPipe construct
+ *  Test of the MultiPipe construct:
  *  
- *  Composition: Source -> Filter -> FlatMap -> Map -> WMR_CB -> Sink
+ *  +-----+   +-----+   +------+   +-----+   +--------+   +-----+
+ *  |  S  |   |  F  |   |  FM  |   |  M  |   | WMR_CB |   |  S  |
+ *  | (1) +-->+ (*) +-->+  (*) +-->+ (*) +-->+ (*,*)  +-->+ (1) |
+ *  +-----+   +-----+   +------+   +-----+   +--------+   +-----+
  */ 
 
 // includes
@@ -74,7 +77,7 @@ int main(int argc, char *argv[])
     mt19937 rng;
     rng.seed(std::random_device()());
     size_t min = 1;
-    size_t max = 10;
+    size_t max = 9;
     std::uniform_int_distribution<std::mt19937::result_type> dist6(min, max);
     int filter_degree, flatmap_degree, map_degree, wmap_degree, reduce_degree;
     size_t source_degree = 1;
@@ -88,7 +91,11 @@ int main(int argc, char *argv[])
     	if (wmap_degree == 1)
     		wmap_degree = 2; // map stage of the WMR must always be parallel
     	reduce_degree = dist6(rng);
-    	cout << "Run " << i << " Source(" << source_degree <<")->Filter(" << filter_degree << ")->FlatMap(" << flatmap_degree << ")->Map(" << map_degree << ")->Win_MapReduce_CB(" << wmap_degree << "," << reduce_degree << ")->Sink(1)" << endl;
+		cout << "Run " << i << endl;
+		cout << "+-----+   +-----+   +------+   +-----+   +--------+   +-----+" << endl;
+		cout << "|  S  |   |  F  |   |  FM  |   |  M  |   | WMR_CB |   |  S  |" << endl;
+		cout << "| (" << source_degree << ") +-->+ (" << filter_degree << ") +-->+  (" << flatmap_degree << ") +-->+ (" << map_degree << ") +-->+ (" << wmap_degree << "," << reduce_degree << ")  +-->+ (1) |" << endl;
+		cout << "+-----+   +-----+   +------+   +-----+   +--------+   +-----+" << endl;
 	    // prepare the test
 	    PipeGraph graph("test_wmr_cb");
 	    // source

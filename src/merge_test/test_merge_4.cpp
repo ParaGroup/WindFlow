@@ -15,9 +15,28 @@
  */
 
 /*  
- *  Fourth Test Program of the Merge between MultiPipe instances
+ *  Test of the merge of MultiPipe instances:
  *  
- *  ((MP1, MP2)|->MP3, MP4)|->MP5
+ *  +-----------+
+ *  |  +-----+  |
+ *  |  |  S  |  |
+ *  |  | (*) |  +-------------+
+ *  |  +-----+  |             |    +-----------+
+ *  +-----------+             |    |  +-----+  |
+ *                            |    |  |  F  |  |
+ *  +---------------------+   +--->+  | (*) |  +---+
+ *  |  +-----+   +-----+  |   |    |  +-----+  |   |
+ *  |  |  S  |   |  M  |  |   |    +-----------+   |    +---------------------+
+ *  |  | (*) +-->+ (*) |  +---+                    |    |  +-----+   +-----+  |
+ *  |  +-----+   +-----+  |                        |    |  |  M  |   |  S  |  |
+ *  +---------------------+                        +--->+  | (*) +-->+ (1) |  |
+ *                                                 |    |  +-----+   +-----+  |
+ *  +---------------------+                        |    +---------------------+
+ *  |  +-----+   +-----+  |                        |
+ *  |  |  S  |   |  M  |  |                        |
+ *  |  | (*) +-->+ (*) |  +------------------------+
+ *  |  +-----+   +-----+  |
+ *  +---------------------+
  */ 
 
 // include
@@ -65,9 +84,9 @@ int main(int argc, char *argv[])
     mt19937 rng;
     rng.seed(std::random_device()());
     size_t min = 1;
-    size_t max = 10;
+    size_t max = 9;
     std::uniform_int_distribution<std::mt19937::result_type> dist6(min, max);
-    int map1_degree, map2_degree, filter_degree, map3_degree, map4_degree;
+    int map1_degree, map2_degree, filter_degree, map3_degree;
     size_t source1_degree = dist6(rng);
     size_t source2_degree = dist6(rng);
     size_t source3_degree = dist6(rng);
@@ -77,11 +96,40 @@ int main(int argc, char *argv[])
         map1_degree = dist6(rng);
         map2_degree = dist6(rng);
         map3_degree = dist6(rng);
-        map4_degree = dist6(rng);
         filter_degree = dist6(rng);
-        cout << "Run " << i << " Source1(" << source1_degree <<")-|" << endl;
-        cout << "      Source2(" << source2_degree << ")->Map(" << map2_degree << ")-|->Filter(" << filter_degree << ")-|" << endl;
-        cout << "           Source3(" << source3_degree << ")->Map(" << map3_degree << ")-|->Map(" << map4_degree << ")->Sink(1)" << endl;
+        cout << "Run " << i << endl;
+        cout << "+-----------+" << endl;
+        cout << "|  +-----+  |" << endl;
+        cout << "|  |  S  |  |" << endl;
+        cout << "|  | (" << source1_degree <<") |  +-------------+" << endl;
+        cout << "|  +-----+  |             |    +-----------+" << endl;
+        cout << "+-----------+             |    |  +-----+  |" << endl;
+        cout << "                          |    |  |  F  |  |" << endl;
+        cout << "+---------------------+   +--->+  | (" << filter_degree << ") |  +---+" << endl;
+        cout << "|  +-----+   +-----+  |   |    |  +-----+  |   |" << endl;
+        cout << "|  |  S  |   |  M  |  |   |    +-----------+   |    +---------------------+" << endl;
+        cout << "|  | (" << source2_degree << ") +-->+ (" << map1_degree << ") |  +---+                    |    |  +-----+   +-----+  |" << endl;
+        cout << "|  +-----+   +-----+  |                        |    |  |  M  |   |  S  |  |" << endl;
+        cout << "+---------------------+                        +--->+  | (" << map3_degree << ") +-->+ (1) |  |" << endl;
+        cout << "                                               |    |  +-----+   +-----+  |" << endl;
+        cout << "+---------------------+                        |    +---------------------+" << endl;
+        cout << "|  +-----+   +-----+  |                        |" << endl;
+        cout << "|  |  S  |   |  M  |  |                        |" << endl;
+        cout << "|  | (" << source3_degree << ") +-->+ (" << map2_degree << ") |  +------------------------+" << endl;
+        cout << "|  +-----+   +-----+  |" << endl;
+        cout << "+---------------------+" << endl;
+        // compute the total parallelism degree of the PipeGraph
+        size_t check_degree = source1_degree;
+        check_degree += source2_degree;
+        if (source2_degree != map1_degree)
+            check_degree += map1_degree;
+        check_degree += filter_degree;
+        check_degree += source3_degree;
+        if (source3_degree != map2_degree)
+            check_degree += map2_degree;
+        check_degree += map3_degree;
+        if (map3_degree != 1)
+            check_degree++;
         // prepare the test
         PipeGraph graph("test_merge_4");
         // prepare the first MultiPipe
@@ -104,7 +152,7 @@ int main(int argc, char *argv[])
         Map_Functor2 map_functor2;
         Map map2 = Map_Builder(map_functor2)
                         .withName("pipe2_map")
-                        .withParallelism(map2_degree)
+                        .withParallelism(map1_degree)
                         .build();
         pipe2.chain(map2);
         // prepare the third MultiPipe
@@ -128,7 +176,7 @@ int main(int argc, char *argv[])
         Map_Functor3 map_functor3;
         Map map3 = Map_Builder(map_functor3)
                         .withName("pipe4_map")
-                        .withParallelism(map3_degree)
+                        .withParallelism(map2_degree)
                         .build();
         pipe4.chain(map3);
         // prepare the fifth MultiPipe
@@ -137,7 +185,7 @@ int main(int argc, char *argv[])
         Map_Functor4 map_functor4;
         Map map4 = Map_Builder(map_functor4)
                             .withName("pipe5_map")
-                            .withParallelism(map4_degree)
+                            .withParallelism(map3_degree)
                             .build();
         pipe5.chain(map4);
         // sink
@@ -147,6 +195,7 @@ int main(int argc, char *argv[])
                             .withParallelism(1)
                             .build();
         pipe5.chain_sink(sink);
+        assert(graph.getNumThreads() == check_degree);
         // run the application
         graph.run();
         if (i == 0) {

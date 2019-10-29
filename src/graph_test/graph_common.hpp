@@ -118,7 +118,7 @@ public:
         k = (k+1) % keys;
         double x = (1000 * 0.05) / 1.05;
         next_ts += ceil(pareto(1.05, x));
-        if (sent < keys*len-1)
+        if (sent < keys*len)
             return true;
         else
             return false;
@@ -161,7 +161,7 @@ public:
         k = (k+1) % keys;
         double x = (1000 * 0.05) / 1.05;
         next_ts += ceil(pareto(1.05, x));
-        if (sent < keys*len-1)
+        if (sent < keys*len)
             return true;
         else
             return false;
@@ -186,7 +186,7 @@ public:
     // operator()
     void operator()(tuple_t &t)
     {
-        t.value = t.value * -1;
+        t.value = t.value * 2;
     }
 };
 

@@ -30,6 +30,13 @@
  *  |  | (*) +-->+ (*) |  +--+                  +-->+  | (1) |  |
  *  |  +-----+   +-----+  |                         |  +-----+  |
  *  +---------------------+                         +-----------+
+ *
+ *  +-------------------------------+
+ *  |  +-----+   +-----+   +-----+  |
+ *  |  |  S  |   |  M  |   |  S  |  |
+ *  |  | (*) +-->+ (*) +-->+ (1) |  |
+ *  |  +-----+   +-----+   +-----+  |
+ *  +-------------------------------+
  */ 
 
 // include
@@ -79,14 +86,16 @@ int main(int argc, char *argv[])
     size_t min = 1;
     size_t max = 9;
     std::uniform_int_distribution<std::mt19937::result_type> dist6(min, max);
-    int map1_degree, map2_degree, filter_degree;
+    int map1_degree, map2_degree, map3_degree, filter_degree;
     size_t source1_degree = dist6(rng);
     size_t source2_degree = dist6(rng);
+    size_t source3_degree = dist6(rng);
     long last_result = 0;
     // executes the runs
     for (size_t i=0; i<runs; i++) {
         map1_degree = dist6(rng);
         map2_degree = dist6(rng);
+        map3_degree = dist6(rng);
         filter_degree = dist6(rng);
         cout << "Run " << i << endl;
         cout << "+---------------------+                         +-----------+" << endl;
@@ -102,6 +111,13 @@ int main(int argc, char *argv[])
         cout << "|  | (" << source2_degree << ") +-->+ (" << map2_degree << ") |  +--+                  +-->+  | (1) |  |" << endl;
         cout << "|  +-----+   +-----+  |                         |  +-----+  |" << endl;
         cout << "+---------------------+                         +-----------+" << endl;
+        cout << "" << endl;
+        cout << "+-------------------------------+" << endl;
+        cout << "|  +-----+   +-----+   +-----+  |" << endl;
+        cout << "|  |  S  |   |  M  |   |  S  |  |" << endl;
+        cout << "|  | (" << source3_degree << ") +-->+ (" << map3_degree << ") +-->+ (1) |  |" << endl;
+        cout << "|  +-----+   +-----+   +-----+  |" << endl;
+        cout << "+-------------------------------+" << endl;
         // compute the total parallelism degree of the PipeGraph
         size_t check_degree = source1_degree;
         if (source1_degree != map1_degree)
@@ -111,8 +127,13 @@ int main(int argc, char *argv[])
             check_degree += map2_degree;
         check_degree += filter_degree;
         check_degree += 2;
+        check_degree += source3_degree;
+        if (source3_degree != map3_degree)
+            check_degree += map3_degree;
+        if (map3_degree != 1)
+            check_degree++;
         // prepare the test
-        PipeGraph graph("test_graph_1");
+        PipeGraph graph("test_graph_5");
         // prepare the first MultiPipe
         // source 1
         Source_Positive_Functor source_functor_positive(stream_len, n_keys);
@@ -177,6 +198,28 @@ int main(int argc, char *argv[])
                         .withParallelism(1)
                         .build();
         pipe5.chain_sink(sink2);
+        // prepare the sixth MultiPipe
+        // source 3
+        Source_Positive_Functor source_functor_positive2(stream_len, n_keys);
+        Source source3 = Source_Builder(source_functor_positive2)
+                            .withName("pipe6_source")
+                            .withParallelism(source3_degree)
+                            .build();
+        MultiPipe &pipe6 = graph.add_source(source3);  
+        // map 3
+        Map_Functor map_functor3;
+        Map map3 = Map_Builder(map_functor3)
+                        .withName("pipe6_map")
+                        .withParallelism(map3_degree)
+                        .build();
+        pipe6.chain(map3);
+        // sink
+        Sink_Functor sink_functor3(n_keys);
+        Sink sink3 = Sink_Builder(sink_functor3)
+                        .withName("pipe6_sink")
+                        .withParallelism(1)
+                        .build();
+        pipe6.chain_sink(sink3);
         assert(graph.getNumThreads() == check_degree);
         // run the application
         graph.run();

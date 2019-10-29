@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Data types and operator functors for running the Merge tests
+ *  Data types and operator functors for running the Merge of MultiPipe instances on CPU
  */ 
 
 // includes
@@ -118,7 +118,7 @@ public:
         k = (k+1) % keys;
         double x = (1000 * 0.05) / 1.05;
         next_ts += ceil(pareto(1.05, x));
-        if (sent < keys*len-1)
+        if (sent < keys*len)
             return true;
         else
             return false;
@@ -161,7 +161,7 @@ public:
         k = (k+1) % keys;
         double x = (1000 * 0.05) / 1.05;
         next_ts += ceil(pareto(1.05, x));
-        if (sent < keys*len-1)
+        if (sent < keys*len)
             return true;
         else
             return false;
@@ -204,7 +204,7 @@ public:
         k = (k+1) % keys;
         double x = (1000 * 0.05) / 1.05;
         next_ts += ceil(pareto(1.05, x));
-        if (sent < keys*len-1)
+        if (sent < keys*len)
             return true;
         else
             return false;
@@ -218,6 +218,7 @@ public:
     // operator()
     bool operator()(tuple_t &t)
     {
+        return true;
         // drop odd numbers
         if (t.value % 3 == 0)
             return true;

@@ -15,9 +15,24 @@
  */
 
 /*  
- *  First Test Program of the Split of a MultiPipe
+ *  Test of the split of MultiPipe instances:
  *  
- *  MP1|->(MP2, MP3)
+ *                                 +-------------------------------+
+ *                                 |  +-----+   +-----+   +-----+  |
+ *                            +--->+  |  F  |   |  M  |   |  S  |  |
+ *                            |    |  | (*) +-->+ (*) +-->+ (1) |  |
+ *                            |    |  +-----+   +-----+   +-----+  |
+ *  +---------------------+   |    +-------------------------------+
+ *  |  +-----+   +-----+  |   |
+ *  |  |  S  |   |  M  |  |   |
+ *  |  | (*) +-->+ (*) |  +---+
+ *  |  +-----+   +-----+  |   |
+ *  +---------------------+   |    +-----------+
+ *                            |    |  +-----+  |
+ *                            |    |  |  S  |  |
+ *                            +--->+  | (1) |  |
+ *                                 |  +-----+  |
+ *                                 +-----------+
  */ 
 
 // include
@@ -65,7 +80,7 @@ int main(int argc, char *argv[])
     mt19937 rng;
     rng.seed(std::random_device()());
     size_t min = 1;
-    size_t max = 10;
+    size_t max = 9;
     std::uniform_int_distribution<std::mt19937::result_type> dist6(min, max);
     int map1_degree, map2_degree, filter_degree;
     size_t source_degree = dist6(rng);
@@ -75,9 +90,33 @@ int main(int argc, char *argv[])
         map1_degree = dist6(rng);
         map2_degree = dist6(rng);
         filter_degree = dist6(rng);
-        cout << "Run " << i << " Source(" << source_degree <<")->Map(" << map1_degree << ")-|" << endl;
-        cout << "      ->Filter(" << filter_degree << ")->Map(" << map2_degree << ")->Sink(1)" << endl;
-        cout << "      ->Sink(1)" << endl;
+        cout << "Run " << i << endl;
+        cout << "                             +-------------------------------+" << endl;
+        cout << "                             |  +-----+   +-----+   +-----+  |" << endl;
+        cout << "                        +--->+  |  F  |   |  M  |   |  S  |  |" << endl;
+        cout << "                        |    |  | (" << filter_degree << ") +-->+ (" << map2_degree << ") +-->+ (1) |  |" << endl;
+        cout << "                        |    |  +-----+   +-----+   +-----+  |" << endl;
+        cout << "+---------------------+ |    +-------------------------------+" << endl;
+        cout << "|  +-----+   +-----+  | |" << endl;
+        cout << "|  |  S  |   |  M  |  | |" << endl;
+        cout << "|  | (" << source_degree << ") +-->+ (" << map1_degree << ") |  +---+" << endl;
+        cout << "|  +-----+   +-----+  | |" << endl;
+        cout << "+---------------------+ |    +-----------+" << endl;
+        cout << "                        |    |  +-----+  |" << endl;
+        cout << "                        |    |  |  S  |  |" << endl;
+        cout << "                        +--->+  | (1) |  |" << endl;
+        cout << "                             |  +-----+  |" << endl;
+        cout << "                             +-----------+" << endl;
+        // compute the total parallelism degree of the PipeGraph
+        size_t check_degree = source_degree;
+        if (source_degree != map1_degree)
+            check_degree += map1_degree;
+        check_degree += filter_degree;
+        if (filter_degree != map2_degree)
+            check_degree += map2_degree;
+        if (map2_degree != 1)
+            check_degree++;
+        check_degree++;
         // pepare the test
         PipeGraph graph("test_split_1");
         // prepare the first MultiPipe
@@ -134,6 +173,7 @@ int main(int argc, char *argv[])
                             .withParallelism(1)
                             .build();
         pipe3.chain_sink(sink2);
+        assert(graph.getNumThreads() == check_degree);
         // run the application
         graph.run();
         if (i == 0) {

@@ -19,11 +19,11 @@
  *  @author  Gabriele Mencagli
  *  @date    08/01/2019
  *  
- *  @brief FlatMap pattern executing a one-to-any transformation on the input stream
+ *  @brief FlatMap operator executing a one-to-any transformation on the input stream
  *  
  *  @section FlatMap (Description)
  *  
- *  This file implements the FlatMap pattern able to execute a one-to-any transformation
+ *  This file implements the FlatMap operator able to execute a one-to-any transformation
  *  on each tuple of the input data stream. The transformation should be stateless and
  *  must produce zero, one or more than one output result for each input tuple consumed.
  *  
@@ -50,9 +50,9 @@ namespace wf {
 /** 
  *  \class FlatMap
  *  
- *  \brief FlatMap pattern executing a one-to-any transformation on the input stream
+ *  \brief FlatMap operator executing a one-to-any transformation on the input stream
  *  
- *  This class implements the FlatMap pattern executing a one-to-any transformation
+ *  This class implements the FlatMap operator executing a one-to-any transformation
  *  on each tuple of the input stream.
  */ 
 template<typename tuple_t, typename result_t>
@@ -79,7 +79,7 @@ private:
         flatmap_func_t flatmap_func; // flatmap function
         rich_flatmap_func_t rich_flatmap_func; // rich flatmap function
         closing_func_t closing_func; // closing function
-        std::string name; // string of the unique name of the pattern
+        std::string name; // string of the unique name of the operator
         bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
         // shipper object used for the delivery of results
         Shipper<result_t> *shipper = nullptr;
@@ -187,8 +187,8 @@ public:
      *  \brief Constructor I
      *  
      *  \param _func flatmap function
-     *  \param _pardegree parallelism degree of the FlatMap pattern
-     *  \param _name string with the unique name of the FlatMap pattern
+     *  \param _pardegree parallelism degree of the FlatMap operator
+     *  \param _name string with the unique name of the FlatMap operator
      *  \param _closing_func closing function
      */ 
     FlatMap(flatmap_func_t _func,
@@ -199,7 +199,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: FlatMap has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of FlatMap_Node
@@ -222,8 +222,8 @@ public:
      *  \brief Constructor II
      *  
      *  \param _func flatmap function
-     *  \param _pardegree parallelism degree of the FlatMap pattern
-     *  \param _name string with the unique name of the FlatMap pattern
+     *  \param _pardegree parallelism degree of the FlatMap operator
+     *  \param _name string with the unique name of the FlatMap operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
@@ -236,7 +236,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: FlatMap has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of FlatMap_Node
@@ -259,8 +259,8 @@ public:
      *  \brief Constructor III
      *  
      *  \param _func rich flatmap function
-     *  \param _pardegree parallelism degree of the FlatMap pattern
-     *  \param _name string with the unique name of the FlatMap pattern
+     *  \param _pardegree parallelism degree of the FlatMap operator
+     *  \param _name string with the unique name of the FlatMap operator
      *  \param _closing_func closing function
      */ 
     FlatMap(rich_flatmap_func_t _func,
@@ -271,7 +271,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: FlatMap has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of FlatMap_Node
@@ -294,8 +294,8 @@ public:
      *  \brief Constructor IV
      *  
      *  \param _func rich flatmap function
-     *  \param _pardegree parallelism degree of the FlatMap pattern
-     *  \param _name string with the unique name of the FlatMap pattern
+     *  \param _pardegree parallelism degree of the FlatMap operator
+     *  \param _name string with the unique name of the FlatMap operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
@@ -308,7 +308,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: FlatMap has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of FlatMap_Node

@@ -19,12 +19,12 @@
  *  @author  Gabriele Mencagli
  *  @date    16/03/2018
  *  
- *  @brief Win_Seq_GPU pattern executing a windowed transformation on a CPU+GPU system
+ *  @brief Win_Seq_GPU operator executing a windowed transformation on a CPU+GPU system
  *  
  *  @section Win_Seq_GPU (Description)
  *  
- *  This file implements the Win_Seq_GPU pattern able to execute windowed queries on
- *  a heterogeneous system (CPU+GPU). The pattern prepares batches of input tuples
+ *  This file implements the Win_Seq_GPU operator able to execute windowed queries on
+ *  a heterogeneous system (CPU+GPU). The operator prepares batches of input tuples
  *  sequentially on a CPU core and offloads on the GPU the parallel processing of the
  *  windows within each batch.
  *  
@@ -91,10 +91,10 @@ inline void gpuAssert(cudaError_t code,
 /** 
  *  \class Win_Seq_GPU
  *  
- *  \brief Win_Seq_GPU pattern executing a windowed transformation on a CPU+GPU system
+ *  \brief Win_Seq_GPU operator executing a windowed transformation on a CPU+GPU system
  *  
- *  This class implements the Win_Seq_GPU pattern executing windowed queries on a heterogeneous
- *  system (CPU+GPU). The pattern prepares batches of input tuples on a CPU core sequentially,
+ *  This class implements the Win_Seq_GPU operator executing windowed queries on a heterogeneous
+ *  system (CPU+GPU). The operator prepares batches of input tuples on a CPU core sequentially,
  *  and offloads the processing of all the windows within a batch on the GPU.
  */ 
 template<typename tuple_t, typename result_t, typename win_F_t, typename input_t>
@@ -103,9 +103,9 @@ class Win_Seq_GPU: public ff::ff_node_t<input_t, result_t>
 private:
     // iterator type for accessing tuples
     using input_iterator_t = typename std::vector<tuple_t>::iterator;
-    // type of the stream archive used by the Win_Seq_GPU pattern
+    // type of the stream archive used by the Win_Seq_GPU operator
     using archive_t = StreamArchive<tuple_t, std::vector<tuple_t>>;
-    // window type used by the Win_Seq_GPU pattern
+    // window type used by the Win_Seq_GPU operator
     using win_t = Window<tuple_t, result_t>;
     // function type to compare two tuples
     using compare_func_t = std::function<bool(const tuple_t &, const tuple_t &)>;
@@ -168,8 +168,8 @@ private:
     uint64_t win_len; // window length (no. of tuples or in time units)
     uint64_t slide_len; // slide length (no. of tuples or in time units)
     win_type_t winType; // window type (CB or TB)
-    std::string name; // std::string of the unique name of the pattern
-    PatternConfig config; // configuration structure of the Win_Seq_GPU pattern
+    std::string name; // std::string of the unique name of the operator
+    PatternConfig config; // configuration structure of the Win_Seq_GPU operator
     role_t role; // role of the Win_Seq_GPU
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     std::pair<size_t, size_t> map_indexes = std::make_pair(0, 1); // indexes useful is the role is MAP
@@ -223,12 +223,12 @@ private:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            std::cerr << RED << "WindFlow Error: window length or slide cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: window length or slide in Win_Seq_GPU cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            std::cerr << RED << "WindFlow Error: batch length cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: batch length in Win_Seq_GPU cannot be zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // create the CUDA stream
@@ -265,7 +265,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _batch_len no. of windows in a batch (i.e. 1 window mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. windows) per block
-     *  \param _name std::string with the unique name of the pattern
+     *  \param _name std::string with the unique name of the operator
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      */ 
     Win_Seq_GPU(win_F_t _win_func,
@@ -626,7 +626,7 @@ public:
 //@endcond
 
     /** 
-     *  \brief Get the window type (CB or TB) utilized by the pattern
+     *  \brief Get the window type (CB or TB) utilized by the operator
      *  \return adopted windowing semantics (count- or time-based)
      */
     win_type_t getWinType() const
@@ -634,13 +634,13 @@ public:
         return winType;
     }
 
-    /// Method to start the pattern execution asynchronously
+    /// Method to start the operator execution asynchronously
     virtual int run(bool)
     {
         return ff::ff_node::run();
     }
 
-    /// Method to wait the pattern termination
+    /// Method to wait the operator termination
     virtual int wait()
     {
         return ff::ff_node::wait();

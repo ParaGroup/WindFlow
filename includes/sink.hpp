@@ -19,11 +19,11 @@
  *  @author  Gabriele Mencagli
  *  @date    11/01/2019
  *  
- *  @brief Sink pattern absorbing the input stream
+ *  @brief Sink operator absorbing the input stream
  *  
  *  @section Sink (Description)
  *  
- *  This file implements the Sink pattern in charge of absorbing the items of
+ *  This file implements the Sink operator in charge of absorbing the items of
  *  a data stream.
  *  
  *  The template parameter tuple_t must be default constructible, with a copy Constructor
@@ -54,9 +54,9 @@ namespace wf {
 /** 
  *  \class Sink
  *  
- *  \brief Sink pattern absorbing the input stream
+ *  \brief Sink operator absorbing the input stream
  *  
- *  This class implements the Sink pattern absorbing a data stream of items.
+ *  This class implements the Sink operator absorbing a data stream of items.
  */ 
 template<typename tuple_t>
 class Sink: public ff::ff_farm
@@ -82,7 +82,7 @@ private:
         sink_func_t sink_fun; // sink function
         rich_sink_func_t rich_sink_func; // rich sink function
         closing_func_t closing_func; // closing function
-        std::string name; // string of the unique name of the pattern
+        std::string name; // string of the unique name of the operator
         bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
         RuntimeContext context; // RuntimeContext
 #if defined(LOG_DIR)
@@ -196,8 +196,8 @@ public:
      *  \brief Constructor I
      *  
      *  \param _func sink function
-     *  \param _pardegree parallelism degree of the Sink pattern
-     *  \param _name string with the unique name of the Sink pattern
+     *  \param _pardegree parallelism degree of the Sink operator
+     *  \param _name string with the unique name of the Sink operator
      *  \param _closing_func closing function
      */ 
     Sink(sink_func_t _func,
@@ -208,7 +208,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Sink has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // std::vector of Sink_Node
@@ -229,8 +229,8 @@ public:
      *  \brief Constructor II
      *  
      *  \param _func sink function
-     *  \param _pardegree parallelism degree of the Sink pattern
-     *  \param _name string with the unique name of the Sink pattern
+     *  \param _pardegree parallelism degree of the Sink operator
+     *  \param _name string with the unique name of the Sink operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
@@ -243,7 +243,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Sink has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // std::vector of Sink_Node
@@ -264,8 +264,8 @@ public:
      *  \brief Constructor III
      *  
      *  \param _func rich sink function
-     *  \param _pardegree parallelism degree of the Sink pattern
-     *  \param _name string with the unique name of the Sink pattern
+     *  \param _pardegree parallelism degree of the Sink operator
+     *  \param _name string with the unique name of the Sink operator
      *  \param _closing_func closing function
      */ 
     Sink(rich_sink_func_t _func,
@@ -276,7 +276,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Sink has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // std::vector of Sink_Node
@@ -297,8 +297,8 @@ public:
      *  \brief Constructor IV
      *  
      *  \param _func rich sink function
-     *  \param _pardegree parallelism degree of the Sink pattern
-     *  \param _name string with the unique name of the Sink pattern
+     *  \param _pardegree parallelism degree of the Sink operator
+     *  \param _name string with the unique name of the Sink operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
@@ -311,7 +311,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: parallelism degree cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Sink has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
         // std::vector of Sink_Node
