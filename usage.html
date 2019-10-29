@@ -28,7 +28,7 @@
             <a class="nav-link js-scroll-trigger" href="index.html">Overview</a>
           </li>
           <li class="nav-item">
-            <a class="nav-link js-scroll-trigger" href="patterns.html">Patterns</a>
+            <a class="nav-link js-scroll-trigger" href="operators.html">Operators</a>
           </li>
           <li class="nav-item">
             <a class="nav-link js-scroll-trigger" href="#Usage">Usage</a>
@@ -99,7 +99,7 @@ struct tick_t
             <li><b>getControlFields()</b>: the method returns a <code>std::tuple</code> with three parameters. The first is the key attribute (with <code>string</code> type in the example). The library supports as key attributes any C++ type <code>T</code> for which the <code>std::hash&lt;T&gt;()</code> function is defined. The second field is the unique identifier (of type <code>uint64_t</code> starting from zero) of the item within the substream. The last field of the tuple is the timestamp (starting from zero with granularity at the microsecond) represented by a <code>uint64_t</code> value</li>
             <li><b>setControlFields()</b>: a method that allows the key attribute, the unique identifier and the timestamp to be set for the given input item</li>
           </ul>
-          <p class="lead">The first step is to create the source operator. The business logic in charge of generating the ticks is provided by the user to the pattern builder through either a <b>lambda</b> expression, a plain <b>function</b>, or a <b>functor</b> object. In the code below, we define a functor class:</p>
+          <p class="lead">The first step is to create the source operator. The business logic in charge of generating the ticks is provided by the user to the operator builder through either a <b>lambda</b> expression, a plain <b>function</b>, or a <b>functor</b> object. In the code below, we define a functor class:</p>
           <pre><code class="language-cpp">
 // source functor class
 class Source_F {
@@ -120,20 +120,20 @@ public:
   ...
 };
           </code></pre>
-          <p class="lead">In the code, we have omitted the definition of the <code>readTuple()</code> function in charge of parsing input items from a network socket. In the example, the source generates a predefined number of items. To create the source pattern, the developer should use the builder class provided by the library. So doing, using the last C++17 features (<b>Class Template Argument Deduction</b>), all the template arguments needed to instantiate the pattern are automatically deduced by the function/functor/lambda provided to the builder constructor, thus making the life easier to the programmer in addition to provide a <code>fluent interface</code> for the patter creation. The construction of the source is shown below:</p>
+          <p class="lead">In the code, we have omitted the definition of the <code>readTuple()</code> function in charge of parsing input items from a network socket. In the example, the source generates a predefined number of items. To create the source operator, the developer should use the builder class provided by the library. So doing, using the last C++17 features (<b>Class Template Argument Deduction</b>), all the template arguments needed to instantiate the operator are automatically deduced by the function/functor/lambda provided to the builder constructor, thus making the life easier to the programmer in addition to provide a <code>fluent interface</code> for the patter creation. The construction of the source is shown below:</p>
           <pre><code class="language-cpp">
 // main
 int main(int argc, char *argv[]) {
     ...
     Source_F source_func(1000000);
-    // creation of the Source pattern
+    // creation of the Source operator
     Source source = Source_Builder(source_func).withName("mysource")
                                                .withParallelism(2)
                                                .build();
 }
           </code></pre>
           <p class="lead">The source is created with two replicas and with a string corresponding to its name in the application.</p>
-          <p class="lead">The filter pattern is created in an analogous manner. First, a functor class is defined with the operator business logic, as shown below:</p>
+          <p class="lead">The filter operator is created in an analogous manner. First, a functor class is defined with the operator business logic, as shown below:</p>
           <pre><code class="language-cpp">
 // filter functor
 class Filter_F
@@ -148,15 +148,15 @@ public:
     }
 };
           </code></pre>
-          <p class="lead">All the input ticks with symbol not equal to <code>"my_company"</code> are dropped (return value is <code>false</code>). The pattern is created by leveraging its builder class and, in this example, with the same parallelism of the source:</p>
+          <p class="lead">All the input ticks with symbol not equal to <code>"my_company"</code> are dropped (return value is <code>false</code>). The operator is created by leveraging its builder class and, in this example, with the same parallelism of the source:</p>
           <pre><code class="language-cpp">
 Filter_F filter_func;
-// creation of the Filter pattern
+// creation of the Filter operator
 Filter filter = Filter_Builder(filter_func).withParallelism(2)
                                            .withName("myfilter")
                                            .build();
           </code></pre>
-          <p class="lead">To compute the window aggregate, we use the <b>Windowed Farm</b> pattern. We note that in this application, all the items coming out from the filtering phase have the same symbol attribute. So, key-based parallelism is totally useless in this example. To instantiate the pattern, we define its business logic. In this example we use a function for that (lambda expressions or functor objects are still allowed here):</p>
+          <p class="lead">To compute the window aggregate, we use the <b>Windowed Farm</b> operator. We note that in this application, all the items coming out from the filtering phase have the same symbol attribute. So, key-based parallelism is totally useless in this example. To instantiate the operator, we define its business logic. In this example we use a function for that (lambda expressions or functor objects are still allowed here):</p>
           <pre><code class="language-cpp">
 // user-defined window function
 void vwap(uint_64_t wid, Iterable&lt;tick_t&gt; &win, result_t &r) {
@@ -169,14 +169,14 @@ void vwap(uint_64_t wid, Iterable&lt;tick_t&gt; &win, result_t &r) {
     result.vwap = sum/total_volume;
 };
           </code></pre>
-          <p class="lead">In this example, the function uses the non-incremental signature that computes the window when it is ready to be processed by giving the read-only access to all its item through a <code>Iterable</code> object. Other definitions of the function (e.g., incremental) are allowed (see the <code>doxygen</code> documentation). The type <code>result_t</code> is the result data type computed per window, providing the same control methods of <code>tick_t</code> (i.e. <code>getControlFields()</code> and <code>setControlFields()</code>). The pattern is created through its builder class:</p>
+          <p class="lead">In this example, the function uses the non-incremental signature that computes the window when it is ready to be processed by giving the read-only access to all its item through a <code>Iterable</code> object. Other definitions of the function (e.g., incremental) are allowed (see the <code>doxygen</code> documentation). The type <code>result_t</code> is the result data type computed per window, providing the same control methods of <code>tick_t</code> (i.e. <code>getControlFields()</code> and <code>setControlFields()</code>). The operator is created through its builder class:</p>
           <pre><code class="language-cpp">
 Win_Farm win_agg = WinFarm_Builder(vwap).withCBWindow(1000, 10)
                                         .withParallelism(3)
                                         .withName("myvwap")
                                         .build();
           </code></pre>
-          <p class="lead">The pattern is created with three replicas and with a count-based window semantics. Finally, the sink operator is created, first implementing its business logic:</p>
+          <p class="lead">The operator is created with three replicas and with a count-based window semantics. Finally, the sink operator is created, first implementing its business logic:</p>
           <pre><code class="language-cpp">
 // sink functor
 class Sink_F
@@ -198,17 +198,17 @@ public:
     }
 };
           </code></pre>
-          <p class="lead">The function is called by the run-time system of the library each time a new item is received. The item is encapsulated in a <code>std::optional</code>. This allows checking the end of the stream (in that case the optional returns <code>false</code> and must be not dereferenced). The pattern creation is as follows:</p>
+          <p class="lead">The function is called by the run-time system of the library each time a new item is received. The item is encapsulated in a <code>std::optional</code>. This allows checking the end of the stream (in that case the optional returns <code>false</code> and must be not dereferenced). The operator creation is as follows:</p>
           <pre><code class="language-cpp">
 Sink_F sink_func;
-// creation of the Sink pattern
+// creation of the Sink operator
 Sink sink = Sink_Builder(sink_func).withParallelism(1)
                                    .withName("sink")
                                    .build();
           </code></pre>
           <p class="lead">The source is created with one replica.</p>
           <h2>Creating and running the application</h2>
-          <p class="lead">Once the patterns (operators) have been created, they must be connected together. To do that, <code>WindFlow</code> provides a <code>MultiPipe</code> construct. In the basic case, it is essentially a sequence of multiple linear pipelines with streams crossing them. <code>MultiPipe</code> instances cannot be directly created by the user, but instead they are obtained from the <code>PipeGraph</code> construct which represents a sort of streaming environment where to build the WindFlow application. The following code shows how the application can be created using this construct:</p>
+          <p class="lead">Once the operators (operators) have been created, they must be connected together. To do that, <code>WindFlow</code> provides a <code>MultiPipe</code> construct. In the basic case, it is essentially a sequence of multiple linear pipelines with streams crossing them. <code>MultiPipe</code> instances cannot be directly created by the user, but instead they are obtained from the <code>PipeGraph</code> construct which represents a sort of streaming environment where to build the WindFlow application. The following code shows how the application can be created using this construct:</p>
           <pre><code class="language-cpp">
 PipeGraph env("vwap_app");
 MultiPipe &pipe = env.add_source(source);
