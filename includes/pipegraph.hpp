@@ -647,6 +647,7 @@ int PipeGraph::run()
 	if ((root->children).size() == 0) {
 		std::cerr << RED << "WindFlow Error: PipeGraph [" << name << "] is empty, nothing to run" << DEFAULT << std::endl;
 		exit(EXIT_FAILURE);
+        return EXIT_FAILURE; // useless
 	}
 	else {
 		// count number of threads
@@ -661,8 +662,9 @@ int PipeGraph::run()
 			status |= (an->mp)->wait();
 		if (status == 0)
 			std::cout << GREEN << "WindFlow Status Message: PipeGraph [" << name << "] executed successfully" << DEFAULT << std::endl;
-		else
-			std::cerr << RED << "WindFlow Error: PipeGraph [" << name << "] execution problems found" << DEFAULT << std::endl;
+		//else
+			//std::cerr << RED << "WindFlow Error: PipeGraph [" << name << "] execution problems found" << DEFAULT << std::endl;
+        return 0;
 	}
 }
 
@@ -993,8 +995,10 @@ int MultiPipe::run()
     if (!isRunnable()) {
         std::cerr << RED << "WindFlow Error: MultiPipe is not runnable" << DEFAULT << std::endl;
         exit(EXIT_FAILURE);
+        return EXIT_FAILURE; // useless
     }
-    return ff::ff_pipeline::run();
+    else
+        return ff::ff_pipeline::run();
 }
 
 // implementation of the wait method
@@ -1003,8 +1007,10 @@ int MultiPipe::wait()
     if (!isRunnable()) {
         std::cerr << RED << "WindFlow Error: MultiPipe is not runnable" << DEFAULT << std::endl;
         exit(EXIT_FAILURE);
+        return EXIT_FAILURE; // useless
     }
-    return ff::ff_pipeline::wait();
+    else
+        return ff::ff_pipeline::wait();
 }
 
 // implementation of the run_and_wait_end method
@@ -1013,8 +1019,10 @@ int MultiPipe::run_and_wait_end()
     if (!isRunnable()) {
         std::cerr << RED << "WindFlow Error: MultiPipe is not runnable" << DEFAULT << std::endl;
         exit(EXIT_FAILURE);
+        return EXIT_FAILURE; // useless
     }
-    return ff::ff_pipeline::run_and_wait_end();
+    else
+        return ff::ff_pipeline::run_and_wait_end();
 }
 
 // implementation of the method to add a Filter to the MultiPipe
