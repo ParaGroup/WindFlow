@@ -23,7 +23,7 @@
  *  
  *  @section Splitting_Emitter (Description)
  *  
- *  This file implements the splitting emitter in charge of doing splitting of MultiPipe.
+ *  This file implements the splitting emitter in charge of doing the splitting of MultiPipe.
  */ 
 
 #ifndef SPLITTING_H
@@ -41,18 +41,32 @@ template<typename tuple_t>
 class Splitting_Emitter: public Basic_Emitter
 {
 private:
-    // function to get the destination from an input
-    using splitting_func_t = std::function<size_t(const tuple_t &)>;
-    splitting_func_t splitting_func; // splitting function
+    // function to get the destination from an input (unicast)
+    using unicast_func_t = std::function<size_t(const tuple_t &)>;
+    // function to get the destinations from an input (multicast or broadcast)
+    using multicast_func_t = std::function<std::vector<size_t>(const tuple_t &)>;
+    unicast_func_t unicast_func; // unicast function
+    multicast_func_t multicast_func; // multicast or broadcast function
+    bool isUnicast; // true if the unicast function must be used (false otherwise)
     size_t n_dest; // number of destinations
     bool isCombined; // true if this node is used within a Tree_Emitter node
     std::vector<std::pair<void *, int>> output_queue; // used in case of Tree_Emitter mode
 
 public:
     // Constructor I
-    Splitting_Emitter(splitting_func_t _splitting_func,
+    Splitting_Emitter(unicast_func_t _splitting_func,
                      size_t _n_dest):
-                     splitting_func(_splitting_func),
+                     unicast_func(_splitting_func),
+                     isUnicast(true),
+                     n_dest(_n_dest),
+                     isCombined(false)
+    {}
+
+    // Constructor II
+    Splitting_Emitter(multicast_func_t _splitting_func,
+                     size_t _n_dest):
+                     multicast_func(_splitting_func),
+                     isUnicast(false),
                      n_dest(_n_dest),
                      isCombined(false)
     {}
@@ -74,14 +88,33 @@ public:
     void *svc(void *in)
     {
         tuple_t *t = reinterpret_cast<tuple_t *>(in);
-        size_t dest_w = splitting_func(*t);
-        assert(dest_w<n_dest);
-        // send tuple
-        if (!isCombined)
-            this->ff_send_out_to(t, dest_w);
-        else
-            output_queue.push_back(std::make_pair(t, dest_w));
-        return this->GO_ON;
+        if (isUnicast) { // unicast
+            size_t dest_w = unicast_func(*t);
+            assert(dest_w < n_dest);
+            // send tuple
+            if (!isCombined)
+                this->ff_send_out_to(t, dest_w);
+            else
+                output_queue.push_back(std::make_pair(t, dest_w));
+            return this->GO_ON;
+        }
+        else { // multicast or broadcast
+            auto dests_w = multicast_func(*t);
+            assert(dests_w.size() > 0 && dests_w.size() <= n_dest);
+            size_t idx = 0;
+            while (idx < dests_w.size()) {
+                assert(dests_w[idx] < n_dest);
+                // send tuple
+                if (!isCombined)
+                    this->ff_send_out_to(t, dests_w[idx]);
+                else
+                    output_queue.push_back(std::make_pair(t, dests_w[idx]));
+                idx++;
+                if (idx < dests_w.size())
+                    t = new tuple_t(*t); // copy of the input tuple
+            }
+            return this->GO_ON;
+        }
     }
 
     // svc_end method (FastFlow runtime)
