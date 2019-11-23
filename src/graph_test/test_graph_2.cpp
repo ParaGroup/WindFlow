@@ -169,8 +169,8 @@ int main(int argc, char *argv[])
                                 .withParallelism(filter2_degree)
                                 .build();
         pipe3.chain(filter2);
-        // self-merge of pipe1
-        MultiPipe &pipe4 = pipe1.self_merge();
+        // merge of pipe2 and pipe3
+        MultiPipe &pipe4 = pipe2.merge(pipe3);
         // pepare the fourth MultiPipe
         // map 3
         Map_Functor map_functor3;

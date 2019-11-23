@@ -25,7 +25,7 @@
  *  
  *  This file implements the PipeGraph and the MultiPipe constructs used to build
  *  a parallel streaming application in WindFlow. The MultiPipe construct allows
- *  building a set of parallel pipelines of operators that might have cross
+ *  building a set of parallel pipelines of operators that might have shuffle
  *  connections jumping from one pipeline to another one. The PipeGraph is the
  *  "streaming environment" to be used for obtaining MultiPipe instances with
  *  different sources. To run the application the users have to run the PipeGraph
@@ -39,6 +39,9 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <random>
+#include <typeinfo>
+#include <algorithm>
 #include <math.h>
 #include <ff/ff.hpp>
 #include <basic.hpp>
@@ -111,10 +114,16 @@ private:
 	// method to find the AppNode containing the MultiPipe _mp in the tree rooted at _node
 	AppNode *find_AppNode(AppNode *_node, MultiPipe *_mp);
 
+    // method to find the list of AppNode instances that are leaves of the tree rooted at _node
+    std::vector<AppNode *> get_LeavesList(AppNode *_node);
+
 	// method to delete all the AppNode instances in the tree rooted at _node
 	void delete_AppNodes(AppNode *_node);
 
-	// method to execute the splitting of the MultiPipe _mp
+    // method to prepare the right list of AppNode instances to be merged
+    bool get_MergedNodes(std::vector<MultiPipe *> _toBeMerged, std::vector<AppNode *> &_rightList);
+
+	// method to execute the split of the MultiPipe _mp
 	std::vector<MultiPipe *> execute_Split(MultiPipe *_mp);
 
 	// method to execute the merge of a set of MultiPipe instances _toBeMerged
@@ -167,7 +176,7 @@ public:
  *  \brief MultiPipe construct
  *  
  *  This class implements the MultiPipe construct used to build a set of pipelines
- *  of operators that might have cross-connections jumping from a pipeline
+ *  of operators that might have shuffle connections jumping from a pipeline
  *  to another one.
  */ 
 class MultiPipe: public ff::ff_pipeline
@@ -181,15 +190,16 @@ private:
 	ff::ff_a2a *last; // pointer to the last matrioska
     ff::ff_a2a *secondToLast; // pointer to the second-to-last matrioska
     bool isMerged; // true if the MultiPipe has been merged with other MultiPipe instances
-    bool isSplitted; // true if the MultiPipe has been splitted into other MultiPipe instances
+    bool isSplit; // true if the MultiPipe has been split into other MultiPipe instances
     bool fromSplitting; // true if the MultiPipe originates from a splitting of another MultiPipe
-    size_t splittingBranches; // number of splitting branches (meaningful if isSplitted is true)
+    size_t splittingBranches; // number of splitting branches (meaningful if isSplit is true)
     MultiPipe *splittingParent = nullptr; // pointer to the parent MultiPipe (meaningful if fromSplitting is true)
-    Basic_Emitter *splittingEmitterRoot = nullptr; // splitting emitter (meaningful if isSplitted is true)
-    std::vector<Basic_Emitter *> splittingEmitterLeaves; // vector of emitters (meaningful if isSplitted is true)
-    std::vector<MultiPipe *> splittingChildren; // vector of children MultiPipe instances (meaningful if isSplitted is true)
+    Basic_Emitter *splittingEmitterRoot = nullptr; // splitting emitter (meaningful if isSplit is true)
+    std::vector<Basic_Emitter *> splittingEmitterLeaves; // vector of emitters (meaningful if isSplit is true)
+    std::vector<MultiPipe *> splittingChildren; // vector of children MultiPipe instances (meaningful if isSplit is true)
     bool forceShuffling; // true if the next operator that will be added to the MultiPipe is forced to generate a shuffling
     size_t lastParallelism; // parallelism of the last operator added to the MultiPipe (0 if not defined)
+    std::string outputType; // string representing the type of the outputs from this MultiPipe (the empty string if not defined yet)
     // friendship with the PipeGraph class
     friend class PipeGraph;
 
@@ -201,11 +211,12 @@ private:
               last(nullptr),
               secondToLast(nullptr),
               isMerged(false),
-              isSplitted(false),
+              isSplit(false),
               fromSplitting(false),
               splittingBranches(0),
               forceShuffling(false),
-              lastParallelism(0)
+              lastParallelism(0),
+              outputType("")
     {}
 
     // Private Constructor II (to create a MultiPipe from the merge of other MultiPipe instances)
@@ -215,11 +226,12 @@ private:
               has_source(true),
               has_sink(false),
               isMerged(false),
-              isSplitted(false),
+              isSplit(false),
               fromSplitting(false),
               splittingBranches(0),
               forceShuffling(true), // <-- we force a shuffling for the next operator
-              lastParallelism(0)
+              lastParallelism(0),
+              outputType("")
     {
         // create the initial matrioska
         ff::ff_a2a *matrioska = new ff::ff_a2a();
@@ -240,11 +252,11 @@ private:
 
     // method to add an operator to the MultiPipe
     template<typename emitter_t, typename collector_t>
-    void add_operator(ff::ff_farm *_pattern, routing_types_t _type, ordering_mode_t _ordering);
+    void add_operator(ff::ff_farm *_op, routing_types_t _type, ordering_mode_t _ordering);
 
     // method to chain an operator with the previous one in the MultiPipe
     template<typename worker_t>
-    bool chain_operator(ff::ff_farm *_pattern);
+    bool chain_operator(ff::ff_farm *_op);
 
     // method to normalize the MultiPipe (removing the final self-killer nodes)
     std::vector<ff::ff_node *> normalize();
@@ -422,15 +434,9 @@ public:
     MultiPipe &chain_sink(Sink<tuple_t> &_sink);
 
     /** 
-     *  \brief Merge all the internal splitted MultiPipe instances of this
-     *  \return a reference to the new MultiPipe
-     */ 
-    MultiPipe &self_merge();
-
-    /** 
-     *  \brief Merge of this with a set of independent MultiPipe instances _pipes
-     *  \param _pipes set of independent MultiPipe instances to be merged with this
-     *  \return a reference to the new MultiPipe
+     *  \brief Merge of this with a set of MultiPipe instances _pipes
+     *  \param _pipes set of MultiPipe instances to be merged with this
+     *  \return a reference to the new MultiPipe (the result fo the merge)
      */ 
     template<typename ...MULTIPIPES>
     MultiPipe &merge(MULTIPIPES&... _pipes);
@@ -439,14 +445,15 @@ public:
      *  \brief Split of this into a set of MultiPipe instances
      *  \param _splitting_func splitting function
      *  \param _cardinality number of splitting MultiPipe instances to generate from this
+     *  \return the MultiPipe this after the splitting
      */ 
     template<typename F_t>
-    void split(F_t _splitting_func, size_t _cardinality);
+    MultiPipe &split(F_t _splitting_func, size_t _cardinality);
 
     /** 
      *  \brief Select a MultiPipe upon the splitting of this
      *  \param _idx index of the MultiPipe to be selected
-     *  \return reference to splitted MultiPipe with index _idx
+     *  \return reference to split MultiPipe with index _idx
      */ 
     MultiPipe &select(size_t _idx) const;
 
@@ -474,12 +481,14 @@ PipeGraph::~PipeGraph()
 // implementation of the method to find the AppNode containing the MultiPipe _mp in the tree rooted at _node
 AppNode *PipeGraph::find_AppNode(AppNode *_node, MultiPipe *_mp)
 {
+    // base case
 	if (_node->mp == _mp)
 		return _node;
+    // recursive case
 	else {
 		AppNode *found = nullptr;
-		for (auto *an: _node->children) {
-			found = find_AppNode(an, _mp);
+		for (auto *child: _node->children) {
+			found = find_AppNode(child, _mp);
 			if (found != nullptr)
 				return found;
 		}
@@ -487,37 +496,116 @@ AppNode *PipeGraph::find_AppNode(AppNode *_node, MultiPipe *_mp)
 	}
 }
 
+// implementation of the method to find the list of AppNode instances that are leaves of the tree rooted at _node
+std::vector<AppNode *> PipeGraph::get_LeavesList(AppNode *_node)
+{
+    std::vector<AppNode *> leaves;
+    // base case
+    if ((_node->children).size() == 0) {
+        leaves.push_back(_node);
+        return leaves;
+    }
+    // recursive case
+    else {
+        for (auto *child: _node->children) {
+            auto v = get_LeavesList(child);
+            leaves.insert(leaves.end(), v.begin(), v.end());
+        }
+        return leaves;
+    }
+}
+
 // implementation of the method to delete all the AppNode instances in the tree rooted at _node
 void PipeGraph::delete_AppNodes(AppNode *_node)
 {
+    // base case
 	if ((_node->children).size() == 0)
 		delete _node;
+    // recursive case
 	else {
-		for (auto *an: _node->children)
-			delete_AppNodes(an);
+		for (auto *child: _node->children)
+			delete_AppNodes(child);
 		delete _node;
 	}
 }
 
-// implementation of the method to execute the splitting of the MultiPipe _mp
+// implementation of the method to prepare the right list of AppNode instances to be merged
+bool PipeGraph::get_MergedNodes(std::vector<MultiPipe *> _toBeMerged, std::vector<AppNode *> &_rightList) {
+    // all the input MultiPipe instances must be leaves of the Application Tree
+    std::vector<AppNode *> inputNodes;
+    assert(_toBeMerged.size() > 1); // redundant check
+    for (auto *mp: _toBeMerged) {
+        AppNode *node = find_AppNode(root, mp);
+        if (node == nullptr) {
+            std::cerr << RED << "WindFlow Error: MultiPipe to be merged does not belong to this PipeGraph" << DEFAULT << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        assert((node->children).size() == 0); // redundant check
+        inputNodes.push_back(node);
+    }
+    // loop until inputNodes is empty
+    while (inputNodes.size() > 0) {
+        // pick one random node in inputNodes
+        std::random_device random_device;
+        std::mt19937 engine { random_device() };
+        std::uniform_int_distribution<int> dist(0, inputNodes.size() - 1);
+        AppNode *curr_node = inputNodes[dist(engine)];
+        // remove curr_node from inputNodes
+        inputNodes.erase(std::remove(inputNodes.begin(), inputNodes.end(), curr_node), inputNodes.end());
+        AppNode *lca = curr_node;
+        // loop in the sub-tree rooted at curr_node
+        while (curr_node->parent != root && inputNodes.size() > 0) {
+            // get all the others leaves of the sub-tree rooted at the parent
+            std::vector<AppNode *> leaves;
+            for (auto *brother: ((curr_node->parent)->children)) {
+                if (brother != curr_node) { // I am not my brother :)
+                    auto v = get_LeavesList(brother);
+                    leaves.insert(leaves.end(), v.begin(), v.end());
+                }
+            }
+            // check that every leaf is in inputNodes
+            for (auto *leaf: leaves) {
+                if (std::find(inputNodes.begin(), inputNodes.end(), leaf) == inputNodes.end()) { // if not present
+                    return false;
+                }
+            }
+            // remove all the leaves from inputNodes
+            for (auto *leaf: leaves) {
+                inputNodes.erase(std::remove(inputNodes.begin(), inputNodes.end(), leaf), inputNodes.end());
+            }
+            curr_node = curr_node->parent;
+            lca = curr_node;
+        }
+        // add the found lca to the _rightList
+        _rightList.push_back(lca);
+        // important check below
+        if (lca->parent != root && ((inputNodes.size() > 0) || (_rightList.size() > 1))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// implementation of the method to execute the split of the MultiPipe _mp
 std::vector<MultiPipe *> PipeGraph::execute_Split(MultiPipe *_mp)
 {
     // find _mp in the Application Tree
     AppNode *found = find_AppNode(root, _mp);
     if (found == nullptr) {
-        std::cerr << RED << "WindFlow Error: MultiPipe to be splitted does not belong to this PipeGraph" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe to be split does not belong to this PipeGraph" << DEFAULT << std::endl;
         exit(EXIT_FAILURE);
     }
-    assert((found->children).size() == 0); // the node must be a leaf
+    assert((found->children).size() == 0); // redundant check
     // prepare the MultiPipe _mp
     std::vector<MultiPipe *> splitMPs;
     std::vector<ff::ff_node *> normalization = _mp->normalize();
-    _mp->isSplitted = true; // be careful --> this statement after normalize() not before!
+    _mp->isSplit = true; // be careful --> this statement after normalize() not before!
     ff::ff_a2a *container = new ff::ff_a2a();
     container->add_firstset(normalization, 0, false);
     std::vector<ff::ff_node *> second_set;
     for (size_t i=0; i<_mp->splittingBranches; i++) {
         MultiPipe *split_mp = new MultiPipe(this);
+        split_mp->outputType = _mp->outputType;
         split_mp->has_source = true;
         split_mp->fromSplitting = true;
         split_mp->splittingParent = _mp;
@@ -540,71 +628,118 @@ std::vector<MultiPipe *> PipeGraph::execute_Split(MultiPipe *_mp)
 // implementation of the method to execute the merge of a set of MultiPipe instances _toBeMerged
 MultiPipe *PipeGraph::execute_Merge(std::vector<MultiPipe *> _toBeMerged)
 {
-    // Case 1: self-merge
-    if (_toBeMerged.size() == 1) {
-        MultiPipe *mp = _toBeMerged[0];
-        // find the MultiPipe instance to be self-merged in the Application Tree
-        AppNode *found = find_AppNode(root, mp);
-        if (found == nullptr) {
-            std::cerr << RED << "WindFlow Error: MultiPipe to be self-merged does not belong to this PipeGraph" << DEFAULT << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        // create the new MultiPipe, the result of the self-merge
-        auto normalization = mp->normalize();
-        mp->isMerged = true;
-        MultiPipe *mergedMP = new MultiPipe(this, normalization);
-        toBeDeteled.push_back(mergedMP);
-        // adjust the parent MultiPipe if it exists
-        if (mp->fromSplitting && mp->splittingParent != nullptr) {
-            MultiPipe *parent = mp->splittingParent;
-            for (size_t i=0; i<(parent->splittingChildren).size(); i++) {
-                if ((parent->splittingChildren)[i] == mp) {
-                    (parent->splittingChildren)[i] = mergedMP;
-                    break;
+    // get the right list of AppNode instances to be merged
+    std::vector<AppNode *> rightList;
+    if (get_MergedNodes(_toBeMerged, rightList)) {
+        if (rightList.size() == 1) { // Case 1: self-merge of a splitted MultiPipe
+            assert(rightList[0] != root); // redundant check
+            MultiPipe *mp = rightList[0]->mp;
+            // create the new MultiPipe, the result of the self-merge
+            auto normalization = mp->normalize();
+            mp->isMerged = true;
+            MultiPipe *mergedMP = new MultiPipe(this, normalization);
+            mergedMP->outputType = _toBeMerged[0]->outputType;
+            toBeDeteled.push_back(mergedMP);
+            // adjust the parent MultiPipe if it exists
+            if (mp->fromSplitting && mp->splittingParent != nullptr) {
+                MultiPipe *parentMP = mp->splittingParent;
+                for (size_t i=0; i<(parentMP->splittingChildren).size(); i++) {
+                    if ((parentMP->splittingChildren)[i] == mp) {
+                        (parentMP->splittingChildren)[i] = mergedMP;
+                        break;
+                    }
                 }
+                auto second_set = (parentMP->last)->getSecondSet();
+                std::vector<ff::ff_node *> new_second_set;
+                for (size_t i=0; i<second_set.size(); i++) {
+                    MultiPipe *mp2 = static_cast<MultiPipe *>(second_set[i]);
+                    if (mp2 == mp)
+                        new_second_set.push_back(mergedMP);
+                    else
+                        new_second_set.push_back(second_set[i]);
+                }
+                (parentMP->last)->change_secondset(new_second_set, false);
+                mergedMP->fromSplitting = true;
+                mergedMP->splittingParent = parentMP;
             }
-            auto second_set = (parent->last)->getSecondSet();
-            std::vector<ff::ff_node *> new_second_set;
-            for (size_t i=0; i<second_set.size(); i++) {
-                MultiPipe *mp2 = static_cast<MultiPipe *>(second_set[i]);
-                if (mp2 == mp)
-                    new_second_set.push_back(mergedMP);
+            // adjust the Application Tree
+            std::vector<AppNode *> children_new;
+            for (auto *brother: (rightList[0]->parent)->children) {
+                if (brother != rightList[0]) // I am not my brother :)
+                    children_new.push_back(brother);
                 else
-                    new_second_set.push_back(second_set[i]);
+                    children_new.push_back(new AppNode(mergedMP, rightList[0]->parent));
             }
-            (parent->last)->change_secondset(new_second_set, false);
-            mergedMP->fromSplitting = true;
-            mergedMP->splittingParent = mp->splittingParent;
+            (rightList[0]->parent)->children = children_new;
+            delete_AppNodes(rightList[0]);
+            return mergedMP;
         }
-        // adjust the Application Tree
-        std::vector<AppNode *> children_new;
-        for (auto *an: (found->parent)->children) {
-            if (an != found)
-                children_new.push_back(an);
+        else { // Case 2: merge of more than one MultiPipe instance
+            std::vector<MultiPipe *> rightMergedMPs;
+            // check that merged MultiPipe instances are sons of the root
+            for (auto *an: rightList) {
+                if (std::find((root->children).begin(), (root->children).end(), an) == (root->children).end()) { // redundant check
+                    std::cerr << RED << "WindFlow Error: the requested merge operation is not supported" << DEFAULT << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+                rightMergedMPs.push_back(an->mp);
+            }
+            // create the new MultiPipe, the result of the merge
+            std::vector<ff::ff_node *> normalization;
+            for (auto *mp: rightMergedMPs) {
+                auto v = mp->normalize();
+                mp->isMerged = true;
+                normalization.insert(normalization.end(), v.begin(), v.end());
+            }
+            MultiPipe *mergedMP = new MultiPipe(this, normalization);
+            mergedMP->outputType = _toBeMerged[0]->outputType;
+            toBeDeteled.push_back(mergedMP);
+            // adjust the Application Tree
+            std::vector<AppNode *> children_new;
+            for (auto *brother: root->children) {
+                if (std::find(rightList.begin(), rightList.end(), brother) == rightList.end())
+                    children_new.push_back(brother);
+            }
+            children_new.push_back(new AppNode(mergedMP, root));
+            root->children = children_new;
+            // delete the nodes
+            for (auto *an: rightList)
+                delete_AppNodes(an);
+            return mergedMP;
         }
-        children_new.push_back(new AppNode(mergedMP, found->parent));
-        (found->parent)->children = children_new;
-        delete_AppNodes(found);
-        return mergedMP;
     }
-    // Case 2: merge
     else {
-        // find the merged MultiPipe instances in the Application Tree
-        std::vector<AppNode *> appnodes;
+        // merge is still possible if all the MultiPipe instances are brothers
+        rightList.clear();
         for (auto *mp: _toBeMerged) {
-            // the corresponding AppNode instance must be a child of the root
-            AppNode *found = nullptr;
-            for (auto *an: root->children) {
-                if (an->mp == mp)
-                    found = an;
-            }
-            if (found == nullptr) {
-                std::cerr << RED << "WindFlow Error: MultiPipe to be merged does not belong to this PipeGraph" << DEFAULT << std::endl;
+            rightList.push_back(find_AppNode(root, mp));
+        }
+        std::vector<int> indexes;
+        AppNode *parent_node = rightList[0]->parent;
+        for (auto *node: rightList) {
+            if (node->parent != parent_node) {
+                std::cerr << RED << "WindFlow Error: the requested merge operation is not supported" << DEFAULT << std::endl;
                 exit(EXIT_FAILURE);
             }
-            appnodes.push_back(found);
+            // get the index of this child
+            indexes.push_back(std::distance((parent_node->children).begin(), std::find((parent_node->children).begin(), (parent_node->children).end(), node)));
         }
-        // create the new MultiPipe, the result of the merge
+        // check whether the leaves are adjacent
+        std::sort(indexes.begin(), indexes.end());
+        for (size_t i=0; i<indexes.size()-1; i++) {
+            if (indexes[i] + 1 != indexes[i+1]) {
+                std::cerr << RED << "WindFlow Error: sibling MultiPipes to be merged must be contiguous branches of the same MultiPipe" << DEFAULT << std::endl;
+                exit(EXIT_FAILURE);
+            }
+        }
+        // everything must be put in the right order
+        rightList.clear();
+        _toBeMerged.clear();
+        for (int idx: indexes) {
+            rightList.push_back((parent_node->children)[idx]);
+            _toBeMerged.push_back((parent_node->children)[idx]->mp);
+        }
+        // if we reach this point the merge is possible -> we create the new MultiPipe
         std::vector<ff::ff_node *> normalization;
         for (auto *mp: _toBeMerged) {
             auto v = mp->normalize();
@@ -612,18 +747,51 @@ MultiPipe *PipeGraph::execute_Merge(std::vector<MultiPipe *> _toBeMerged)
             normalization.insert(normalization.end(), v.begin(), v.end());
         }
         MultiPipe *mergedMP = new MultiPipe(this, normalization);
+        mergedMP->outputType = _toBeMerged[0]->outputType;
         toBeDeteled.push_back(mergedMP);
+        // adjust the parent MultiPipe
+        MultiPipe *parentMP = parent_node->mp;
+        assert(parentMP->isSplit); // redundant check
+        size_t new_branches = (parentMP->splittingChildren).size() - indexes.size() + 1;
+        std::vector<MultiPipe *> new_splittingChildren;
+        std::vector<ff::ff_node *> new_second_set;
+        auto second_set = (parentMP->last)->getSecondSet();
+        // the code below is to respect the original indexes
+        for (size_t i=0; i<(parentMP->splittingChildren).size(); i++) {
+            if (i < indexes[0]) {
+                new_splittingChildren.push_back((parentMP->splittingChildren)[i]);
+                new_second_set.push_back(second_set[i]);
+            }
+            else if (i == indexes[0]) {
+                new_splittingChildren.push_back(mergedMP);
+                new_second_set.push_back(mergedMP);
+            }
+            else if (i > indexes[indexes.size()-1]) {
+                new_splittingChildren.push_back((parentMP->splittingChildren)[i]);
+                new_second_set.push_back(second_set[i]);
+            }
+        }
+        assert(new_splittingChildren.size () == new_branches); // redundant check
+        parentMP->splittingBranches = new_branches;
+        parentMP->splittingChildren = new_splittingChildren;
+        (parentMP->last)->change_secondset(new_second_set, false);
+        mergedMP->fromSplitting = true;
+        mergedMP->splittingParent = parentMP;
         // adjust the Application Tree
         std::vector<AppNode *> children_new;
-        for (auto *an: root->children) {
-            if (std::find(appnodes.begin(), appnodes.end(), an) == appnodes.end())
-                children_new.push_back(an);
+        bool done = false;
+        for (auto *brother: parent_node->children) {
+            if (std::find(rightList.begin(), rightList.end(), brother) == rightList.end())
+                children_new.push_back(brother);
+            else if (!done) {
+               children_new.push_back(new AppNode(mergedMP, parent_node));
+               done = true;
+            }
         }
-        children_new.push_back(new AppNode(mergedMP, root));
-        root->children = children_new;
-        // delete the nodes
-        for (auto *an: appnodes)
+        parent_node->children = children_new;
+        for (auto *an: rightList) {
             delete_AppNodes(an);
+        }
         return mergedMP;
     }
 }
@@ -647,6 +815,7 @@ int PipeGraph::run()
 	if ((root->children).size() == 0) {
 		std::cerr << RED << "WindFlow Error: PipeGraph [" << name << "] is empty, nothing to run" << DEFAULT << std::endl;
 		exit(EXIT_FAILURE);
+        return EXIT_FAILURE; // useless
 	}
 	else {
 		// count number of threads
@@ -661,8 +830,9 @@ int PipeGraph::run()
 			status |= (an->mp)->wait();
 		if (status == 0)
 			std::cout << GREEN << "WindFlow Status Message: PipeGraph [" << name << "] executed successfully" << DEFAULT << std::endl;
-		else
-			std::cerr << RED << "WindFlow Error: PipeGraph [" << name << "] execution problems found" << DEFAULT << std::endl;
+		//else
+			//std::cerr << RED << "WindFlow Error: PipeGraph [" << name << "] execution problems found" << DEFAULT << std::endl;
+        return 0;
 	}
 }
 
@@ -706,12 +876,15 @@ MultiPipe &MultiPipe::add_source(Source<tuple_t> &_source)
     last = matrioska;
     // save parallelism of the operator
     lastParallelism = workers.size();
+    // save the output type from this MultiPipe
+    tuple_t t;
+    outputType = typeid(t).name();
     return *this;
 }
 
 // implementation of the method to add an operator to the MultiPipe
 template<typename emitter_t, typename collector_t>
-void MultiPipe::add_operator(ff::ff_farm *_pattern, routing_types_t _type, ordering_mode_t _ordering)
+void MultiPipe::add_operator(ff::ff_farm *_op, routing_types_t _type, ordering_mode_t _ordering)
 {
     // check the Source presence
     if (!has_source) {
@@ -728,9 +901,9 @@ void MultiPipe::add_operator(ff::ff_farm *_pattern, routing_types_t _type, order
         std::cerr << RED << "WindFlow Error: MultiPipe has been merged, operator cannot be added" << DEFAULT << std::endl;
         exit(EXIT_FAILURE);
     }
-    // splitted MultiPipe cannot be modified
-    if (isSplitted) {
-        std::cerr << RED << "WindFlow Error: MultiPipe has been splitted, operator cannot be added" << DEFAULT << std::endl;
+    // split MultiPipe cannot be modified
+    if (isSplit) {
+        std::cerr << RED << "WindFlow Error: MultiPipe has been split, operator cannot be added" << DEFAULT << std::endl;
         exit(EXIT_FAILURE);
     }
     // Case 1: first operator added after splitting
@@ -738,7 +911,7 @@ void MultiPipe::add_operator(ff::ff_farm *_pattern, routing_types_t _type, order
         // create the initial matrioska
         ff::ff_a2a *matrioska = new ff::ff_a2a();
         std::vector<ff::ff_node *> first_set;
-        auto workers = _pattern->getWorkers();
+        auto workers = _op->getWorkers();
         for (size_t i=0; i<workers.size(); i++) {
             ff::ff_pipeline *stage = new ff::ff_pipeline();
             stage->add_stage(workers[i], false);
@@ -756,43 +929,45 @@ void MultiPipe::add_operator(ff::ff_farm *_pattern, routing_types_t _type, order
         // save parallelism of the operator
         lastParallelism = workers.size();
         // save what is needed for splitting with the parent MultiPipe
-        Basic_Emitter *be = static_cast<Basic_Emitter *>(_pattern->getEmitter());
-        assert(splittingParent != nullptr);
+        Basic_Emitter *be = static_cast<Basic_Emitter *>(_op->getEmitter());
+        assert(splittingParent != nullptr); // redundant check
         splittingParent->prepareSplittingEmitters(be);
         return;
     }
     size_t n1 = (last->getFirstSet()).size();
-    size_t n2 = (_pattern->getWorkers()).size();
+    size_t n2 = (_op->getWorkers()).size();
     // Case 2: direct connection
     if ((n1 == n2) && _type == SIMPLE && !forceShuffling) {
         auto first_set = last->getFirstSet();
-        auto worker_set = _pattern->getWorkers();
-        // add the pattern's workers to the pipelines in the first set of the matrioska
+        auto worker_set = _op->getWorkers();
+        // add the operator's workers to the pipelines in the first set of the matrioska
         for (size_t i=0; i<n1; i++) {
             ff::ff_pipeline *stage = static_cast<ff::ff_pipeline *>(first_set[i]);
             stage->add_stage(worker_set[i], false);
         }
     }
-    // Case 3: shuffling connection
+    // Case 3: shuffle connection
     else {
         // prepare the nodes of the first_set of the last matrioska for the shuffling
         auto first_set_m = last->getFirstSet();
         for (size_t i=0; i<n1; i++) {
             ff::ff_pipeline *stage = static_cast<ff::ff_pipeline *>(first_set_m[i]);
-            emitter_t *tmp_e = static_cast<emitter_t *>(_pattern->getEmitter());
+            emitter_t *tmp_e = static_cast<emitter_t *>(_op->getEmitter());
             combine_with_laststage(*stage, new emitter_t(*tmp_e), true);
         }
         // create a new matrioska
         ff::ff_a2a *matrioska = new ff::ff_a2a();
         std::vector<ff::ff_node *> first_set;
-        auto worker_set = _pattern->getWorkers();
+        auto worker_set = _op->getWorkers();
         for (size_t i=0; i<n2; i++) {
             ff::ff_pipeline *stage = new ff::ff_pipeline();
             stage->add_stage(worker_set[i], false);
-            if (lastParallelism != 1 || forceShuffling || _ordering == ID || _ordering == TS_RENUMBERING)
+            if (lastParallelism != 1 || forceShuffling || _ordering == ID || _ordering == TS_RENUMBERING) {
                 combine_with_firststage(*stage, new collector_t(_ordering), true);
-            else // we avoid the ordering node when possible
+            }
+            else { // we avoid the ordering node when possible
                 combine_with_firststage(*stage, new dummy_mi(), true);
+            }
             first_set.push_back(stage);
         }
         matrioska->add_firstset(first_set, 0, true);
@@ -816,7 +991,7 @@ void MultiPipe::add_operator(ff::ff_farm *_pattern, routing_types_t _type, order
 
 // implementation of the method to chain an operator with the previous one in the MultiPipe
 template<typename worker_t>
-bool MultiPipe::chain_operator(ff::ff_farm *_pattern)
+bool MultiPipe::chain_operator(ff::ff_farm *_op)
 {
     // check the Source presence
     if (!has_source) {
@@ -833,21 +1008,21 @@ bool MultiPipe::chain_operator(ff::ff_farm *_pattern)
         std::cerr << RED << "WindFlow Error: MultiPipe has been merged, operator cannot be chained" << DEFAULT << std::endl;
         exit(EXIT_FAILURE);
     }
-    // splitted MultiPipe cannot be modified
-    if (isSplitted) {
-        std::cerr << RED << "WindFlow Error: MultiPipe has been splitted, operator cannot be chained" << DEFAULT << std::endl;
+    // split MultiPipe cannot be modified
+    if (isSplit) {
+        std::cerr << RED << "WindFlow Error: MultiPipe has been split, operator cannot be chained" << DEFAULT << std::endl;
         exit(EXIT_FAILURE);
     }
     // corner case -> first operator added to a MultiPipe after splitting (chain cannot work, add instead)
     if (fromSplitting && last == nullptr)
         return false;
     size_t n1 = (last->getFirstSet()).size();
-    size_t n2 = (_pattern->getWorkers()).size();
-    // _pattern is for sure SIMPLE: check additional conditions for chaining
+    size_t n2 = (_op->getWorkers()).size();
+    // _op is for sure SIMPLE: check additional conditions for chaining
     if ((n1 == n2) && (!forceShuffling)) {
         auto first_set = (last)->getFirstSet();
-        auto worker_set = _pattern->getWorkers();
-        // chaining the pattern's workers with the last node of each pipeline in the first set of the matrioska
+        auto worker_set = _op->getWorkers();
+        // chaining the operator's workers with the last node of each pipeline in the first set of the matrioska
         for (size_t i=0; i<n1; i++) {
             ff::ff_pipeline *stage = static_cast<ff::ff_pipeline *>(first_set[i]);
             worker_t *worker = static_cast<worker_t *>(worker_set[i]);
@@ -866,29 +1041,29 @@ std::vector<ff::ff_node *> MultiPipe::normalize()
 {
     // check the Source presence
     if (!has_source) {
-        std::cerr << RED << "WindFlow Error: MultiPipe does not have a Source, it cannot be merged/splitted" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe does not have a Source, it cannot be merged/split" << DEFAULT << std::endl;
         exit(EXIT_FAILURE);
     }
     // check the Sink presence
     if (has_sink) {
-        std::cerr << RED << "WindFlow Error: MultiPipe is terminated by a Sink, it cannot be merged/splitted" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe is terminated by a Sink, it cannot be merged/split" << DEFAULT << std::endl;
         exit(EXIT_FAILURE);
     }
     // empty MultiPipe cannot be normalized (only for splitting in this case)
     if (last == nullptr) {
-        std::cerr << RED << "WindFlow Error: MultiPipe is empty, it cannot be splitted" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe is empty, it cannot be split" << DEFAULT << std::endl;
         exit(EXIT_FAILURE);
     }
     std::vector<ff::ff_node *> result;
-    // Case 1: the MultiPipe has not been splitted
-    if (!isSplitted) {
-        // Case 1.1 (only case in which the MultiPipe this is not modified)
+    // Case 1: the MultiPipe has not been split
+    if (!isSplit) {
+        // Case 1.1 (only one Matrioska)
         if (secondToLast == nullptr) {
             auto first_set = last->getFirstSet();
             for (size_t i=0; i<first_set.size(); i++)
                 result.push_back(first_set[i]);
         }
-        // Case 1.2
+        // Case 1.2 (at least two nested Matrioska)
         else {
             last->cleanup_firstset(false);
             auto first_set_last = last->getFirstSet();
@@ -899,12 +1074,12 @@ std::vector<ff::ff_node *> MultiPipe::normalize()
             delete last;
             last = secondToLast;
             secondToLast = nullptr;
-            ff::ff_pipeline *p = new ff::ff_pipeline(); // <-- Memory leak?
+            ff::ff_pipeline *p = new ff::ff_pipeline(); // <-- Memory leak!
             p->add_stage((this->getStages())[0], false);
             result.push_back(p);
         }
     }
-    // Case 2: the MultiPipe has been splitted
+    // Case 2: the MultiPipe has been split
     else {
         std::vector<ff::ff_node *> normalized;
         auto second_set = last->getSecondSet();
@@ -916,7 +1091,7 @@ std::vector<ff::ff_node *> MultiPipe::normalize()
             normalized.insert(normalized.end(), v.begin(), v.end());
         }
         last->change_secondset(normalized, false);
-        ff::ff_pipeline *p = new ff::ff_pipeline(); // <-- Memory leak?
+        ff::ff_pipeline *p = new ff::ff_pipeline(); // <-- Memory leak
         p->add_stage(last, false);
         result.push_back(p);
     }
@@ -938,9 +1113,9 @@ std::vector<MultiPipe *> MultiPipe::prepareMergeSet(MULTIPIPE &_pipe)
         std::cerr << RED << "WindFlow Error: MultiPipe has been already merged" << DEFAULT << std::endl;
         exit(EXIT_FAILURE);
     }
-    // check whether the MultiPipe originates from a split (the parent must be self-merged before)
-    if (_pipe.fromSplitting) {
-        std::cerr << RED << "WindFlow Error: MultiPipe cannot be merged, its parent must be self-merged before" << DEFAULT << std::endl;
+    // check whether the MultiPipe has been split
+    if (_pipe.isSplit) {
+        std::cerr << RED << "WindFlow Error: MultiPipe has been split and cannot be merged" << DEFAULT << std::endl;
         exit(EXIT_FAILURE);
     }
     std::vector<MultiPipe *> output;
@@ -957,9 +1132,9 @@ std::vector<MultiPipe *> MultiPipe::prepareMergeSet(MULTIPIPE &_first, MULTIPIPE
         std::cerr << RED << "WindFlow Error: MultiPipe has been already merged" << DEFAULT << std::endl;
         exit(EXIT_FAILURE);
     }
-    // check whether the MultiPipe originates from a split (the parent must be self-merged before)
-    if (_first.fromSplitting) {
-        std::cerr << RED << "WindFlow Error: MultiPipe cannot be merged, its parent must be self-merged before" << DEFAULT << std::endl;
+    // check whether the MultiPipe has been split
+    if (_first.isSplit) {
+        std::cerr << RED << "WindFlow Error: MultiPipe has been split and cannot be merged" << DEFAULT << std::endl;
         exit(EXIT_FAILURE);
     }
     std::vector<MultiPipe *> output;
@@ -972,7 +1147,7 @@ std::vector<MultiPipe *> MultiPipe::prepareMergeSet(MULTIPIPE &_first, MULTIPIPE
 // implementation of the prepareSplittingEmitters method
 void MultiPipe::prepareSplittingEmitters(Basic_Emitter *_e)
 {
-    assert(isSplitted);
+    assert(isSplit); // redundant check
     splittingEmitterLeaves.push_back(_e->clone());
     // check whether all the emitters are ready
     if (splittingEmitterLeaves.size() == splittingBranches) {
@@ -993,8 +1168,10 @@ int MultiPipe::run()
     if (!isRunnable()) {
         std::cerr << RED << "WindFlow Error: MultiPipe is not runnable" << DEFAULT << std::endl;
         exit(EXIT_FAILURE);
+        return EXIT_FAILURE; // useless
     }
-    return ff::ff_pipeline::run();
+    else
+        return ff::ff_pipeline::run();
 }
 
 // implementation of the wait method
@@ -1003,8 +1180,10 @@ int MultiPipe::wait()
     if (!isRunnable()) {
         std::cerr << RED << "WindFlow Error: MultiPipe is not runnable" << DEFAULT << std::endl;
         exit(EXIT_FAILURE);
+        return EXIT_FAILURE; // useless
     }
-    return ff::ff_pipeline::wait();
+    else
+        return ff::ff_pipeline::wait();
 }
 
 // implementation of the run_and_wait_end method
@@ -1013,16 +1192,27 @@ int MultiPipe::run_and_wait_end()
     if (!isRunnable()) {
         std::cerr << RED << "WindFlow Error: MultiPipe is not runnable" << DEFAULT << std::endl;
         exit(EXIT_FAILURE);
+        return EXIT_FAILURE; // useless
     }
-    return ff::ff_pipeline::run_and_wait_end();
+    else
+        return ff::ff_pipeline::run_and_wait_end();
 }
 
 // implementation of the method to add a Filter to the MultiPipe
 template<typename tuple_t>
 MultiPipe &MultiPipe::add(Filter<tuple_t> &_filter)
 {
+    // check the type compatibility
+    tuple_t t;
+    std::string opInType = typeid(t).name();
+    if (!outputType.empty() && outputType.compare(opInType) != 0) {
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Filter operator" << DEFAULT << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // call the generic method to add the operator to the MultiPipe
     add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t, tuple_t>>(&_filter, _filter.isKeyed() ? COMPLEX : SIMPLE, TS);
+    // save the new output type from this MultiPipe
+    outputType = opInType;
 	return *this;
 }
 
@@ -1030,6 +1220,13 @@ MultiPipe &MultiPipe::add(Filter<tuple_t> &_filter)
 template<typename tuple_t>
 MultiPipe &MultiPipe::chain(Filter<tuple_t> &_filter)
 {
+    // check the type compatibility
+    tuple_t t;
+    std::string opInType = typeid(t).name();
+    if (!outputType.empty() && outputType.compare(opInType) != 0) {
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Filter operator" << DEFAULT << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // try to chain the operator with the MultiPipe
     if (!_filter.isKeyed()) {
         bool chained = chain_operator<typename Filter<tuple_t>::Filter_Node>(&_filter);
@@ -1038,6 +1235,8 @@ MultiPipe &MultiPipe::chain(Filter<tuple_t> &_filter)
     }
     else
         add(_filter);
+    // save the new output type from this MultiPipe
+    outputType = opInType;
     return *this;
 }
 
@@ -1045,8 +1244,18 @@ MultiPipe &MultiPipe::chain(Filter<tuple_t> &_filter)
 template<typename tuple_t, typename result_t>
 MultiPipe &MultiPipe::add(Map<tuple_t, result_t> &_map)
 {
+    // check the type compatibility
+    tuple_t t;
+    std::string opInType = typeid(t).name();
+    if (!outputType.empty() && outputType.compare(opInType) != 0) {
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Map operator" << DEFAULT << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // call the generic method to add the operator to the MultiPipe
     add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t, tuple_t>>(&_map, _map.isKeyed() ? COMPLEX : SIMPLE, TS);
+    // save the new output type from this MultiPipe
+    result_t r;
+    outputType = typeid(r).name();
 	return *this;
 }
 
@@ -1054,6 +1263,13 @@ MultiPipe &MultiPipe::add(Map<tuple_t, result_t> &_map)
 template<typename tuple_t, typename result_t>
 MultiPipe &MultiPipe::chain(Map<tuple_t, result_t> &_map)
 {
+    // check the type compatibility
+    tuple_t t;
+    std::string opInType = typeid(t).name();
+    if (!outputType.empty() && outputType.compare(opInType) != 0) {
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Map operator" << DEFAULT << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // try to chain the operator with the MultiPipe
     if (!_map.isKeyed()) {
         bool chained = chain_operator<typename Map<tuple_t, result_t>::Map_Node>(&_map);
@@ -1062,6 +1278,9 @@ MultiPipe &MultiPipe::chain(Map<tuple_t, result_t> &_map)
     }
     else
         add(_map);
+    // save the new output type from this MultiPipe
+    result_t r;
+    outputType = typeid(r).name();
     return *this;
 }
 
@@ -1069,8 +1288,18 @@ MultiPipe &MultiPipe::chain(Map<tuple_t, result_t> &_map)
 template<typename tuple_t, typename result_t>
 MultiPipe &MultiPipe::add(FlatMap<tuple_t, result_t> &_flatmap)
 {
+    // check the type compatibility
+    tuple_t t;
+    std::string opInType = typeid(t).name();
+    if (!outputType.empty() && outputType.compare(opInType) != 0) {
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the FlatMap operator" << DEFAULT << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // call the generic method to add the operator
     add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t, tuple_t>>(&_flatmap, _flatmap.isKeyed() ? COMPLEX : SIMPLE, TS);
+    // save the new output type from this MultiPipe
+    result_t r;
+    outputType = typeid(r).name();
 	return *this;
 }
 
@@ -1078,6 +1307,13 @@ MultiPipe &MultiPipe::add(FlatMap<tuple_t, result_t> &_flatmap)
 template<typename tuple_t, typename result_t>
 MultiPipe &MultiPipe::chain(FlatMap<tuple_t, result_t> &_flatmap)
 {
+    // check the type compatibility
+    tuple_t t;
+    std::string opInType = typeid(t).name();
+    if (!outputType.empty() && outputType.compare(opInType) != 0) {
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the FlatMap operator" << DEFAULT << std::endl;
+        exit(EXIT_FAILURE);
+    }
     if (!_flatmap.isKeyed()) {
         bool chained = chain_operator<typename FlatMap<tuple_t, result_t>::FlatMap_Node>(&_flatmap);
         if (!chained)
@@ -1085,6 +1321,9 @@ MultiPipe &MultiPipe::chain(FlatMap<tuple_t, result_t> &_flatmap)
     }
     else
         add(_flatmap);
+    // save the new output type from this MultiPipe
+    result_t r;
+    outputType = typeid(r).name();
     return *this;
 }
 
@@ -1092,8 +1331,18 @@ MultiPipe &MultiPipe::chain(FlatMap<tuple_t, result_t> &_flatmap)
 template<typename tuple_t, typename result_t>
 MultiPipe &MultiPipe::add(Accumulator<tuple_t, result_t> &_acc)
 {
+    // check the type compatibility
+    tuple_t t;
+    std::string opInType = typeid(t).name();
+    if (!outputType.empty() && outputType.compare(opInType) != 0) {
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Accumulator operator" << DEFAULT << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // call the generic method to add the operator to the MultiPipe
     add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t, tuple_t>>(&_acc, COMPLEX, TS);
+    // save the new output type from this MultiPipe
+    result_t r;
+    outputType = typeid(r).name();
     return *this;
 }
 
@@ -1101,6 +1350,13 @@ MultiPipe &MultiPipe::add(Accumulator<tuple_t, result_t> &_acc)
 template<typename tuple_t, typename result_t>
 MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
 {
+    // check the type compatibility
+    tuple_t t;
+    std::string opInType = typeid(t).name();
+    if (!outputType.empty() && outputType.compare(opInType) != 0) {
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Win_Farm operator" << DEFAULT << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check whether the Win_Farm has complex parallel replicas inside
     if (_wf.useComplexNesting()) {
         // check whether internal replicas have been prepared for nesting
@@ -1176,6 +1432,9 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
             add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);   
         }
     }
+    // save the new output type from this MultiPipe
+    result_t r;
+    outputType = typeid(r).name();
     return *this;
 }
 
@@ -1183,6 +1442,13 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
 template<typename tuple_t, typename result_t, typename F_t>
 MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
 {
+    // check the type compatibility
+    tuple_t t;
+    std::string opInType = typeid(t).name();
+    if (!outputType.empty() && outputType.compare(opInType) != 0) {
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Win_Farm_GPU operator" << DEFAULT << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check whether the Win_Farm_GPU has complex parallel replicas inside
     if (_wf.useComplexNesting()) {
         // check whether internal replicas have been prepared for nesting
@@ -1258,6 +1524,9 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
             add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING); 
         }
     }
+    // save the new output type from this MultiPipe
+    result_t r;
+    outputType = typeid(r).name();
     return *this;
 }
 
@@ -1265,6 +1534,13 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
 template<typename tuple_t, typename result_t>
 MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
 {
+    // check the type compatibility
+    tuple_t t;
+    std::string opInType = typeid(t).name();
+    if (!outputType.empty() && outputType.compare(opInType) != 0) {
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Key_Farm operator" << DEFAULT << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check whether the Key_Farm has complex parallel replicas inside
     if (_kf.useComplexNesting()) {
         // check whether internal replicas have been prepared for nesting
@@ -1343,6 +1619,9 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
         // call the generic method to add the operator to the MultiPipe
         add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, (_kf.getWinType() == TB) ? TS : TS_RENUMBERING);
     }
+    // save the new output type from this MultiPipe
+    result_t r;
+    outputType = typeid(r).name();
     return *this;
 }
 
@@ -1350,6 +1629,13 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
 template<typename tuple_t, typename result_t, typename F_t>
 MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
 {
+    // check the type compatibility
+    tuple_t t;
+    std::string opInType = typeid(t).name();
+    if (!outputType.empty() && outputType.compare(opInType) != 0) {
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Key_Farm_GPU operator" << DEFAULT << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check whether the Key_Farm_GPU has complex parallel replicas inside
     if (_kf.useComplexNesting()) {
         // check whether internal replicas have been prepared for nesting
@@ -1428,6 +1714,9 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
         // call the generic method to add the operator to the MultiPipe
         add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, (_kf.getWinType() == TB) ? TS : TS_RENUMBERING);
     }
+    // save the new output type from this MultiPipe
+    result_t r;
+    outputType = typeid(r).name();
     return *this;
 }
 
@@ -1435,6 +1724,13 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
 template<typename tuple_t, typename result_t>
 MultiPipe &MultiPipe::add(Pane_Farm<tuple_t, result_t> &_pf)
 {
+    // check the type compatibility
+    tuple_t t;
+    std::string opInType = typeid(t).name();
+    if (!outputType.empty() && outputType.compare(opInType) != 0) {
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Pane_Farm operator" << DEFAULT << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check whether the Pane_Farm has been prepared to be nested
     if (_pf.getOptLevel() != LEVEL0) {
         std::cerr << RED << "WindFlow Error: Pane_Farm has been prepared for nesting, it cannot be added directly to a MultiPipe" << DEFAULT << std::endl;
@@ -1492,6 +1788,9 @@ MultiPipe &MultiPipe::add(Pane_Farm<tuple_t, result_t> &_pf)
         // call the generic method to add the operator (WLQ stage) to the MultiPipe
         add_operator<WF_Emitter<result_t>, Ordering_Node<result_t, wrapper_tuple_t<result_t>>>(wlq, COMPLEX, ID);
     }
+    // save the new output type from this MultiPipe
+    result_t r;
+    outputType = typeid(r).name();
     return *this;
 }
 
@@ -1499,6 +1798,13 @@ MultiPipe &MultiPipe::add(Pane_Farm<tuple_t, result_t> &_pf)
 template<typename tuple_t, typename result_t, typename F_t>
 MultiPipe &MultiPipe::add(Pane_Farm_GPU<tuple_t, result_t, F_t> &_pf)
 {
+    // check the type compatibility
+    tuple_t t;
+    std::string opInType = typeid(t).name();
+    if (!outputType.empty() && outputType.compare(opInType) != 0) {
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Pane_Farm_GPU operator" << DEFAULT << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check whether the Pane_Farm_GPU has been prepared to be nested
     if (_pf.getOptLevel() != LEVEL0) {
         std::cerr << RED << "WindFlow Error: Pane_Farm_GPU has been prepared for nesting, it cannot be added directly to a MultiPipe" << DEFAULT << std::endl;
@@ -1556,6 +1862,9 @@ MultiPipe &MultiPipe::add(Pane_Farm_GPU<tuple_t, result_t, F_t> &_pf)
         // call the generic method to add the operator (WLQ stage) to the MultiPipe
         add_operator<WF_Emitter<result_t>, Ordering_Node<result_t, wrapper_tuple_t<result_t>>>(wlq, COMPLEX, ID);
     }
+    // save the new output type from this MultiPipe
+    result_t r;
+    outputType = typeid(r).name();
     return *this;
 }
 
@@ -1563,6 +1872,13 @@ MultiPipe &MultiPipe::add(Pane_Farm_GPU<tuple_t, result_t, F_t> &_pf)
 template<typename tuple_t, typename result_t>
 MultiPipe &MultiPipe::add(Win_MapReduce<tuple_t, result_t> &_wmr)
 {
+    // check the type compatibility
+    tuple_t t;
+    std::string opInType = typeid(t).name();
+    if (!outputType.empty() && outputType.compare(opInType) != 0) {
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Win_MapReduce operator" << DEFAULT << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check whether the Win_MapReduce has been prepared to be nested
     if (_wmr.getOptLevel() != LEVEL0) {
         std::cerr << RED << "WindFlow Error: Win_MapReduce has been prepared for nesting, it cannot be added directly to a MultiPipe" << DEFAULT << std::endl;
@@ -1617,6 +1933,9 @@ MultiPipe &MultiPipe::add(Win_MapReduce<tuple_t, result_t> &_wmr)
         // call the generic method to add the operator (REDUCE stage) to the MultiPipe
         add_operator<WF_Emitter<result_t>, Ordering_Node<result_t, wrapper_tuple_t<result_t>>>(reduce, COMPLEX, ID);
     }
+    // save the new output type from this MultiPipe
+    result_t r;
+    outputType = typeid(r).name();
     return *this;
 }
 
@@ -1624,6 +1943,13 @@ MultiPipe &MultiPipe::add(Win_MapReduce<tuple_t, result_t> &_wmr)
 template<typename tuple_t, typename result_t, typename F_t>
 MultiPipe &MultiPipe::add(Win_MapReduce_GPU<tuple_t, result_t, F_t> &_wmr)
 {
+    // check the type compatibility
+    tuple_t t;
+    std::string opInType = typeid(t).name();
+    if (!outputType.empty() && outputType.compare(opInType) != 0) {
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Win_MapReduce_GPU operator" << DEFAULT << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check whether the Win_MapReduce_GPU has been prepared to be nested
     if (_wmr.getOptLevel() != LEVEL0) {
         std::cerr << RED << "WindFlow Error: Win_MapReduce_GPU has been prepared for nesting, it cannot be added directly to a MultiPipe" << DEFAULT << std::endl;
@@ -1678,6 +2004,9 @@ MultiPipe &MultiPipe::add(Win_MapReduce_GPU<tuple_t, result_t, F_t> &_wmr)
         // call the generic method to add the operator (REDUCE stage) to the MultiPipe
         add_operator<WF_Emitter<result_t>, Ordering_Node<result_t, wrapper_tuple_t<result_t>>>(reduce, COMPLEX, ID);
     }
+    // save the new output type from this MultiPipe
+    result_t r;
+    outputType = typeid(r).name();
     return *this;
 }
 
@@ -1685,9 +2014,18 @@ MultiPipe &MultiPipe::add(Win_MapReduce_GPU<tuple_t, result_t, F_t> &_wmr)
 template<typename tuple_t>
 MultiPipe &MultiPipe::add_sink(Sink<tuple_t> &_sink)
 {
+    // check the type compatibility
+    tuple_t t;
+    std::string opInType = typeid(t).name();
+    if (!outputType.empty() && outputType.compare(opInType) != 0) {
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Sink operator" << DEFAULT << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // call the generic method to add the operator to the MultiPipe
     add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t, tuple_t>>(&_sink, _sink.isKeyed() ? COMPLEX : SIMPLE, TS);
 	has_sink = true;
+    // save the new output type from this MultiPipe
+    outputType = opInType;
 	return *this;
 }
 
@@ -1695,6 +2033,13 @@ MultiPipe &MultiPipe::add_sink(Sink<tuple_t> &_sink)
 template<typename tuple_t>
 MultiPipe &MultiPipe::chain_sink(Sink<tuple_t> &_sink)
 {
+    // check the type compatibility
+    tuple_t t;
+    std::string opInType = typeid(t).name();
+    if (!outputType.empty() &&outputType.compare(opInType) != 0) {
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Sink operator" << DEFAULT << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // try to chain the Sink with the MultiPipe
     if (!_sink.isKeyed()) {
         bool chained = chain_operator<typename Sink<tuple_t>::Sink_Node>(&_sink);
@@ -1704,35 +2049,21 @@ MultiPipe &MultiPipe::chain_sink(Sink<tuple_t> &_sink)
     else
         return add_sink(_sink);
     has_sink = true;
+    // save the new output type from this MultiPipe
+    outputType = opInType;
     return *this;
 }
 
-// implementation of the method to merge all the internal splitted MultiPipe instances of this
-MultiPipe &MultiPipe::self_merge()
-{
-    // check whether the MultiPipe has been already merged
-    if (isMerged) {
-        std::cerr << RED << "WindFlow Error: MultiPipe has been already merged" << DEFAULT << std::endl;
-        exit(EXIT_FAILURE);
-    }
-    // check whether the MultiPipe has been splitted
-    if (!isSplitted) {
-        std::cerr << RED << "WindFlow Error: to be self-merged a MultiPipe must have been splitted before" << DEFAULT << std::endl;
-        exit(EXIT_FAILURE);
-    }
-    std::vector<MultiPipe *> mergeSet;
-    mergeSet.push_back(this);
-    // execute the merge through the PipeGraph
-    MultiPipe *mergedMP = graph->execute_Merge(mergeSet);
-    return *mergedMP;
-}
-
-// implementation of the method to merge this with a set of independent MultiPipe instances _pipes
+// implementation of the method to merge this with a set of MultiPipe instances _pipes
 template<typename ...MULTIPIPES>
 MultiPipe &MultiPipe::merge(MULTIPIPES&... _pipes)
 {
     auto mergeSet = prepareMergeSet(*this, _pipes...);
-    assert(mergeSet.size() > 1);
+    // at least two MultiPipe instances can be merged
+    if (mergeSet.size() < 2) {
+        std::cerr << RED << "WindFlow Error: merge must be applied to at least two MultiPipe instances" << DEFAULT << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check duplicates
     std::map<MultiPipe *, int> counters;
     for (auto *mp: mergeSet) {
@@ -1743,6 +2074,14 @@ MultiPipe &MultiPipe::merge(MULTIPIPES&... _pipes)
             exit(EXIT_FAILURE);
         }
     }
+    // check that all the MultiPipe instances to be merged have the same output type
+    std::string outT = mergeSet[0]->outputType;
+    for (auto *mp: mergeSet) {
+        if (outT.compare(mp->outputType) != 0) {
+            std::cerr << RED << "WindFlow Error: MultiPipe instances to be merged must have the same output type" << DEFAULT << std::endl;
+            exit(EXIT_FAILURE);
+        }
+    }
     // execute the merge through the PipeGraph
     MultiPipe *mergedMP = graph->execute_Merge(mergeSet);
     return *mergedMP;
@@ -1750,16 +2089,16 @@ MultiPipe &MultiPipe::merge(MULTIPIPES&... _pipes)
 
 // implementation of the method to split this into several MultiPipe instances
 template<typename F_t>
-void MultiPipe::split(F_t _splitting_func, size_t _cardinality)
+MultiPipe &MultiPipe::split(F_t _splitting_func, size_t _cardinality)
 {
     // check whether the MultiPipe has been merged
     if (isMerged) {
-        std::cerr << RED << "WindFlow Error: MultiPipe has been merged and cannot be splitted" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe has been merged and cannot be split" << DEFAULT << std::endl;
         exit(EXIT_FAILURE);
     }
-    // check whether the MultiPipe has been already splitted
-    if (isSplitted) {
-        std::cerr << RED << "WindFlow Error: MultiPipe has been already splitted" << DEFAULT << std::endl;
+    // check whether the MultiPipe has been already split
+    if (isSplit) {
+        std::cerr << RED << "WindFlow Error: MultiPipe has been already split" << DEFAULT << std::endl;
         exit(EXIT_FAILURE);
     }
     // prepare the splitting of this
@@ -1767,9 +2106,10 @@ void MultiPipe::split(F_t _splitting_func, size_t _cardinality)
     splittingEmitterRoot = new Splitting_Emitter<decltype(get_tuple_split_t(_splitting_func))>(_splitting_func, _cardinality);
     // execute the merge through the PipeGraph
     splittingChildren = graph->execute_Split(this);
+    return *this;
 }
 
-// implementation of the method to get the MultiPipe with index _idx from this (this must have been splitted before)
+// implementation of the method to get the MultiPipe with index _idx from this (this must have been split before)
 MultiPipe &MultiPipe::select(size_t _idx) const
 {
     // check whether the MultiPipe has been merged
@@ -1777,8 +2117,8 @@ MultiPipe &MultiPipe::select(size_t _idx) const
         std::cerr << RED << "WindFlow Error: MultiPipe has been merged, select() cannot be executed" << DEFAULT << std::endl;
         exit(EXIT_FAILURE);
     }
-    if (!isSplitted) {
-        std::cerr << RED << "WindFlow Error: MultiPipe has not been splitted, select() cannot be executed" << DEFAULT << std::endl;
+    if (!isSplit) {
+        std::cerr << RED << "WindFlow Error: MultiPipe has not been split, select() cannot be executed" << DEFAULT << std::endl;
         exit(EXIT_FAILURE);
     }
     if (_idx >= splittingChildren.size()) {
@@ -1791,7 +2131,7 @@ MultiPipe &MultiPipe::select(size_t _idx) const
 // implementation of the method to check whether a MultiPipe is runnable
 bool MultiPipe::isRunnable() const
 {
-	return (has_source && has_sink) || (isMerged) || (isSplitted);
+	return (has_source && has_sink) || (isMerged) || (isSplit);
 }
 
 // implementation of the method to check whether a MultiPipe has a Source
@@ -1809,7 +2149,7 @@ bool MultiPipe::hasSink() const
 // implementation of the method to return the number of threads used to run this MultiPipe
 size_t MultiPipe::getNumThreads() const
 {
-    if (!isSplitted)
+    if (!isSplit)
         return this->cardinality()-1;
     else {
         size_t n = 0;

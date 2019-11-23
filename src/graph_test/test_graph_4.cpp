@@ -213,8 +213,8 @@ int main(int argc, char *argv[])
                                 .withParallelism(filter2_degree)
                                 .build();
         pipe4.chain(filter2);
-        // self-merge of pipe2
-        MultiPipe &pipe5 = pipe2.self_merge();
+        // merge of pipe3 and pipe4
+        MultiPipe &pipe5 = pipe3.merge(pipe4);
         // prepare the fifth MultiPipe
         // map
         Map_Functor map_functor4;
@@ -247,8 +247,8 @@ int main(int argc, char *argv[])
                         .withParallelism(map5_degree)
                         .build();
         pipe7.chain(map5);
-        // merge of the first and seventh MultiPipe
-        MultiPipe &pipe8 = pipe1.merge(pipe7);
+        // merge of the fifth, sixth and seventh MultiPipe
+        MultiPipe &pipe8 = pipe5.merge(pipe7, pipe6);
         // prepare the eighth MultiPipe
         // sink
         Sink_Functor sink_functor(n_keys);
