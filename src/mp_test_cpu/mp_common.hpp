@@ -305,7 +305,7 @@ public:
 			check_counters[(*out).key]++;	
 		}
 		else {
-			LOCKED_PRINT("Received " << received << " results, total sum " << totalsum << endl;)
+			cout << "Received " << received << " results, total sum " << totalsum << endl;
 			global_sum = totalsum;
 		}
 	}

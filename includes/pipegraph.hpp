@@ -469,7 +469,7 @@ public:
 // ######################### IMPLEMENTATION OF THE METHODS OF THE CLASS PIPEGRAPH ######################### //
 
 // implementation of the destructor
-PipeGraph::~PipeGraph()
+inline PipeGraph::~PipeGraph()
 {
     // delete all the MultiPipe instances in toBeDeteled
     for (auto *mp: toBeDeteled)
@@ -479,7 +479,7 @@ PipeGraph::~PipeGraph()
 }
 
 // implementation of the method to find the AppNode containing the MultiPipe _mp in the tree rooted at _node
-AppNode *PipeGraph::find_AppNode(AppNode *_node, MultiPipe *_mp)
+inline AppNode *PipeGraph::find_AppNode(AppNode *_node, MultiPipe *_mp)
 {
     // base case
 	if (_node->mp == _mp)
@@ -497,7 +497,7 @@ AppNode *PipeGraph::find_AppNode(AppNode *_node, MultiPipe *_mp)
 }
 
 // implementation of the method to find the list of AppNode instances that are leaves of the tree rooted at _node
-std::vector<AppNode *> PipeGraph::get_LeavesList(AppNode *_node)
+inline std::vector<AppNode *> PipeGraph::get_LeavesList(AppNode *_node)
 {
     std::vector<AppNode *> leaves;
     // base case
@@ -516,7 +516,7 @@ std::vector<AppNode *> PipeGraph::get_LeavesList(AppNode *_node)
 }
 
 // implementation of the method to delete all the AppNode instances in the tree rooted at _node
-void PipeGraph::delete_AppNodes(AppNode *_node)
+inline void PipeGraph::delete_AppNodes(AppNode *_node)
 {
     // base case
 	if ((_node->children).size() == 0)
@@ -530,7 +530,7 @@ void PipeGraph::delete_AppNodes(AppNode *_node)
 }
 
 // implementation of the method to prepare the right list of AppNode instances to be merged
-bool PipeGraph::get_MergedNodes(std::vector<MultiPipe *> _toBeMerged, std::vector<AppNode *> &_rightList) {
+inline bool PipeGraph::get_MergedNodes(std::vector<MultiPipe *> _toBeMerged, std::vector<AppNode *> &_rightList) {
     // all the input MultiPipe instances must be leaves of the Application Tree
     std::vector<AppNode *> inputNodes;
     assert(_toBeMerged.size() > 1); // redundant check
@@ -587,7 +587,7 @@ bool PipeGraph::get_MergedNodes(std::vector<MultiPipe *> _toBeMerged, std::vecto
 }
 
 // implementation of the method to execute the split of the MultiPipe _mp
-std::vector<MultiPipe *> PipeGraph::execute_Split(MultiPipe *_mp)
+inline std::vector<MultiPipe *> PipeGraph::execute_Split(MultiPipe *_mp)
 {
     // find _mp in the Application Tree
     AppNode *found = find_AppNode(root, _mp);
@@ -626,7 +626,7 @@ std::vector<MultiPipe *> PipeGraph::execute_Split(MultiPipe *_mp)
 }
 
 // implementation of the method to execute the merge of a set of MultiPipe instances _toBeMerged
-MultiPipe *PipeGraph::execute_Merge(std::vector<MultiPipe *> _toBeMerged)
+inline MultiPipe *PipeGraph::execute_Merge(std::vector<MultiPipe *> _toBeMerged)
 {
     // get the right list of AppNode instances to be merged
     std::vector<AppNode *> rightList;
@@ -810,7 +810,7 @@ MultiPipe &PipeGraph::add_source(Source<tuple_t> &_source)
 }
 
 // implementation of the run method
-int PipeGraph::run()
+inline int PipeGraph::run()
 {
 	if ((root->children).size() == 0) {
 		std::cerr << RED << "WindFlow Error: PipeGraph [" << name << "] is empty, nothing to run" << DEFAULT << std::endl;
@@ -837,7 +837,7 @@ int PipeGraph::run()
 }
 
 // implementation of the method to return the number of threads used to run this PipeGraph
-size_t PipeGraph::getNumThreads() const
+inline size_t PipeGraph::getNumThreads() const
 {
     size_t count = 0;
     for (auto *an: root->children)
@@ -1037,7 +1037,7 @@ bool MultiPipe::chain_operator(ff::ff_farm *_op)
 }
 
 // implementation of the method to normalize the MultiPipe (removing the final self-killer nodes)
-std::vector<ff::ff_node *> MultiPipe::normalize()
+inline std::vector<ff::ff_node *> MultiPipe::normalize()
 {
     // check the Source presence
     if (!has_source) {
@@ -1099,7 +1099,7 @@ std::vector<ff::ff_node *> MultiPipe::normalize()
 }
 
 // implementation of the prepareMergeSet method: base case 1
-std::vector<MultiPipe *> MultiPipe::prepareMergeSet()
+inline std::vector<MultiPipe *> MultiPipe::prepareMergeSet()
 {
     return std::vector<MultiPipe *>();
 }
@@ -1145,7 +1145,7 @@ std::vector<MultiPipe *> MultiPipe::prepareMergeSet(MULTIPIPE &_first, MULTIPIPE
 }
 
 // implementation of the prepareSplittingEmitters method
-void MultiPipe::prepareSplittingEmitters(Basic_Emitter *_e)
+inline void MultiPipe::prepareSplittingEmitters(Basic_Emitter *_e)
 {
     assert(isSplit); // redundant check
     splittingEmitterLeaves.push_back(_e->clone());
@@ -1163,7 +1163,7 @@ void MultiPipe::prepareSplittingEmitters(Basic_Emitter *_e)
 }
 
 // implementation of the run method
-int MultiPipe::run()
+inline int MultiPipe::run()
 {
     if (!isRunnable()) {
         std::cerr << RED << "WindFlow Error: MultiPipe is not runnable" << DEFAULT << std::endl;
@@ -1175,7 +1175,7 @@ int MultiPipe::run()
 }
 
 // implementation of the wait method
-int MultiPipe::wait()
+inline int MultiPipe::wait()
 {
     if (!isRunnable()) {
         std::cerr << RED << "WindFlow Error: MultiPipe is not runnable" << DEFAULT << std::endl;
@@ -1187,7 +1187,7 @@ int MultiPipe::wait()
 }
 
 // implementation of the run_and_wait_end method
-int MultiPipe::run_and_wait_end()
+inline int MultiPipe::run_and_wait_end()
 {
     if (!isRunnable()) {
         std::cerr << RED << "WindFlow Error: MultiPipe is not runnable" << DEFAULT << std::endl;
@@ -2110,7 +2110,7 @@ MultiPipe &MultiPipe::split(F_t _splitting_func, size_t _cardinality)
 }
 
 // implementation of the method to get the MultiPipe with index _idx from this (this must have been split before)
-MultiPipe &MultiPipe::select(size_t _idx) const
+inline MultiPipe &MultiPipe::select(size_t _idx) const
 {
     // check whether the MultiPipe has been merged
     if (isMerged) {
@@ -2129,25 +2129,25 @@ MultiPipe &MultiPipe::select(size_t _idx) const
 }
 
 // implementation of the method to check whether a MultiPipe is runnable
-bool MultiPipe::isRunnable() const
+inline bool MultiPipe::isRunnable() const
 {
 	return (has_source && has_sink) || (isMerged) || (isSplit);
 }
 
 // implementation of the method to check whether a MultiPipe has a Source
-bool MultiPipe::hasSource() const
+inline bool MultiPipe::hasSource() const
 {
 	return has_source;
 }
 
 // implementation of the method to check whether a MultiPipe has a Sink
-bool MultiPipe::hasSink() const
+inline bool MultiPipe::hasSink() const
 {
 	return has_sink;
 }
 
 // implementation of the method to return the number of threads used to run this MultiPipe
-size_t MultiPipe::getNumThreads() const
+inline size_t MultiPipe::getNumThreads() const
 {
     if (!isSplit)
         return this->cardinality()-1;

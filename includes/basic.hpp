@@ -110,18 +110,6 @@ enum opt_level_t { LEVEL0, LEVEL1, LEVEL2 };
 #define BOLDCYAN    "\033[1m\033[36m"
 #define BOLDWHITE   "\033[1m\033[37m"
 
-// global variable used by LOCKED_PRINT
-std::mutex mutex_screen;
-
-// macros to avoid mixing of concurrent couts/prints
-#define LOCKED_PRINT(...) { \
- 	std::ostringstream stream; \
- 	stream << __VA_ARGS__; \
- 	mutex_screen.lock(); \
-	std::cout << stream.str(); \
-	mutex_screen.unlock(); \
-}
-
 // struct of the window-based operator's configuration parameters
 struct PatternConfig {
     size_t id_outer; // identifier in the outermost operator

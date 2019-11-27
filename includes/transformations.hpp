@@ -54,7 +54,7 @@ struct dummy_mo: ff::ff_monode
 };
 
 // method to transform a farm into a all-to-all (with collector)
-ff::ff_a2a *farm2A2A_collector(ff::ff_farm *farm)
+inline ff::ff_a2a *farm2A2A_collector(ff::ff_farm *farm)
 {
     // create the a2a
     ff::ff_a2a *a2a = new ff::ff_a2a();
@@ -72,7 +72,7 @@ ff::ff_a2a *farm2A2A_collector(ff::ff_farm *farm)
 }
 
 // method to transform a farm into a all-to-all (with emitter)
-ff::ff_a2a *farm2A2A_emitter(ff::ff_farm *farm)
+inline ff::ff_a2a *farm2A2A_emitter(ff::ff_farm *farm)
 {
     // create the a2a
     ff::ff_a2a *a2a = new ff::ff_a2a();
@@ -90,7 +90,7 @@ ff::ff_a2a *farm2A2A_emitter(ff::ff_farm *farm)
 }
 
 // method to combine a set of nodes with the first set of an a2a
-void combine_a2a_withFirstNodes(ff::ff_a2a *a2a, const std::vector<ff::ff_node*> nodes, bool cleanup=false)
+inline void combine_a2a_withFirstNodes(ff::ff_a2a *a2a, const std::vector<ff::ff_node*> nodes, bool cleanup=false)
 {
     auto firstset = a2a->getFirstSet();
     assert(firstset.size() == nodes.size());
@@ -104,7 +104,7 @@ void combine_a2a_withFirstNodes(ff::ff_a2a *a2a, const std::vector<ff::ff_node*>
 }
 
 // method to remove the first emitter in a pipeline (there might be memory leaks here! to be fixed)
-ff::ff_node *remove_emitter_from_pipe(ff::ff_pipeline &pipe_in)
+inline ff::ff_node *remove_emitter_from_pipe(ff::ff_pipeline &pipe_in)
 {
     auto &stages = pipe_in.getStages();
     if (stages.size() == 1 && stages[0]->isFarm()) {
