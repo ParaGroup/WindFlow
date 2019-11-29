@@ -32,8 +32,15 @@ TGTS			:= $(basename $(SRCS))
 
 all: $(TGTS)
 
-%: %.cpp
+%: %.cpp checkbindir
 	$(NCXX) $(NCXXFLAGS) $(NOPTFLAGS) $(INCLUDES) $(MACROS) -o $(OUT_DIR)/$@ $< $(NLDFLAGS)
+
+checkbindir:
+	@if [ ! -d $(OUT_DIR) ] ;\
+	then \
+		echo "creating $(OUT_DIR)";\
+		mkdir -p $(OUT_DIR); \
+	fi
 
 clean:
 	rm -rf $(OUT_DIR)
