@@ -59,7 +59,7 @@
       <div class="row">
         <div class="col-lg-8 mx-auto">
           <h1>Usage (Example)</h1>
-          <p class="lead">In this part, we show a simple application in order to describe how to use of the <code>WindFlow</code>'s API. For further details on the library, developers can refers to the <code>doxygen</code> documentation available in the source code.</p>
+          <p class="lead">In this part, we show a simple application in order to describe how to use of the <code>WindFlow</code>'s API. For further details about the library, developers can refers to the <code>doxygen</code> documentation available in the source code.</p>
           <p class="lead">The application that we propose here is a simple financial application reading data ticks from a financial market. Logically, the application can be modeled as a pipeline of four stages connected with each other as in the figure below:</p>
           <p style="text-align:center;"><img src="imgs/application.jpg" width="100%" align="middle"/></p>
           <p class="lead">The source produces a stream of records with a stock symbol (string), volume (integer), price (float), timestamp (long), identifier (long) attributes. The stream is received by a filter operator in charge of dropping all the inputs except the ones with symbol equal to <code>"my_company"</code>. The third operator computes the Volume Weighted Average Price (VWAP) of the last <code>1,000</code> records by producing a new result every <code>10</code> new items. Results are received by the sink operator.</p>
@@ -94,33 +94,42 @@ struct tick_t
   }
 };
           </code></pre>
-          <p class="lead">All the data types exchanged by operators in <code>WindFlow</code> must provide two public methods:</p>
+          <p class="lead">All the data types exchanged by operators in <code>WindFlow</code> must be copy constructible, with a copy assignment operator and a default constructor. Furthermore, they <b><i>must</i></b> provide two public methods:</p>
           <ul>
-            <li><b>getControlFields()</b>: the method returns a <code>std::tuple</code> with three parameters. The first is the key attribute (with <code>string</code> type in the example). The library supports as key attributes any C++ type <code>T</code> for which the <code>std::hash&lt;T&gt;()</code> function is defined. The second field is the unique identifier (of type <code>uint64_t</code> starting from zero) of the item within the substream. The last field of the tuple is the timestamp (starting from zero with granularity at the microsecond) represented by a <code>uint64_t</code> value</li>
-            <li><b>setControlFields()</b>: a method that allows the key attribute, the unique identifier and the timestamp to be set for the given input item</li>
+            <li><b>getControlFields()</b>: the method returns a <code>std::tuple</code> with three parameters. The first is the key attribute (with <code>string</code> type in the example). The library supports as key attributes any C++ type <code>T</code> for which the <code>std::hash&lt;T&gt;()</code> function is defined. The second field is the unique identifier (of type <code>uint64_t</code> starting from zero) of the item within the substream. The last field of the tuple is the timestamp (starting from zero with granularity at the microsecond) represented by a <code>uint64_t</code> value;</li>
+            <li><b>setControlFields()</b>: a method that allows the key attribute, the unique identifier and the timestamp to be set for the given input item.</li>
           </ul>
+          <p class="lead"><b><u>Important Note</u></b>: the timestamp is generally set in the Sources and it must be monotonically increasing in each replica of the Sources. The unique identifier must be included but it is generally not needed by the user explicitly (it is used by the run-time system). As a rule of thumb and a good programming practice in the library, each replica of the operators should count the number of outputs produced and the identifier should be set to this value before emitting an output item (although it is not strictly mandatory);</p>
           <p class="lead">The first step is to create the source operator. The business logic in charge of generating the ticks is provided by the user to the operator builder through either a <b>lambda</b> expression, a plain <b>function</b>, or a <b>functor</b> object. In the code below, we define a functor class:</p>
           <pre><code class="language-cpp">
 // source functor class
 class Source_F {
 public:
-  size_t len;
+  uint64_t len; // stream length
+  uint64_t sent;
+  volatile unsigned long start_time;
 
   // constructor
-  Source_F(size_t _len): len(_len) {}
-
-  // generation main loop
-  void operator()(Shipper&lt;tick_t&gt; &shipper)
+  Source_F(uint64_t _len): len(_len), sent(0)
   {
-    for (size_t i=0; i&lt;len; i++) {
-      tuple_t t = readTuple(...);
-      shipper.push(t);
-    }
+    start_time = current_time_usecs(); // provided in the header of the library
+  }
+
+  // generation item-by-item
+  bool operator()(tick_t &t)
+  {
+    t = readTuple(sent); // fill the symbol, price and volume fields (e.g., by reading the sent-th row of a file)
+    t.id = sent++;
+    t.ts = current_time_usecs() - start_time;
+    if (sent < len)
+      return true; // operator() will be called again on a new tick_t to be filled
+    else
+      return false; // this tick_t is the last one of the stream
   }
   ...
 };
           </code></pre>
-          <p class="lead">In the code, we have omitted the definition of the <code>readTuple()</code> function in charge of parsing input items from a network socket. In the example, the source generates a predefined number of items. To create the source operator, the developer should use the builder class provided by the library. So doing, using the last C++17 features (<b>Class Template Argument Deduction</b>), all the template arguments needed to instantiate the operator are automatically deduced by the function/functor/lambda provided to the builder constructor, thus making the life easier to the programmer in addition to provide a <code>fluent interface</code> for the patter creation. The construction of the source is shown below:</p>
+          <p class="lead">In the code, we have omitted the definition of the <code>readTuple()</code> function in charge of parsing input items from a network socket. In the example, the source generates a predefined number of items. To create the source operator, the developer should use the builder class provided by the library. So doing, using the last C++17 features (<b>Class Template Argument Deduction</b>), all the template arguments needed to instantiate the operator are automatically deduced by the function/functor/lambda provided to the builder constructor, thus making the life easier to the programmer in addition to provide a <code>fluent interface</code> for the operator creation. The construction of the source is shown below:</p>
           <pre><code class="language-cpp">
 // main
 int main(int argc, char *argv[]) {
@@ -156,10 +165,10 @@ Filter filter = Filter_Builder(filter_func).withParallelism(2)
                                            .withName("myfilter")
                                            .build();
           </code></pre>
-          <p class="lead">To compute the window aggregate, we use the <b>Windowed Farm</b> operator. We note that in this application, all the items coming out from the filtering phase have the same symbol attribute. So, key-based parallelism is totally useless in this example. To instantiate the operator, we define its business logic. In this example we use a function for that (lambda expressions or functor objects are still allowed here):</p>
+          <p class="lead">To compute the window aggregate, we use the <b>Windowed Farm</b> operator. We note that in this application, all the items coming out from the filtering phase have the same symbol attribute. So, key-based parallelism is totally useless in this example. To instantiate the operator, we define its business logic. We use a function to do that (lambda expressions or functor objects are still allowed here):</p>
           <pre><code class="language-cpp">
 // user-defined window function
-void vwap(uint_64_t wid, Iterable&lt;tick_t&gt; &win, result_t &r) {
+void vwap(uint_64_t wid, const Iterable&lt;tick_t&gt; &win, result_t &r) {
     size_t total_volume = 0;
     float sum = 0;
     for (auto t: win) {
@@ -169,7 +178,7 @@ void vwap(uint_64_t wid, Iterable&lt;tick_t&gt; &win, result_t &r) {
     result.vwap = sum/total_volume;
 };
           </code></pre>
-          <p class="lead">In this example, the function uses the non-incremental signature that computes the window when it is ready to be processed by giving the read-only access to all its item through a <code>Iterable</code> object. Other definitions of the function (e.g., incremental) are allowed (see the <code>doxygen</code> documentation). The type <code>result_t</code> is the result data type computed per window, providing the same control methods of <code>tick_t</code> (i.e. <code>getControlFields()</code> and <code>setControlFields()</code>). The operator is created through its builder class:</p>
+          <p class="lead">In this example, the function uses the non-incremental signature that computes the window when it is ready to be processed by giving the read-only access to all of its items through a <code>Iterable</code> object. Other definitions of the function (e.g., incremental) are allowed (see the <code>doxygen</code> documentation). The type <code>result_t</code> is the result data type computed per window, providing the same control methods of <code>tick_t</code> (i.e. <code>getControlFields()</code> and <code>setControlFields()</code>). For window-based operators, the run-time system automatically sets the key attribute, unique identifier of the window and the timestamp of the window result automatically. The operator is created through its builder class:</p>
           <pre><code class="language-cpp">
 Win_Farm win_agg = WinFarm_Builder(vwap).withCBWindow(1000, 10)
                                         .withParallelism(3)
@@ -208,7 +217,7 @@ Sink sink = Sink_Builder(sink_func).withParallelism(1)
           </code></pre>
           <p class="lead">The source is created with one replica.</p>
           <h2>Creating and running the application</h2>
-          <p class="lead">Once the operators (operators) have been created, they must be connected together. To do that, <code>WindFlow</code> provides a <code>MultiPipe</code> construct. In the basic case, it is essentially a sequence of multiple linear pipelines with streams crossing them. <code>MultiPipe</code> instances cannot be directly created by the user, but instead they are obtained from the <code>PipeGraph</code> construct which represents a sort of streaming environment where to build the WindFlow application. The following code shows how the application can be created using this construct:</p>
+          <p class="lead">Once the operators have been created, they must be connected together. To do that, <code>WindFlow</code> provides a <code>MultiPipe</code> construct. In the basic case, it is essentially a sequence of multiple linear pipelines with streams crossing them. <code>MultiPipe</code> instances cannot be directly created by the user, but instead they are obtained from the <code>PipeGraph</code> construct which represents a sort of streaming environment where to build the WindFlow application. The following code shows how the application can be created using this construct:</p>
           <pre><code class="language-cpp">
 PipeGraph env("vwap_app");
 MultiPipe &pipe = env.add_source(source);
@@ -219,7 +228,7 @@ env.run(); // &lt;- run the app
           </code></pre>
           <p class="lead">The <code>PipeGraph</code> environment is created with a string provided to its constructor as the name of the application (useful for logging purposes, enabled with the compilation macro <code>LOG=pathname_dir</code> enabled). The value of the macro is the pathname of the directory where the log files will be written. The application has the following structure:</p>
           <p style="text-align:center;"><img src="imgs/multipipe_1.jpg" width="70%" align="middle"/></p>
-          <p class="lead">According to the <code>FastFlow</code> programming model, each replica is implemented by a dedicated thread in the run-time system pinned on a specific core (actually a thread context) of the architecture. The automatic pinning can be disabled by compiling with the <code>FF_NO_DEFAULT_MAPPING</code> macro. In the figure, eight threads are used by the application. To reduce the amount of threads, <code>WindFlow</code> provides a <code>chaining</code> support to fuse operators' replicas into single threads (not always possible). In the example, we can apply chaining between the source operator and the filter one (same number of replicas). The benefit is not only in the thread reduction, but also because the data exchange among operators mapped onto the same thread is more efficient (it is based on function calls instead of using the lock-free <code>FastFlow</code> queues). The code change is very minimal:</p>
+          <p class="lead">According to the <code>FastFlow</code> programming model, each replica is implemented by a dedicated thread in the run-time system pinned on a specific core (actually a thread context) of the architecture. The automatic pinning can be disabled by compiling with the <code>FF_NO_DEFAULT_MAPPING</code> macro. In the figure, eight threads are used by the application. To reduce the amount of threads, <code>WindFlow</code> provides a <code>chaining</code> support to fuse operators' replicas into single threads (not always possible). In the example, we can apply chaining between the source operator and the filter one (same number of replicas without key-by distribution in the middle). The benefit is not only in the thread reduction, but also because the data exchange among operators mapped onto the same thread is more efficient (it is based on function calls instead of using the lock-free <code>FastFlow</code> queues). The code change is very minimal:</p>
           <pre><code class="language-cpp">
 ...
 pipe.chain(filter);
@@ -227,7 +236,7 @@ pipe.chain(filter);
           </code></pre>
           <p class="lead">The corresponding application structure has now six threads as in the figure:</p>
           <p style="text-align:center;"><img src="imgs/multipipe_2.jpg" width="70%" align="middle"/></p>
-          <p class="lead">This example, although useful to understand the philosophy of the library, does not cover all the provided features. Notably, the library supports the <code>merge</code> and the <code>split</code> of <code>MultiPipe</code> instances to create application graphs with a more general structure, useful to model more complex applications. Further details can be easily understood by reading the <code>doxygen</code> documentation alongside the source code available in <code>GitHub</code>.</p>
+          <p class="lead">This example, although useful to understand the philosophy of the library, does not cover all the provided features. Notably, the library supports the <code>merge</code> and the <code>split</code> of <code>MultiPipe</code> instances to create application graphs with more general structures, useful to model more complex applications. Further details can be easily understood by reading the <code>doxygen</code> documentation alongside the source code available in <code>GitHub</code>.</p>
         </div>
       </div>
     </div>
