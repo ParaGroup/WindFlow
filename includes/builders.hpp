@@ -2278,7 +2278,7 @@ public:
      *  
      *  \return the object itself
      */ 
-    Sink_Builder<F_t>& set_KeyBy()
+    Sink_Builder<F_t>& enable_KeyBy()
     {
         isKeyed = true;
         return *this;

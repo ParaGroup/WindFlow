@@ -296,6 +296,7 @@ public:
             std::cerr << RED << "WindFlow Error: Source has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
+        std::cerr << YELLOW << "WindFlow Warning: the use of the single-loop function in the Source is deprecated" << DEFAULT << std::endl;
         // vector of Source_Node
         std::vector<ff_node *> first_set;
         for (size_t i=0; i<_pardegree; i++) {
@@ -328,6 +329,7 @@ public:
             std::cerr << RED << "WindFlow Error: Source has parallelism zero" << DEFAULT << std::endl;
             exit(EXIT_FAILURE);
         }
+        std::cerr << YELLOW << "WindFlow Warning: the use of the single-loop function in the Source is deprecated" << DEFAULT << std::endl;
         // vector of Source_Node
         std::vector<ff_node *> first_set;
         for (size_t i=0; i<_pardegree; i++) {

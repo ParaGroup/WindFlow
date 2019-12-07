@@ -158,29 +158,21 @@ int main(int argc, char *argv[])
         cout << "                              +---------------------+" << endl;
         // compute the total parallelism degree of the PipeGraph
         size_t check_degree = source_degree;
-        if (source_degree != map1_degree)
-            check_degree += map1_degree;
+        check_degree += map1_degree;
         check_degree += filter1_degree;
-        if (filter1_degree != map2_degree)
-            check_degree += map2_degree;
+        check_degree += map2_degree;
         check_degree += filter2_degree;
-        if (filter2_degree != map3_degree)
-            check_degree += map3_degree;
+        check_degree += map3_degree;
         check_degree += filter3_degree;
-        if (filter3_degree != map4_degree)
-            check_degree += map4_degree;
+        check_degree += map4_degree;
         check_degree += filter4_degree;
-        if (filter4_degree != map5_degree)
-            check_degree += map5_degree;
+        check_degree += map5_degree;
         check_degree += filter5_degree;
-        if (filter5_degree != map6_degree)
-            check_degree += map6_degree;
+        check_degree += map6_degree;
         check_degree += map7_degree;
-        if (map7_degree != map8_degree)
-            check_degree += map8_degree;
+        check_degree += map8_degree;
         check_degree += map9_degree;
-        if (map9_degree != map10_degree)
-            check_degree += map10_degree;
+        check_degree += map10_degree;
         check_degree++;
         // prepare the test
         PipeGraph graph("test_graph_7");
@@ -197,6 +189,7 @@ int main(int argc, char *argv[])
         Map map1 = Map_Builder(map_functor1)
                         .withName("pipe1_map")
                         .withParallelism(map1_degree)
+                        .enable_KeyBy()
                         .build();
         pipe1.chain(map1);
         // split
@@ -223,6 +216,7 @@ int main(int argc, char *argv[])
         Filter filter1 = Filter_Builder(filter_functor1)
                         .withName("pipe2_filter")
                         .withParallelism(filter1_degree)
+                        .enable_KeyBy()
                         .build();
         pipe2.chain(filter1);
         // map 2
@@ -230,6 +224,7 @@ int main(int argc, char *argv[])
         Map map2 = Map_Builder(map_functor2)
                         .withName("pipe2_map")
                         .withParallelism(map2_degree)
+                        .enable_KeyBy()
                         .build();
         pipe2.chain(map2);
         // prepare the third MultiPipe
@@ -239,6 +234,7 @@ int main(int argc, char *argv[])
         Filter filter2 = Filter_Builder(filter_functor2)
                         .withName("pipe3_filter")
                         .withParallelism(filter2_degree)
+                        .enable_KeyBy()
                         .build();
         pipe3.chain(filter2);
         // map 3
@@ -246,6 +242,7 @@ int main(int argc, char *argv[])
         Map map3 = Map_Builder(map_functor3)
                         .withName("pipe3_map")
                         .withParallelism(map3_degree)
+                        .enable_KeyBy()
                         .build();
         pipe3.chain(map3);
         // prepare the fourth MultiPipe
@@ -255,6 +252,7 @@ int main(int argc, char *argv[])
         Filter filter3 = Filter_Builder(filter_functor3)
                         .withName("pipe4_filter")
                         .withParallelism(filter3_degree)
+                        .enable_KeyBy()
                         .build();
         pipe4.chain(filter3);
         // map 4
@@ -262,6 +260,7 @@ int main(int argc, char *argv[])
         Map map4 = Map_Builder(map_functor4)
                         .withName("pipe4_map")
                         .withParallelism(map4_degree)
+                        .enable_KeyBy()
                         .build();
         pipe4.chain(map4);
         // prepare the fifth MultiPipe
@@ -271,6 +270,7 @@ int main(int argc, char *argv[])
         Filter filter4 = Filter_Builder(filter_functor4)
                         .withName("pipe5_filter")
                         .withParallelism(filter4_degree)
+                        .enable_KeyBy()
                         .build();
         pipe5.chain(filter4);
         // map 5
@@ -278,6 +278,7 @@ int main(int argc, char *argv[])
         Map map5 = Map_Builder(map_functor5)
                         .withName("pipe5_map")
                         .withParallelism(map5_degree)
+                        .enable_KeyBy()
                         .build();
         pipe5.chain(map5);
         // prepare the sixth MultiPipe
@@ -287,6 +288,7 @@ int main(int argc, char *argv[])
         Filter filter5 = Filter_Builder(filter_functor5)
                         .withName("pipe6_filter")
                         .withParallelism(filter5_degree)
+                        .enable_KeyBy()
                         .build();
         pipe6.chain(filter5);
         // map 6
@@ -294,6 +296,7 @@ int main(int argc, char *argv[])
         Map map6 = Map_Builder(map_functor6)
                         .withName("pipe6_map")
                         .withParallelism(map6_degree)
+                        .enable_KeyBy()
                         .build();
         pipe6.chain(map6);
         // prepare the seventh MultiPipe
@@ -303,6 +306,7 @@ int main(int argc, char *argv[])
         Map map7 = Map_Builder(map_functor7)
                         .withName("pipe5_map")
                         .withParallelism(map7_degree)
+                        .enable_KeyBy()
                         .build();
         pipe7.chain(map7);
         // map 8
@@ -310,6 +314,7 @@ int main(int argc, char *argv[])
         Map map8 = Map_Builder(map_functor8)
                         .withName("pipe7_map")
                         .withParallelism(map8_degree)
+                        .enable_KeyBy()
                         .build();
         pipe7.chain(map8);
         // prepare the eightth MultiPipe
@@ -319,6 +324,7 @@ int main(int argc, char *argv[])
         Map map9 = Map_Builder(map_functor9)
                         .withName("pipe8_map")
                         .withParallelism(map9_degree)
+                        .enable_KeyBy()
                         .build();
         pipe8.chain(map9);
         // map 10
@@ -326,6 +332,7 @@ int main(int argc, char *argv[])
         Map map10 = Map_Builder(map_functor10)
                         .withName("pipe8_map")
                         .withParallelism(map10_degree)
+                        .enable_KeyBy()
                         .build();
         pipe8.chain(map10);        
         // prepare the ninth MultiPipe
@@ -335,6 +342,7 @@ int main(int argc, char *argv[])
         Sink sink1 = Sink_Builder(sink_functor1)
                         .withName("pipe9_sink")
                         .withParallelism(1)
+                        .enable_KeyBy()
                         .build();
         pipe9.chain_sink(sink1);
         assert(graph.getNumThreads() == check_degree);

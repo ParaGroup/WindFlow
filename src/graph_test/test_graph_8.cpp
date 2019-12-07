@@ -27,7 +27,7 @@
  * +---------------------+  |    +---------------------+   |   |  +-----+   +-----+  |    |     +-----------+
  * |  +-----+   +-----+  |  |    |  +-----+   +-----+  |   |   +---------------------+    |     |  +-----+  |
  * |  |  S  |   |  M  |  |  |    |  |  F  |   |  M  |  |   |                              |     |  |  S  |  |
- * |  | (*) +-->+ (*) |  +-------->+  | (*) +-->+ (*)  |+--+                              +----->  | (1) |  |
+ * |  | (*) +-->+ (*) |  +------>+  | (*) +-->+ (*) |  +---+                              +----->  | (1) |  |
  * |  +-----+   +-----+  |  |    |  +-----+   +-----+  |                                  |     |  +-----+  |
  * +---------------------+  |    +---------------------+                                  |     +-----------+
  *                          |                                                             |
@@ -140,7 +140,7 @@ int main(int argc, char *argv[])
             check_degree += map6_degree;
         check_degree++;
         // prepare the test
-        PipeGraph graph("test_graph_6");
+        PipeGraph graph("test_graph_8");
         // prepare the first MultiPipe
         // source
         Source_Positive_Functor source_functor_positive(stream_len, n_keys);

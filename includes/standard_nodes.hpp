@@ -91,7 +91,7 @@ public:
 	        auto key = std::get<0>(t->getControlFields()); // key
             size_t hashcode = std::hash<decltype(key)>()(key); // compute the hashcode of the key
 	        // evaluate the routing function
-	        dest_w = routing_func(hashcode, this->get_num_outchannels());
+	        dest_w = routing_func(hashcode, n_dest);
 	        // send the tuple
             if (!isCombined)
 	           this->ff_send_out_to(t, dest_w);

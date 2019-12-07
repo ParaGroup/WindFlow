@@ -117,11 +117,17 @@ private:
     // method to find the list of AppNode instances that are leaves of the tree rooted at _node
     std::vector<AppNode *> get_LeavesList(AppNode *_node);
 
+    // method to find the LCA of a set of _leaves starting from _node
+    AppNode *get_LCA(AppNode *_node, std::vector<AppNode *> _leaves);
+
 	// method to delete all the AppNode instances in the tree rooted at _node
 	void delete_AppNodes(AppNode *_node);
 
-    // method to prepare the right list of AppNode instances to be merged
-    bool get_MergedNodes(std::vector<MultiPipe *> _toBeMerged, std::vector<AppNode *> &_rightList);
+    // method to prepare the right list of AppNode instances to be merged (case merge-ind and merge-full)
+    bool get_MergedNodes1(std::vector<MultiPipe *> _toBeMerged, std::vector<AppNode *> &_rightList);
+
+    // method to prepare the right list of AppNode instances to be merged (case merge-partial)
+    AppNode *get_MergedNodes2(std::vector<MultiPipe *> _toBeMerged, std::vector<AppNode *> &_rightList);
 
 	// method to execute the split of the MultiPipe _mp
 	std::vector<MultiPipe *> execute_Split(MultiPipe *_mp);
@@ -515,6 +521,24 @@ inline std::vector<AppNode *> PipeGraph::get_LeavesList(AppNode *_node)
     }
 }
 
+// implementation of the method to find the LCA of a set of _leaves rooted at _node
+inline AppNode *PipeGraph::get_LCA(AppNode *_node, std::vector<AppNode *> _leaves)
+{
+    // compute the leaves rooted at each child of _node
+    for (auto *child: _node->children) {
+        auto child_leaves = get_LeavesList(child);
+        bool foundAll = true;
+        for (auto *leaf: _leaves) {
+            if (std::find(child_leaves.begin(), child_leaves.end(), leaf) == child_leaves.end()) { // if not present
+                foundAll = false;
+            }
+        }
+        if (foundAll)
+            return get_LCA(child, _leaves);
+    }
+    return _node;
+}
+
 // implementation of the method to delete all the AppNode instances in the tree rooted at _node
 inline void PipeGraph::delete_AppNodes(AppNode *_node)
 {
@@ -529,8 +553,8 @@ inline void PipeGraph::delete_AppNodes(AppNode *_node)
 	}
 }
 
-// implementation of the method to prepare the right list of AppNode instances to be merged
-inline bool PipeGraph::get_MergedNodes(std::vector<MultiPipe *> _toBeMerged, std::vector<AppNode *> &_rightList) {
+// implementation of the method to prepare the right list of AppNode instances to be merged (case merge-ind and merge-full)
+inline bool PipeGraph::get_MergedNodes1(std::vector<MultiPipe *> _toBeMerged, std::vector<AppNode *> &_rightList) {
     // all the input MultiPipe instances must be leaves of the Application Tree
     std::vector<AppNode *> inputNodes;
     assert(_toBeMerged.size() > 1); // redundant check
@@ -578,12 +602,52 @@ inline bool PipeGraph::get_MergedNodes(std::vector<MultiPipe *> _toBeMerged, std
         }
         // add the found lca to the _rightList
         _rightList.push_back(lca);
-        // important check below
+        // important check
         if (lca->parent != root && ((inputNodes.size() > 0) || (_rightList.size() > 1))) {
             return false;
         }
     }
     return true;
+}
+
+// implementation of the method to prepare the right list of AppNode instances to be merged (case merge-partial)
+inline AppNode *PipeGraph::get_MergedNodes2(std::vector<MultiPipe *> _toBeMerged, std::vector<AppNode *> &_rightList)
+{
+    // all the input MultiPipe instances must be leaves of the Application Tree
+    std::vector<AppNode *> inputNodes;
+    assert(_toBeMerged.size() > 1); // redundant check
+    for (auto *mp: _toBeMerged) {
+        AppNode *node = find_AppNode(root, mp);
+        if (node == nullptr) {
+            std::cerr << RED << "WindFlow Error: MultiPipe to be merged does not belong to this PipeGraph" << DEFAULT << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        assert((node->children).size() == 0); // redundant check
+        inputNodes.push_back(node);
+    }
+    // we have to find the LCA
+    AppNode *parent_node = get_LCA(root, inputNodes);
+    if (parent_node != root) {
+        for (auto *child: parent_node->children) {
+            auto child_leaves = get_LeavesList(child);
+            bool foundAll = true;
+            size_t count = 0;
+            for (auto *leaf: child_leaves) {
+                if (std::find(inputNodes.begin(), inputNodes.end(), leaf) == inputNodes.end())
+                    foundAll = false;
+                else
+                    count++;
+            }
+            if (foundAll)
+                _rightList.push_back(child);
+            else if (!foundAll && count > 0)
+                return nullptr;
+        }
+        assert(_rightList.size() > 1);
+        return parent_node;
+    }
+    else
+        return nullptr;
 }
 
 // implementation of the method to execute the split of the MultiPipe _mp
@@ -630,8 +694,8 @@ inline MultiPipe *PipeGraph::execute_Merge(std::vector<MultiPipe *> _toBeMerged)
 {
     // get the right list of AppNode instances to be merged
     std::vector<AppNode *> rightList;
-    if (get_MergedNodes(_toBeMerged, rightList)) {
-        if (rightList.size() == 1) { // Case 1: self-merge of a splitted MultiPipe
+    if (get_MergedNodes1(_toBeMerged, rightList)) {
+        if (rightList.size() == 1) { // Case 2.1: merge-full -> we merge a whole sub-tree
             assert(rightList[0] != root); // redundant check
             MultiPipe *mp = rightList[0]->mp;
             // create the new MultiPipe, the result of the self-merge
@@ -674,11 +738,11 @@ inline MultiPipe *PipeGraph::execute_Merge(std::vector<MultiPipe *> _toBeMerged)
             delete_AppNodes(rightList[0]);
             return mergedMP;
         }
-        else { // Case 2: merge of more than one MultiPipe instance
+        else { // Case 1: merge-ind -> merge independent trees
             std::vector<MultiPipe *> rightMergedMPs;
             // check that merged MultiPipe instances are sons of the root
-            for (auto *an: rightList) {
-                if (std::find((root->children).begin(), (root->children).end(), an) == (root->children).end()) { // redundant check
+            for (auto *an: rightList) { // redundant check
+                if (std::find((root->children).begin(), (root->children).end(), an) == (root->children).end()) {
                     std::cerr << RED << "WindFlow Error: the requested merge operation is not supported" << DEFAULT << std::endl;
                     exit(EXIT_FAILURE);
                 }
@@ -696,6 +760,7 @@ inline MultiPipe *PipeGraph::execute_Merge(std::vector<MultiPipe *> _toBeMerged)
             toBeDeteled.push_back(mergedMP);
             // adjust the Application Tree
             std::vector<AppNode *> children_new;
+            // maintaining the previous ordering of the children is not important in this case
             for (auto *brother: root->children) {
                 if (std::find(rightList.begin(), rightList.end(), brother) == rightList.end())
                     children_new.push_back(brother);
@@ -709,90 +774,89 @@ inline MultiPipe *PipeGraph::execute_Merge(std::vector<MultiPipe *> _toBeMerged)
         }
     }
     else {
-        // merge is still possible if all the MultiPipe instances are brothers
         rightList.clear();
-        for (auto *mp: _toBeMerged) {
-            rightList.push_back(find_AppNode(root, mp));
-        }
-        std::vector<int> indexes;
-        AppNode *parent_node = rightList[0]->parent;
-        for (auto *node: rightList) {
-            if (node->parent != parent_node) {
-                std::cerr << RED << "WindFlow Error: the requested merge operation is not supported" << DEFAULT << std::endl;
-                exit(EXIT_FAILURE);
+        AppNode *parent_node = get_MergedNodes2(_toBeMerged, rightList);
+        if (parent_node != nullptr) { // Case 1.2: merge-partial -> merge two or more sub-trees at the same level
+            std::vector<int> indexes;
+            for (auto *node: rightList) {
+                assert(node->parent == parent_node);
+                // get the index of this child
+                indexes.push_back(std::distance((parent_node->children).begin(), std::find((parent_node->children).begin(), (parent_node->children).end(), node)));
             }
-            // get the index of this child
-            indexes.push_back(std::distance((parent_node->children).begin(), std::find((parent_node->children).begin(), (parent_node->children).end(), node)));
-        }
-        // check whether the leaves are adjacent
-        std::sort(indexes.begin(), indexes.end());
-        for (size_t i=0; i<indexes.size()-1; i++) {
-            if (indexes[i] + 1 != indexes[i+1]) {
-                std::cerr << RED << "WindFlow Error: sibling MultiPipes to be merged must be contiguous branches of the same MultiPipe" << DEFAULT << std::endl;
-                exit(EXIT_FAILURE);
+            // check whether the nodes in the rightList are adjacent
+            std::sort(indexes.begin(), indexes.end());
+            for (size_t i=0; i<indexes.size()-1; i++) {
+                if (indexes[i]+1 != indexes[i+1]) {
+                    std::cerr << RED << "WindFlow Error: sibling MultiPipes to be merged must be contiguous branches of the same MultiPipe" << DEFAULT << std::endl;
+                    exit(EXIT_FAILURE);
+                }
             }
-        }
-        // everything must be put in the right order
-        rightList.clear();
-        _toBeMerged.clear();
-        for (int idx: indexes) {
-            rightList.push_back((parent_node->children)[idx]);
-            _toBeMerged.push_back((parent_node->children)[idx]->mp);
-        }
-        // if we reach this point the merge is possible -> we create the new MultiPipe
-        std::vector<ff::ff_node *> normalization;
-        for (auto *mp: _toBeMerged) {
-            auto v = mp->normalize();
-            mp->isMerged = true;
-            normalization.insert(normalization.end(), v.begin(), v.end());
-        }
-        MultiPipe *mergedMP = new MultiPipe(this, normalization);
-        mergedMP->outputType = _toBeMerged[0]->outputType;
-        toBeDeteled.push_back(mergedMP);
-        // adjust the parent MultiPipe
-        MultiPipe *parentMP = parent_node->mp;
-        assert(parentMP->isSplit); // redundant check
-        size_t new_branches = (parentMP->splittingChildren).size() - indexes.size() + 1;
-        std::vector<MultiPipe *> new_splittingChildren;
-        std::vector<ff::ff_node *> new_second_set;
-        auto second_set = (parentMP->last)->getSecondSet();
-        // the code below is to respect the original indexes
-        for (size_t i=0; i<(parentMP->splittingChildren).size(); i++) {
-            if (i < indexes[0]) {
-                new_splittingChildren.push_back((parentMP->splittingChildren)[i]);
-                new_second_set.push_back(second_set[i]);
+            // everything must be put in the right order
+            rightList.clear();
+            std::vector<MultiPipe *> rightMergedMPs;
+            for (int idx: indexes) {
+                rightList.push_back((parent_node->children)[idx]);
+                rightMergedMPs.push_back((parent_node->children)[idx]->mp);
             }
-            else if (i == indexes[0]) {
-                new_splittingChildren.push_back(mergedMP);
-                new_second_set.push_back(mergedMP);
+            // if we reach this point the merge is possible -> we create the new MultiPipe
+            std::vector<ff::ff_node *> normalization;
+            for (auto *mp: rightMergedMPs) {
+                auto v = mp->normalize();
+                mp->isMerged = true;
+                normalization.insert(normalization.end(), v.begin(), v.end());
             }
-            else if (i > indexes[indexes.size()-1]) {
-                new_splittingChildren.push_back((parentMP->splittingChildren)[i]);
-                new_second_set.push_back(second_set[i]);
+            MultiPipe *mergedMP = new MultiPipe(this, normalization);
+            mergedMP->outputType = _toBeMerged[0]->outputType;
+            toBeDeteled.push_back(mergedMP);
+            // adjust the parent MultiPipe
+            MultiPipe *parentMP = parent_node->mp;
+            assert(parentMP->isSplit); // redundant check
+            size_t new_branches = (parentMP->splittingChildren).size() - indexes.size() + 1;
+            std::vector<MultiPipe *> new_splittingChildren;
+            std::vector<ff::ff_node *> new_second_set;
+            auto second_set = (parentMP->last)->getSecondSet();
+            // the code below is to respect the original indexes
+            for (size_t i=0; i<(parentMP->splittingChildren).size(); i++) {
+                if (i < indexes[0]) {
+                    new_splittingChildren.push_back((parentMP->splittingChildren)[i]);
+                    new_second_set.push_back(second_set[i]);
+                }
+                else if (i == indexes[0]) {
+                    new_splittingChildren.push_back(mergedMP);
+                    new_second_set.push_back(mergedMP);
+                }
+                else if (i > indexes[indexes.size()-1]) {
+                    new_splittingChildren.push_back((parentMP->splittingChildren)[i]);
+                    new_second_set.push_back(second_set[i]);
+                }
             }
-        }
-        assert(new_splittingChildren.size () == new_branches); // redundant check
-        parentMP->splittingBranches = new_branches;
-        parentMP->splittingChildren = new_splittingChildren;
-        (parentMP->last)->change_secondset(new_second_set, false);
-        mergedMP->fromSplitting = true;
-        mergedMP->splittingParent = parentMP;
-        // adjust the Application Tree
-        std::vector<AppNode *> children_new;
-        bool done = false;
-        for (auto *brother: parent_node->children) {
-            if (std::find(rightList.begin(), rightList.end(), brother) == rightList.end())
-                children_new.push_back(brother);
-            else if (!done) {
-               children_new.push_back(new AppNode(mergedMP, parent_node));
-               done = true;
+            assert(new_splittingChildren.size () == new_branches); // redundant check
+            parentMP->splittingBranches = new_branches;
+            parentMP->splittingChildren = new_splittingChildren;
+            (parentMP->last)->change_secondset(new_second_set, false);
+            mergedMP->fromSplitting = true;
+            mergedMP->splittingParent = parentMP;
+            // adjust the Application Tree
+            std::vector<AppNode *> children_new;
+            bool done = false;
+            for (auto *brother: parent_node->children) {
+                if (std::find(rightList.begin(), rightList.end(), brother) == rightList.end())
+                    children_new.push_back(brother);
+                else if (!done) {
+                   children_new.push_back(new AppNode(mergedMP, parent_node));
+                   done = true;
+                }
             }
+            parent_node->children = children_new;
+            for (auto *an: rightList) {
+                delete_AppNodes(an);
+            }
+            return mergedMP;
         }
-        parent_node->children = children_new;
-        for (auto *an: rightList) {
-            delete_AppNodes(an);
+        else {
+            std::cerr << RED << "WindFlow Error: the requested merge operation is not supported" << DEFAULT << std::endl;
+            exit(EXIT_FAILURE);
         }
-        return mergedMP;
     }
 }
 
