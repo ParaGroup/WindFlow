@@ -7,5 +7,10 @@ WindFlow is a C++17 library for parallel data stream processing applications tar
 
 The web site of the library is available at https://paragroup.github.io/WindFlow/.
 
+# Dependencies
+The library needs the following dependencies:
+* GCC (GNU Compiler Collection) version >= 7.2
+* FastFlow version >= 3.0
+
 # Contributors
 The main developer and maintainer of WindFlow is [Gabriele Mencagli](mailto:mencagli@di.unipi.it).
