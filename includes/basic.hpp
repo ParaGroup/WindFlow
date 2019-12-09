@@ -2,30 +2,30 @@
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU Lesser General Public License version 3 as
  *  published by the Free Software Foundation.
- *  
+ *
  *  This program is distributed in the hope that it will be useful, but WITHOUT
  *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
  *  License for more details.
- *  
+ *
  *  You should have received a copy of the GNU Lesser General Public License
  *  along with this program; if not, write to the Free Software Foundation,
  *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  ******************************************************************************
  */
 
-/** 
+/**
  *  @file    basic.hpp
  *  @author  Gabriele Mencagli
  *  @date    28/06/2017
- *  
+ *
  *  @brief Basic definitions and macros used by the WindFlow library
- *  
+ *
  *  @section Basic Definitions and Macros (Description)
- *  
+ *
  *  Set of definitions and macros used by the WindFlow library and by its
  *  operators.
- */ 
+ */
 
 #ifndef BASIC_H
 #define BASIC_H
@@ -39,12 +39,12 @@
 
 namespace wf {
 
-/** 
+/**
  *  \brief Function to return the number of microseconds from the epoch
- *  
+ *
  *  This function returns the number of microseconds from the epoch using
  *  the clock_gettime() call.
- */ 
+ */
 inline unsigned long current_time_usecs() __attribute__((always_inline));
 inline unsigned long current_time_usecs()
 {
@@ -53,12 +53,12 @@ inline unsigned long current_time_usecs()
     return (t.tv_sec)*1000000L + (t.tv_nsec / 1000);
 }
 
-/** 
+/**
  *  \brief Function to return the number of nanoseconds from the epoch
- *  
+ *
  *  This function returns the number of nanoseconds from the epoch using
  *  the clock_gettime() call.
- */ 
+ */
 inline unsigned long current_time_nsecs() __attribute__((always_inline));
 inline unsigned long current_time_nsecs()
 {

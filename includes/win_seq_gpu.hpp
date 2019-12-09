@@ -2,37 +2,37 @@
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU Lesser General Public License version 3 as
  *  published by the Free Software Foundation.
- *  
+ *
  *  This program is distributed in the hope that it will be useful, but WITHOUT
  *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
  *  License for more details.
- *  
+ *
  *  You should have received a copy of the GNU Lesser General Public License
  *  along with this program; if not, write to the Free Software Foundation,
  *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  ******************************************************************************
  */
 
-/** 
+/**
  *  @file    win_seq_gpu.hpp
  *  @author  Gabriele Mencagli
  *  @date    16/03/2018
- *  
+ *
  *  @brief Win_Seq_GPU operator executing a windowed transformation on a CPU+GPU system
- *  
+ *
  *  @section Win_Seq_GPU (Description)
- *  
+ *
  *  This file implements the Win_Seq_GPU operator able to execute windowed queries on
  *  a heterogeneous system (CPU+GPU). The operator prepares batches of input tuples
  *  sequentially on a CPU core and offloads on the GPU the parallel processing of the
  *  windows within each batch.
- *  
+ *
  *  The template parameters tuple_t and result_t must be default constructible, with
  *  a copy constructor and copy assignment operator, and they must provide and implement
  *  the setControlFields() and getControlFields() methods. The third template argument
  *  win_F_t is the type of the callable object to be used for GPU processing.
- */ 
+ */
 
 #ifndef WIN_SEQ_GPU_H
 #define WIN_SEQ_GPU_H
@@ -88,15 +88,15 @@ inline void gpuAssert(cudaError_t code,
 
 //@endcond
 
-/** 
+/**
  *  \class Win_Seq_GPU
- *  
+ *
  *  \brief Win_Seq_GPU operator executing a windowed transformation on a CPU+GPU system
- *  
+ *
  *  This class implements the Win_Seq_GPU operator executing windowed queries on a heterogeneous
  *  system (CPU+GPU). The operator prepares batches of input tuples on a CPU core sequentially,
  *  and offloads the processing of all the windows within a batch on the GPU.
- */ 
+ */
 template<typename tuple_t, typename result_t, typename win_F_t, typename input_t>
 class Win_Seq_GPU: public ff::ff_node_t<input_t, result_t>
 {
@@ -256,9 +256,9 @@ private:
     }
 
 public:
-    /** 
+    /**
      *  \brief Constructor
-     *  
+     *
      *  \param _win_func the non-incremental window processing function (CPU/GPU function)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
@@ -267,7 +267,7 @@ public:
      *  \param _n_thread_block number of threads (i.e. windows) per block
      *  \param _name std::string with the unique name of the operator
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
-     */ 
+     */
     Win_Seq_GPU(win_F_t _win_func,
                 uint64_t _win_len,
                 uint64_t _slide_len,
@@ -625,7 +625,7 @@ public:
 
 //@endcond
 
-    /** 
+    /**
      *  \brief Get the window type (CB or TB) utilized by the operator
      *  \return adopted windowing semantics (count- or time-based)
      */

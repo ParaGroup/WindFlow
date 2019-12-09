@@ -2,27 +2,27 @@
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU Lesser General Public License version 3 as
  *  published by the Free Software Foundation.
- *  
+ *
  *  This program is distributed in the hope that it will be useful, but WITHOUT
  *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
  *  License for more details.
- *  
+ *
  *  You should have received a copy of the GNU Lesser General Public License
  *  along with this program; if not, write to the Free Software Foundation,
  *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  ******************************************************************************
  */
 
-/** 
+/**
  *  @file    pipegraph.hpp
  *  @author  Gabriele Mencagli
  *  @date    18/10/2019
- *  
+ *
  *  @brief PipeGraph and MultiPipe constructs
- *  
+ *
  *  @section PipeGraph and MultiPipe (Description)
- *  
+ *
  *  This file implements the PipeGraph and the MultiPipe constructs used to build
  *  a parallel streaming application in WindFlow. The MultiPipe construct allows
  *  building a set of parallel pipelines of operators that might have shuffle
@@ -30,7 +30,7 @@
  *  "streaming environment" to be used for obtaining MultiPipe instances with
  *  different sources. To run the application the users have to run the PipeGraph
  *  object.
- */ 
+ */
 
 #ifndef PIPEGRAPH_H
 #define PIPEGRAPH_H
@@ -94,14 +94,14 @@ class selfkiller_node: public ff::ff_minode
 
 //@endcond
 
-/** 
+/**
  *  \class PipeGraph
- *  
+ *
  *  \brief PipeGraph construct to build a streaming application in WindFlow
- *  
+ *
  *  This class implements the PipeGraph construct used to build a WindFlow
  *  streaming application.
- */ 
+ */
 class PipeGraph
 {
 private:
@@ -136,11 +136,11 @@ private:
 	MultiPipe *execute_Merge(std::vector<MultiPipe *> _toBeMerged);
 
 public:
-    /** 
+    /**
      *  \brief Constructor
-     *  
+     *
      *  \param _name name of the PipeGraph
-     */ 
+     */
 	PipeGraph(std::string _name):
               name(_name),
               root(new AppNode())
@@ -149,24 +149,24 @@ public:
 	/// Destructor
 	~PipeGraph();
 
-	/** 
+	/**
      *  \brief Add a Source to the PipeGraph
      *  \param _source Source operator to be added
      *  \return reference to a MultiPipe object to be filled with operators fed by this Source
-     */ 
+     */
     template<typename tuple_t>
     MultiPipe &add_source(Source<tuple_t> &_source);
 
-	/** 
+	/**
      *  \brief Run the PipeGraph
      *  \return zero in case of success, non-zero otherwise
-     */ 
+     */
     int run();
 
-    /** 
+    /**
      *  \brief Return the number of threads used to run this PipeGraph
      *  \return number of threads
-     */ 
+     */
     size_t getNumThreads() const;
 
     /// deleted constructors/operators
@@ -176,15 +176,15 @@ public:
     PipeGraph &operator=(PipeGraph &&) = delete; // move assignment operator
 };
 
-/** 
+/**
  *  \class MultiPipe
- *  
+ *
  *  \brief MultiPipe construct
- *  
+ *
  *  This class implements the MultiPipe construct used to build a set of pipelines
  *  of operators that might have shuffle connections jumping from a pipeline
  *  to another one.
- */ 
+ */
 class MultiPipe: public ff::ff_pipeline
 {
 private:
@@ -303,164 +303,164 @@ private:
     size_t getNumThreads() const;
 
 public:
-	/** 
+	/**
      *  \brief Add a Filter to the MultiPipe
      *  \param _filter Filter operator to be added
      *  \return the modified MultiPipe
-     */ 
+     */
     template<typename tuple_t>
     MultiPipe &add(Filter<tuple_t> &_filter);
 
-    /** 
+    /**
      *  \brief Chain a Filter to the MultiPipe (if possible, otherwise add it)
      *  \param _filter Filter operator to be chained
      *  \return the modified MultiPipe
-     */ 
+     */
     template<typename tuple_t>
     MultiPipe &chain(Filter<tuple_t> &_filter);
 
-	/** 
+	/**
      *  \brief Add a Map to the MultiPipe
      *  \param _map Map operator to be added
      *  \return the modified MultiPipe
-     */ 
+     */
     template<typename tuple_t, typename result_t>
     MultiPipe &add(Map<tuple_t, result_t> &_map);
 
-    /** 
+    /**
      *  \brief Chain a Map to the MultiPipe (if possible, otherwise add it)
      *  \param _map Map operator to be chained
      *  \return the modified MultiPipe
-     */ 
+     */
     template<typename tuple_t, typename result_t>
     MultiPipe &chain(Map<tuple_t, result_t> &_map);
 
-	/** 
+	/**
      *  \brief Add a FlatMap to the MultiPipe
      *  \param _flatmap FlatMap operator to be added
      *  \return the modified MultiPipe
-     */ 
+     */
     template<typename tuple_t, typename result_t>
     MultiPipe &add(FlatMap<tuple_t, result_t> &_flatmap);
 
-    /** 
+    /**
      *  \brief Chain a FlatMap to the MultiPipe (if possible, otherwise add it)
      *  \param _flatmap FlatMap operator to be chained
      *  \return the modified MultiPipe
-     */ 
+     */
     template<typename tuple_t, typename result_t>
     MultiPipe &chain(FlatMap<tuple_t, result_t> &_flatmap);
 
-    /** 
+    /**
      *  \brief Add an Accumulator to the MultiPipe
      *  \param _acc Accumulator operator to be added
      *  \return the modified MultiPipe
-     */ 
+     */
     template<typename tuple_t, typename result_t>
     MultiPipe &add(Accumulator<tuple_t, result_t> &_acc);
 
-	/** 
+	/**
      *  \brief Add a Win_Farm to the MultiPipe
      *  \param _wf Win_Farm operator to be added
      *  \return the modified MultiPipe
-     */ 
+     */
     template<typename tuple_t, typename result_t>
     MultiPipe &add(Win_Farm<tuple_t, result_t> &_wf);
 
-    /** 
+    /**
      *  \brief Add a Win_Farm_GPU to the MultiPipe
      *  \param _wf Win_Farm_GPU operator to be added
      *  \return the modified MultiPipe
-     */ 
+     */
     template<typename tuple_t, typename result_t, typename F_t>
     MultiPipe &add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf);
 
-	/** 
+	/**
      *  \brief Add a Key_Farm to the MultiPipe
      *  \param _kf Key_Farm operator to be added
      *  \return the modified MultiPipe
-     */ 
+     */
     template<typename tuple_t, typename result_t>
     MultiPipe &add(Key_Farm<tuple_t, result_t> &_kf);
 
-    /** 
+    /**
      *  \brief Add a Key_Farm_GPU to the MultiPipe
      *  \param _kf Key_Farm_GPU operator to be added
      *  \return the modified MultiPipe
-     */ 
+     */
     template<typename tuple_t, typename result_t, typename F_t>
     MultiPipe &add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf);
 
-	/** 
+	/**
      *  \brief Add a Pane_Farm to the MultiPipe
      *  \param _pf Pane_Farm operator to be added
      *  \return the modified MultiPipe
-     */ 
+     */
     template<typename tuple_t, typename result_t>
     MultiPipe &add(Pane_Farm<tuple_t, result_t> &_pf);
 
-    /** 
+    /**
      *  \brief Add a Pane_Farm_GPU to the MultiPipe
      *  \param _pf Pane_Farm_GPU operator to be added
      *  \return the modified MultiPipe
-     */ 
+     */
     template<typename tuple_t, typename result_t, typename F_t>
     MultiPipe &add(Pane_Farm_GPU<tuple_t, result_t, F_t> &_pf);
 
-	/** 
+	/**
      *  \brief Add a Win_MapReduce to the MultiPipe
      *  \param _wmr Win_MapReduce operator to be added
      *  \return the modified MultiPipe
-     */ 
+     */
     template<typename tuple_t, typename result_t>
     MultiPipe &add(Win_MapReduce<tuple_t, result_t> &_wmr);
 
-    /** 
+    /**
      *  \brief Add a Win_MapReduce_GPU to the MultiPipe
      *  \param _wmr Win_MapReduce_GPU operator to be added
      *  \return the modified MultiPipe
-     */ 
+     */
     template<typename tuple_t, typename result_t, typename F_t>
     MultiPipe &add(Win_MapReduce_GPU<tuple_t, result_t, F_t> &_wmr);
 
-	/** 
+	/**
      *  \brief Add a Sink to the MultiPipe
      *  \param _sink Sink operator to be added
      *  \return the modified MultiPipe
-     */ 
+     */
     template<typename tuple_t>
     MultiPipe &add_sink(Sink<tuple_t> &_sink);
 
-    /** 
+    /**
      *  \brief Chain a Sink to the MultiPipe (if possible, otherwise add it)
      *  \param _sink Sink operator to be chained
      *  \return the modified MultiPipe
-     */ 
+     */
     template<typename tuple_t>
     MultiPipe &chain_sink(Sink<tuple_t> &_sink);
 
-    /** 
+    /**
      *  \brief Merge of this with a set of MultiPipe instances _pipes
      *  \param _pipes set of MultiPipe instances to be merged with this
      *  \return a reference to the new MultiPipe (the result fo the merge)
-     */ 
+     */
     template<typename ...MULTIPIPES>
     MultiPipe &merge(MULTIPIPES&... _pipes);
 
-    /** 
+    /**
      *  \brief Split of this into a set of MultiPipe instances
      *  \param _splitting_func splitting function
      *  \param _cardinality number of splitting MultiPipe instances to generate from this
      *  \return the MultiPipe this after the splitting
-     */ 
+     */
     template<typename F_t>
     MultiPipe &split(F_t _splitting_func, size_t _cardinality);
 
-    /** 
+    /**
      *  \brief Select a MultiPipe upon the splitting of this
      *  \param _idx index of the MultiPipe to be selected
      *  \return reference to split MultiPipe with index _idx
-     */ 
+     */
     MultiPipe &select(size_t _idx) const;
 
     /// deleted constructors/operators
@@ -1477,7 +1477,7 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
                         combine_a2a_withFirstNodes(a2a, nodes, true);
                     }
                     // call the generic method to add the operator to the MultiPipe
-                    add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);                 
+                    add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
                 }
             }
             forceShuffling = true;
@@ -1493,7 +1493,7 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
             // special case count-based windows
             _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getParallelism()), true);
             // call the generic method to add the operator to the MultiPipe
-            add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);   
+            add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
         }
     }
     // save the new output type from this MultiPipe
@@ -1569,7 +1569,7 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
                         combine_a2a_withFirstNodes(a2a, nodes, true);
                     }
                     // call the generic method to add the operator to the MultiPipe
-                    add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);               
+                    add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
                 }
             }
             forceShuffling = true;
@@ -1585,7 +1585,7 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
             // special case count-based windows
             _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getParallelism()), true);
             // call the generic method to add the operator to the MultiPipe
-            add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING); 
+            add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
         }
     }
     // save the new output type from this MultiPipe
@@ -1647,7 +1647,7 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
             else if(_kf.getInnerType() == WMR_CPU) {
                 if (_kf.getWinType() == TB) {
                     // call the generic method to add the operator to the MultiPipe
-                    add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS);        
+                    add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS);
                 }
                 else {
                     // special case count-based windows
@@ -1672,7 +1672,7 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
                         combine_a2a_withFirstNodes(a2a, nodes, true);
                     }
                     // call the generic method to add the operator to the MultiPipe
-                    add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS_RENUMBERING);           
+                    add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS_RENUMBERING);
                 }
             }
             forceShuffling = true;
@@ -1742,7 +1742,7 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
             else if(_kf.getInnerType() == WMR_GPU) {
                 if (_kf.getWinType() == TB) {
                     // call the generic method to add the operator to the MultiPipe
-                    add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS);          
+                    add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS);
                 }
                 else {
                     // special case count-based windows
@@ -1767,7 +1767,7 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
                         combine_a2a_withFirstNodes(a2a, nodes, true);
                     }
                     // call the generic method to add the operator to the MultiPipe
-                    add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS_RENUMBERING);                
+                    add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS_RENUMBERING);
                 }
             }
             forceShuffling = true;

@@ -2,28 +2,28 @@
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU Lesser General Public License version 3 as
  *  published by the Free Software Foundation.
- *  
+ *
  *  This program is distributed in the hope that it will be useful, but WITHOUT
  *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
  *  License for more details
- *  
+ *
  *  You should have received a copy of the GNU Lesser General Public License
  *  along with this program; if not, write to the Free Software Foundation,
  *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  ******************************************************************************
  */
 
-/** 
+/**
  *  @file    pane_farm.hpp
  *  @author  Gabriele Mencagli
  *  @date    17/10/2017
- *  
+ *
  *  @brief Pane_Farm operator executing a windowed transformation in parallel
  *         on multi-core CPUs
- *  
+ *
  *  @section Pane_Farm (Description)
- *  
+ *
  *  This file implements the Pane_Farm operator able to execute windowed queries
  *  on a multicore. The operator processes (possibly in parallel) panes of the
  *  windows in the so-called PLQ stage (Pane-Level Sub-Query) and computes
@@ -31,11 +31,11 @@
  *  so-called WLQ stage (Window-Level Sub-Query). Panes shared by more than one window
  *  are not recomputed by saving processing time. The operator supports both a
  *  non-incremental and an incremental query definition in the two stages.
- *  
+ *
  *  The template parameters tuple_t and result_t must be default constructible, with a copy
  *  constructor and copy assignment operator, and they must provide and implement the
  *  setControlFields() and getControlFields() methods.
- */ 
+ */
 
 #ifndef PANE_FARM_H
 #define PANE_FARM_H
@@ -49,16 +49,16 @@
 
 namespace wf {
 
-/** 
+/**
  *  \class Pane_Farm
- *  
+ *
  *  \brief Pane_Farm operator executing a windowed transformation in parallel on multi-core CPUs
- *  
+ *
  *  This class implements the Pane_Farm operator executing windowed queries in parallel on
  *  a multicore. The operator processes (possibly in parallel) panes in the PLQ stage while
  *  window results are built out from the pane results (possibly in parallel) in the WLQ
  *  stage.
- */ 
+ */
 template<typename tuple_t, typename result_t, typename input_t>
 class Pane_Farm: public ff::ff_pipeline
 {
@@ -238,7 +238,7 @@ private:
                 ff::ff_farm *farm_wlq = static_cast<ff::ff_farm *>(wlq);
                 emitter_wlq_t *emitter_wlq = static_cast<emitter_wlq_t *>(farm_wlq->getEmitter());
                 farm_wlq->cleanup_emitter(false);
-                Ordering_Node<result_t, wrapper_tuple_t<result_t>> *buf_node = new Ordering_Node<result_t, wrapper_tuple_t<result_t>>(ID);   
+                Ordering_Node<result_t, wrapper_tuple_t<result_t>> *buf_node = new Ordering_Node<result_t, wrapper_tuple_t<result_t>>(ID);
                 const ff::ff_pipeline result = combine_farms(*farm_plq, emitter_wlq, *farm_wlq, buf_node, false);
                 delete farm_plq;
                 delete farm_wlq;
@@ -250,9 +250,9 @@ private:
     }
 
 public:
-    /** 
+    /**
      *  \brief Constructor I
-     *  
+     *
      *  \param _plq_func the non-incremental pane processing function (PLQ)
      *  \param _wlq_func the non-incremental window processing function (WLQ)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -264,7 +264,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Pane_Farm(plq_func_t _plq_func,
               wlq_func_t _wlq_func,
               uint64_t _win_len,
@@ -286,9 +286,9 @@ public:
         isRichWLQ = false;
     }
 
-    /** 
+    /**
      *  \brief Constructor II
-     *  
+     *
      *  \param _rich_plq_func the rich non-incremental pane processing function (PLQ)
      *  \param _wlq_func the non-incremental window processing function (WLQ)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -300,7 +300,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Pane_Farm(rich_plq_func_t _rich_plq_func,
               wlq_func_t _wlq_func,
               uint64_t _win_len,
@@ -322,9 +322,9 @@ public:
         isRichWLQ = false;
     }
 
-    /** 
+    /**
      *  \brief Constructor III
-     *  
+     *
      *  \param _plq_func the non-incremental pane processing function (PLQ)
      *  \param _rich_wlq_func the rich non-incremental window processing function (WLQ)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -336,7 +336,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Pane_Farm(plq_func_t _plq_func,
               rich_wlq_func_t _rich_wlq_func,
               uint64_t _win_len,
@@ -358,9 +358,9 @@ public:
         isRichWLQ = true;
     }
 
-    /** 
+    /**
      *  \brief Constructor IV
-     *  
+     *
      *  \param _rich_plq_func the rich non-incremental pane processing function (PLQ)
      *  \param _rich_wlq_func the rich non-incremental window processing function (WLQ)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -372,7 +372,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Pane_Farm(rich_plq_func_t _rich_plq_func,
               rich_wlq_func_t _rich_wlq_func,
               uint64_t _win_len,
@@ -394,9 +394,9 @@ public:
         isRichWLQ = true;
     }
 
-    /** 
+    /**
      *  \brief Constructor V
-     *  
+     *
      *  \param _plqupdate_func the incremental pane processing function (PLQ)
      *  \param _wlqupdate_func the incremental window processing function (WLQ)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -408,7 +408,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Pane_Farm(plqupdate_funct_t _plqupdate_func,
               wlqupdate_func_t _wlqupdate_func,
               uint64_t _win_len,
@@ -430,9 +430,9 @@ public:
         isRichWLQ = false;
     }
 
-    /** 
+    /**
      *  \brief Constructor VI
-     *  
+     *
      *  \param _rich_plqupdate_func the rich incremental pane processing function (PLQ)
      *  \param _wlqupdate_func the incremental window processing function (WLQ)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -444,7 +444,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Pane_Farm(rich_plqupdate_funct_t _rich_plqupdate_func,
               wlqupdate_func_t _wlqupdate_func,
               uint64_t _win_len,
@@ -466,9 +466,9 @@ public:
         isRichWLQ = false;
     }
 
-    /** 
+    /**
      *  \brief Constructor VII
-     *  
+     *
      *  \param _plqupdate_func the incremental pane processing function (PLQ)
      *  \param _rich_wlqupdate_func the rich incremental window processing function (WLQ)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -480,7 +480,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Pane_Farm(plqupdate_funct_t _plqupdate_func,
               rich_wlqupdate_func_t _rich_wlqupdate_func,
               uint64_t _win_len,
@@ -502,9 +502,9 @@ public:
         isRichWLQ = true;
     }
 
-    /** 
+    /**
      *  \brief Constructor VIII
-     *  
+     *
      *  \param _rich_plqupdate_func the rich incremental pane processing function (PLQ)
      *  \param _rich_wlqupdate_func the rich incremental window processing function (WLQ)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -516,7 +516,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Pane_Farm(rich_plqupdate_funct_t _rich_plqupdate_func,
               rich_wlqupdate_func_t _rich_wlqupdate_func,
               uint64_t _win_len,
@@ -538,9 +538,9 @@ public:
         isRichWLQ = true;
     }
 
-    /** 
+    /**
      *  \brief Constructor IX
-     *  
+     *
      *  \param _plq_func the non-incremental pane processing function (PLQ)
      *  \param _wlqupdate_func the incremental window processing function (WLQ)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -552,7 +552,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Pane_Farm(plq_func_t _plq_func,
               wlqupdate_func_t _wlqupdate_func,
               uint64_t _win_len,
@@ -574,9 +574,9 @@ public:
         isRichWLQ = false;
     }
 
-    /** 
+    /**
      *  \brief Constructor X
-     *  
+     *
      *  \param _rich_plq_func the rich non-incremental pane processing function (PLQ)
      *  \param _wlqupdate_func the incremental window processing function (WLQ)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -588,7 +588,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Pane_Farm(rich_plq_func_t _rich_plq_func,
               wlqupdate_func_t _wlqupdate_func,
               uint64_t _win_len,
@@ -610,9 +610,9 @@ public:
         isRichWLQ = false;
     }
 
-    /** 
+    /**
      *  \brief Constructor XI
-     *  
+     *
      *  \param _plq_func the non-incremental pane processing function (PLQ)
      *  \param _rich_wlqupdate_func the rich incremental window processing function (WLQ)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -624,7 +624,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Pane_Farm(plq_func_t _plq_func,
               rich_wlqupdate_func_t _rich_wlqupdate_func,
               uint64_t _win_len,
@@ -646,9 +646,9 @@ public:
         isRichWLQ = true;
     }
 
-    /** 
+    /**
      *  \brief Constructor XII
-     *  
+     *
      *  \param _rich_plq_func the rich non-incremental pane processing function (PLQ)
      *  \param _rich_wlqupdate_func the rich incremental window processing function (WLQ)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -660,7 +660,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Pane_Farm(rich_plq_func_t _rich_plq_func,
               rich_wlqupdate_func_t _rich_wlqupdate_func,
               uint64_t _win_len,
@@ -682,9 +682,9 @@ public:
         isRichWLQ = true;
     }
 
-    /** 
+    /**
      *  \brief Constructor XIII
-     *  
+     *
      *  \param _plqupdate_func the incremental pane processing function (PLQ)
      *  \param _wlq_func the non-incremental window processing function (WLQ)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -696,7 +696,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Pane_Farm(plqupdate_funct_t _plqupdate_func,
               wlq_func_t _wlq_func,
               uint64_t _win_len,
@@ -718,9 +718,9 @@ public:
         isRichWLQ = false;
     }
 
-    /** 
+    /**
      *  \brief Constructor XIV
-     *  
+     *
      *  \param _rich_plqupdate_func the rich incremental pane processing function (PLQ)
      *  \param _wlq_func the non-incremental window processing function (WLQ)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -732,7 +732,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Pane_Farm(rich_plqupdate_funct_t _rich_plqupdate_func,
               wlq_func_t _wlq_func,
               uint64_t _win_len,
@@ -754,9 +754,9 @@ public:
         isRichWLQ = false;
     }
 
-    /** 
+    /**
      *  \brief Constructor XV
-     *  
+     *
      *  \param _plqupdate_func the incremental pane processing function (PLQ)
      *  \param _rich_wlq_func the rich non-incremental window processing function (WLQ)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -768,7 +768,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Pane_Farm(plqupdate_funct_t _plqupdate_func,
               rich_wlq_func_t _rich_wlq_func,
               uint64_t _win_len,
@@ -790,9 +790,9 @@ public:
         isRichWLQ = true;
     }
 
-    /** 
+    /**
      *  \brief Constructor XVI
-     *  
+     *
      *  \param _rich_plqupdate_func the rich_incremental pane processing function (PLQ)
      *  \param _rich_wlq_func the rich non-incremental window processing function (WLQ)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -804,7 +804,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Pane_Farm(rich_plqupdate_funct_t _rich_plqupdate_func,
               rich_wlq_func_t _rich_wlq_func,
               uint64_t _win_len,
@@ -826,37 +826,37 @@ public:
         isRichWLQ = true;
     }
 
-    /** 
+    /**
      *  \brief Get the optimization level used to build the operator
      *  \return adopted utilization level by the operator
-     */ 
+     */
     opt_level_t getOptLevel() const
     {
       return opt_level;
     }
 
-    /** 
+    /**
      *  \brief Get the window type (CB or TB) utilized by the operator
      *  \return adopted windowing semantics (count- or time-based)
-     */ 
+     */
     win_type_t getWinType() const
     {
       return winType;
     }
 
-    /** 
+    /**
      *  \brief Get the parallelism degree of the PLQ stage
      *  \return PLQ parallelism degree
-     */ 
+     */
     size_t getPLQParallelism() const
     {
       return plq_degree;
     }
 
-    /** 
+    /**
      *  \brief Get the parallelism degree of the WLQ stage
      *  \return WLQ parallelism degree
-     */ 
+     */
     size_t getWLQParallelism() const
     {
       return wlq_degree;

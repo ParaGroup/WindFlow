@@ -2,30 +2,30 @@
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU Lesser General Public License version 3 as
  *  published by the Free Software Foundation.
- *  
+ *
  *  This program is distributed in the hope that it will be useful, but WITHOUT
  *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
  *  License for more details.
- *  
+ *
  *  You should have received a copy of the GNU Lesser General Public License
  *  along with this program; if not, write to the Free Software Foundation,
  *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  ******************************************************************************
  */
 
-/** 
+/**
  *  @file    kf_nodes.hpp
  *  @author  Gabriele Mencagli
  *  @date    02/10/2018
- *  
+ *
  *  @brief Emitter and collecto of the Key_Farm and Key_Farm_GPU operators
- *  
+ *
  *  @section Key_Farm and Key_Farm_GPU Emitter and Collector (Description)
- *  
+ *
  *  This file implements the emitter and the collector used in the Key_Farm
  *  and Key_Farm_GPU operators in the library.
- */ 
+ */
 
 #ifndef KF_NODES_H
 #define KF_NODES_H

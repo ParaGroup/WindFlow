@@ -2,34 +2,34 @@
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU Lesser General Public License version 3 as
  *  published by the Free Software Foundation.
- *  
+ *
  *  This program is distributed in the hope that it will be useful, but WITHOUT
  *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
  *  License for more details.
- *  
+ *
  *  You should have received a copy of the GNU Lesser General Public License
  *  along with this program; if not, write to the Free Software Foundation,
  *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  ******************************************************************************
  */
 
-/** 
+/**
  *  @file    source.hpp
  *  @author  Gabriele Mencagli
  *  @date    10/01/2019
- *  
+ *
  *  @brief Source operator generating the input stream
- *  
+ *
  *  @section Source (Description)
- *  
+ *
  *  This file implements the Source operator in charge of generating the items of
  *  a data stream.
- *  
+ *
  *  The template parameter tuple_t must be default constructible, with a copy
  *  Constructor and copy assignment operator, and it must provide and implement
  *  the setControlFields() and getControlFields() methods.
- */ 
+ */
 
 #ifndef SOURCE_H
 #define SOURCE_H
@@ -46,13 +46,13 @@
 
 namespace wf {
 
-/** 
+/**
  *  \class Source
- *  
+ *
  *  \brief Source operator generating the input stream
- *  
+ *
  *  This class implements the Source operator generating a data stream of items.
- */ 
+ */
 template<typename tuple_t>
 class Source: public ff::ff_a2a
 {
@@ -115,7 +115,7 @@ private:
                     name(_name),
                     isItemized(true),
                     isRich(true),
-                    isEND(false), 
+                    isEND(false),
                     context(_context),
                     closing_func(_closing_func)
         {}
@@ -214,14 +214,14 @@ private:
     };
 
 public:
-    /** 
+    /**
      *  \brief Constructor I
-     *  
+     *
      *  \param _func generation function (item-by-item version)
      *  \param _pardegree parallelism degree of the Source operator
      *  \param _name string with the unique name of the Source operator
      *  \param _closing_func closing function
-     */ 
+     */
     Source(source_item_func_t _func,
            size_t _pardegree,
            std::string _name,
@@ -246,14 +246,14 @@ public:
         ff::ff_a2a::add_secondset(second_set, true);
     }
 
-    /** 
+    /**
      *  \brief Constructor II
-     *  
+     *
      *  \param _func rich generation function (item-by-item version)
      *  \param _pardegree parallelism degree of the Source operator
      *  \param _name string with the unique name of the Source operator
      *  \param _closing_func closing function
-     */ 
+     */
     Source(rich_source_item_func_t _func,
            size_t _pardegree,
            std::string _name,
@@ -278,14 +278,14 @@ public:
         ff::ff_a2a::add_secondset(second_set, true);
     }
 
-    /** 
+    /**
      *  \brief Constructor III
-     *  
+     *
      *  \param _func generation function (single-loop version)
      *  \param _pardegree parallelism degree of the Source operator
      *  \param _name string with the unique name of the Source operator
      *  \param _closing_func closing function
-     */ 
+     */
     Source(source_loop_func_t _func,
            size_t _pardegree,
            std::string _name,
@@ -311,14 +311,14 @@ public:
         ff::ff_a2a::add_secondset(second_set, true);
     }
 
-    /** 
+    /**
      *  \brief Constructor IV
-     *  
+     *
      *  \param _func rich generation function (single-loop version)
      *  \param _pardegree parallelism degree of the Source operator
      *  \param _name string with the unique name of the Source operator
      *  \param _closing_func closing function
-     */ 
+     */
     Source(rich_source_loop_func_t _func,
            size_t _pardegree,
            std::string _name,

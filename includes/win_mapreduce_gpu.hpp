@@ -2,28 +2,28 @@
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU Lesser General Public License version 3 as
  *  published by the Free Software Foundation.
- *  
+ *
  *  This program is distributed in the hope that it will be useful, but WITHOUT
  *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
  *  License for more details.
- *  
+ *
  *  You should have received a copy of the GNU Lesser General Public License
  *  along with this program; if not, write to the Free Software Foundation,
  *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  ******************************************************************************
  */
 
-/** 
+/**
  *  @file    win_mapreduce_gpu.hpp
  *  @author  Gabriele Mencagli
  *  @date    22/05/2018
- *  
+ *
  *  @brief Win_MapReduce_GPU operator executing a windowed transformation in
  *         parallel on a CPU+GPU system
- *  
+ *
  *  @section Win_MapReduce_GPU (Description)
- *  
+ *
  *  This file implements the Win_MapReduce_GPU operator able to execute windowed
  *  queries on a heterogeneous system (CPU+GPU). The operator processes (possibly
  *  in parallel) partitions of the windows in the so-called MAP stage, and computes
@@ -31,13 +31,13 @@
  *  REDUCE stage. The operator allows the user to offload either the MAP or the REDUCE
  *  processing on the GPU while the other stage is executed on the CPU with either a
  *  non-incremental or an incremental query definition.
- *  
+ *
  *  The template parameters tuple_t and result_t must be default constructible, with a
  *  copy constructor and copy assignment operator, and they must provide and implement
  *  the setControlFields() and getControlFields() methods. The third template argument
  *  F_t is the type of the callable object to be used for GPU processing (either for
  *  the MAP or for the REDUCE stage).
- */ 
+ */
 
 #ifndef WIN_MAPREDUCE_GPU_H
 #define WIN_MAPREDUCE_GPU_H
@@ -52,18 +52,18 @@
 
 namespace wf {
 
-/** 
+/**
  *  \class Win_MapReduce_GPU
- *  
+ *
  *  \brief Win_MapReduce_GPU operator executing a windowed transformation in parallel
  *         on a CPU+GPU system
- *  
+ *
  *  This class implements the Win_MapReduce_GPU operator executing windowed queries in
  *  parallel on heterogeneous system (CPU+GPU). The operator processes (possibly in parallel)
  *  window partitions in the MAP stage and builds window results out from partition results
  *  (possibly in parallel) in the REDUCE stage. Either the MAP or the REDUCE stage are executed
  *  on the GPU device while the others is executed on the CPU as in the Win_MapReduce operator.
- */ 
+ */
 template<typename tuple_t, typename result_t, typename F_t, typename input_t>
 class Win_MapReduce_GPU: public ff::ff_pipeline
 {
@@ -79,11 +79,11 @@ public:
 
 private:
     // type of the wrapper of input tuples
-    using wrapper_in_t = wrapper_tuple_t<tuple_t>;  
+    using wrapper_in_t = wrapper_tuple_t<tuple_t>;
     // type of the WinMap_Emitter node
     using map_emitter_t = WinMap_Emitter<tuple_t, input_t>;
     // type of the WinMap_Collector node
-    using map_collector_t = WinMap_Collector<result_t>; 
+    using map_collector_t = WinMap_Collector<result_t>;
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3, typename T4>
     friend class Win_Farm_GPU;
@@ -566,9 +566,9 @@ private:
     }
 
 public:
-    /** 
+    /**
      *  \brief Constructor I
-     *  
+     *
      *  \param _map_func the non-incremental map processing function (CPU/GPU function)
      *  \param _reduce_func the non-incremental window reduce processing function (CPU function)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -579,10 +579,10 @@ public:
      *  \param _batch_len no. of window partitions in a batch (i.e. 1 window patition mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. window patitions) per block
      *  \param _name std::string with the unique name of the operator
-     *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU) 
+     *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Win_MapReduce_GPU(F_t _map_func,
                       reduce_func_t _reduce_func,
                       uint64_t _win_len,
@@ -599,9 +599,9 @@ public:
                       Win_MapReduce_GPU(_map_func, _reduce_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {}
 
-    /** 
+    /**
      *  \brief Constructor II
-     *  
+     *
      *  \param _map_func the non-incremental map processing function (CPU/GPU function)
      *  \param _reduceupdate_func the incremental window reduce processing function (CPU function)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -615,7 +615,7 @@ public:
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Win_MapReduce_GPU(F_t _map_func,
                       reduceupdate_func_t _reduceupdate_func,
                       uint64_t _win_len,
@@ -632,9 +632,9 @@ public:
                       Win_MapReduce_GPU(_map_func, _reduceupdate_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {}
 
-    /** 
+    /**
      *  \brief Constructor III
-     *  
+     *
      *  \param _map_func the non-incremental map processing function (CPU function)
      *  \param _reduce_func the non-incremental window reduce processing function (CPU/GPU function)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -648,7 +648,7 @@ public:
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Win_MapReduce_GPU(map_func_t _map_func,
                       F_t _reduce_func,
                       uint64_t _win_len,
@@ -665,9 +665,9 @@ public:
                       Win_MapReduce_GPU(_map_func, _reduce_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {}
 
-    /** 
+    /**
      *  \brief Constructor IV
-     *  
+     *
      *  \param _mapupdate_func the incremental map processing function (CPU function)
      *  \param _reduceupdate_func the incremental window reduce processing function (CPU/GPU function)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -681,7 +681,7 @@ public:
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Win_MapReduce_GPU(mapupdate_func_t _mapupdate_func,
                       F_t _reduceupdate_func,
                       uint64_t _win_len,
@@ -698,37 +698,37 @@ public:
                       Win_MapReduce_GPU(_mapupdate_func, _reduceupdate_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {}
 
-    /** 
+    /**
      *  \brief Get the optimization level used to build the operator
      *  \return adopted utilization level by the operator
-     */ 
+     */
     opt_level_t getOptLevel() const
     {
       return opt_level;
     }
 
-    /** 
+    /**
      *  \brief Get the window type (CB or TB) utilized by the operator
      *  \return adopted windowing semantics (count- or time-based)
-     */ 
+     */
     win_type_t getWinType() const
     {
       return winType;
     }
 
-    /** 
+    /**
      *  \brief Get the parallelism degree of the MAP stage
      *  \return MAP parallelism degree
-     */ 
+     */
     size_t getMAPParallelism() const
     {
       return map_degree;
     }
 
-    /** 
+    /**
      *  \brief Get the parallelism degree of the REDUCE stage
      *  \return REDUCE parallelism degree
-     */ 
+     */
     size_t getREDUCEParallelism() const
     {
       return reduce_degree;

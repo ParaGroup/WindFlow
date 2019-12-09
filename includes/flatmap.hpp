@@ -2,35 +2,35 @@
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU Lesser General Public License version 3 as
  *  published by the Free Software Foundation.
- *  
+ *
  *  This program is distributed in the hope that it will be useful, but WITHOUT
  *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
  *  License for more details.
- *  
+ *
  *  You should have received a copy of the GNU Lesser General Public License
  *  along with this program; if not, write to the Free Software Foundation,
  *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  ******************************************************************************
  */
 
-/** 
+/**
  *  @file    flatmap.hpp
  *  @author  Gabriele Mencagli
  *  @date    08/01/2019
- *  
+ *
  *  @brief FlatMap operator executing a one-to-any transformation on the input stream
- *  
+ *
  *  @section FlatMap (Description)
- *  
+ *
  *  This file implements the FlatMap operator able to execute a one-to-any transformation
  *  on each tuple of the input data stream. The transformation should be stateless and
  *  must produce zero, one or more than one output result for each input tuple consumed.
- *  
+ *
  *  The template parameters tuple_t and result_t must be default constructible, with
  *  a copy constructor and copy assignment operator, and they must provide and implement
  *  the setControlFields() and getControlFields() methods.
- */ 
+ */
 
 #ifndef FLATMAP_H
 #define FLATMAP_H
@@ -47,14 +47,14 @@
 
 namespace wf {
 
-/** 
+/**
  *  \class FlatMap
- *  
+ *
  *  \brief FlatMap operator executing a one-to-any transformation on the input stream
- *  
+ *
  *  This class implements the FlatMap operator executing a one-to-any transformation
  *  on each tuple of the input stream.
- */ 
+ */
 template<typename tuple_t, typename result_t>
 class FlatMap: public ff::ff_farm
 {
@@ -100,7 +100,7 @@ public:
                      std::string _name,
                      RuntimeContext _context,
                      closing_func_t _closing_func):
-                     flatmap_func(_flatmap_func), 
+                     flatmap_func(_flatmap_func),
                      name(_name),
                      isRich(false),
                      context(_context),
@@ -183,14 +183,14 @@ public:
     };
 
 public:
-    /** 
+    /**
      *  \brief Constructor I
-     *  
+     *
      *  \param _func flatmap function
      *  \param _pardegree parallelism degree of the FlatMap operator
      *  \param _name string with the unique name of the FlatMap operator
      *  \param _closing_func closing function
-     */ 
+     */
     FlatMap(flatmap_func_t _func,
             size_t _pardegree,
             std::string _name,
@@ -218,15 +218,15 @@ public:
         ff::ff_farm::cleanup_all();
     }
 
-    /** 
+    /**
      *  \brief Constructor II
-     *  
+     *
      *  \param _func flatmap function
      *  \param _pardegree parallelism degree of the FlatMap operator
      *  \param _name string with the unique name of the FlatMap operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     */ 
+     */
     FlatMap(flatmap_func_t _func,
             size_t _pardegree,
             std::string _name,
@@ -255,14 +255,14 @@ public:
         ff::ff_farm::cleanup_all();
     }
 
-    /** 
+    /**
      *  \brief Constructor III
-     *  
+     *
      *  \param _func rich flatmap function
      *  \param _pardegree parallelism degree of the FlatMap operator
      *  \param _name string with the unique name of the FlatMap operator
      *  \param _closing_func closing function
-     */ 
+     */
     FlatMap(rich_flatmap_func_t _func,
             size_t _pardegree,
             std::string _name,
@@ -290,15 +290,15 @@ public:
         ff::ff_farm::cleanup_all();
     }
 
-    /** 
+    /**
      *  \brief Constructor IV
-     *  
+     *
      *  \param _func rich flatmap function
      *  \param _pardegree parallelism degree of the FlatMap operator
      *  \param _name string with the unique name of the FlatMap operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     */ 
+     */
     FlatMap(rich_flatmap_func_t _func,
             size_t _pardegree,
             std::string _name,
@@ -327,7 +327,7 @@ public:
         ff::ff_farm::cleanup_all();
     }
 
-    /** 
+    /**
      *  \brief Check whether the FlatMap has been instantiated with a key-based distribution or not
      *  \return true if the FlatMap is configured with keyBy
      */

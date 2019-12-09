@@ -2,31 +2,31 @@
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU Lesser General Public License version 3 as
  *  published by the Free Software Foundation.
- *  
+ *
  *  This program is distributed in the hope that it will be useful, but WITHOUT
  *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
  *  License for more details.
- *  
+ *
  *  You should have received a copy of the GNU Lesser General Public License
  *  along with this program; if not, write to the Free Software Foundation,
  *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  ******************************************************************************
  */
 
-/** 
+/**
  *  @file    window.hpp
  *  @author  Gabriele Mencagli
  *  @date    28/06/2017
- *  
+ *
  *  @brief Streaming windows
- *  
+ *
  *  @section Window (Description)
- *  
+ *
  *  This file implements the classes used by the WindFlow library to support
  *  streaming windows. The library natively supports count-based and time-
  *  based (tumbling, sliding or hopping) window models.
- */ 
+ */
 
 #ifndef WINDOW_H
 #define WINDOW_H
@@ -85,7 +85,7 @@ private:
     uint64_t starting_ts; // starting timestamp
 
 public:
-    // Constructor 
+    // Constructor
     Triggerer_TB(uint64_t _win_len,
                  uint64_t _slide_len,
                  uint64_t _wid,
@@ -125,7 +125,7 @@ private:
     bool batched; // flag stating whether the window is batched or not
 
 public:
-    // Constructor 
+    // Constructor
     Window(key_t _key,
            uint64_t _lwid,
            uint64_t _gwid,

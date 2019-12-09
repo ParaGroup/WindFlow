@@ -2,35 +2,35 @@
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU Lesser General Public License version 3 as
  *  published by the Free Software Foundation.
- *  
+ *
  *  This program is distributed in the hope that it will be useful, but WITHOUT
  *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
  *  License for more details.
- *  
+ *
  *  You should have received a copy of the GNU Lesser General Public License
  *  along with this program; if not, write to the Free Software Foundation,
  *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  ******************************************************************************
  */
 
-/** 
+/**
  *  @file    win_seq.hpp
  *  @author  Gabriele Mencagli
  *  @date    30/06/2017
- *  
+ *
  *  @brief Win_Seq operator executing a windowed transformation on a multi-core CPU
- *  
+ *
  *  @section Win_Seq (Description)
- *  
+ *
  *  This file implements the Win_Seq operator able to execute windowed queries on a
  *  multicore. The operator executes streaming windows in a serial fashion on a CPU
  *  core and supports both a non-incremental and an incremental query definition.
- *  
+ *
  *  The template parameters tuple_t and result_t must be default constructible, with
  *  a copy constructor and copy assignment operator, and they must provide and implement
  *  the setControlFields() and getControlFields() methods.
- */ 
+ */
 
 #ifndef WIN_SEQ_H
 #define WIN_SEQ_H
@@ -49,14 +49,14 @@
 
 namespace wf {
 
-/** 
+/**
  *  \class Win_Seq
- *  
+ *
  *  \brief Win_Seq operator executing a windowed transformation on a multi-core CPU
- *  
+ *
  *  This class implements the Win_Seq operator executing windowed queries on a multicore
  *  in a serial fashion.
- */ 
+ */
 template<typename tuple_t, typename result_t, typename input_t>
 class Win_Seq: public ff::ff_node_t<input_t, result_t>
 {
@@ -183,9 +183,9 @@ private:
     }
 
 public:
-    /** 
+    /**
      *  \brief Constructor I
-     *  
+     *
      *  \param _win_func the non-incremental window processing function
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
@@ -195,7 +195,7 @@ public:
      *  \param _context RuntimeContext object to be used
      *  \param _config configuration of the operator
      *  \param _role role of the operator
-     */ 
+     */
     Win_Seq(win_func_t _win_func,
             uint64_t _win_len,
             uint64_t _slide_len,
@@ -220,9 +220,9 @@ public:
         init();
     }
 
-    /** 
+    /**
      *  \brief Constructor II
-     *  
+     *
      *  \param _rich_win_func the rich non-incremental window processing function
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
@@ -232,7 +232,7 @@ public:
      *  \param _context RuntimeContext object to be used
      *  \param _config configuration of the operator
      *  \param _role role of the operator
-     */ 
+     */
     Win_Seq(rich_win_func_t _rich_win_func,
             uint64_t _win_len,
             uint64_t _slide_len,
@@ -257,9 +257,9 @@ public:
         init();
     }
 
-    /** 
+    /**
      *  \brief Constructor III
-     *  
+     *
      *  \param _winupdate_func the incremental window processing function
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
@@ -269,7 +269,7 @@ public:
      *  \param _context RuntimeContext object to be used
      *  \param _config configuration of the operator
      *  \param _role role of the operator
-     */ 
+     */
     Win_Seq(winupdate_func_t _winupdate_func,
             uint64_t _win_len,
             uint64_t _slide_len,
@@ -294,9 +294,9 @@ public:
         init();
     }
 
-    /** 
+    /**
      *  \brief Constructor IV
-     *  
+     *
      *  \param _rich_winupdate_func the rich incremental window processing function
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
@@ -306,7 +306,7 @@ public:
      *  \param _context RuntimeContext object to be used
      *  \param _config configuration of the operator
      *  \param _role role of the operator
-     */ 
+     */
     Win_Seq(rich_winupdate_func_t _rich_winupdate_func,
             uint64_t _win_len,
             uint64_t _slide_len,
@@ -590,7 +590,7 @@ public:
 
 //@endcond
 
-    /** 
+    /**
      *  \brief Get the window type (CB or TB) utilized by the operator
      *  \return adopted windowing semantics (count- or time-based)
      */

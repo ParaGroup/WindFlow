@@ -2,35 +2,35 @@
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU Lesser General Public License version 3 as
  *  published by the Free Software Foundation.
- *  
+ *
  *  This program is distributed in the hope that it will be useful, but WITHOUT
  *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
  *  License for more details.
- *  
+ *
  *  You should have received a copy of the GNU Lesser General Public License
  *  along with this program; if not, write to the Free Software Foundation,
  *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  ******************************************************************************
  */
 
-/** 
+/**
  *  @file    map.hpp
  *  @author  Gabriele Mencagli
  *  @date    08/01/2019
- *  
+ *
  *  @brief Map operator executing a one-to-one transformation on the input stream
- *  
+ *
  *  @section Map (Description)
- *  
+ *
  *  This file implements the Map operator able to execute a one-to-one transformation
  *  on each tuple of the input data stream. The transformation should be stateless and
  *  must produce one output result for each input tuple consumed.
- *  
+ *
  *  The template parameters tuple_t and result_t must be default constructible, with a
  *  copy Constructor and copy assignment operator, and they must provide and implement
  *  the setControlFields() and getControlFields() methods.
- */ 
+ */
 
 #ifndef MAP_H
 #define MAP_H
@@ -46,14 +46,14 @@
 
 namespace wf {
 
-/** 
+/**
  *  \class Map
- *  
+ *
  *  \brief Map operator executing a one-to-one transformation on the input stream
- *  
+ *
  *  This class implements the Map operator executing a one-to-one stateless transformation
  *  on each tuple of the input stream.
- */ 
+ */
 template<typename tuple_t, typename result_t>
 class Map: public ff::ff_farm
 {
@@ -224,18 +224,18 @@ public:
     };
 
 public:
-    /** 
+    /**
      *  \brief Constructor I
-     *  
+     *
      *  \param _func function to be executed on each input tuple (in-place version)
      *  \param _pardegree parallelism degree of the Map operator
      *  \param _name string with the unique name of the Map operator
      *  \param _closing_func closing function
-     */ 
+     */
     template <typename T=size_t>
     Map(typename std::enable_if<std::is_same<T,T>::value && std::is_same<tuple_t,result_t>::value, map_func_ip_t>::type _func,
         T _pardegree,
-        std::string _name, 
+        std::string _name,
         closing_func_t _closing_func):
         keyed(false)
     {
@@ -260,20 +260,20 @@ public:
         ff::ff_farm::cleanup_all();
     }
 
-    /** 
+    /**
      *  \brief Constructor II
-     *  
+     *
      *  \param _func function to be executed on each input tuple (in-place version)
      *  \param _pardegree parallelism degree of the Map operator
      *  \param _name string with the unique name of the Map operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     */ 
+     */
     template <typename T=size_t>
     Map(typename std::enable_if<std::is_same<T,T>::value && std::is_same<tuple_t,result_t>::value, map_func_ip_t>::type _func,
         T _pardegree,
         std::string _name,
-        closing_func_t _closing_func, 
+        closing_func_t _closing_func,
         routing_func_t _routing_func):
         keyed(true)
     {
@@ -298,14 +298,14 @@ public:
         ff::ff_farm::cleanup_all();
     }
 
-    /** 
+    /**
      *  \brief Constructor III
-     *  
+     *
      *  \param _func rich function to be executed on each input tuple (in-place version)
      *  \param _pardegree parallelism degree of the Map operator
      *  \param _name string with the unique name of the Map operator
      *  \param _closing_func closing function
-     */ 
+     */
     template <typename T=size_t>
     Map(typename std::enable_if<std::is_same<T,T>::value && std::is_same<tuple_t,result_t>::value, rich_map_func_ip_t>::type _func,
         T _pardegree,
@@ -334,15 +334,15 @@ public:
         ff::ff_farm::cleanup_all();
     }
 
-    /** 
+    /**
      *  \brief Constructor IV
-     *  
+     *
      *  \param _func rich function to be executed on each input tuple (in-place version)
      *  \param _pardegree parallelism degree of the Map operator
      *  \param _name string with the unique name of the Map operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     */ 
+     */
     template <typename T=size_t>
     Map(typename std::enable_if<std::is_same<T,T>::value && std::is_same<tuple_t,result_t>::value, rich_map_func_ip_t>::type _func,
         T _pardegree,
@@ -372,14 +372,14 @@ public:
         ff::ff_farm::cleanup_all();
     }
 
-    /** 
+    /**
      *  \brief Constructor V
-     *  
+     *
      *  \param _func function to be executed on each input tuple (not in-place version)
      *  \param _pardegree parallelism degree of the Map operator
      *  \param _name string with the unique name of the Map operator
      *  \param _closing_func closing function
-     */ 
+     */
     template <typename T=size_t>
     Map(typename std::enable_if<std::is_same<T,T>::value && !std::is_same<tuple_t,result_t>::value, map_func_nip_t>::type _func,
         T _pardegree,
@@ -408,15 +408,15 @@ public:
         ff::ff_farm::cleanup_all();
     }
 
-    /** 
+    /**
      *  \brief Constructor VI
-     *  
+     *
      *  \param _func function to be executed on each input tuple (not in-place version)
      *  \param _pardegree parallelism degree of the Map operator
      *  \param _name string with the unique name of the Map operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     */ 
+     */
     template <typename T=size_t>
     Map(typename std::enable_if<std::is_same<T,T>::value && !std::is_same<tuple_t,result_t>::value, map_func_nip_t>::type _func,
         T _pardegree,
@@ -446,14 +446,14 @@ public:
         ff::ff_farm::cleanup_all();
     }
 
-    /** 
+    /**
      *  \brief Constructor VII
-     *  
+     *
      *  \param _func rich function to be executed on each input tuple (not in-place version)
      *  \param _pardegree parallelism degree of the Map operator
      *  \param _name string with the unique name of the Map operator
      *  \param _closing_func closing function
-     */ 
+     */
     template <typename T=size_t>
     Map(typename std::enable_if<std::is_same<T,T>::value && !std::is_same<tuple_t,result_t>::value, rich_map_func_nip_t>::type _func,
         T _pardegree,
@@ -482,15 +482,15 @@ public:
         ff::ff_farm::cleanup_all();
     }
 
-    /** 
+    /**
      *  \brief Constructor VIII
-     *  
+     *
      *  \param _func rich function to be executed on each input tuple (not in-place version)
      *  \param _pardegree parallelism degree of the Map operator
      *  \param _name string with the unique name of the Map operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     */ 
+     */
     template <typename T=size_t>
     Map(typename std::enable_if<std::is_same<T,T>::value && !std::is_same<tuple_t,result_t>::value, rich_map_func_nip_t>::type _func,
         T _pardegree,
@@ -520,7 +520,7 @@ public:
         ff::ff_farm::cleanup_all();
     }
 
-    /** 
+    /**
      *  \brief Check whether the Map has been instantiated with a key-based distribution or not
      *  \return true if the Map is configured with keyBy
      */

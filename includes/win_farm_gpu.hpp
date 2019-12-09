@@ -2,38 +2,38 @@
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU Lesser General Public License version 3 as
  *  published by the Free Software Foundation.
- *  
+ *
  *  This program is distributed in the hope that it will be useful, but WITHOUT
  *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
  *  License for more details.
- *  
+ *
  *  You should have received a copy of the GNU Lesser General Public License
  *  along with this program; if not, write to the Free Software Foundation,
  *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  ******************************************************************************
  */
 
-/** 
+/**
  *  @file    win_farm_gpu.hpp
  *  @author  Gabriele Mencagli
  *  @date    17/04/2018
- *  
+ *
  *  @brief Win_Farm_GPU operator executing a windowed transformation in parallel
  *         on a CPU+GPU system
- *  
+ *
  *  @section Win_Farm_GPU (Description)
- *  
+ *
  *  This file implements the Win_Farm_GPU operator able to executes windowed queries
  *  on a heterogeneous system (CPU+GPU). The operator prepares batches of input tuples
  *  in parallel on the CPU cores and offloads on the GPU the parallel processing of the
  *  windows within each batch.
- *  
+ *
  *  The template parameters tuple_t and result_t must be default constructible, with a
  *  copy constructor and copy assignment operator, and they must provide and implement
  *  the setControlFields() and getControlFields() methods. The third template argument
  *  win_F_t is the type of the callable object to be used for GPU processing.
- */ 
+ */
 
 #ifndef WIN_FARM_GPU_H
 #define WIN_FARM_GPU_H
@@ -54,17 +54,17 @@
 
 namespace wf {
 
-/** 
+/**
  *  \class Win_Farm_GPU
- *  
+ *
  *  \brief Win_Farm_GPU operator executing a windowed transformation in parallel
  *         on a CPU+GPU system
- *  
+ *
  *  This class implements the Win_Farm_GPU operator. The operator prepares in parallel
  *  distinct batches of tuples (on the CPU cores) and offloads the processing of the
  *  batches on the GPU by computing in parallel all the windows within a batch on the
  *  CUDA cores of the GPU.
- */ 
+ */
 template<typename tuple_t, typename result_t, typename win_F_t, typename input_t>
 class Win_Farm_GPU: public ff::ff_farm
 {
@@ -209,9 +209,9 @@ private:
     }
 
 public:
-    /** 
+    /**
      *  \brief Constructor I
-     *  
+     *
      *  \param _win_func the host/device window processing function
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
@@ -223,7 +223,7 @@ public:
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Win_Farm_GPU(win_F_t _win_func,
                  uint64_t _win_len,
                  uint64_t _slide_len,
@@ -238,9 +238,9 @@ public:
                  Win_Farm_GPU(_win_func, _win_len, _slide_len, _winType, _pardegree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
     {}
 
-    /** 
+    /**
      *  \brief Constructor II (Nesting with Pane_Farm_GPU)
-     *  
+     *
      *  \param _pf Pane_Farm_GPU to be replicated within the Win_Farm_GPU operator
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
@@ -252,7 +252,7 @@ public:
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Win_Farm_GPU(const pane_farm_gpu_t &_pf,
                  uint64_t _win_len,
                  uint64_t _slide_len,
@@ -271,7 +271,7 @@ public:
                  winType(_winType)
     {
         // type of the Pane_Farm_GPU to be created within the Win_Farm_GPU operator
-        using panewrap_farm_gpu_t = Pane_Farm_GPU<tuple_t, result_t, win_F_t, wrapper_in_t>;       
+        using panewrap_farm_gpu_t = Pane_Farm_GPU<tuple_t, result_t, win_F_t, wrapper_in_t>;
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
             std::cerr << RED << "WindFlow Error: window length or slide in Win_Farm_GPU cannot be zero" << DEFAULT << std::endl;
@@ -330,9 +330,9 @@ public:
         ff::ff_farm::cleanup_all();
     }
 
-    /** 
+    /**
      *  \brief Constructor III (Nesting with Win_MapReduce_GPU)
-     *  
+     *
      *  \param _wm Win_MapReduce_GPU to be replicated within the Win_Farm_GPU operator
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
@@ -344,7 +344,7 @@ public:
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Win_Farm_GPU(const win_mapreduce_gpu_t &_wm,
                  uint64_t _win_len,
                  uint64_t _slide_len,
@@ -363,7 +363,7 @@ public:
                  winType(_winType)
     {
         // type of the Win_MapReduce_GPU to be created within the Win_Farm_GPU operator
-        using winwrap_mapreduce_gpu_t = Win_MapReduce_GPU<tuple_t, result_t, win_F_t, wrapper_in_t>;  
+        using winwrap_mapreduce_gpu_t = Win_MapReduce_GPU<tuple_t, result_t, win_F_t, wrapper_in_t>;
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
             std::cerr << RED << "WindFlow Error: window length or slide in Win_Farm_GPU cannot be zero" << DEFAULT << std::endl;
@@ -422,64 +422,64 @@ public:
         ff::ff_farm::cleanup_all();
     }
 
-    /** 
+    /**
      *  \brief Check whether the Win_Farm_GPU has been instantiated with complex operators inside
      *  \return true if the Win_Farm_GPU has complex operators inside
-     */ 
+     */
     bool useComplexNesting() const
     {
         return hasComplexWorkers;
     }
 
-    /** 
+    /**
      *  \brief Get the optimization level used to build the operator
      *  \return adopted utilization level by the operator
-     */ 
+     */
     opt_level_t getOptLevel() const
     {
         return outer_opt_level;
     }
 
-    /** 
+    /**
      *  \brief Type of the inner operators used by this Win_Farm_GPU
      *  \return type of the inner operators
-     */ 
+     */
     pattern_t getInnerType() const
     {
         return inner_type;
     }
 
-    /** 
+    /**
      *  \brief Get the optimization level of the inner operators within this Win_Farm_GPU
      *  \return adopted utilization level by the inner operators
-     */ 
+     */
     opt_level_t getInnerOptLevel() const
     {
         return inner_opt_level;
     }
 
-    /** 
+    /**
      *  \brief Get the parallelism degree of the Win_Farm_GPU
      *  \return parallelism degree of the Win_Farm_GPU
-     */ 
+     */
     size_t getParallelism() const
     {
         return parallelism;
-    }       
+    }
 
-    /** 
+    /**
      *  \brief Get the parallelism degrees of the inner operators within this Win_Farm_GPU
      *  \return parallelism degrees of the inner operators
-     */ 
+     */
     std::pair<size_t, size_t> getInnerParallelism() const
     {
         return std::make_pair(inner_parallelism_1, inner_parallelism_2);
     }
 
-    /** 
+    /**
      *  \brief Get the window type (CB or TB) utilized by the operator
      *  \return adopted windowing semantics (count- or time-based)
-     */ 
+     */
     win_type_t getWinType() const
     {
         return winType;

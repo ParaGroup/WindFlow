@@ -2,34 +2,34 @@
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU Lesser General Public License version 3 as
  *  published by the Free Software Foundation.
- *  
+ *
  *  This program is distributed in the hope that it will be useful, but WITHOUT
  *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
  *  License for more details.
- *  
+ *
  *  You should have received a copy of the GNU Lesser General Public License
  *  along with this program; if not, write to the Free Software Foundation,
  *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  ******************************************************************************
  */
 
-/** 
+/**
  *  @file    accumulator.hpp
  *  @author  Gabriele Mencagli
  *  @date    13/02/2019
- *  
+ *
  *  @brief Accumulator operator executing "rolling" reduce/fold functions on data streams
- *  
+ *
  *  @section Accumulator (Description)
- *  
+ *
  *  This file implements the Accumulator operator able to execute "rolling" reduce/fold
  *  functions on data streams.
- *  
+ *
  *  The template parameters tuple_t and result_t must be default constructible, with a copy
  *  constructor and copy assignment operator, and thet must provide and implement the
  *  setControlFields() and getControlFields() methods.
- */ 
+ */
 
 #ifndef ACCUMULATOR_H
 #define ACCUMULATOR_H
@@ -47,14 +47,14 @@
 
 namespace wf {
 
-/** 
+/**
  *  \class Accumulator
- *  
+ *
  *  \brief Accumulator operator executing "rolling" reduce/fold functions on data streams
- *  
+ *
  *  This class implements the Accumulator operator able to execute "rolling" reduce/fold
  *  functions on data streams.
- */ 
+ */
 template<typename tuple_t, typename result_t>
 class Accumulator: public ff::ff_farm
 {
@@ -204,16 +204,16 @@ public:
     };
 
 public:
-    /** 
+    /**
      *  \brief Constructor I
-     *  
+     *
      *  \param _func reduce/fold function
      *  \param _init_value initial value to be used by the fold function (for reduce the initial value is the one obtained by the default Constructor of result_t)
      *  \param _pardegree parallelism degree of the Accumulator operator
      *  \param _name string with the unique name of the Accumulator operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     */ 
+     */
     Accumulator(acc_func_t _func,
                 result_t _init_value,
                 size_t _pardegree,
@@ -240,16 +240,16 @@ public:
         ff::ff_farm::cleanup_all();
     }
 
-    /** 
+    /**
      *  \brief Constructor II
-     *  
+     *
      *  \param _func rich reduce/fold function
      *  \param _init_value initial value to be used by the fold function (for reduce the initial value is the one obtained by the default Constructor of result_t)
      *  \param _pardegree parallelism degree of the Accumulator operator
      *  \param _name string with the unique name of the Accumulator operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     */ 
+     */
     Accumulator(rich_acc_func_t _func,
                 result_t _init_value,
                 size_t _pardegree,

@@ -2,32 +2,32 @@
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU Lesser General Public License version 3 as
  *  published by the Free Software Foundation.
- *  
+ *
  *  This program is distributed in the hope that it will be useful, but WITHOUT
  *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
  *  License for more details.
- *  
+ *
  *  You should have received a copy of the GNU Lesser General Public License
  *  along with this program; if not, write to the Free Software Foundation,
  *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  ******************************************************************************
  */
 
-/** 
+/**
  *  @file    ordering_node.hpp
  *  @author  Gabriele Mencagli
  *  @date    19/08/2018
- *  
+ *
  *  @brief Node used for reordering data items received from multiple streams
- *  
+ *
  *  @section Ordering_Node (Description)
- *  
+ *
  *  The node has multiple input streams and assumes that input items are received
  *  in order from each distinct input stream. The node reorders items and emits
  *  them in increasing order. The node can be configured to order either by unique
  *  identifiers or by timestamps.
- */ 
+ */
 
 #ifndef ORDERINGNODE_H
 #define ORDERINGNODE_H

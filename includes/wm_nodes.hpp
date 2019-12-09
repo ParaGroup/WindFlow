@@ -2,30 +2,30 @@
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU Lesser General Public License version 3 as
  *  published by the Free Software Foundation.
- *  
+ *
  *  This program is distributed in the hope that it will be useful, but WITHOUT
  *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
  *  License for more details.
- *  
+ *
  *  You should have received a copy of the GNU Lesser General Public License
  *  along with this program; if not, write to the Free Software Foundation,
  *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  ******************************************************************************
  */
 
-/** 
+/**
  *  @file    wm_nodes.hpp
  *  @author  Gabriele Mencagli
  *  @date    02/10/2018
- *  
+ *
  *  @brief Emitter, dropper and collector used by the Win_MapReduce and Win_MapReduce_GPU operators
- *  
+ *
  *  @section Win_MapReduce and Win_MapReduce_GPU Emitter, Dropper and Collector (Description)
- *  
+ *
  *  This file implements the utility nodes (emitter, dropper and collector) of the
  *  MAP stage of the Win_MapReduce and Win_MapReduce_GPU operators in the library.
- */ 
+ */
 
 #ifndef WM_NODES_H
 #define WM_NODES_H

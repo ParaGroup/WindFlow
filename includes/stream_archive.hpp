@@ -2,30 +2,30 @@
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU Lesser General Public License version 3 as
  *  published by the Free Software Foundation.
- *  
+ *
  *  This program is distributed in the hope that it will be useful, but WITHOUT
  *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
  *  License for more details.
- *  
+ *
  *  You should have received a copy of the GNU Lesser General Public License
  *  along with this program; if not, write to the Free Software Foundation,
  *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  ******************************************************************************
  */
 
-/** 
+/**
  *  @file    stream_archive.hpp
  *  @author  Gabriele Mencagli
  *  @date    28/06/2017
- *  
+ *
  *  @brief Stream archive
- *  
+ *
  *  @section StreamArchive (Description)
- *  
+ *
  *  Stream archive of tuples received from the input stream and still useful
  *  for the query processing.
- */ 
+ */
 
 #ifndef ARCHIVE_H
 #define ARCHIVE_H
@@ -94,12 +94,12 @@ public:
         return archive.end();
     }
 
-    /*  
+    /*
      *  Method to get a pair of iterators that represent the window range [first, last) given two tuples
      *  _t1 and _t2. Tuple _t1 must compare less than _t2. The method returns the iterator (first) to
      *  the smallest tuple in the archive that compares greater or equal than _t1, and the iterator (last)
      *  to the smallest tuple in the archive that compares greater or equal than _t2.
-     */ 
+     */
     std::pair<iterator_t, iterator_t> getWinRange(const tuple_t &_t1, const tuple_t &_t2)
     {
         assert(lessThan(_t1, _t2));
@@ -109,12 +109,12 @@ public:
         return its;
     }
 
-    /*  
+    /*
      *  Method to get a pair of iterators that represent the window range [first, end) given
      *  an input tuple _t. The method returns the iterator (first) to the smallest tuple in
      *  the archive that compares greater or equal than _t, and the iterator (end) to the end
      *  of the archive.
-     */ 
+     */
     std::pair<iterator_t, iterator_t> getWinRange(const tuple_t &_t)
     {
         std::pair<iterator_t, iterator_t> its;
@@ -123,10 +123,10 @@ public:
         return its;
     }
 
-    /*  
+    /*
      *  Method which, given a pair of two tuples _t1 and _t2 contained in the archive, returns
      *  the distance from _t1 to _t2.
-     */ 
+     */
     size_t getDistance(const tuple_t &_t1, const tuple_t &_t2)
     {
         std::pair<iterator_t, iterator_t> its;
@@ -135,10 +135,10 @@ public:
         return std::distance(its.first, its.second);
     }
 
-    /*  
+    /*
      *  Method which, given a tuple _t contained in the archive, returns
      *  the distance from _t to the end of the archive.
-     */ 
+     */
     size_t getDistance(const tuple_t &_t1)
     {
         std::pair<iterator_t, iterator_t> its;
@@ -146,10 +146,10 @@ public:
         return std::distance(its.first, archive.end());
     }
 
-    /*  
+    /*
      *  Method used to get an iterator to a given tuple in the archive. The tuple must be
      *  in the archive.
-     */ 
+     */
     iterator_t getIterator(const tuple_t &_t1)
     {
         return std::lower_bound(archive.begin(), archive.end(), _t1, lessThan);

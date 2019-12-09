@@ -2,38 +2,38 @@
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU Lesser General Public License version 3 as
  *  published by the Free Software Foundation.
- *  
+ *
  *  This program is distributed in the hope that it will be useful, but WITHOUT
  *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
  *  License for more details.
- *  
+ *
  *  You should have received a copy of the GNU Lesser General Public License
  *  along with this program; if not, write to the Free Software Foundation,
  *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  ******************************************************************************
  */
 
-/** 
+/**
  *  @file    key_farm.hpp
  *  @author  Gabriele Mencagli
  *  @date    17/10/2017
- *  
+ *
  *  @brief Key_Farm operator executing a windowed transformation in parallel
  *         on multi-core CPUs
- *  
+ *
  *  @section Key_Farm (Description)
- *  
+ *
  *  This file implements the Key_Farm operator able to execute windowed queries on a
  *  multicore. The operator executes streaming windows in parallel on the CPU cores
  *  and supports both a non-incremental and an incremental query definition. Only
  *  windows belonging to different sub-streams can be executed in parallel, while
  *  windows of the same sub-stream are executed rigorously in order.
- *  
+ *
  *  The template parameters tuple_t and result_t must be default constructible, with
  *  a copy constructor and copy assignment operator, and they must provide and implement
  *  the setControlFields() and getControlFields() methods.
- */ 
+ */
 
 #ifndef KEY_FARM_H
 #define KEY_FARM_H
@@ -54,15 +54,15 @@
 
 namespace wf {
 
-/** 
+/**
  *  \class Key_Farm
- *  
+ *
  *  \brief Key_Farm operator executing a windowed transformation in parallel on multi-core CPUs
- *  
+ *
  *  This class implements the Key_Farm operator executing windowed queries in parallel on
  *  a multicore. In the operator, only windows belonging to different sub-streams can be
  *  executed in parallel.
- */ 
+ */
 template<typename tuple_t, typename result_t>
 class Key_Farm: public ff::ff_farm
 {
@@ -203,9 +203,9 @@ private:
     }
 
 public:
-    /** 
+    /**
      *  \brief Constructor I
-     *  
+     *
      *  \param _win_func the non-incremental window processing function
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
@@ -215,7 +215,7 @@ public:
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Key_Farm(win_func_t _win_func,
              uint64_t _win_len,
              uint64_t _slide_len,
@@ -228,9 +228,9 @@ public:
              Key_Farm(_win_func, _win_len, _slide_len, _winType, _pardegree, _name, _closing_func, _routing_func, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
     {}
 
-    /** 
+    /**
      *  \brief Constructor II
-     *  
+     *
      *  \param _rich_win_func the rich non-incremental window processing function
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
@@ -240,7 +240,7 @@ public:
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Key_Farm(rich_win_func_t _rich_win_func,
              uint64_t _win_len,
              uint64_t _slide_len,
@@ -253,9 +253,9 @@ public:
              Key_Farm(_rich_win_func, _win_len, _slide_len, _winType, _pardegree, _name, _closing_func, _routing_func, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
     {}
 
-    /** 
+    /**
      *  \brief Constructor III
-     *  
+     *
      *  \param _winupdate_func the incremental window processing function
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
@@ -265,7 +265,7 @@ public:
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Key_Farm(winupdate_func_t _winupdate_func,
              uint64_t _win_len,
              uint64_t _slide_len,
@@ -278,9 +278,9 @@ public:
              Key_Farm(_winupdate_func, _win_len, _slide_len, _winType, _pardegree, _name, _closing_func, _routing_func, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
     {}
 
-    /** 
+    /**
      *  \brief Constructor IV
-     *  
+     *
      *  \param _rich_winupdate_func the rich incremental window processing function
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
@@ -290,7 +290,7 @@ public:
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Key_Farm(rich_winupdate_func_t _rich_winupdate_func,
              uint64_t _win_len,
              uint64_t _slide_len,
@@ -303,9 +303,9 @@ public:
              Key_Farm(_rich_winupdate_func, _win_len, _slide_len, _winType, _pardegree, _name, _closing_func, _routing_func, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
     {}
 
-    /** 
+    /**
      *  \brief Constructor V (Nesting with Pane_Farm)
-     *  
+     *
      *  \param _pf Pane_Farm to be replicated within the Key_Farm operator
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
@@ -315,7 +315,7 @@ public:
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Key_Farm(const pane_farm_t &_pf,
              uint64_t _win_len,
              uint64_t _slide_len,
@@ -401,9 +401,9 @@ public:
         ff::ff_farm::cleanup_all();
     }
 
-    /** 
+    /**
      *  \brief Constructor VI (Nesting with Win_MapReduce)
-     *  
+     *
      *  \param _wm Win_MapReduce to be replicated within the Key_Farm operator
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
@@ -413,7 +413,7 @@ public:
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Key_Farm(const win_mapreduce_t &_wm,
              uint64_t _win_len,
              uint64_t _slide_len,
@@ -499,64 +499,64 @@ public:
         ff::ff_farm::cleanup_all();
     }
 
-    /** 
+    /**
      *  \brief Check whether the Key_Farm has been instantiated with complex operators inside
      *  \return true if the Key_Farm has complex operators inside
-     */ 
+     */
     bool useComplexNesting() const
     {
         return hasComplexWorkers;
     }
 
-    /** 
+    /**
      *  \brief Get the optimization level used to build the operator
      *  \return adopted utilization level by the operator
-     */ 
+     */
     opt_level_t getOptLevel() const
     {
         return outer_opt_level;
     }
 
-    /** 
+    /**
      *  \brief Type of the inner operators used by this Key_Farm
      *  \return type of the inner operators
-     */ 
+     */
     pattern_t getInnerType() const
     {
         return inner_type;
     }
 
-    /** 
+    /**
      *  \brief Get the optimization level of the inner operators within this Key_Farm
      *  \return adopted utilization level by the inner operators
-     */ 
+     */
     opt_level_t getInnerOptLevel() const
     {
         return inner_opt_level;
     }
 
-    /** 
+    /**
      *  \brief Get the parallelism degree of the Key_Farm
      *  \return parallelism degree of the Key_Farm
-     */ 
+     */
     size_t getParallelism() const
     {
         return parallelism;
-    }        
+    }
 
-    /** 
+    /**
      *  \brief Get the parallelism degrees of the inner operators within this Key_Farm
      *  \return parallelism degrees of the inner operators
-     */ 
+     */
     std::pair<size_t, size_t> getInnerParallelism() const
     {
         return std::make_pair(inner_parallelism_1, inner_parallelism_2);
     }
 
-    /** 
+    /**
      *  \brief Get the window type (CB or TB) utilized by the operator
      *  \return adopted windowing semantics (count- or time-based)
-     */ 
+     */
     win_type_t getWinType() const
     {
         return winType;

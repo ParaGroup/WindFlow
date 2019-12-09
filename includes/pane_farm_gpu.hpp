@@ -2,28 +2,28 @@
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU Lesser General Public License version 3 as
  *  published by the Free Software Foundation.
- *  
+ *
  *  This program is distributed in the hope that it will be useful, but WITHOUT
  *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
  *  License for more details
- *  
+ *
  *  You should have received a copy of the GNU Lesser General Public License
  *  along with this program; if not, write to the Free Software Foundation,
  *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  ******************************************************************************
  */
 
-/** 
+/**
  *  @file    pane_farm_gpu.hpp
  *  @author  Gabriele Mencagli
  *  @date    22/05/2018
- *  
+ *
  *  @brief Pane_Farm_GPU operator executing a windowed transformation in parallel
  *         on a CPU+GPU system
- *  
+ *
  *  @section Pane_Farm_GPU (Description)
- *  
+ *
  *  This file implements the Pane_Farm_GPU operator able to execute windowed queries on a
  *  heterogeneous system (CPU+GPU). The operator processes (possibly in parallel) panes of
  *  the windows in the so-called PLQ stage (Pane-Level Sub-Query) and computes (possibly
@@ -32,13 +32,13 @@
  *  saving processing time. The operator allows the user to offload either the PLQ or the WLQ
  *  processing on the GPU while the other stage is executed on the CPU with either a non
  *  incremental or an incremental query definition.
- *  
+ *
  *  The template parameters tuple_t and result_t must be default constructible, with a
  *  copy constructor and copy assignment operator, and they must provide and implement
  *  the setControlFields() and getControlFields() methods. The third template argument F_t
  *  is the type of the callable object to be used for GPU processing (either for the PLQ
  *  or for the WLQ).
- */ 
+ */
 
 #ifndef PANE_FARM_GPU_H
 #define PANE_FARM_GPU_H
@@ -53,19 +53,19 @@
 
 namespace wf {
 
-/** 
+/**
  *  \class Pane_Farm_GPU
- *  
+ *
  *  \brief Pane_Farm_GPU operator executing a windowed transformation in parallel
  *         on a CPU+GPU system
- *  
+ *
  *  This class implements the Pane_Farm_GPU operator executing windowed queries in
  *  parallel on a heterogeneous system (CPU+GPU). The operator processes (possibly
  *  in parallel) panes in the PLQ stage while window results are built out from the
  *  pane results (possibly in parallel) in the WLQ stage. Either the PLQ or the WLQ
  *  stage are executed on the GPU device while the others is executed on the CPU as
  *  in the Pane_Farm operator.
- */ 
+ */
 template<typename tuple_t, typename result_t, typename F_t, typename input_t>
 class Pane_Farm_GPU: public ff::ff_pipeline
 {
@@ -539,9 +539,9 @@ private:
     }
 
 public:
-    /** 
+    /**
      *  \brief Constructor I
-     *  
+     *
      *  \param _plq_func the non-incremental pane processing function (CPU/GPU function)
      *  \param _wlq_func the non-incremental window processing function (CPU function)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -555,7 +555,7 @@ public:
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Pane_Farm_GPU(F_t _plq_func,
                   wlq_func_t _wlq_func,
                   uint64_t _win_len,
@@ -572,9 +572,9 @@ public:
                   Pane_Farm_GPU(_plq_func, _wlq_func, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {}
 
-    /** 
+    /**
      *  \brief Constructor II
-     *  
+     *
      *  \param _plq_func the non-incremental pane processing function (CPU/GPU function)
      *  \param _wlqupdate_func the incremental window processing function (CPU function)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -588,12 +588,12 @@ public:
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Pane_Farm_GPU(F_t _plq_func,
                   wlqupdate_func_t _wlqupdate_func,
                   uint64_t _win_len,
                   uint64_t _slide_len,
-                  win_type_t _winType, 
+                  win_type_t _winType,
                   size_t _plq_degree,
                   size_t _wlq_degree,
                   size_t _batch_len,
@@ -605,9 +605,9 @@ public:
                   Pane_Farm_GPU(_plq_func, _wlqupdate_func, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {}
 
-    /** 
+    /**
      *  \brief Constructor III
-     *  
+     *
      *  \param _plq_func the non-incremental pane processing function (CPU function)
      *  \param _wlq_func the non-incremental window processing function (CPU/GPU function)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -621,7 +621,7 @@ public:
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Pane_Farm_GPU(plq_func_t _plq_func,
                   F_t _wlq_func,
                   uint64_t _win_len,
@@ -638,9 +638,9 @@ public:
                   Pane_Farm_GPU(_plq_func, _wlq_func, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {}
 
-    /** 
+    /**
      *  \brief Constructor IV
-     *  
+     *
      *  \param _plqupdate_func the incremental pane processing function (CPU function)
      *  \param _wlq_func the non-incremental window processing function (CPU/GPU function)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -654,7 +654,7 @@ public:
      *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Pane_Farm_GPU(plqupdate_func_t _plqupdate_func,
                   F_t _wlq_func,
                   uint64_t _win_len,
@@ -671,37 +671,37 @@ public:
                   Pane_Farm_GPU(_plqupdate_func, _wlq_func, _win_len, _slide_len, _winType, _plq_degree, _wlq_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {}
 
-    /** 
+    /**
      *  \brief Get the optimization level used to build the operator
      *  \return adopted utilization level by the operator
-     */ 
+     */
     opt_level_t getOptLevel() const
     {
       return opt_level;
     }
 
-    /** 
+    /**
      *  \brief Get the window type (CB or TB) utilized by the operator
      *  \return adopted windowing semantics (count- or time-based)
-     */ 
+     */
     win_type_t getWinType() const
     {
       return winType;
     }
 
-    /** 
+    /**
      *  \brief Get the parallelism degree of the PLQ stage
      *  \return PLQ parallelism degree
-     */ 
+     */
     size_t getPLQParallelism() const
     {
       return plq_degree;
     }
 
-    /** 
+    /**
      *  \brief Get the parallelism degree of the WLQ stage
      *  \return WLQ parallelism degree
-     */ 
+     */
     size_t getWLQParallelism() const
     {
       return wlq_degree;

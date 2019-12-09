@@ -2,38 +2,38 @@
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU Lesser General Public License version 3 as
  *  published by the Free Software Foundation.
- *  
+ *
  *  This program is distributed in the hope that it will be useful, but WITHOUT
  *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
  *  License for more details.
- *  
+ *
  *  You should have received a copy of the GNU Lesser General Public License
  *  along with this program; if not, write to the Free Software Foundation,
  *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  ******************************************************************************
  */
 
-/** 
+/**
  *  @file    win_mapreduce.hpp
  *  @author  Gabriele Mencagli
  *  @date    29/10/2017
- *  
+ *
  *  @brief Win_MapReduce operator executing a windowed transformation in parallel
  *         on multi-core CPUs
- *  
+ *
  *  @section Win_MapReduce (Description)
- *  
+ *
  *  This file implements the Win_MapReduce operator able to execute windowed queries on a
  *  multicore. The operator processes (possibly in parallel) partitions of the windows in
  *  the so-called MAP stage, and computes (possibly in parallel) results of the windows
  *  out of the partition results in the REDUCE stage. The operator supports both a non
  *  incremental and an incremental query definition in the two stages.
- *  
+ *
  *  The template parameters tuple_t and result_t must be default constructible, with a
  *  copy constructor and copy assignment operator, and they must provide and implement
  *  the setControlFields() and getControlFields() methods.
- */ 
+ */
 
 #ifndef WIN_MAPREDUCE_H
 #define WIN_MAPREDUCE_H
@@ -47,17 +47,17 @@
 
 namespace wf {
 
-/** 
+/**
  *  \class Win_MapReduce
- *  
+ *
  *  \brief Win_MapReduce operator executing a windowed transformation in parallel
  *         on multi-core CPUs
- *  
+ *
  *  This class implements the Win_MapReduce operator executing windowed queries in parallel on
  *  a multicore. The operator processes (possibly in parallel) window partitions in the MAP
  *  stage and builds window results out from partition results (possibly in parallel) in the
  *  REDUCE stage.
- */ 
+ */
 template<typename tuple_t, typename result_t, typename input_t>
 class Win_MapReduce: public ff::ff_pipeline
 {
@@ -87,7 +87,7 @@ private:
     // type of the WinMap_Emitter node
     using map_emitter_t = WinMap_Emitter<tuple_t, input_t>;
     // type of the WinMap_Collector node
-    using map_collector_t = WinMap_Collector<result_t>;    
+    using map_collector_t = WinMap_Collector<result_t>;
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3>
     friend class Win_Farm;
@@ -244,9 +244,9 @@ private:
     }
 
 public:
-    /** 
+    /**
      *  \brief Constructor I
-     *  
+     *
      *  \param _map_func the non-incremental window map processing function (MAP)
      *  \param _reduce_func the non-incremental window reduce processing function (REDUCE)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -258,7 +258,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Win_MapReduce(map_func_t _map_func,
                   reduce_func_t _reduce_func,
                   uint64_t _win_len,
@@ -280,9 +280,9 @@ public:
         isRichREDUCE = false;
     }
 
-    /** 
+    /**
      *  \brief Constructor II
-     *  
+     *
      *  \param _rich_map_func the rich non-incremental window map processing function (MAP)
      *  \param _reduce_func the non-incremental window reduce processing function (REDUCE)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -294,7 +294,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Win_MapReduce(rich_map_func_t _rich_map_func,
                   reduce_func_t _reduce_func,
                   uint64_t _win_len,
@@ -316,9 +316,9 @@ public:
         isRichREDUCE = false;
     }
 
-    /** 
+    /**
      *  \brief Constructor III
-     *  
+     *
      *  \param _map_func the non-incremental window map processing function (MAP)
      *  \param _rich_reduce_func the rich non-incremental window reduce processing function (REDUCE)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -330,7 +330,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Win_MapReduce(map_func_t _map_func,
                   rich_reduce_func_t _rich_reduce_func,
                   uint64_t _win_len,
@@ -352,9 +352,9 @@ public:
         isRichREDUCE = true;
     }
 
-    /** 
+    /**
      *  \brief Constructor IV
-     *  
+     *
      *  \param _rich_map_func the rich non-incremental window map processing function (MAP)
      *  \param _rich_reduce_func the rich non-incremental window reduce processing function (REDUCE)
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -366,7 +366,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Win_MapReduce(rich_map_func_t _rich_map_func,
                   rich_reduce_func_t _rich_reduce_func,
                   uint64_t _win_len,
@@ -388,9 +388,9 @@ public:
         isRichREDUCE = true;
     }
 
-    /** 
+    /**
      *  \brief Constructor V
-     *  
+     *
      *  \param _mapupdate_func the incremental window MAP processing function
      *  \param _reduceupdate_func the incremental window REDUCE processing function
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -402,7 +402,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Win_MapReduce(mapupdate_func_t _mapupdate_func,
                   reduceupdate_func_t _reduceupdate_func,
                   uint64_t _win_len,
@@ -424,9 +424,9 @@ public:
         isRichREDUCE = false;
     }
 
-    /** 
+    /**
      *  \brief Constructor VI
-     *  
+     *
      *  \param _rich_mapupdate_func the rich incremental window MAP processing function
      *  \param _reduceupdate_func the incremental window REDUCE processing function
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -438,7 +438,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Win_MapReduce(rich_mapupdate_func_t _rich_mapupdate_func,
                   reduceupdate_func_t _reduceupdate_func,
                   uint64_t _win_len,
@@ -460,9 +460,9 @@ public:
         isRichREDUCE = false;
     }
 
-    /** 
+    /**
      *  \brief Constructor VII
-     *  
+     *
      *  \param _mapupdate_func the incremental window MAP processing function
      *  \param _rich_reduceupdate_func the rich incremental window REDUCE processing function
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -474,7 +474,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Win_MapReduce(mapupdate_func_t _mapupdate_func,
                   rich_reduceupdate_func_t _rich_reduceupdate_func,
                   uint64_t _win_len,
@@ -496,9 +496,9 @@ public:
         isRichREDUCE = true;
     }
 
-    /** 
+    /**
      *  \brief Constructor VIII
-     *  
+     *
      *  \param _rich_mapupdate_func the rich incremental window MAP processing function
      *  \param _rich_reduceupdate_func the rich incremental window REDUCE processing function
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -510,7 +510,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Win_MapReduce(rich_mapupdate_func_t _rich_mapupdate_func,
                   rich_reduceupdate_func_t _rich_reduceupdate_func,
                   uint64_t _win_len,
@@ -532,9 +532,9 @@ public:
         isRichREDUCE = true;
     }
 
-    /** 
+    /**
      *  \brief Constructor IX
-     *  
+     *
      *  \param _map_func the non-incremental window map processing function
      *  \param _reduceupdate_func the incremental window reduce processing function
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -546,7 +546,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Win_MapReduce(map_func_t _map_func,
                   reduceupdate_func_t _reduceupdate_func,
                   uint64_t _win_len,
@@ -568,9 +568,9 @@ public:
         isRichREDUCE = false;
     }
 
-    /** 
+    /**
      *  \brief Constructor X
-     *  
+     *
      *  \param _rich_map_func the rich non-incremental window map processing function
      *  \param _reduceupdate_func the incremental window reduce processing function
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -582,7 +582,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Win_MapReduce(rich_map_func_t _rich_map_func,
                   reduceupdate_func_t _reduceupdate_func,
                   uint64_t _win_len,
@@ -604,9 +604,9 @@ public:
         isRichREDUCE = false;
     }
 
-    /** 
+    /**
      *  \brief Constructor XI
-     *  
+     *
      *  \param _map_func the non-incremental window map processing function
      *  \param _rich_reduceupdate_func the rich incremental window reduce processing function
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -618,7 +618,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Win_MapReduce(map_func_t _map_func,
                   rich_reduceupdate_func_t _rich_reduceupdate_func,
                   uint64_t _win_len,
@@ -640,9 +640,9 @@ public:
         isRichREDUCE = true;
     }
 
-    /** 
+    /**
      *  \brief Constructor XII
-     *  
+     *
      *  \param _rich_map_func the rich_non-incremental window map processing function
      *  \param _rich_reduceupdate_func the rich incremental window reduce processing function
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -654,7 +654,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Win_MapReduce(rich_map_func_t _rich_map_func,
                   rich_reduceupdate_func_t _rich_reduceupdate_func,
                   uint64_t _win_len,
@@ -676,9 +676,9 @@ public:
         isRichREDUCE = true;
     }
 
-    /** 
+    /**
      *  \brief Constructor XIII
-     *  
+     *
      *  \param _mapupdate_func the incremental window map processing function
      *  \param _reduce_func the non-incremental window reduce processing function
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -690,7 +690,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Win_MapReduce(mapupdate_func_t _mapupdate_func,
                   reduce_func_t _reduce_func,
                   uint64_t _win_len,
@@ -712,9 +712,9 @@ public:
         isRichREDUCE = false;
     }
 
-    /** 
+    /**
      *  \brief Constructor XIV
-     *  
+     *
      *  \param _rich_mapupdate_func the rich incremental window map processing function
      *  \param _reduce_func the non-incremental window reduce processing function
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -726,7 +726,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Win_MapReduce(rich_mapupdate_func_t _rich_mapupdate_func,
                   reduce_func_t _reduce_func,
                   uint64_t _win_len,
@@ -748,9 +748,9 @@ public:
         isRichREDUCE = false;
     }
 
-    /** 
+    /**
      *  \brief Constructor XV
-     *  
+     *
      *  \param _mapupdate_func the incremental window map processing function
      *  \param _rich_reduce_func the rich non-incremental window reduce processing function
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -762,7 +762,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Win_MapReduce(mapupdate_func_t _mapupdate_func,
                   rich_reduce_func_t _rich_reduce_func,
                   uint64_t _win_len,
@@ -784,9 +784,9 @@ public:
         isRichREDUCE = true;
     }
 
-    /** 
+    /**
      *  \brief Constructor XVI
-     *  
+     *
      *  \param _rich_mapupdate_func the rich incremental window map processing function
      *  \param _rich_reduce_func the rich non-incremental window reduce processing function
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -798,7 +798,7 @@ public:
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
-     */ 
+     */
     Win_MapReduce(rich_mapupdate_func_t _rich_mapupdate_func,
                   rich_reduce_func_t _rich_reduce_func,
                   uint64_t _win_len,
@@ -820,37 +820,37 @@ public:
         isRichREDUCE = true;
     }
 
-    /** 
+    /**
      *  \brief Get the optimization level used to build the operator
      *  \return adopted utilization level by the operator
-     */ 
+     */
     opt_level_t getOptLevel() const
     {
       return opt_level;
     }
 
-    /** 
+    /**
      *  \brief Get the window type (CB or TB) utilized by the operator
      *  \return adopted windowing semantics (count- or time-based)
-     */ 
+     */
     win_type_t getWinType() const
     {
       return winType;
     }
 
-    /** 
+    /**
      *  \brief Get the parallelism degree of the MAP stage
      *  \return MAP parallelism degree
-     */ 
+     */
     size_t getMAPParallelism() const
     {
       return map_degree;
     }
 
-    /** 
+    /**
      *  \brief Get the parallelism degree of the REDUCE stage
      *  \return REDUCE parallelism degree
-     */ 
+     */
     size_t getREDUCEParallelism() const
     {
       return reduce_degree;

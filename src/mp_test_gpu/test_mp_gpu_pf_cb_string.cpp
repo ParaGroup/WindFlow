@@ -2,26 +2,26 @@
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU Lesser General Public License version 3 as
  *  published by the Free Software Foundation.
- *  
+ *
  *  This program is distributed in the hope that it will be useful, but WITHOUT
  *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
  *  License for more details.
- *  
+ *
  *  You should have received a copy of the GNU Lesser General Public License
  *  along with this program; if not, write to the Free Software Foundation,
  *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  ******************************************************************************
  */
 
-/*  
+/*
  *  Test of the MultiPipe construct:
- *  
+ *
  *  +-----+   +-----+   +------+   +-----+   +-------+   +-----+
  *  |  S  |   |  F  |   |  FM  |   |  M  |   | PF_CB |   |  S  |
  *  | (1) +-->+ (*) +-->+  (*) +-->+ (*) +-->+ (*,*) +-->+ (1) |
  *  +-----+   +-----+   +------+   +-----+   +-------+   +-----+
- */ 
+ */
 
 // includes
 #include <string>
@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
 			case 's': win_slide = atoi(optarg);
 					 break;
 			case 'b': batch_len = atoi(optarg);
-					 break;			
+					 break;
 			default: {
 				cout << argv[0] << " -r [runs] -l [stream_length] -k [n_keys] -w [win length] -s [win slide] -b [batch len]" << endl;
 				exit(EXIT_SUCCESS);
@@ -93,7 +93,7 @@ int main(int argc, char *argv[])
     	map_degree = dist6(rng);
     	plq_degree = dist6(rng);
     	wlq_degree = dist6(rng);
-	    cout << "Run " << i << endl;	
+	    cout << "Run " << i << endl;
 		cout << "+-----+   +-----+   +------+   +-----+   +-------+   +-----+" << endl;
 		cout << "|  S  |   |  F  |   |  FM  |   |  M  |   | PF_CB |   |  S  |" << endl;
 		cout << "| (" << source_degree << ") +-->+ (" << filter_degree << ") +-->+  (" << flatmap_degree << ") +-->+ (" << map_degree << ") +-->+ (" << plq_degree << "," << wlq_degree << ") +-->+ (1) |" << endl;

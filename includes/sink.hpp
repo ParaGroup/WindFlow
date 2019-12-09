@@ -2,34 +2,34 @@
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU Lesser General Public License version 3 as
  *  published by the Free Software Foundation.
- *  
+ *
  *  This program is distributed in the hope that it will be useful, but WITHOUT
  *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
  *  License for more details.
- *  
+ *
  *  You should have received a copy of the GNU Lesser General Public License
  *  along with this program; if not, write to the Free Software Foundation,
  *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  ******************************************************************************
  */
 
-/** 
+/**
  *  @file    sink.hpp
  *  @author  Gabriele Mencagli
  *  @date    11/01/2019
- *  
+ *
  *  @brief Sink operator absorbing the input stream
- *  
+ *
  *  @section Sink (Description)
- *  
+ *
  *  This file implements the Sink operator in charge of absorbing the items of
  *  a data stream.
- *  
+ *
  *  The template parameter tuple_t must be default constructible, with a copy Constructor
  *  and copy assignment operator, and it must provide and implement the setControlFields() and
  *  getControlFields() methods.
- */ 
+ */
 
 #ifndef SINK_H
 #define SINK_H
@@ -51,13 +51,13 @@
 
 namespace wf {
 
-/** 
+/**
  *  \class Sink
- *  
+ *
  *  \brief Sink operator absorbing the input stream
- *  
+ *
  *  This class implements the Sink operator absorbing a data stream of items.
- */ 
+ */
 template<typename tuple_t>
 class Sink: public ff::ff_farm
 {
@@ -192,14 +192,14 @@ private:
     };
 
 public:
-    /** 
+    /**
      *  \brief Constructor I
-     *  
+     *
      *  \param _func sink function
      *  \param _pardegree parallelism degree of the Sink operator
      *  \param _name string with the unique name of the Sink operator
      *  \param _closing_func closing function
-     */ 
+     */
     Sink(sink_func_t _func,
          size_t _pardegree,
          std::string _name,
@@ -225,15 +225,15 @@ public:
         ff::ff_farm::cleanup_all();
     }
 
-    /** 
+    /**
      *  \brief Constructor II
-     *  
+     *
      *  \param _func sink function
      *  \param _pardegree parallelism degree of the Sink operator
      *  \param _name string with the unique name of the Sink operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     */ 
+     */
     Sink(sink_func_t _func,
          size_t _pardegree,
          std::string _name,
@@ -260,14 +260,14 @@ public:
         ff::ff_farm::cleanup_all();
     }
 
-    /** 
+    /**
      *  \brief Constructor III
-     *  
+     *
      *  \param _func rich sink function
      *  \param _pardegree parallelism degree of the Sink operator
      *  \param _name string with the unique name of the Sink operator
      *  \param _closing_func closing function
-     */ 
+     */
     Sink(rich_sink_func_t _func,
          size_t _pardegree,
          std::string _name,
@@ -293,15 +293,15 @@ public:
         ff::ff_farm::cleanup_all();
     }
 
-    /** 
+    /**
      *  \brief Constructor IV
-     *  
+     *
      *  \param _func rich sink function
      *  \param _pardegree parallelism degree of the Sink operator
      *  \param _name string with the unique name of the Sink operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     */ 
+     */
     Sink(rich_sink_func_t _func,
          size_t _pardegree,
          std::string _name,
@@ -328,7 +328,7 @@ public:
         ff::ff_farm::cleanup_all();
     }
 
-    /** 
+    /**
      *  \brief Check whether the Sink has been instantiated with a key-based distribution or not
      *  \return true if the Filter is configured with keyBy
      */

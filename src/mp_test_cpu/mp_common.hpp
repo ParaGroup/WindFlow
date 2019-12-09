@@ -2,21 +2,21 @@
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU Lesser General Public License version 3 as
  *  published by the Free Software Foundation.
- *  
+ *
  *  This program is distributed in the hope that it will be useful, but WITHOUT
  *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
  *  License for more details.
- *  
+ *
  *  You should have received a copy of the GNU Lesser General Public License
  *  along with this program; if not, write to the Free Software Foundation,
  *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  ******************************************************************************
  */
 
-/*  
+/*
  *  Data types and operator functors for running the MultiPipe tests on CPU
- */ 
+ */
 
 // includes
 #include <cmath>
@@ -302,7 +302,7 @@ public:
 			//if (check_counters[(*out).key] != (*out).id)
 				//cout << "Results received out-of-order!" << endl;
 			//else cout << "Received result window " << *out->id << " of key " << out->key << " with value " << (*out).value << endl;
-			check_counters[(*out).key]++;	
+			check_counters[(*out).key]++;
 		}
 		else {
 			cout << "Received " << received << " results, total sum " << totalsum << endl;
