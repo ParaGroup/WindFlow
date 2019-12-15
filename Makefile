@@ -20,31 +20,30 @@ FF_ROOT	= $(HOME)/fastflow
 FF_REPO	= https://github.com/fastflow/fastflow
 
 all: fastflow
-	mkdir -p ./bin
 	$(MAKE) -C src
 
+all_cpu: fastflow
+	$(MAKE) all_cpu -C src
+
+all_gpu: fastflow
+	$(MAKE) all_gpu -C src
+
 mp_test_cpu: fastflow
-	mkdir -p ./bin
 	$(MAKE) mp_test_cpu -C src
 
 mp_test_gpu: fastflow
-	mkdir -p ./bin
 	$(MAKE) mp_test_gpu -C src
 
 merge_test: fastflow
-	mkdir -p ./bin
 	$(MAKE) merge_test -C src
 
 split_test: fastflow
-	mkdir -p ./bin
 	$(MAKE) split_test -C src
 
 graph_test: fastflow
-	mkdir -p ./bin
 	$(MAKE) graph_test -C src
 
 yahoo_test_cpu: fastflow
-	mkdir -p ./bin
 	$(MAKE) yahoo_test_cpu -C src
 
 fastflow:
@@ -58,4 +57,4 @@ clean:
 	$(MAKE) clean -C src
 
 .DEFAULT_GOAL := all
-.PHONY: all mp_test_cpu mp_test_gpu merge_test split_test graph_test yahoo_test_cpu fastflow clean
+.PHONY: all all_cpu all_gpu mp_test_cpu mp_test_gpu merge_test split_test graph_test yahoo_test_cpu fastflow clean

@@ -18,7 +18,7 @@
 
 FF_ROOT			= $(HOME)/fastflow
 OUT_DIR			= ../../bin/graph_test
-INCLUDE_DIR		= ../../includes
+INCLUDE_DIR		= ../../wf
 
 CXX 			= g++
 CXXFLAGS		= -std=c++17
@@ -45,5 +45,5 @@ checkbindir:
 clean:
 	rm -rf $(OUT_DIR)
 
-.DEFAULT_GOAL := all
-.PHONY: all clean
+.DEFAULT_COLOR_GOAL := all
+.PHONY: all checkbindir clean

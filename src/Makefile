@@ -18,28 +18,26 @@
 
 all: mp_test_cpu mp_test_gpu merge_test split_test graph_test yahoo_test_cpu
 
+all_cpu: mp_test_cpu merge_test split_test graph_test yahoo_test_cpu
+
+all_gpu: mp_test_gpu
+
 mp_test_cpu:
-	mkdir -p ../bin/mp_test_cpu
 	$(MAKE) -C mp_test_cpu
 
 mp_test_gpu:
-	mkdir -p ../bin/mp_test_gpu
 	$(MAKE) -C mp_test_gpu
 
 merge_test:
-	mkdir -p ../bin/merge_test
 	$(MAKE) -C merge_test
 
 split_test:
-	mkdir -p ../bin/split_test
 	$(MAKE) -C split_test
 
 graph_test:
-	mkdir -p ../bin/graph_test
 	$(MAKE) -C graph_test
 
 yahoo_test_cpu:
-	mkdir -p ../bin/yahoo_test_cpu
 	$(MAKE) -C yahoo_test_cpu
 
 clean:
@@ -50,5 +48,5 @@ clean:
 	$(MAKE) clean -C graph_test
 	$(MAKE) clean -C yahoo_test_cpu
 
-.DEFAULT_GOAL := all
-.PHONY: all mp_test_cpu mp_test_gpu merge_test split_test graph_test yahoo_test_cpu clean
+.DEFAULT_COLOR_COLOR_COLOR_GOAL := all
+.PHONY: all all_cpu app_gpu mp_test_cpu mp_test_gpu merge_test split_test graph_test yahoo_test_cpu clean

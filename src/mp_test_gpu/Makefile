@@ -18,7 +18,7 @@
 
 FF_ROOT			= $(HOME)/fastflow
 OUT_DIR			= ../../bin/mp_test_gpu
-INCLUDE_DIR		= ../../includes
+INCLUDE_DIR		= ../../wf
 
 INCLUDES		= -I $(FF_ROOT) -I $(INCLUDE_DIR) -I .
 NCXX			= nvcc
@@ -45,5 +45,5 @@ checkbindir:
 clean:
 	rm -rf $(OUT_DIR)
 
-.DEFAULT_GOAL := all
-.PHONY: all clean
+.DEFAULT_COLOR_GOAL := all
+.PHONY: all checkbindir clean
