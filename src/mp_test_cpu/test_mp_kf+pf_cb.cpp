@@ -1,4 +1,4 @@
-/* *****************************************************************************
+/******************************************************************************
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU Lesser General Public License version 3 as
  *  published by the Free Software Foundation.
@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
 		cout << "|                                          +-----------+           |" << endl;
 		cout << "+------------------------------------------------------------------+" << endl;
 	    // prepare the test
-	    PipeGraph graph("test_kf+pf_cb");
+	    PipeGraph graph("test_kf+pf_cb", Mode::DETERMINISTIC);
 	    // source
 	    Source_Functor source_functor(stream_len, n_keys);
 	    Source source = Source_Builder(source_functor)
@@ -170,14 +170,14 @@ int main(int argc, char *argv[])
 	   	graph.run();
 	   	if (i == 0) {
 	   		last_result = global_sum;
-	   		cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT << endl;
+	   		cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT_COLOR << endl;
 	   	}
 	   	else {
 	   		if (last_result == global_sum) {
-	   			cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT << endl;
+	   			cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT_COLOR << endl;
 	   		}
 	   		else {
-	   			cout << "Result is --> " << RED << "FAILED" << "!!!" << DEFAULT << endl;
+	   			cout << "Result is --> " << RED << "FAILED" << "!!!" << DEFAULT_COLOR << endl;
 	   		}
 	   	}
     }

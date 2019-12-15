@@ -68,10 +68,19 @@ inline unsigned long current_time_nsecs()
 }
 
 /// utility macros
-#define DEFAULT_VECTOR_CAPACITY 500 //< default capacity of vectors used internally by the library
-#define DEFAULT_BATCH_SIZE_TB 1000 //< inital batch size (in no. of tuples) used by GPU operators with time-based windows
-#define DEFAULT_CUDA_NUM_THREAD_BLOCK 256 //< default number of threads per block used by GPU operators
+#define DEFAULT_COLOR_VECTOR_CAPACITY 500 //< default capacity of vectors used internally by the library
+#define DEFAULT_COLOR_BATCH_SIZE_TB 1000 //< inital batch size (in no. of tuples) used by GPU operators with time-based windows
+#define DEFAULT_COLOR_CUDA_NUM_THREAD_BLOCK 256 //< default number of threads per block used by GPU operators
 #define gpuErrChk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+
+// supported processing modes of the PipeGraph
+enum class Mode { DEFAULT, DETERMINISTIC };
+
+// window types
+enum win_type_t { CB, TB };
+
+// optimization levels
+enum opt_level_t { LEVEL0, LEVEL1, LEVEL2 };
 
 //@cond DOXY_IGNORE
 
@@ -79,36 +88,30 @@ inline unsigned long current_time_nsecs()
 #define STRINGIFY(x) XSTRINGIFY(x)
 #define XSTRINGIFY(x) #x
 
-// window types
-enum win_type_t { CB, TB };
-
 // supported roles of the Win_Seq operator
 enum role_t { SEQ, PLQ, WLQ, MAP, REDUCE };
 
 // window-based operators of the library
 enum pattern_t { SEQ_CPU, SEQ_GPU, KF_CPU, KF_GPU, WF_CPU, WF_GPU, PF_CPU, PF_GPU, WMR_CPU, WMR_GPU };
 
-// optimization levels
-enum opt_level_t { LEVEL0, LEVEL1, LEVEL2 };
-
 // macros for the linux terminal colors
-#define DEFAULT 	"\033[0m"
-#define BLACK 		"\033[30m"
-#define RED   		"\033[31m"
-#define GREEN   	"\033[32m"
-#define YELLOW  	"\033[33m"
-#define BLUE    	"\033[34m"
-#define MAGENTA 	"\033[35m"
-#define CYAN    	"\033[36m"
-#define WHITE   	"\033[37m"
-#define BOLDBLACK   "\033[1m\033[30m"
-#define BOLDRED     "\033[1m\033[31m"
-#define BOLDGREEN   "\033[1m\033[32m"
-#define BOLDYELLOW  "\033[1m\033[33m"
-#define BOLDBLUE    "\033[1m\033[34m"
-#define BOLDMAGENTA "\033[1m\033[35m"
-#define BOLDCYAN    "\033[1m\033[36m"
-#define BOLDWHITE   "\033[1m\033[37m"
+#define DEFAULT_COLOR 	"\033[0m"
+#define BLACK 		      "\033[30m"
+#define RED   		      "\033[31m"
+#define GREEN   	      "\033[32m"
+#define YELLOW  	      "\033[33m"
+#define BLUE    	      "\033[34m"
+#define MAGENTA 	      "\033[35m"
+#define CYAN    	      "\033[36m"
+#define WHITE   	      "\033[37m"
+#define BOLDBLACK       "\033[1m\033[30m"
+#define BOLDRED         "\033[1m\033[31m"
+#define BOLDGREEN       "\033[1m\033[32m"
+#define BOLDYELLOW      "\033[1m\033[33m"
+#define BOLDBLUE        "\033[1m\033[34m"
+#define BOLDMAGENTA     "\033[1m\033[35m"
+#define BOLDCYAN        "\033[1m\033[36m"
+#define BOLDWHITE       "\033[1m\033[37m"
 
 // struct of the window-based operator's configuration parameters
 struct PatternConfig {

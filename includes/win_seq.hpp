@@ -115,7 +115,7 @@ private:
                        rcv_counter(0),
                        next_lwid(0)
         {
-            wins.reserve(DEFAULT_VECTOR_CAPACITY);
+            wins.reserve(DEFAULT_COLOR_VECTOR_CAPACITY);
         }
 
         // move Constructor
@@ -160,7 +160,7 @@ private:
     {
         // check the validity of the windowing parameters
         if (win_len == 0 || slide_len == 0) {
-            std::cerr << RED << "WindFlow Error: window length or slide in Win_Seq cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: window length or slide in Win_Seq cannot be zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // define the compare function depending on the window type
@@ -376,6 +376,7 @@ public:
             // tuples can be received only ordered by id/timestamp
             uint64_t last_id = (winType == CB) ? std::get<1>((key_d.last_tuple).getControlFields()) : std::get<2>((key_d.last_tuple).getControlFields());
             if (id < last_id) {
+                std::cerr << YELLOW << "WindFlow Warning: tuple processed out-of-order" << DEFAULT_COLOR << std::endl;
                 // the tuple is immediately deleted
                 deleteTuple<tuple_t, input_t>(wt);
                 return this->GO_ON;

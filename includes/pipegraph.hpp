@@ -108,6 +108,7 @@ private:
 	std::string name; // name of the PipeGraph
 	AppNode *root; // pointer to the root of the Application Tree
 	std::vector<MultiPipe *> toBeDeteled; // vector of MultiPipe instances to be deleted
+    Mode mode; // processing mode of the PipeGraph
     // friendship with the MultiPipe class
     friend class MultiPipe;
 
@@ -140,9 +141,11 @@ public:
      *  \brief Constructor
      *  
      *  \param _name name of the PipeGraph
+     *  \param _mode processing mode of the PipeGraph
      */ 
-	PipeGraph(std::string _name):
+	PipeGraph(std::string _name, Mode _mode=Mode::DEFAULT):
               name(_name),
+              mode(_mode),
               root(new AppNode())
     {}
 
@@ -561,7 +564,7 @@ inline bool PipeGraph::get_MergedNodes1(std::vector<MultiPipe *> _toBeMerged, st
     for (auto *mp: _toBeMerged) {
         AppNode *node = find_AppNode(root, mp);
         if (node == nullptr) {
-            std::cerr << RED << "WindFlow Error: MultiPipe to be merged does not belong to this PipeGraph" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: MultiPipe to be merged does not belong to this PipeGraph" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         assert((node->children).size() == 0); // redundant check
@@ -619,7 +622,7 @@ inline AppNode *PipeGraph::get_MergedNodes2(std::vector<MultiPipe *> _toBeMerged
     for (auto *mp: _toBeMerged) {
         AppNode *node = find_AppNode(root, mp);
         if (node == nullptr) {
-            std::cerr << RED << "WindFlow Error: MultiPipe to be merged does not belong to this PipeGraph" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: MultiPipe to be merged does not belong to this PipeGraph" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         assert((node->children).size() == 0); // redundant check
@@ -656,7 +659,7 @@ inline std::vector<MultiPipe *> PipeGraph::execute_Split(MultiPipe *_mp)
     // find _mp in the Application Tree
     AppNode *found = find_AppNode(root, _mp);
     if (found == nullptr) {
-        std::cerr << RED << "WindFlow Error: MultiPipe to be split does not belong to this PipeGraph" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe to be split does not belong to this PipeGraph" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     assert((found->children).size() == 0); // redundant check
@@ -743,7 +746,7 @@ inline MultiPipe *PipeGraph::execute_Merge(std::vector<MultiPipe *> _toBeMerged)
             // check that merged MultiPipe instances are sons of the root
             for (auto *an: rightList) { // redundant check
                 if (std::find((root->children).begin(), (root->children).end(), an) == (root->children).end()) {
-                    std::cerr << RED << "WindFlow Error: the requested merge operation is not supported" << DEFAULT << std::endl;
+                    std::cerr << RED << "WindFlow Error: the requested merge operation is not supported" << DEFAULT_COLOR << std::endl;
                     exit(EXIT_FAILURE);
                 }
                 rightMergedMPs.push_back(an->mp);
@@ -787,7 +790,7 @@ inline MultiPipe *PipeGraph::execute_Merge(std::vector<MultiPipe *> _toBeMerged)
             std::sort(indexes.begin(), indexes.end());
             for (size_t i=0; i<indexes.size()-1; i++) {
                 if (indexes[i]+1 != indexes[i+1]) {
-                    std::cerr << RED << "WindFlow Error: sibling MultiPipes to be merged must be contiguous branches of the same MultiPipe" << DEFAULT << std::endl;
+                    std::cerr << RED << "WindFlow Error: sibling MultiPipes to be merged must be contiguous branches of the same MultiPipe" << DEFAULT_COLOR << std::endl;
                     exit(EXIT_FAILURE);
                 }
             }
@@ -854,7 +857,7 @@ inline MultiPipe *PipeGraph::execute_Merge(std::vector<MultiPipe *> _toBeMerged)
             return mergedMP;
         }
         else {
-            std::cerr << RED << "WindFlow Error: the requested merge operation is not supported" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: the requested merge operation is not supported" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
     }
@@ -877,14 +880,14 @@ MultiPipe &PipeGraph::add_source(Source<tuple_t> &_source)
 inline int PipeGraph::run()
 {
 	if ((root->children).size() == 0) {
-		std::cerr << RED << "WindFlow Error: PipeGraph [" << name << "] is empty, nothing to run" << DEFAULT << std::endl;
+		std::cerr << RED << "WindFlow Error: PipeGraph [" << name << "] is empty, nothing to run" << DEFAULT_COLOR << std::endl;
 		exit(EXIT_FAILURE);
         return EXIT_FAILURE; // useless
 	}
 	else {
 		// count number of threads
 		size_t count_threads = this->getNumThreads();
-		std::cout << GREEN << "WindFlow Status Message: PipeGraph [" << name << "] is running with " << count_threads << " threads" << DEFAULT << std::endl;
+		std::cout << GREEN << "WindFlow Status Message: PipeGraph [" << name << "] is running with " << count_threads << " threads" << DEFAULT_COLOR << std::endl;
 		int status = 0;
 		// running phase
 		for (auto *an: root->children)
@@ -893,9 +896,9 @@ inline int PipeGraph::run()
  		for (auto *an: root->children)
 			status |= (an->mp)->wait();
 		if (status == 0)
-			std::cout << GREEN << "WindFlow Status Message: PipeGraph [" << name << "] executed successfully" << DEFAULT << std::endl;
+			std::cout << GREEN << "WindFlow Status Message: PipeGraph [" << name << "] executed successfully" << DEFAULT_COLOR << std::endl;
 		//else
-			//std::cerr << RED << "WindFlow Error: PipeGraph [" << name << "] execution problems found" << DEFAULT << std::endl;
+			//std::cerr << RED << "WindFlow Error: PipeGraph [" << name << "] execution problems found" << DEFAULT_COLOR << std::endl;
         return 0;
 	}
 }
@@ -917,7 +920,7 @@ MultiPipe &MultiPipe::add_source(Source<tuple_t> &_source)
 {
     // check the Source presence
     if (has_source) {
-        std::cerr << RED << "WindFlow Error: Source has been already defined for the MultiPipe" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: Source has been already defined for the MultiPipe" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // create the initial matrioska
@@ -952,22 +955,22 @@ void MultiPipe::add_operator(ff::ff_farm *_op, routing_types_t _type, ordering_m
 {
     // check the Source presence
     if (!has_source) {
-        std::cerr << RED << "WindFlow Error: MultiPipe does not have a Source, operator cannot be added" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe does not have a Source, operator cannot be added" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // check the Sink presence
     if (has_sink) {
-        std::cerr << RED << "WindFlow Error: MultiPipe is terminated by a Sink, operator cannot be added" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe is terminated by a Sink, operator cannot be added" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // merged MultiPipe cannot be modified
     if (isMerged) {
-        std::cerr << RED << "WindFlow Error: MultiPipe has been merged, operator cannot be added" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe has been merged, operator cannot be added" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // split MultiPipe cannot be modified
     if (isSplit) {
-        std::cerr << RED << "WindFlow Error: MultiPipe has been split, operator cannot be added" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe has been split, operator cannot be added" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // Case 1: first operator added after splitting
@@ -979,7 +982,10 @@ void MultiPipe::add_operator(ff::ff_farm *_op, routing_types_t _type, ordering_m
         for (size_t i=0; i<workers.size(); i++) {
             ff::ff_pipeline *stage = new ff::ff_pipeline();
             stage->add_stage(workers[i], false);
-            combine_with_firststage(*stage, new collector_t(_ordering), true);
+            if (graph->mode == Mode::DETERMINISTIC)
+                combine_with_firststage(*stage, new collector_t(_ordering), true);
+            else
+                combine_with_firststage(*stage, new dummy_mi(), true);
             first_set.push_back(stage);
         }
         matrioska->add_firstset(first_set, 0, true);
@@ -1026,10 +1032,15 @@ void MultiPipe::add_operator(ff::ff_farm *_op, routing_types_t _type, ordering_m
         for (size_t i=0; i<n2; i++) {
             ff::ff_pipeline *stage = new ff::ff_pipeline();
             stage->add_stage(worker_set[i], false);
-            if (lastParallelism != 1 || forceShuffling || _ordering == ID || _ordering == TS_RENUMBERING) {
-                combine_with_firststage(*stage, new collector_t(_ordering), true);
+            if (graph->mode == Mode::DETERMINISTIC) {
+                if (lastParallelism != 1 || forceShuffling || _ordering == ID || _ordering == TS_RENUMBERING) {
+                    combine_with_firststage(*stage, new collector_t(_ordering), true);
+                }
+                else { // we avoid the ordering node when possible
+                    combine_with_firststage(*stage, new dummy_mi(), true);
+                }
             }
-            else { // we avoid the ordering node when possible
+            else {
                 combine_with_firststage(*stage, new dummy_mi(), true);
             }
             first_set.push_back(stage);
@@ -1059,22 +1070,22 @@ bool MultiPipe::chain_operator(ff::ff_farm *_op)
 {
     // check the Source presence
     if (!has_source) {
-        std::cerr << RED << "WindFlow Error: MultiPipe does not have a Source, operator cannot be chained" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe does not have a Source, operator cannot be chained" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // check the Sink presence
     if (has_sink) {
-        std::cerr << RED << "WindFlow Error: MultiPipe is terminated by a Sink, operator cannot be chained" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe is terminated by a Sink, operator cannot be chained" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // merged MultiPipe cannot be modified
     if (isMerged) {
-        std::cerr << RED << "WindFlow Error: MultiPipe has been merged, operator cannot be chained" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe has been merged, operator cannot be chained" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // split MultiPipe cannot be modified
     if (isSplit) {
-        std::cerr << RED << "WindFlow Error: MultiPipe has been split, operator cannot be chained" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe has been split, operator cannot be chained" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // corner case -> first operator added to a MultiPipe after splitting (chain cannot work, add instead)
@@ -1105,17 +1116,17 @@ inline std::vector<ff::ff_node *> MultiPipe::normalize()
 {
     // check the Source presence
     if (!has_source) {
-        std::cerr << RED << "WindFlow Error: MultiPipe does not have a Source, it cannot be merged/split" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe does not have a Source, it cannot be merged/split" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // check the Sink presence
     if (has_sink) {
-        std::cerr << RED << "WindFlow Error: MultiPipe is terminated by a Sink, it cannot be merged/split" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe is terminated by a Sink, it cannot be merged/split" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // empty MultiPipe cannot be normalized (only for splitting in this case)
     if (last == nullptr) {
-        std::cerr << RED << "WindFlow Error: MultiPipe is empty, it cannot be split" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe is empty, it cannot be split" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     std::vector<ff::ff_node *> result;
@@ -1174,12 +1185,12 @@ std::vector<MultiPipe *> MultiPipe::prepareMergeSet(MULTIPIPE &_pipe)
 {
     // check whether the MultiPipe has been already merged
     if (_pipe.isMerged) {
-        std::cerr << RED << "WindFlow Error: MultiPipe has been already merged" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe has been already merged" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // check whether the MultiPipe has been split
     if (_pipe.isSplit) {
-        std::cerr << RED << "WindFlow Error: MultiPipe has been split and cannot be merged" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe has been split and cannot be merged" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     std::vector<MultiPipe *> output;
@@ -1193,12 +1204,12 @@ std::vector<MultiPipe *> MultiPipe::prepareMergeSet(MULTIPIPE &_first, MULTIPIPE
 {
     // check whether the MultiPipe has been already merged
     if (_first.isMerged) {
-        std::cerr << RED << "WindFlow Error: MultiPipe has been already merged" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe has been already merged" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // check whether the MultiPipe has been split
     if (_first.isSplit) {
-        std::cerr << RED << "WindFlow Error: MultiPipe has been split and cannot be merged" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe has been split and cannot be merged" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     std::vector<MultiPipe *> output;
@@ -1230,7 +1241,7 @@ inline void MultiPipe::prepareSplittingEmitters(Basic_Emitter *_e)
 inline int MultiPipe::run()
 {
     if (!isRunnable()) {
-        std::cerr << RED << "WindFlow Error: MultiPipe is not runnable" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe is not runnable" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
         return EXIT_FAILURE; // useless
     }
@@ -1242,7 +1253,7 @@ inline int MultiPipe::run()
 inline int MultiPipe::wait()
 {
     if (!isRunnable()) {
-        std::cerr << RED << "WindFlow Error: MultiPipe is not runnable" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe is not runnable" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
         return EXIT_FAILURE; // useless
     }
@@ -1254,7 +1265,7 @@ inline int MultiPipe::wait()
 inline int MultiPipe::run_and_wait_end()
 {
     if (!isRunnable()) {
-        std::cerr << RED << "WindFlow Error: MultiPipe is not runnable" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe is not runnable" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
         return EXIT_FAILURE; // useless
     }
@@ -1270,7 +1281,7 @@ MultiPipe &MultiPipe::add(Filter<tuple_t> &_filter)
     tuple_t t;
     std::string opInType = typeid(t).name();
     if (!outputType.empty() && outputType.compare(opInType) != 0) {
-        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Filter operator" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Filter operator" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // call the generic method to add the operator to the MultiPipe
@@ -1288,7 +1299,7 @@ MultiPipe &MultiPipe::chain(Filter<tuple_t> &_filter)
     tuple_t t;
     std::string opInType = typeid(t).name();
     if (!outputType.empty() && outputType.compare(opInType) != 0) {
-        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Filter operator" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Filter operator" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // try to chain the operator with the MultiPipe
@@ -1312,7 +1323,7 @@ MultiPipe &MultiPipe::add(Map<tuple_t, result_t> &_map)
     tuple_t t;
     std::string opInType = typeid(t).name();
     if (!outputType.empty() && outputType.compare(opInType) != 0) {
-        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Map operator" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Map operator" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // call the generic method to add the operator to the MultiPipe
@@ -1331,7 +1342,7 @@ MultiPipe &MultiPipe::chain(Map<tuple_t, result_t> &_map)
     tuple_t t;
     std::string opInType = typeid(t).name();
     if (!outputType.empty() && outputType.compare(opInType) != 0) {
-        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Map operator" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Map operator" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // try to chain the operator with the MultiPipe
@@ -1356,7 +1367,7 @@ MultiPipe &MultiPipe::add(FlatMap<tuple_t, result_t> &_flatmap)
     tuple_t t;
     std::string opInType = typeid(t).name();
     if (!outputType.empty() && outputType.compare(opInType) != 0) {
-        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the FlatMap operator" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the FlatMap operator" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // call the generic method to add the operator
@@ -1375,7 +1386,7 @@ MultiPipe &MultiPipe::chain(FlatMap<tuple_t, result_t> &_flatmap)
     tuple_t t;
     std::string opInType = typeid(t).name();
     if (!outputType.empty() && outputType.compare(opInType) != 0) {
-        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the FlatMap operator" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the FlatMap operator" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     if (!_flatmap.isKeyed()) {
@@ -1399,7 +1410,7 @@ MultiPipe &MultiPipe::add(Accumulator<tuple_t, result_t> &_acc)
     tuple_t t;
     std::string opInType = typeid(t).name();
     if (!outputType.empty() && outputType.compare(opInType) != 0) {
-        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Accumulator operator" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Accumulator operator" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // call the generic method to add the operator to the MultiPipe
@@ -1414,18 +1425,23 @@ MultiPipe &MultiPipe::add(Accumulator<tuple_t, result_t> &_acc)
 template<typename tuple_t, typename result_t>
 MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
 {
+    // check the processing mode
+    if (graph->mode != Mode::DETERMINISTIC) {
+        std::cerr << RED << "WindFlow Error: the Win_Farm operator requires the DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check the type compatibility
     tuple_t t;
     std::string opInType = typeid(t).name();
     if (!outputType.empty() && outputType.compare(opInType) != 0) {
-        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Win_Farm operator" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Win_Farm operator" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // check whether the Win_Farm has complex parallel replicas inside
     if (_wf.useComplexNesting()) {
         // check whether internal replicas have been prepared for nesting
         if (_wf.getOptLevel() != LEVEL2 || _wf.getInnerOptLevel() != LEVEL2) {
-            std::cerr << RED << "WindFlow Error: tried a nesting without preparing the inner operator" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: tried a nesting without preparing the inner operator" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         else {
@@ -1506,18 +1522,23 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
 template<typename tuple_t, typename result_t, typename F_t>
 MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
 {
+    // check the processing mode
+    if (graph->mode != Mode::DETERMINISTIC) {
+        std::cerr << RED << "WindFlow Error: the Win_Farm_GPU operator requires the DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check the type compatibility
     tuple_t t;
     std::string opInType = typeid(t).name();
     if (!outputType.empty() && outputType.compare(opInType) != 0) {
-        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Win_Farm_GPU operator" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Win_Farm_GPU operator" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // check whether the Win_Farm_GPU has complex parallel replicas inside
     if (_wf.useComplexNesting()) {
         // check whether internal replicas have been prepared for nesting
         if (_wf.getOptLevel() != LEVEL2 || _wf.getInnerOptLevel() != LEVEL2) {
-            std::cerr << RED << "WindFlow Error: tried a nesting without preparing the inner operator" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: tried a nesting without preparing the inner operator" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         else {
@@ -1598,18 +1619,23 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
 template<typename tuple_t, typename result_t>
 MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
 {
+    // check the processing mode
+    if (graph->mode != Mode::DETERMINISTIC) {
+        std::cerr << RED << "WindFlow Error: the Key_Farm operator requires the DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check the type compatibility
     tuple_t t;
     std::string opInType = typeid(t).name();
     if (!outputType.empty() && outputType.compare(opInType) != 0) {
-        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Key_Farm operator" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Key_Farm operator" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // check whether the Key_Farm has complex parallel replicas inside
     if (_kf.useComplexNesting()) {
         // check whether internal replicas have been prepared for nesting
         if (_kf.getOptLevel() != LEVEL2 || _kf.getInnerOptLevel() != LEVEL2) {
-            std::cerr << RED << "WindFlow Error: tried a nesting without preparing the inner operator" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: tried a nesting without preparing the inner operator" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         else {
@@ -1693,18 +1719,23 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
 template<typename tuple_t, typename result_t, typename F_t>
 MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
 {
+    // check the processing mode
+    if (graph->mode != Mode::DETERMINISTIC) {
+        std::cerr << RED << "WindFlow Error: the Key_Farm_GPU operator requires the DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check the type compatibility
     tuple_t t;
     std::string opInType = typeid(t).name();
     if (!outputType.empty() && outputType.compare(opInType) != 0) {
-        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Key_Farm_GPU operator" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Key_Farm_GPU operator" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // check whether the Key_Farm_GPU has complex parallel replicas inside
     if (_kf.useComplexNesting()) {
         // check whether internal replicas have been prepared for nesting
         if (_kf.getOptLevel() != LEVEL2 || _kf.getInnerOptLevel() != LEVEL2) {
-            std::cerr << RED << "WindFlow Error: tried a nesting without preparing the inner operator" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: tried a nesting without preparing the inner operator" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         else {
@@ -1788,16 +1819,21 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
 template<typename tuple_t, typename result_t>
 MultiPipe &MultiPipe::add(Pane_Farm<tuple_t, result_t> &_pf)
 {
+    // check the processing mode
+    if (graph->mode != Mode::DETERMINISTIC) {
+        std::cerr << RED << "WindFlow Error: the Pane_Farm operator requires the DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check the type compatibility
     tuple_t t;
     std::string opInType = typeid(t).name();
     if (!outputType.empty() && outputType.compare(opInType) != 0) {
-        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Pane_Farm operator" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Pane_Farm operator" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // check whether the Pane_Farm has been prepared to be nested
     if (_pf.getOptLevel() != LEVEL0) {
-        std::cerr << RED << "WindFlow Error: Pane_Farm has been prepared for nesting, it cannot be added directly to a MultiPipe" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: Pane_Farm has been prepared for nesting, it cannot be added directly to a MultiPipe" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     ff::ff_pipeline *pipe = static_cast<ff::ff_pipeline *>(&_pf);
@@ -1862,16 +1898,21 @@ MultiPipe &MultiPipe::add(Pane_Farm<tuple_t, result_t> &_pf)
 template<typename tuple_t, typename result_t, typename F_t>
 MultiPipe &MultiPipe::add(Pane_Farm_GPU<tuple_t, result_t, F_t> &_pf)
 {
+    // check the processing mode
+    if (graph->mode != Mode::DETERMINISTIC) {
+        std::cerr << RED << "WindFlow Error: the Pane_Farm_GPU operator requires the DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check the type compatibility
     tuple_t t;
     std::string opInType = typeid(t).name();
     if (!outputType.empty() && outputType.compare(opInType) != 0) {
-        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Pane_Farm_GPU operator" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Pane_Farm_GPU operator" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // check whether the Pane_Farm_GPU has been prepared to be nested
     if (_pf.getOptLevel() != LEVEL0) {
-        std::cerr << RED << "WindFlow Error: Pane_Farm_GPU has been prepared for nesting, it cannot be added directly to a MultiPipe" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: Pane_Farm_GPU has been prepared for nesting, it cannot be added directly to a MultiPipe" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     ff::ff_pipeline *pipe = static_cast<ff::ff_pipeline *>(&_pf);
@@ -1936,16 +1977,21 @@ MultiPipe &MultiPipe::add(Pane_Farm_GPU<tuple_t, result_t, F_t> &_pf)
 template<typename tuple_t, typename result_t>
 MultiPipe &MultiPipe::add(Win_MapReduce<tuple_t, result_t> &_wmr)
 {
+    // check the processing mode
+    if (graph->mode != Mode::DETERMINISTIC) {
+        std::cerr << RED << "WindFlow Error: the Win_MapReduce operator requires the DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check the type compatibility
     tuple_t t;
     std::string opInType = typeid(t).name();
     if (!outputType.empty() && outputType.compare(opInType) != 0) {
-        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Win_MapReduce operator" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Win_MapReduce operator" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // check whether the Win_MapReduce has been prepared to be nested
     if (_wmr.getOptLevel() != LEVEL0) {
-        std::cerr << RED << "WindFlow Error: Win_MapReduce has been prepared for nesting, it cannot be added directly to a MultiPipe" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: Win_MapReduce has been prepared for nesting, it cannot be added directly to a MultiPipe" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // add the MAP stage
@@ -2007,16 +2053,21 @@ MultiPipe &MultiPipe::add(Win_MapReduce<tuple_t, result_t> &_wmr)
 template<typename tuple_t, typename result_t, typename F_t>
 MultiPipe &MultiPipe::add(Win_MapReduce_GPU<tuple_t, result_t, F_t> &_wmr)
 {
+    // check the processing mode
+    if (graph->mode != Mode::DETERMINISTIC) {
+        std::cerr << RED << "WindFlow Error: the Win_MapReduce_GPU operator requires the DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check the type compatibility
     tuple_t t;
     std::string opInType = typeid(t).name();
     if (!outputType.empty() && outputType.compare(opInType) != 0) {
-        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Win_MapReduce_GPU operator" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Win_MapReduce_GPU operator" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // check whether the Win_MapReduce_GPU has been prepared to be nested
     if (_wmr.getOptLevel() != LEVEL0) {
-        std::cerr << RED << "WindFlow Error: Win_MapReduce_GPU has been prepared for nesting, it cannot be added directly to a MultiPipe" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: Win_MapReduce_GPU has been prepared for nesting, it cannot be added directly to a MultiPipe" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // add the MAP stage
@@ -2082,7 +2133,7 @@ MultiPipe &MultiPipe::add_sink(Sink<tuple_t> &_sink)
     tuple_t t;
     std::string opInType = typeid(t).name();
     if (!outputType.empty() && outputType.compare(opInType) != 0) {
-        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Sink operator" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Sink operator" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // call the generic method to add the operator to the MultiPipe
@@ -2101,7 +2152,7 @@ MultiPipe &MultiPipe::chain_sink(Sink<tuple_t> &_sink)
     tuple_t t;
     std::string opInType = typeid(t).name();
     if (!outputType.empty() &&outputType.compare(opInType) != 0) {
-        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Sink operator" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Sink operator" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // try to chain the Sink with the MultiPipe
@@ -2125,7 +2176,7 @@ MultiPipe &MultiPipe::merge(MULTIPIPES&... _pipes)
     auto mergeSet = prepareMergeSet(*this, _pipes...);
     // at least two MultiPipe instances can be merged
     if (mergeSet.size() < 2) {
-        std::cerr << RED << "WindFlow Error: merge must be applied to at least two MultiPipe instances" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: merge must be applied to at least two MultiPipe instances" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // check duplicates
@@ -2134,7 +2185,7 @@ MultiPipe &MultiPipe::merge(MULTIPIPES&... _pipes)
         if (counters.find(mp) == counters.end())
             counters.insert(std::make_pair(mp, 1));
         else {
-            std::cerr << RED << "WindFlow Error: a MultiPipe cannot be merged with itself" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: a MultiPipe cannot be merged with itself" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
     }
@@ -2142,7 +2193,7 @@ MultiPipe &MultiPipe::merge(MULTIPIPES&... _pipes)
     std::string outT = mergeSet[0]->outputType;
     for (auto *mp: mergeSet) {
         if (outT.compare(mp->outputType) != 0) {
-            std::cerr << RED << "WindFlow Error: MultiPipe instances to be merged must have the same output type" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: MultiPipe instances to be merged must have the same output type" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
     }
@@ -2157,12 +2208,12 @@ MultiPipe &MultiPipe::split(F_t _splitting_func, size_t _cardinality)
 {
     // check whether the MultiPipe has been merged
     if (isMerged) {
-        std::cerr << RED << "WindFlow Error: MultiPipe has been merged and cannot be split" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe has been merged and cannot be split" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // check whether the MultiPipe has been already split
     if (isSplit) {
-        std::cerr << RED << "WindFlow Error: MultiPipe has been already split" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe has been already split" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // prepare the splitting of this
@@ -2178,15 +2229,15 @@ inline MultiPipe &MultiPipe::select(size_t _idx) const
 {
     // check whether the MultiPipe has been merged
     if (isMerged) {
-        std::cerr << RED << "WindFlow Error: MultiPipe has been merged, select() cannot be executed" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe has been merged, select() cannot be executed" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     if (!isSplit) {
-        std::cerr << RED << "WindFlow Error: MultiPipe has not been split, select() cannot be executed" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe has not been split, select() cannot be executed" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     if (_idx >= splittingChildren.size()) {
-        std::cerr << RED << "WindFlow Error: index of select() is out of range" << DEFAULT << std::endl;
+        std::cerr << RED << "WindFlow Error: index of select() is out of range" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     return *(splittingChildren[_idx]);

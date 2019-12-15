@@ -145,7 +145,7 @@ private:
                        next_lwid(0),
                        batchedWin(0)
         {
-            wins.reserve(DEFAULT_VECTOR_CAPACITY);
+            wins.reserve(DEFAULT_COLOR_VECTOR_CAPACITY);
         }
 
         // move Constructor
@@ -223,17 +223,17 @@ private:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            std::cerr << RED << "WindFlow Error: window length or slide in Win_Seq_GPU cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: window length or slide in Win_Seq_GPU cannot be zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            std::cerr << RED << "WindFlow Error: batch length in Win_Seq_GPU cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: batch length in Win_Seq_GPU cannot be zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // create the CUDA stream
         if (cudaStreamCreate(&cudaStream) != cudaSuccess) {
-            std::cerr << RED << "WindFlow Error: cudaStreamCreate() returns error code" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: cudaStreamCreate() returns error code" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // define the compare function depending on the window type
@@ -296,7 +296,7 @@ public:
         }
         // initialization with time-based windows
         else {
-            tuples_per_batch = DEFAULT_BATCH_SIZE_TB;
+            tuples_per_batch = DEFAULT_COLOR_BATCH_SIZE_TB;
             // allocate Bin (with default size) on the GPU
             gpuErrChk(cudaMalloc((tuple_t **) &Bin, tuples_per_batch * sizeof(tuple_t))); // Bin
         }
@@ -350,6 +350,7 @@ public:
             // tuples can be received only ordered by id/timestamp
             uint64_t last_id = (winType == CB) ? std::get<1>((key_d.last_tuple).getControlFields()) : std::get<2>((key_d.last_tuple).getControlFields());
             if (id < last_id) {
+                std::cerr << YELLOW << "WindFlow Warning: tuple processed out-of-order" << DEFAULT_COLOR << std::endl;
                 // the tuple is immediately deleted
                 deleteTuple<tuple_t, input_t>(wt);
                 return this->GO_ON;

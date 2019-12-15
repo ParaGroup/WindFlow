@@ -755,7 +755,7 @@ private:
     uint64_t slide_len = 1;
     win_type_t winType = CB;
     size_t batch_len = 1;
-    size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
+    size_t n_thread_block = DEFAULT_COLOR_CUDA_NUM_THREAD_BLOCK;
     std::string name = "anonymous_seq_gpu";
     size_t scratchpad_size = 0;
 
@@ -804,7 +804,7 @@ public:
      *  \param _n_thread_block number of threads per block
      *  \return the object itself
      */ 
-    WinSeqGPU_Builder<F_t>& withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_CUDA_NUM_THREAD_BLOCK)
+    WinSeqGPU_Builder<F_t>& withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_COLOR_CUDA_NUM_THREAD_BLOCK)
     {
         batch_len = _batch_len;
         n_thread_block = _n_thread_block;
@@ -1050,7 +1050,7 @@ private:
     win_type_t winType = CB;
     size_t pardegree = 1;
     size_t batch_len = 1;
-    size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
+    size_t n_thread_block = DEFAULT_COLOR_CUDA_NUM_THREAD_BLOCK;
     std::string name = "anonymous_wf_gpu";
     size_t scratchpad_size = 0;
     opt_level_t opt_level = LEVEL2;
@@ -1085,7 +1085,7 @@ private:
         slide_len = 1;
         winType = CB;
         batch_len = 1;
-        n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
+        n_thread_block = DEFAULT_COLOR_CUDA_NUM_THREAD_BLOCK;
     }
 
 public:
@@ -1147,7 +1147,7 @@ public:
      *  \param _n_thread_block number of threads per block
      *  \return the object itself
      */ 
-    WinFarmGPU_Builder<T>& withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_CUDA_NUM_THREAD_BLOCK)
+    WinFarmGPU_Builder<T>& withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_COLOR_CUDA_NUM_THREAD_BLOCK)
     {
         batch_len = _batch_len;
         n_thread_block = _n_thread_block;
@@ -1408,7 +1408,7 @@ private:
     win_type_t winType = CB;
     size_t pardegree = 1;
     size_t batch_len = 1;
-    size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
+    size_t n_thread_block = DEFAULT_COLOR_CUDA_NUM_THREAD_BLOCK;
     std::string name = "anonymous_wf_gpu";
     size_t scratchpad_size = 0;
     routing_func_t routing_func = [](size_t k, size_t n) { return k%n; };
@@ -1444,7 +1444,7 @@ private:
         slide_len = 1;
         winType = CB;
         batch_len = 1;
-        n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
+        n_thread_block = DEFAULT_COLOR_CUDA_NUM_THREAD_BLOCK;
     }
 
 public:
@@ -1506,7 +1506,7 @@ public:
      *  \param _n_thread_block number of threads per block
      *  \return the object itself
      */ 
-    KeyFarmGPU_Builder<T>& withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_CUDA_NUM_THREAD_BLOCK)
+    KeyFarmGPU_Builder<T>& withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_COLOR_CUDA_NUM_THREAD_BLOCK)
     {
         batch_len = _batch_len;
         n_thread_block = _n_thread_block;
@@ -1751,7 +1751,7 @@ private:
     size_t plq_degree = 1;
     size_t wlq_degree = 1;
     size_t batch_len = 1;
-    size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
+    size_t n_thread_block = DEFAULT_COLOR_CUDA_NUM_THREAD_BLOCK;
     std::string name = "anonymous_pf_gpu";
     size_t scratchpad_size = 0;
     opt_level_t opt_level = LEVEL0;
@@ -1818,7 +1818,7 @@ public:
      *  \param _n_thread_block number of threads per block
      *  \return the object itself
      */ 
-    PaneFarmGPU_Builder<F_t, G_t>& withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_CUDA_NUM_THREAD_BLOCK)
+    PaneFarmGPU_Builder<F_t, G_t>& withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_COLOR_CUDA_NUM_THREAD_BLOCK)
     {
         batch_len = _batch_len;
         n_thread_block = _n_thread_block;
@@ -2075,7 +2075,7 @@ private:
     size_t map_degree = 2;
     size_t reduce_degree = 1;
     size_t batch_len = 1;
-    size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
+    size_t n_thread_block = DEFAULT_COLOR_CUDA_NUM_THREAD_BLOCK;
     std::string name = "anonymous_wmw_gpu";
     size_t scratchpad_size = 0;
     opt_level_t opt_level = LEVEL0;
@@ -2142,7 +2142,7 @@ public:
      *  \param _n_thread_block number of threads per block
      *  \return the object itself
      */ 
-    WinMapReduceGPU_Builder<F_t, G_t>& withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_CUDA_NUM_THREAD_BLOCK)
+    WinMapReduceGPU_Builder<F_t, G_t>& withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_COLOR_CUDA_NUM_THREAD_BLOCK)
     {
         batch_len = _batch_len;
         n_thread_block = _n_thread_block;

@@ -259,14 +259,14 @@ int main(int argc, char *argv[])
         graph.run();
         if (i == 0) {
             last_result = global_sum;
-            cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT << endl;
+            cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT_COLOR << endl;
         }
         else {
             if (last_result == global_sum) {
-                cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT << endl;
+                cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT_COLOR << endl;
             }
             else {
-                cout << "Result is --> " << RED << "FAILED" << "!!!" << DEFAULT << endl;
+                cout << "Result is --> " << RED << "FAILED" << "!!!" << DEFAULT_COLOR << endl;
             }
         }
         global_sum = 0;

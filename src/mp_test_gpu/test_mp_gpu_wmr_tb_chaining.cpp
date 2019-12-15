@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
 		cout << "| (" << source_degree << ") +-->+ (" << degree1 << ") +-->+  (" << degree2 << ") +-->+ (" << degree2 << ") +-->+ (" << wmap_degree << "," << reduce_degree << ")  +-->+ (1) |" << endl;
 		cout << "+-----+   +-----+   +------+   +-----+   +--------+   +-----+" << endl;
 	    // prepare the test
-	    PipeGraph graph("test_wmr_tb_gpu_ch");
+	    PipeGraph graph("test_wmr_tb_gpu_ch", Mode::DETERMINISTIC);
 	    // source
 	    Source_Functor source_functor(stream_len, n_keys);
 	    auto *source = Source_Builder<decltype(source_functor)>(source_functor)
@@ -166,14 +166,14 @@ int main(int argc, char *argv[])
 	   	graph.run();
 	   	if (i == 0) {
 	   		last_result = global_sum;
-	   		cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT << endl;
+	   		cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT_COLOR << endl;
 	   	}
 	   	else {
 	   		if (last_result == global_sum) {
-	   			cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT << endl;
+	   			cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT_COLOR << endl;
 	   		}
 	   		else {
-	   			cout << "Result is --> " << RED << "FAILED" << "!!!" << DEFAULT << endl;
+	   			cout << "Result is --> " << RED << "FAILED" << "!!!" << DEFAULT_COLOR << endl;
 	   		}
 	   	}
     }

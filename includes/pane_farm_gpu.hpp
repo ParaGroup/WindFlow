@@ -157,22 +157,22 @@ private:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            std::cerr << RED << "WindFlow Error: window length or slide in Pane_Farm_GPU cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: window length or slide in Pane_Farm_GPU cannot be zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the parallelism degrees
         if (_plq_degree == 0 || _wlq_degree == 0) {
-            std::cerr << RED << "WindFlow Error: Pane_Farm_GPU has parallelism zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Pane_Farm_GPU has parallelism zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            std::cerr << RED << "WindFlow Error: batch length in Pane_Farm_GPU cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: batch length in Pane_Farm_GPU cannot be zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // the Pane_Farm_GPU can be utilized with sliding windows only
         if (_win_len <= _slide_len) {
-            std::cerr << RED << "WindFlow Error: Pane_Farm_GPU can be used with sliding windows only (s<w)" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Pane_Farm_GPU can be used with sliding windows only (s<w)" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // compute the pane length (no. of tuples or in time units)
@@ -250,22 +250,22 @@ private:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            std::cerr << RED << "WindFlow Error: window length or slide in Pane_Farm_GPU cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: window length or slide in Pane_Farm_GPU cannot be zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the parallelism degrees
         if (_plq_degree == 0 || _wlq_degree == 0) {
-            std::cerr << RED << "WindFlow Error: Pane_Farm_GPU has parallelism zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Pane_Farm_GPU has parallelism zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            std::cerr << RED << "WindFlow Error: batch length in Pane_Farm_GPU cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: batch length in Pane_Farm_GPU cannot be zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // the Pane_Farm_GPU can be utilized with sliding windows only
         if (_win_len <= _slide_len) {
-            std::cerr << RED << "WindFlow Error: Pane_Farm_GPU can be used with sliding windows only (s<w)" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Pane_Farm_GPU can be used with sliding windows only (s<w)" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // compute the pane length (no. of tuples or in time units)
@@ -343,22 +343,22 @@ private:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            std::cerr << RED << "WindFlow Error: window length or slide in Pane_Farm_GPU cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: window length or slide in Pane_Farm_GPU cannot be zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the parallelism degrees
         if (_plq_degree == 0 || _wlq_degree == 0) {
-            std::cerr << RED << "WindFlow Error: Pane_Farm_GPU has parallelism zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Pane_Farm_GPU has parallelism zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            std::cerr << RED << "WindFlow Error: batch length in Pane_Farm_GPU cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: batch length in Pane_Farm_GPU cannot be zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // the Pane_Farm_GPU can be utilized with sliding windows only
         if (_win_len <= _slide_len) {
-            std::cerr << RED << "WindFlow Error: Pane_Farm_GPU can be used with sliding windows only (s<w)" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Pane_Farm_GPU can be used with sliding windows only (s<w)" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // compute the pane length (no. of tuples or in time units)
@@ -436,22 +436,22 @@ private:
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
-            std::cerr << RED << "WindFlow Error: window length or slide in Pane_Farm_GPU cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: window length or slide in Pane_Farm_GPU cannot be zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the parallelism degrees
         if (_plq_degree == 0 || _wlq_degree == 0) {
-            std::cerr << RED << "WindFlow Error: Pane_Farm_GPU has parallelism zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Pane_Farm_GPU has parallelism zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
         if (_batch_len == 0) {
-            std::cerr << RED << "WindFlow Error: batch length in Pane_Farm_GPU cannot be zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: batch length in Pane_Farm_GPU cannot be zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // the Pane_Farm_GPU can be utilized with sliding windows only
         if (_win_len <= _slide_len) {
-            std::cerr << RED << "WindFlow Error: Pane_Farm_GPU can be used with sliding windows only (s<w)" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Pane_Farm_GPU can be used with sliding windows only (s<w)" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // compute the pane length (no. of tuples or in time units)

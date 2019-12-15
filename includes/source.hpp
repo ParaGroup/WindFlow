@@ -229,7 +229,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: Source has parallelism zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Source has parallelism zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Source_Node
@@ -261,7 +261,7 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: Source has parallelism zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Source has parallelism zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Source_Node
@@ -293,10 +293,10 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: Source has parallelism zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Source has parallelism zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        std::cerr << YELLOW << "WindFlow Warning: the use of the single-loop function in the Source is deprecated" << DEFAULT << std::endl;
+        std::cerr << YELLOW << "WindFlow Warning: the use of the single-loop function in the Source is deprecated" << DEFAULT_COLOR << std::endl;
         // vector of Source_Node
         std::vector<ff_node *> first_set;
         for (size_t i=0; i<_pardegree; i++) {
@@ -326,10 +326,10 @@ public:
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: Source has parallelism zero" << DEFAULT << std::endl;
+            std::cerr << RED << "WindFlow Error: Source has parallelism zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        std::cerr << YELLOW << "WindFlow Warning: the use of the single-loop function in the Source is deprecated" << DEFAULT << std::endl;
+        std::cerr << YELLOW << "WindFlow Warning: the use of the single-loop function in the Source is deprecated" << DEFAULT_COLOR << std::endl;
         // vector of Source_Node
         std::vector<ff_node *> first_set;
         for (size_t i=0; i<_pardegree; i++) {
