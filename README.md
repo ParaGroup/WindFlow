@@ -10,6 +10,7 @@ The web site of the library is available at https://paragroup.github.io/WindFlow
 # Dependencies
 The library needs the following dependencies:
 * GCC (GNU Compiler Collection) version >= 7.2
+* CUDA >= 9 (for compiling GPU examples)
 * FastFlow version >= 3.0
 
 # Contributors
