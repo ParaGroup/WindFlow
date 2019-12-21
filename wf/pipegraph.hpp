@@ -888,6 +888,12 @@ inline int PipeGraph::run()
 		// count number of threads
 		size_t count_threads = this->getNumThreads();
 		std::cout << GREEN << "WindFlow Status Message: PipeGraph [" << name << "] is running with " << count_threads << " threads" << DEFAULT_COLOR << std::endl;
+#if defined(TRACE_WINDFLOW)
+        std::cout << "WindFlow tracing " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
+#endif
+#if defined(TRACE_FASTFLOW)
+        std::cout << "FastFlow tracing " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
+#endif
 		int status = 0;
 		// running phase
 		for (auto *an: root->children)
@@ -899,6 +905,28 @@ inline int PipeGraph::run()
 			std::cout << GREEN << "WindFlow Status Message: PipeGraph [" << name << "] executed successfully" << DEFAULT_COLOR << std::endl;
 		//else
 			//std::cerr << RED << "WindFlow Error: PipeGraph [" << name << "] execution problems found" << DEFAULT_COLOR << std::endl;
+#if defined(TRACE_FASTFLOW)
+#if defined(LOG_DIR)
+        std::string ff_trace_file = std::string(STRINGIFY(LOG_DIR)) + "/ff_trace_" + this->name + "_" + std::to_string(getpid()) + ".log";
+        std::string ff_trace_dir = std::string(STRINGIFY(LOG_DIR));
+#else
+        std::string ff_trace_file = "log/ff_trace_" + this->name + "_" + std::to_string(getpid()) + ".log";
+        std::string ff_trace_dir = "log";
+#endif
+        // create the log directory
+        if (mkdir(ff_trace_dir.c_str(), 0777) != 0) {
+            struct stat st;
+            if((stat(ff_trace_dir.c_str(), &st) != 0) || !S_ISDIR(st.st_mode)) {
+                std::cerr << RED << "WindFlow Error: directory for log files cannot be created" << DEFAULT_COLOR << std::endl;
+                exit(EXIT_FAILURE);
+            }
+        }
+        std::ofstream tracefile;
+        tracefile.open(ff_trace_file);
+        for (auto *an: root->children)
+            (an->mp)->ffStats(tracefile);
+        tracefile.close();
+#endif
         return 0;
 	}
 }

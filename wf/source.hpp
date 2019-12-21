@@ -86,7 +86,7 @@ private:
         bool isEND; // flag stating whether the Source_Node has completed to generate items
         Shipper<tuple_t> *shipper = nullptr; // shipper object used for the delivery of results (single-loop version)
         RuntimeContext context; // RuntimeContext
-#if defined(LOG_DIR)
+#if defined(TRACE_WINDFLOW)
         unsigned long sentTuples = 0;
         std::ofstream *logfile = nullptr;
 #endif
@@ -152,10 +152,24 @@ private:
         int svc_init()
         {
             shipper = new Shipper<tuple_t>(*this);
-#if defined(LOG_DIR)
+#if defined(TRACE_WINDFLOW)
             logfile = new std::ofstream();
-            name += "_node_" + std::to_string(ff::ff_node_t<tuple_t>::get_my_id()) + ".log";
+            name += "_" + std::to_string(this->get_my_id()) + "_" + std::to_string(getpid()) + ".log";
+#if defined(LOG_DIR)
             std::string filename = std::string(STRINGIFY(LOG_DIR)) + "/" + name;
+            std::string log_dir = std::string(STRINGIFY(LOG_DIR));
+#else
+            std::string filename = "log/" + name;
+            std::string log_dir = std::string("log");
+#endif
+            // create the log directory
+            if (mkdir(log_dir.c_str(), 0777) != 0) {
+                struct stat st;
+                if((stat(log_dir.c_str(), &st) != 0) || !S_ISDIR(st.st_mode)) {
+                    std::cerr << RED << "WindFlow Error: directory for log files cannot be created" << DEFAULT_COLOR << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+            }
             logfile->open(filename);
 #endif
             return 0;
@@ -175,7 +189,7 @@ private:
                         isEND = !source_func_item(*t); // call the generation function
                     else
                         isEND = !rich_source_func_item(*t, context); // call the generation function
-#if defined (LOG_DIR)
+#if defined(TRACE_WINDFLOW)
                     sentTuples++;
 #endif
                     return t;
@@ -187,7 +201,7 @@ private:
                     source_func_loop(*shipper); // call the generation function
                 else
                     rich_source_func_loop(*shipper, context); // call the generation function
-#if defined (LOG_DIR)
+#if defined(TRACE_WINDFLOW)
                 sentTuples = shipper->delivered();
 #endif
                 isEND = true; // not necessary!
@@ -201,7 +215,7 @@ private:
             // call the closing function
             closing_func(context);
             delete shipper;
-#if defined (LOG_DIR)
+#if defined(TRACE_WINDFLOW)
             std::ostringstream stream;
             stream << "************************************LOG************************************\n";
             stream << "Generated tuples: " << sentTuples << "\n";

@@ -143,7 +143,7 @@ private:
     role_t role; // role of the Win_Seq
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     std::pair<size_t, size_t> map_indexes = std::make_pair(0, 1); // indexes useful is the role is MAP
-#if defined(LOG_DIR)
+#if defined(TRACE_WINDFLOW)
     bool isTriggering = false;
     unsigned long rcvTuples = 0;
     unsigned long rcvTuplesTriggering = 0;
@@ -336,11 +336,25 @@ public:
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
     {
+#if defined(TRACE_WINDFLOW)
+            logfile = new std::ofstream();
+            name += "_" + std::to_string(this->get_my_id()) + "_" + std::to_string(getpid()) + ".log";
 #if defined(LOG_DIR)
-        logfile = new std::ofstream();
-        name += "_seq_" + std::to_string(ff::ff_node_t<input_t, result_t>::get_my_id()) + ".log";
-        std::string filename = std::string(STRINGIFY(LOG_DIR)) + "/" + name;
-        logfile->open(filename);
+            std::string filename = std::string(STRINGIFY(LOG_DIR)) + "/" + name;
+            std::string log_dir = std::string(STRINGIFY(LOG_DIR));
+#else
+            std::string filename = "log/" + name;
+            std::string log_dir = std::string("log");
+#endif
+            // create the log directory
+            if (mkdir(log_dir.c_str(), 0777) != 0) {
+                struct stat st;
+                if((stat(log_dir.c_str(), &st) != 0) || !S_ISDIR(st.st_mode)) {
+                    std::cerr << RED << "WindFlow Error: directory for log files cannot be created" << DEFAULT_COLOR << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+            }
+            logfile->open(filename);
 #endif
         return 0;
     }
@@ -348,7 +362,7 @@ public:
     // svc method (utilized by the FastFlow runtime)
     result_t *svc(input_t *wt)
     {
-#if defined (LOG_DIR)
+#if defined(TRACE_WINDFLOW)
         startTS = current_time_nsecs();
         if (rcvTuples == 0)
             startTD = current_time_nsecs();
@@ -451,7 +465,7 @@ public:
                 std::optional<tuple_t> t_e = win.getFiringTuple();
                 // non-incremental query -> call win_func
                 if (isNIC) {
-#if defined(LOG_DIR)
+#if defined(TRACE_WINDFLOW)
                     rcvTuplesTriggering++;
                     isTriggering = true;
 #endif
@@ -494,7 +508,7 @@ public:
         wins.erase(wins.begin(), wins.begin() + cnt_fired);
         // delete the received tuple
         deleteTuple<tuple_t, input_t>(wt);
-#if defined(LOG_DIR)
+#if defined(TRACE_WINDFLOW)
         endTS = current_time_nsecs();
         endTD = current_time_nsecs();
         double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
@@ -564,7 +578,7 @@ public:
     {
         // call the closing function
         closing_func(context);
-#if defined (LOG_DIR)
+#if defined(TRACE_WINDFLOW)
         std::ostringstream stream;
         if (!isNIC) {
             stream << "************************************LOG************************************\n";

@@ -23,7 +23,7 @@ INCLUDE_DIR		= ../../wf
 INCLUDES		= -I $(FF_ROOT) -I $(INCLUDE_DIR) -I .
 NCXX			= nvcc
 NCXXFLAGS		= -g -x cu -w -std=c++14 --expt-extended-lambda
-MACROS 			= -DFF_BOUNDED_BUFFER # -DLOG_DIR="../../log"
+MACROS 			= -DFF_BOUNDED_BUFFER #-DTRACE_WINDFLOW -DTRACE_FASTFLOW
 NOPTFLAGS		= -O3
 NLDFLAGS      	= 
 

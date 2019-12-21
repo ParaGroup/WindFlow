@@ -187,7 +187,7 @@ private:
     uint64_t *gpu_gwids = nullptr; // array of the gwids of the windows in the microbatch (allocated on the GPU)
     size_t scratchpad_size = 0; // size of the scratchpage memory area on the GPU (one per CUDA thread)
     char *scratchpad_memory = nullptr; // scratchpage memory area (allocated on the GPU, one per CUDA thread)
-#if defined(LOG_DIR)
+#if defined(TRACE_WINDFLOW)
     bool isTriggering = false;
     unsigned long rcvTuples = 0;
     unsigned long rcvTuplesTriggering = 0; // a triggering tuple activates a new batch
@@ -310,11 +310,25 @@ public:
         if (scratchpad_size > 0) {
             gpuErrChk(cudaMalloc((char **) &scratchpad_memory, batch_len * scratchpad_size));  // scratchpad_memory
         }
+#if defined(TRACE_WINDFLOW)
+            logfile = new std::ofstream();
+            name += "_" + std::to_string(this->get_my_id()) + "_" + std::to_string(getpid()) + ".log";
 #if defined(LOG_DIR)
-        logfile = new std::ofstream();
-        name += "_seq_" + to_std::string(ff::ff_node_t<input_t, result_t>::get_my_id()) + ".log";
-        std::string filename = std::string(STRINGIFY(LOG_DIR)) + "/" + name;
-        logfile->open(filename);
+            std::string filename = std::string(STRINGIFY(LOG_DIR)) + "/" + name;
+            std::string log_dir = std::string(STRINGIFY(LOG_DIR));
+#else
+            std::string filename = "log/" + name;
+            std::string log_dir = std::string("log");
+#endif
+            // create the log directory
+            if (mkdir(log_dir.c_str(), 0777) != 0) {
+                struct stat st;
+                if((stat(log_dir.c_str(), &st) != 0) || !S_ISDIR(st.st_mode)) {
+                    std::cerr << RED << "WindFlow Error: directory for log files cannot be created" << DEFAULT_COLOR << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+            }
+            logfile->open(filename);
 #endif
         return 0;
     }
@@ -322,7 +336,7 @@ public:
     // svc method (utilized by the FastFlow runtime)
     result_t *svc(input_t *wt)
     {
-#if defined (LOG_DIR)
+#if defined(TRACE_WINDFLOW)
         startTS = current_time_nsecs();
         if (rcvTuples == 0)
             startTD = current_time_nsecs();
@@ -443,7 +457,7 @@ public:
                 win.setBatched();
                 // a new micro-batch is complete
                 if (key_d.batchedWin == batch_len) {
-#if defined(LOG_DIR)
+#if defined(TRACE_WINDFLOW)
                     rcvTuplesTriggering++;
                     isTriggering = true;
 #endif
@@ -528,7 +542,7 @@ public:
         wins.erase(wins.begin(), wins.begin() + cnt_fired);
         // delete the received tuple
         deleteTuple<tuple_t, input_t>(wt);
-#if defined(LOG_DIR)
+#if defined(TRACE_WINDFLOW)
         endTS = current_time_nsecs();
         endTD = current_time_nsecs();
         double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
@@ -608,7 +622,7 @@ public:
         cudaFreeHost(host_results);
         // destroy the CUDA stream
         cudaStreamDestroy(cudaStream);
-#if defined (LOG_DIR)
+#if defined(TRACE_WINDFLOW)
         std::ostringstream stream;
         stream << "************************************LOG************************************\n";
         stream << "No. of received tuples: " << rcvTuples << "\n";

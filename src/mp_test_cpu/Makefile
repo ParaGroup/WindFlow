@@ -23,7 +23,7 @@ INCLUDE_DIR		= ../../wf
 CXX 			= g++
 CXXFLAGS		= -std=c++17
 INCLUDES		= -I $(FF_ROOT) -I $(INCLUDE_DIR) -I .
-MACROS 			= -DFF_BOUNDED_BUFFER # -DLOG_DIR="../../log"
+MACROS 			= -DFF_BOUNDED_BUFFER #-DTRACE_WINDFLOW -DTRACE_FASTFLOW
 OPTFLAGS		= -g -O3 -finline-functions
 LDFLAGS			= -pthread
 

@@ -35,7 +35,9 @@
 #include <mutex>
 #include <sstream>
 #include <iostream>
+#include <errno.h>
 #include <sys/time.h>
+#include <sys/stat.h>
 
 namespace wf {
 
