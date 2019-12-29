@@ -71,6 +71,7 @@ public:
 private:
     // friendships with other classes in the library
     friend class MultiPipe;
+    bool used; // true if the operator has been added/chained in a MultiPipe
     // class Source_Node
     class Source_Node: public ff::ff_node_t<tuple_t>
     {
@@ -239,7 +240,7 @@ public:
     Source(source_item_func_t _func,
            size_t _pardegree,
            std::string _name,
-           closing_func_t _closing_func)
+           closing_func_t _closing_func): used(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -271,7 +272,7 @@ public:
     Source(rich_source_item_func_t _func,
            size_t _pardegree,
            std::string _name,
-           closing_func_t _closing_func)
+           closing_func_t _closing_func): used(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -303,7 +304,7 @@ public:
     Source(source_loop_func_t _func,
            size_t _pardegree,
            std::string _name,
-           closing_func_t _closing_func)
+           closing_func_t _closing_func): used(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -336,7 +337,7 @@ public:
     Source(rich_source_loop_func_t _func,
            size_t _pardegree,
            std::string _name,
-           closing_func_t _closing_func)
+           closing_func_t _closing_func): used(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -357,6 +358,21 @@ public:
         // add second set
         ff::ff_a2a::add_secondset(second_set, true);
     }
+
+    /** 
+     *  \brief Check whether the Source has been used in a MultiPipe
+     *  \return true if the Source has been added/chained to an existing MultiPipe
+     */
+    bool isUsed() const
+    {
+        return used;
+    }
+
+    /// deleted constructors/operators
+    Source(const Source &) = delete; // copy constructor
+    Source(Source &&) = delete; // move constructor
+    Source &operator=(const Source &) = delete; // copy assignment operator
+    Source &operator=(Source &&) = delete; // move assignment operator
 };
 
 } // namespace wf

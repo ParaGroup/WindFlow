@@ -93,6 +93,7 @@ private:
     friend class WinFarmGPU_Builder;
     template<typename T>
     friend class KeyFarmGPU_Builder;
+    friend class MultiPipe;
     // configuration variables of the Win_MapReduce_GPU
     F_t gpuFunction;
     map_func_t map_func;
@@ -115,6 +116,8 @@ private:
     bool ordered;
     opt_level_t opt_level;
     PatternConfig config;
+    bool used; // true if the operator has been added/chained in a MultiPipe
+    bool used4Nesting; // true if the operator has been used in a nested structure
 
     // Private Constructor I
     Win_MapReduce_GPU(F_t _gpuFunction,
@@ -597,7 +600,10 @@ public:
                       bool _ordered,
                       opt_level_t _opt_level):
                       Win_MapReduce_GPU(_map_func, _reduce_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
-    {}
+    {
+        used = false;
+        used4Nesting = false;
+    }
 
     /** 
      *  \brief Constructor II
@@ -630,7 +636,10 @@ public:
                       bool _ordered,
                       opt_level_t _opt_level):
                       Win_MapReduce_GPU(_map_func, _reduceupdate_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
-    {}
+    {
+        used = false;
+        used4Nesting = false;
+    }
 
     /** 
      *  \brief Constructor III
@@ -663,7 +672,10 @@ public:
                       bool _ordered,
                       opt_level_t _opt_level):
                       Win_MapReduce_GPU(_map_func, _reduce_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
-    {}
+    {
+        used = false;
+        used4Nesting = false;
+    }
 
     /** 
      *  \brief Constructor IV
@@ -696,7 +708,10 @@ public:
                       bool _ordered,
                       opt_level_t _opt_level):
                       Win_MapReduce_GPU(_mapupdate_func, _reduceupdate_func, _win_len, _slide_len, _winType, _map_degree, _reduce_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
-    {}
+    {
+        used = false;
+        used4Nesting = false;
+    }
 
     /** 
      *  \brief Get the optimization level used to build the operator
@@ -733,6 +748,30 @@ public:
     {
       return reduce_degree;
     }
+
+    /** 
+     *  \brief Check whether the Win_MapReduce_GPU has been used in a MultiPipe
+     *  \return true if the Win_MapReduce_GPU has been added/chained to an existing MultiPipe
+     */
+    bool isUsed() const
+    {
+        return used;
+    }
+
+    /** 
+     *  \brief Check whether the Win_MapReduce_GPU has been used in a nested structure
+     *  \return true if the Win_MapReduce_GPU has been used in a nested structure
+     */
+    bool isUsed4Nesting() const
+    {
+        return used4Nesting;
+    }
+
+    /// deleted constructors/operators
+    Win_MapReduce_GPU(const Win_MapReduce_GPU &) = delete; // copy constructor
+    Win_MapReduce_GPU(Win_MapReduce_GPU &&) = delete; // move constructor
+    Win_MapReduce_GPU &operator=(const Win_MapReduce_GPU &) = delete; // copy assignment operator
+    Win_MapReduce_GPU &operator=(Win_MapReduce_GPU &&) = delete; // move assignment operator
 };
 
 } // namespace wf

@@ -70,9 +70,9 @@ inline unsigned long current_time_nsecs()
 }
 
 /// utility macros
-#define DEFAULT_COLOR_VECTOR_CAPACITY 500 //< default capacity of vectors used internally by the library
-#define DEFAULT_COLOR_BATCH_SIZE_TB 1000 //< inital batch size (in no. of tuples) used by GPU operators with time-based windows
-#define DEFAULT_COLOR_CUDA_NUM_THREAD_BLOCK 256 //< default number of threads per block used by GPU operators
+#define DEFAULT_VECTOR_CAPACITY 500 //< default capacity of vectors used internally by the library
+#define DEFAULT_BATCH_SIZE_TB 1000 //< inital batch size (in no. of tuples) used by GPU operators with time-based windows
+#define DEFAULT_CUDA_NUM_THREAD_BLOCK 256 //< default number of threads per block used by GPU operators
 #define gpuErrChk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 
 // supported processing modes of the PipeGraph

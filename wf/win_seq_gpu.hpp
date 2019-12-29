@@ -145,7 +145,7 @@ private:
                        next_lwid(0),
                        batchedWin(0)
         {
-            wins.reserve(DEFAULT_COLOR_VECTOR_CAPACITY);
+            wins.reserve(DEFAULT_VECTOR_CAPACITY);
         }
 
         // move Constructor
@@ -296,7 +296,7 @@ public:
         }
         // initialization with time-based windows
         else {
-            tuples_per_batch = DEFAULT_COLOR_BATCH_SIZE_TB;
+            tuples_per_batch = DEFAULT_BATCH_SIZE_TB;
             // allocate Bin (with default size) on the GPU
             gpuErrChk(cudaMalloc((tuple_t **) &Bin, tuples_per_batch * sizeof(tuple_t))); // Bin
         }

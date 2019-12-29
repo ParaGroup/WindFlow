@@ -74,6 +74,7 @@ private:
     using key_t = typename std::remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
     // friendships with other classes in the library
     friend class MultiPipe;
+    bool used; // true if the operator has been added/chained in a MultiPipe
     // class Accumulator_Node
     class Accumulator_Node: public ff::ff_node_t<tuple_t, result_t>
     {
@@ -233,7 +234,7 @@ public:
                 size_t _pardegree,
                 std::string _name,
                 closing_func_t _closing_func,
-                routing_func_t _routing_func)
+                routing_func_t _routing_func): used(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -269,7 +270,7 @@ public:
                 size_t _pardegree,
                 std::string _name,
                 closing_func_t _closing_func,
-                routing_func_t _routing_func)
+                routing_func_t _routing_func): used(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -289,6 +290,21 @@ public:
         // when the Accumulator will be destroyed we need aslo to destroy the emitter, workers and collector
         ff::ff_farm::cleanup_all();
     }
+
+    /** 
+     *  \brief Check whether the Accumulator has been used in a MultiPipe
+     *  \return true if the Accumulator has been added/chained to an existing MultiPipe
+     */
+    bool isUsed() const
+    {
+        return used;
+    }
+
+    /// deleted constructors/operators
+    Accumulator(const Accumulator &) = delete; // copy constructor
+    Accumulator(Accumulator &&) = delete; // move constructor
+    Accumulator &operator=(const Accumulator &) = delete; // copy assignment operator
+    Accumulator &operator=(Accumulator &&) = delete; // move assignment operator
 };
 
 } // namespace wf

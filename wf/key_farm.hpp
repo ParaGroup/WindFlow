@@ -96,6 +96,7 @@ private:
     // friendships with other classes in the library
     template<typename T>
     friend auto get_KF_nested_type(T);
+    friend class MultiPipe;
     // flag stating whether the Key_Farm has been instantiated with complex workers (Pane_Farm or Win_MapReduce)
     bool hasComplexWorkers;
     // optimization level of the Key_Farm
@@ -111,11 +112,9 @@ private:
     size_t inner_parallelism_2;
     // window type (CB or TB)
     win_type_t winType;
+    bool used; // true if the operator has been added/chained in a MultiPipe
 
-    // Private Constructor I (stub)
-    Key_Farm() {}
-
-    // Private Constructor II
+    // Private Constructor I
     template<typename F_t>
     Key_Farm(F_t _func,
              uint64_t _win_len,
@@ -226,7 +225,9 @@ public:
              routing_func_t _routing_func,
              opt_level_t _opt_level):
              Key_Farm(_win_func, _win_len, _slide_len, _winType, _pardegree, _name, _closing_func, _routing_func, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
-    {}
+    {
+        used = false;
+    }
 
     /** 
      *  \brief Constructor II
@@ -251,7 +252,9 @@ public:
              routing_func_t _routing_func,
              opt_level_t _opt_level):
              Key_Farm(_rich_win_func, _win_len, _slide_len, _winType, _pardegree, _name, _closing_func, _routing_func, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
-    {}
+    {
+        used = false;
+    }
 
     /** 
      *  \brief Constructor III
@@ -276,7 +279,9 @@ public:
              routing_func_t _routing_func,
              opt_level_t _opt_level):
              Key_Farm(_winupdate_func, _win_len, _slide_len, _winType, _pardegree, _name, _closing_func, _routing_func, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
-    {}
+    {
+        used = false;
+    }
 
     /** 
      *  \brief Constructor IV
@@ -301,7 +306,9 @@ public:
              routing_func_t _routing_func,
              opt_level_t _opt_level):
              Key_Farm(_rich_winupdate_func, _win_len, _slide_len, _winType, _pardegree, _name, _closing_func, _routing_func, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
-    {}
+    {
+        used = false;
+    }
 
     /** 
      *  \brief Constructor V (Nesting with Pane_Farm)
@@ -316,7 +323,7 @@ public:
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the operator
      */ 
-    Key_Farm(const pane_farm_t &_pf,
+    Key_Farm(pane_farm_t &_pf,
              uint64_t _win_len,
              uint64_t _slide_len,
              win_type_t _winType,
@@ -329,7 +336,7 @@ public:
              outer_opt_level(_opt_level),
              inner_type(PF_CPU),
              parallelism(_pardegree),
-             winType(_winType)
+             winType(_winType), used(false)
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -340,6 +347,14 @@ public:
         if (_pardegree == 0) {
             std::cerr << RED << "WindFlow Error: Key_Farm has parallelism zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
+        }
+        // check that the Pane_Farm has not already been used in a nested structure
+        if (_pf.isUsed4Nesting()) {
+            std::cerr << RED << "WindFlow Error: Pane_Farm has already been used in a nested structure" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);            
+        }
+        else {
+            _pf.used4Nesting = true;
         }
         // check the compatibility of the windowing parameters
         if (_pf.win_len != _win_len || _pf.slide_len != _slide_len || _pf.winType != _winType) {
@@ -414,7 +429,7 @@ public:
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the operator
      */ 
-    Key_Farm(const win_mapreduce_t &_wm,
+    Key_Farm(win_mapreduce_t &_wm,
              uint64_t _win_len,
              uint64_t _slide_len,
              win_type_t _winType,
@@ -427,7 +442,7 @@ public:
              outer_opt_level(_opt_level),
              inner_type(WMR_CPU),
              parallelism(_pardegree),
-             winType(_winType)
+             winType(_winType), used(false)
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -438,6 +453,14 @@ public:
         if (_pardegree == 0) {
             std::cerr << RED << "WindFlow Error: Key_Farm has parallelism zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
+        }
+        // check that the Win_MapReduce has not already been used in a nested structure
+        if (_wm.isUsed4Nesting()) {
+            std::cerr << RED << "WindFlow Error: Win_MapReduce has already been used in a nested structure" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);            
+        }
+        else {
+            _wm.used4Nesting = true;
         }
         // check the compatibility of the windowing parameters
         if (_wm.win_len != _win_len || _wm.slide_len != _slide_len || _wm.winType != _winType) {
@@ -561,6 +584,21 @@ public:
     {
         return winType;
     }
+
+    /** 
+     *  \brief Check whether the Key_Farm has been used in a MultiPipe
+     *  \return true if the Key_Farm has been added/chained to an existing MultiPipe
+     */
+    bool isUsed() const
+    {
+        return used;
+    }
+
+    /// deleted constructors/operators
+    Key_Farm(const Key_Farm &) = delete; // copy constructor
+    Key_Farm(Key_Farm &&) = delete; // move constructor
+    Key_Farm &operator=(const Key_Farm &) = delete; // copy assignment operator
+    Key_Farm &operator=(Key_Farm &&) = delete; // move assignment operator
 };
 
 } // namespace wf

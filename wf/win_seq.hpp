@@ -115,7 +115,7 @@ private:
                        rcv_counter(0),
                        next_lwid(0)
         {
-            wins.reserve(DEFAULT_COLOR_VECTOR_CAPACITY);
+            wins.reserve(DEFAULT_VECTOR_CAPACITY);
         }
 
         // move Constructor

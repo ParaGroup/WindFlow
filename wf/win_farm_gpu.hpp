@@ -90,6 +90,7 @@ private:
     friend class Win_MapReduce_GPU;
     template<typename T>
     friend auto get_WF_GPU_nested_type(T);
+    friend class MultiPipe;
     // flag stating whether the Win_Farm_GPU has been instantiated with complex workers (Pane_Farm_GPU or Win_MapReduce_GPU)
     bool hasComplexWorkers;
     // optimization level of the Win_Farm_GPU
@@ -105,11 +106,9 @@ private:
     size_t inner_parallelism_2;
     // window type (CB or TB)
     win_type_t winType;
+    bool used; // true if the operator has been added/chained in a MultiPipe
 
-    // Private Constructor I (stub)
-    Win_Farm_GPU() {}
-
-    // Private Constructor II
+    // Private Constructor I
     Win_Farm_GPU(win_F_t _win_func,
                  uint64_t _win_len,
                  uint64_t _slide_len,
@@ -236,7 +235,9 @@ public:
                  bool _ordered,
                  opt_level_t _opt_level):
                  Win_Farm_GPU(_win_func, _win_len, _slide_len, _winType, _pardegree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
-    {}
+    {
+        used = false;
+    }
 
     /** 
      *  \brief Constructor II (Nesting with Pane_Farm_GPU)
@@ -253,7 +254,7 @@ public:
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
      */ 
-    Win_Farm_GPU(const pane_farm_gpu_t &_pf,
+    Win_Farm_GPU(pane_farm_gpu_t &_pf,
                  uint64_t _win_len,
                  uint64_t _slide_len,
                  win_type_t _winType,
@@ -268,7 +269,7 @@ public:
                  outer_opt_level(_opt_level),
                  inner_type(PF_GPU),
                  parallelism(_pardegree),
-                 winType(_winType)
+                 winType(_winType), used(false)
     {
         // type of the Pane_Farm_GPU to be created within the Win_Farm_GPU operator
         using panewrap_farm_gpu_t = Pane_Farm_GPU<tuple_t, result_t, win_F_t, wrapper_in_t>;       
@@ -286,6 +287,14 @@ public:
         if (_batch_len == 0) {
             std::cerr << RED << "WindFlow Error: batch length in Win_Farm_GPUcannot be zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
+        }
+        // check that the Pane_Farm_GPU has not already been used in a nested structure
+        if (_pf.isUsed4Nesting()) {
+            std::cerr << RED << "WindFlow Error: Pane_Farm_GPU has already been used in a nested structure" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);            
+        }
+        else {
+            _pf.used4Nesting = true;
         }
         // check the compatibility of the windowing/batching parameters
         if (_pf.win_len != _win_len || _pf.slide_len != _slide_len || _pf.winType != _winType || _pf.batch_len != _batch_len || _pf.n_thread_block != _n_thread_block) {
@@ -345,7 +354,7 @@ public:
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
      */ 
-    Win_Farm_GPU(const win_mapreduce_gpu_t &_wm,
+    Win_Farm_GPU(win_mapreduce_gpu_t &_wm,
                  uint64_t _win_len,
                  uint64_t _slide_len,
                  win_type_t _winType,
@@ -360,7 +369,7 @@ public:
                  outer_opt_level(_opt_level),
                  inner_type(WMR_GPU),
                  parallelism(_pardegree),
-                 winType(_winType)
+                 winType(_winType), used(false)
     {
         // type of the Win_MapReduce_GPU to be created within the Win_Farm_GPU operator
         using winwrap_mapreduce_gpu_t = Win_MapReduce_GPU<tuple_t, result_t, win_F_t, wrapper_in_t>;  
@@ -378,6 +387,14 @@ public:
         if (_batch_len == 0) {
             std::cerr << RED << "WindFlow Error: batch length in Win_Farm_GPU cannot be zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
+        }
+        // check that the Win_MapReduce_GPU has not already been used in a nested structure
+        if (_wm.isUsed4Nesting()) {
+            std::cerr << RED << "WindFlow Error: Win_MapReduce_GPU has already been used in a nested structure" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);            
+        }
+        else {
+            _wm.used4Nesting = true;
         }
         // check the compatibility of the windowing/batching parameters
         if (_wm.win_len != _win_len || _wm.slide_len != _slide_len || _wm.winType != _winType || _wm.batch_len != _batch_len || _wm.n_thread_block != _n_thread_block) {
@@ -484,6 +501,21 @@ public:
     {
         return winType;
     }
+
+    /** 
+     *  \brief Check whether the Win_Farm_GPU has been used in a MultiPipe
+     *  \return true if the Win_Farm_GPU has been added/chained to an existing MultiPipe
+     */
+    bool isUsed() const
+    {
+        return used;
+    }
+
+    /// deleted constructors/operators
+    Win_Farm_GPU(const Win_Farm_GPU &) = delete; // copy constructor
+    Win_Farm_GPU(Win_Farm_GPU &&) = delete; // move constructor
+    Win_Farm_GPU &operator=(const Win_Farm_GPU &) = delete; // copy assignment operator
+    Win_Farm_GPU &operator=(Win_Farm_GPU &&) = delete; // move assignment operator
 };
 
 } // namespace wf

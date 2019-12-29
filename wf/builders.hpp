@@ -755,7 +755,7 @@ private:
     uint64_t slide_len = 1;
     win_type_t winType = CB;
     size_t batch_len = 1;
-    size_t n_thread_block = DEFAULT_COLOR_CUDA_NUM_THREAD_BLOCK;
+    size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
     std::string name = "anonymous_seq_gpu";
     size_t scratchpad_size = 0;
 
@@ -804,7 +804,7 @@ public:
      *  \param _n_thread_block number of threads per block
      *  \return the object itself
      */ 
-    WinSeqGPU_Builder<F_t>& withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_COLOR_CUDA_NUM_THREAD_BLOCK)
+    WinSeqGPU_Builder<F_t>& withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_CUDA_NUM_THREAD_BLOCK)
     {
         batch_len = _batch_len;
         n_thread_block = _n_thread_block;
@@ -867,9 +867,9 @@ template<typename T>
 class WinFarm_Builder
 {
 private:
-    T input;
+    T &input;
     // type of the operator to be created by this builder
-    using winfarm_t = decltype(get_WF_nested_type(input));
+    using winfarm_t = std::remove_reference_t<decltype(*get_WF_nested_type(input))>;
     // type of the closing function
     using closing_func_t = std::function<void(RuntimeContext&)>;
     uint64_t win_len = 1;
@@ -882,7 +882,7 @@ private:
 
     // window parameters initialization (input is a Pane_Farm)
     template<typename ...Args>
-    void initWindowConf(Pane_Farm<Args...> _pf)
+    void initWindowConf(Pane_Farm<Args...> &_pf)
     {
         win_len = _pf.win_len;
         slide_len = _pf.slide_len;
@@ -891,7 +891,7 @@ private:
 
     // window parameters initialization (input is a Win_MapReduce)
     template<typename ...Args>
-    void initWindowConf(Win_MapReduce<Args...> _wm)
+    void initWindowConf(Win_MapReduce<Args...> &_wm)
     {
         win_len = _wm.win_len;
         slide_len = _wm.slide_len;
@@ -900,7 +900,7 @@ private:
 
     // window parameters initialization (input is a function)
     template<typename T2>
-    void initWindowConf(T2 f)
+    void initWindowConf(T2 &f)
     {
         win_len = 1;
         slide_len = 1;
@@ -913,7 +913,7 @@ public:
      *  
      *  \param _input can be either a function or an already instantiated Pane_Farm or Win_MapReduce operator.
      */ 
-    WinFarm_Builder(T _input): input(_input)
+    WinFarm_Builder(T &_input): input(_input)
     {
         initWindowConf(input);
     }
@@ -1042,22 +1042,22 @@ template<typename T>
 class WinFarmGPU_Builder
 {
 private:
-    T input;
+    T &input;
     // type of the operator to be created by this builder
-    using winfarm_gpu_t = decltype(get_WF_GPU_nested_type(input));
+    using winfarm_gpu_t = std::remove_reference_t<decltype(*get_WF_GPU_nested_type(input))>;
     uint64_t win_len = 1;
     uint64_t slide_len = 1;
     win_type_t winType = CB;
     size_t pardegree = 1;
     size_t batch_len = 1;
-    size_t n_thread_block = DEFAULT_COLOR_CUDA_NUM_THREAD_BLOCK;
+    size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
     std::string name = "anonymous_wf_gpu";
     size_t scratchpad_size = 0;
     opt_level_t opt_level = LEVEL2;
 
     // window parameters initialization (input is a Pane_Farm_GPU)
     template<typename ...Args>
-    void initWindowConf(Pane_Farm_GPU<Args...> _pf)
+    void initWindowConf(Pane_Farm_GPU<Args...> &_pf)
     {
         win_len = _pf.win_len;
         slide_len = _pf.slide_len;
@@ -1068,7 +1068,7 @@ private:
 
     // window parameters initialization (input is a Win_MapReduce_GPU)
     template<typename ...Args>
-    void initWindowConf(Win_MapReduce_GPU<Args...> _wm)
+    void initWindowConf(Win_MapReduce_GPU<Args...> &_wm)
     {
         win_len = _wm.win_len;
         slide_len = _wm.slide_len;
@@ -1079,13 +1079,13 @@ private:
 
     // window parameters initialization (input is a function)
     template<typename T2>
-    void initWindowConf(T2 f)
+    void initWindowConf(T2 &f)
     {
         win_len = 1;
         slide_len = 1;
         winType = CB;
         batch_len = 1;
-        n_thread_block = DEFAULT_COLOR_CUDA_NUM_THREAD_BLOCK;
+        n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
     }
 
 public:
@@ -1094,7 +1094,7 @@ public:
      *  
      *  \param _input can be either a host/device function or an already instantiated Pane_Farm_GPU or Win_MapReduce_GPU operator.
      */ 
-    WinFarmGPU_Builder(T _input): input(_input) {
+    WinFarmGPU_Builder(T &_input): input(_input) {
         initWindowConf(input);
     }
 
@@ -1147,7 +1147,7 @@ public:
      *  \param _n_thread_block number of threads per block
      *  \return the object itself
      */ 
-    WinFarmGPU_Builder<T>& withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_COLOR_CUDA_NUM_THREAD_BLOCK)
+    WinFarmGPU_Builder<T>& withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_CUDA_NUM_THREAD_BLOCK)
     {
         batch_len = _batch_len;
         n_thread_block = _n_thread_block;
@@ -1222,9 +1222,9 @@ template<typename T>
 class KeyFarm_Builder
 {
 private:
-    T input;
+    T &input;
     // type of the operator to be created by this builder
-    using keyfarm_t = decltype(get_KF_nested_type(input));
+    using keyfarm_t = std::remove_reference_t<decltype(*get_KF_nested_type(input))>;
     // type of the closing function
     using closing_func_t = std::function<void(RuntimeContext&)>;
     // type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
@@ -1240,7 +1240,7 @@ private:
 
     // window parameters initialization (input is a Pane_Farm)
     template<typename ...Args>
-    void initWindowConf(Pane_Farm<Args...> _pf)
+    void initWindowConf(Pane_Farm<Args...> &_pf)
     {
         win_len = _pf.win_len;
         slide_len = _pf.slide_len;
@@ -1249,7 +1249,7 @@ private:
 
     // window parameters initialization (input is a Win_MapReduce)
     template<typename ...Args>
-    void initWindowConf(Win_MapReduce<Args...> _wm)
+    void initWindowConf(Win_MapReduce<Args...> &_wm)
     {
         win_len = _wm.win_len;
         slide_len = _wm.slide_len;
@@ -1258,7 +1258,7 @@ private:
 
     // window parameters initialization (input is a function)
     template<typename T2>
-    void initWindowConf(T2 f)
+    void initWindowConf(T2 &f)
     {
         win_len = 1;
         slide_len = 1;
@@ -1271,7 +1271,7 @@ public:
      *  
      *  \param _input can be either a function or an already instantiated Pane_Farm or Win_MapReduce operator.
      */ 
-    KeyFarm_Builder(T _input): input(_input)
+    KeyFarm_Builder(T &_input): input(_input)
     {
         initWindowConf(input);
     }
@@ -1398,17 +1398,17 @@ template<typename T>
 class KeyFarmGPU_Builder
 {
 private:
-    T input;
+    T &input;
     // type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
     using routing_func_t = std::function<size_t(size_t, size_t)>;
     // type of the operator to be created by this builder
-    using keyfarm_gpu_t = decltype(get_KF_GPU_nested_type(input));
+    using keyfarm_gpu_t = std::remove_reference_t<decltype(*get_KF_GPU_nested_type(input))>;
     uint64_t win_len = 1;
     uint64_t slide_len = 1;
     win_type_t winType = CB;
     size_t pardegree = 1;
     size_t batch_len = 1;
-    size_t n_thread_block = DEFAULT_COLOR_CUDA_NUM_THREAD_BLOCK;
+    size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
     std::string name = "anonymous_wf_gpu";
     size_t scratchpad_size = 0;
     routing_func_t routing_func = [](size_t k, size_t n) { return k%n; };
@@ -1416,7 +1416,7 @@ private:
 
     // window parameters initialization (input is a Pane_Farm_GPU)
     template<typename ...Args>
-    void initWindowConf(Pane_Farm_GPU<Args...> _pf)
+    void initWindowConf(Pane_Farm_GPU<Args...> &_pf)
     {
         win_len = _pf.win_len;
         slide_len = _pf.slide_len;
@@ -1427,7 +1427,7 @@ private:
 
     // window parameters initialization (input is a Win_MapReduce_GPU)
     template<typename ...Args>
-    void initWindowConf(Win_MapReduce_GPU<Args...> _wm)
+    void initWindowConf(Win_MapReduce_GPU<Args...> &_wm)
     {
         win_len = _wm.win_len;
         slide_len = _wm.slide_len;
@@ -1438,13 +1438,13 @@ private:
 
     // window parameters initialization (input is a function)
     template<typename T2>
-    void initWindowConf(T2 f)
+    void initWindowConf(T2 &f)
     {
         win_len = 1;
         slide_len = 1;
         winType = CB;
         batch_len = 1;
-        n_thread_block = DEFAULT_COLOR_CUDA_NUM_THREAD_BLOCK;
+        n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
     }
 
 public:
@@ -1453,7 +1453,7 @@ public:
      *  
      *  \param _input can be either a host/device function or an already instantiated Pane_Farm_GPU or Win_MapReduce_GPU operator.
      */ 
-    KeyFarmGPU_Builder(T _input): input(_input) {
+    KeyFarmGPU_Builder(T &_input): input(_input) {
         initWindowConf(input);
     }
 
@@ -1506,7 +1506,7 @@ public:
      *  \param _n_thread_block number of threads per block
      *  \return the object itself
      */ 
-    KeyFarmGPU_Builder<T>& withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_COLOR_CUDA_NUM_THREAD_BLOCK)
+    KeyFarmGPU_Builder<T>& withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_CUDA_NUM_THREAD_BLOCK)
     {
         batch_len = _batch_len;
         n_thread_block = _n_thread_block;
@@ -1751,7 +1751,7 @@ private:
     size_t plq_degree = 1;
     size_t wlq_degree = 1;
     size_t batch_len = 1;
-    size_t n_thread_block = DEFAULT_COLOR_CUDA_NUM_THREAD_BLOCK;
+    size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
     std::string name = "anonymous_pf_gpu";
     size_t scratchpad_size = 0;
     opt_level_t opt_level = LEVEL0;
@@ -1818,7 +1818,7 @@ public:
      *  \param _n_thread_block number of threads per block
      *  \return the object itself
      */ 
-    PaneFarmGPU_Builder<F_t, G_t>& withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_COLOR_CUDA_NUM_THREAD_BLOCK)
+    PaneFarmGPU_Builder<F_t, G_t>& withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_CUDA_NUM_THREAD_BLOCK)
     {
         batch_len = _batch_len;
         n_thread_block = _n_thread_block;
@@ -2075,7 +2075,7 @@ private:
     size_t map_degree = 2;
     size_t reduce_degree = 1;
     size_t batch_len = 1;
-    size_t n_thread_block = DEFAULT_COLOR_CUDA_NUM_THREAD_BLOCK;
+    size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
     std::string name = "anonymous_wmw_gpu";
     size_t scratchpad_size = 0;
     opt_level_t opt_level = LEVEL0;
@@ -2142,7 +2142,7 @@ public:
      *  \param _n_thread_block number of threads per block
      *  \return the object itself
      */ 
-    WinMapReduceGPU_Builder<F_t, G_t>& withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_COLOR_CUDA_NUM_THREAD_BLOCK)
+    WinMapReduceGPU_Builder<F_t, G_t>& withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_CUDA_NUM_THREAD_BLOCK)
     {
         batch_len = _batch_len;
         n_thread_block = _n_thread_block;

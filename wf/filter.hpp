@@ -70,6 +70,7 @@ public:
 private:
     // friendships with other classes in the library
     friend class MultiPipe;
+    bool used; // true if the operator has been added/chained in a MultiPipe
     bool keyed; // flag stating whether the Filter is configured with keyBy or not
     // class Filter_Node
     class Filter_Node: public ff::ff_node_t<tuple_t>
@@ -203,7 +204,7 @@ public:
            size_t _pardegree,
            std::string _name,
            closing_func_t _closing_func):
-           keyed(false)
+           keyed(false), used(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -240,7 +241,7 @@ public:
            std::string _name,
            closing_func_t _closing_func,
            routing_func_t _routing_func):
-           keyed(true)
+           keyed(true), used(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -275,7 +276,7 @@ public:
            size_t _pardegree,
            std::string _name,
            closing_func_t _closing_func):
-           keyed(false)
+           keyed(false), used(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -312,7 +313,7 @@ public:
            std::string _name,
            closing_func_t _closing_func,
            routing_func_t _routing_func):
-           keyed(true)
+           keyed(true), used(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -343,6 +344,21 @@ public:
     {
         return keyed;
     }
+
+    /** 
+     *  \brief Check whether the Filter has been used in a MultiPipe
+     *  \return true if the Filter has been added/chained to an existing MultiPipe
+     */
+    bool isUsed() const
+    {
+        return used;
+    }
+
+    /// deleted constructors/operators
+    Filter(const Filter &) = delete; // copy constructor
+    Filter(Filter &&) = delete; // move constructor
+    Filter &operator=(const Filter &) = delete; // copy assignment operator
+    Filter &operator=(Filter &&) = delete; // move assignment operator
 };
 
 } // namespace wf

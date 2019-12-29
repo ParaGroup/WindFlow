@@ -92,6 +92,7 @@ private:
     friend class WinFarm_Builder;
     template<typename T>
     friend class KeyFarm_Builder;
+    friend class MultiPipe;
     // compute the gcd between two numbers
     std::function<uint64_t(uint64_t, uint64_t)> gcd = [](uint64_t u, uint64_t v) {
         while (v != 0) {
@@ -124,6 +125,8 @@ private:
     bool ordered;
     opt_level_t opt_level;
     PatternConfig config;
+    bool used; // true if the operator has been added/chained in a MultiPipe
+    bool used4Nesting; // true if the operator has been used in a nested structure
 
     // Private Constructor
     template<typename F_t, typename G_t>
@@ -284,6 +287,8 @@ public:
         isNICWLQ = true;
         isRichPLQ = false;
         isRichWLQ = false;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -320,6 +325,8 @@ public:
         isNICWLQ = true;
         isRichPLQ = true;
         isRichWLQ = false;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -356,6 +363,8 @@ public:
         isNICWLQ = true;
         isRichPLQ = false;
         isRichWLQ = true;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -392,6 +401,8 @@ public:
         isNICWLQ = true;
         isRichPLQ = true;
         isRichWLQ = true;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -428,6 +439,8 @@ public:
         isNICWLQ = false;
         isRichPLQ = false;
         isRichWLQ = false;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -464,6 +477,8 @@ public:
         isNICWLQ = false;
         isRichPLQ = true;
         isRichWLQ = false;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -500,6 +515,8 @@ public:
         isNICWLQ = false;
         isRichPLQ = false;
         isRichWLQ = true;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -536,6 +553,8 @@ public:
         isNICWLQ = false;
         isRichPLQ = true;
         isRichWLQ = true;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -572,6 +591,8 @@ public:
         isNICWLQ = false;
         isRichPLQ = false;
         isRichWLQ = false;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -608,6 +629,8 @@ public:
         isNICWLQ = false;
         isRichPLQ = true;
         isRichWLQ = false;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -644,6 +667,8 @@ public:
         isNICWLQ = false;
         isRichPLQ = false;
         isRichWLQ = true;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -680,6 +705,8 @@ public:
         isNICWLQ = false;
         isRichPLQ = true;
         isRichWLQ = true;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -716,6 +743,8 @@ public:
         isNICWLQ = true;
         isRichPLQ = false;
         isRichWLQ = false;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -752,6 +781,8 @@ public:
         isNICWLQ = true;
         isRichPLQ = true;
         isRichWLQ = false;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -788,6 +819,8 @@ public:
         isNICWLQ = true;
         isRichPLQ = false;
         isRichWLQ = true;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -824,6 +857,8 @@ public:
         isNICWLQ = true;
         isRichPLQ = true;
         isRichWLQ = true;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -861,6 +896,30 @@ public:
     {
       return wlq_degree;
     }
+
+    /** 
+     *  \brief Check whether the Pane_Farm has been used in a MultiPipe
+     *  \return true if the Pane_Farm has been added/chained to an existing MultiPipe
+     */
+    bool isUsed() const
+    {
+        return used;
+    }
+
+    /** 
+     *  \brief Check whether the Pane_Farm has been used in a nested structure
+     *  \return true if the Pane_Farm has been used in a nested structure
+     */
+    bool isUsed4Nesting() const
+    {
+        return used4Nesting;
+    }
+
+    /// deleted constructors/operators
+    Pane_Farm(const Pane_Farm &) = delete; // copy constructor
+    Pane_Farm(Pane_Farm &&) = delete; // move constructor
+    Pane_Farm &operator=(const Pane_Farm &) = delete; // copy assignment operator
+    Pane_Farm &operator=(Pane_Farm &&) = delete; // move assignment operator
 };
 
 } // namespace wf

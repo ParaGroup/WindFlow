@@ -97,6 +97,7 @@ private:
     friend class WinFarm_Builder;
     template<typename T>
     friend class KeyFarm_Builder;
+    friend class MultiPipe;
     // configuration variables of the Win_MapReduce
     map_func_t map_func;
     rich_map_func_t rich_map_func;
@@ -120,6 +121,8 @@ private:
     bool ordered;
     opt_level_t opt_level;
     PatternConfig config;
+    bool used; // true if the operator has been added/chained in a MultiPipe
+    bool used4Nesting; // true if the operator has been used in a nested structure
 
     // Private Constructor
     template <typename F_t, typename G_t>
@@ -278,6 +281,8 @@ public:
         isNICREDUCE = true;
         isRichMAP = false;
         isRichREDUCE = false;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -314,6 +319,8 @@ public:
         isNICREDUCE = true;
         isRichMAP = true;
         isRichREDUCE = false;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -350,6 +357,8 @@ public:
         isNICREDUCE = true;
         isRichMAP = false;
         isRichREDUCE = true;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -386,6 +395,8 @@ public:
         isNICREDUCE = true;
         isRichMAP = true;
         isRichREDUCE = true;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -422,6 +433,8 @@ public:
         isNICREDUCE = false;
         isRichMAP = false;
         isRichREDUCE = false;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -458,6 +471,8 @@ public:
         isNICREDUCE = false;
         isRichMAP = true;
         isRichREDUCE = false;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -494,6 +509,8 @@ public:
         isNICREDUCE = false;
         isRichMAP = false;
         isRichREDUCE = true;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -530,6 +547,8 @@ public:
         isNICREDUCE = false;
         isRichMAP = true;
         isRichREDUCE = true;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -566,6 +585,8 @@ public:
         isNICREDUCE = false;
         isRichMAP = false;
         isRichREDUCE = false;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -602,6 +623,8 @@ public:
         isNICREDUCE = false;
         isRichMAP = true;
         isRichREDUCE = false;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -638,6 +661,8 @@ public:
         isNICREDUCE = false;
         isRichMAP = false;
         isRichREDUCE = true;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -674,6 +699,8 @@ public:
         isNICREDUCE = false;
         isRichMAP = true;
         isRichREDUCE = true;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -710,6 +737,8 @@ public:
         isNICREDUCE = true;
         isRichMAP = false;
         isRichREDUCE = false;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -746,6 +775,8 @@ public:
         isNICREDUCE = true;
         isRichMAP = true;
         isRichREDUCE = false;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -782,6 +813,8 @@ public:
         isNICREDUCE = true;
         isRichMAP = false;
         isRichREDUCE = true;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -818,6 +851,8 @@ public:
         isNICREDUCE = true;
         isRichMAP = true;
         isRichREDUCE = true;
+        used = false;
+        used4Nesting = false;
     }
 
     /** 
@@ -855,6 +890,30 @@ public:
     {
       return reduce_degree;
     }
+
+    /** 
+     *  \brief Check whether the Win_MapReduce has been used in a MultiPipe
+     *  \return true if the Win_MapReduce has been added/chained to an existing MultiPipe
+     */
+    bool isUsed() const
+    {
+        return used;
+    }
+
+    /** 
+     *  \brief Check whether the Win_MapReduce has been used in a nested structure
+     *  \return true if the Win_MapReduce has been used in a nested structure
+     */
+    bool isUsed4Nesting() const
+    {
+        return used4Nesting;
+    }
+
+    /// deleted constructors/operators
+    Win_MapReduce(const Win_MapReduce &) = delete; // copy constructor
+    Win_MapReduce(Win_MapReduce &&) = delete; // move constructor
+    Win_MapReduce &operator=(const Win_MapReduce &) = delete; // copy assignment operator
+    Win_MapReduce &operator=(Win_MapReduce &&) = delete; // move assignment operator
 };
 
 } // namespace wf

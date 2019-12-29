@@ -89,6 +89,7 @@ private:
     // friendships with other classes in the library
     template<typename T>
     friend auto get_KF_GPU_nested_type(T);
+    friend class MultiPipe;
     // flag stating whether the Key_Farm_GPU has been instantiated with complex workers (Pane_Farm_GPU or Win_MapReduce_GPU)
     bool hasComplexWorkers;
     // optimization level of the Key_Farm_GPU
@@ -104,9 +105,7 @@ private:
     size_t inner_parallelism_2;
     // window type (CB or TB)
     win_type_t winType;
-
-    // Private Constructor (stub)
-    Key_Farm_GPU() {}
+    bool used; // true if the operator has been added/chained in a MultiPipe
 
     // method to optimize the structure of the Key_Farm_GPU operator
     void optimize_KeyFarmGPU(opt_level_t opt)
@@ -176,7 +175,8 @@ public:
                  parallelism(_pardegree),
                  inner_parallelism_1(1),
                  inner_parallelism_2(0),
-                 winType(_winType)
+                 winType(_winType),
+                 used(false)
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -228,7 +228,7 @@ public:
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the operator
      */ 
-    Key_Farm_GPU(const pane_farm_gpu_t &_pf,
+    Key_Farm_GPU(pane_farm_gpu_t &_pf,
                  uint64_t _win_len,
                  uint64_t _slide_len,
                  win_type_t _winType,
@@ -243,7 +243,8 @@ public:
                  outer_opt_level(_opt_level),
                  inner_type(PF_GPU),
                  parallelism(_pardegree),
-                 winType(_winType)
+                 winType(_winType),
+                 used(false)
     {      
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -259,6 +260,14 @@ public:
         if (_batch_len == 0) {
             std::cerr << RED << "WindFlow Error: batch length in Key_Farm_GPU cannot be zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
+        }
+        // check that the Pane_Farm_GPU has not already been used in a nested structure
+        if (_pf.isUsed4Nesting()) {
+            std::cerr << RED << "WindFlow Error: Pane_Farm_GPU has already been used in a nested structure" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);            
+        }
+        else {
+            _pf.used4Nesting = true;
         }
         // check the compatibility of the windowing/batching parameters
         if (_pf.win_len != _win_len || _pf.slide_len != _slide_len || _pf.winType != _winType || _pf.batch_len != _batch_len || _pf.n_thread_block != _n_thread_block) {
@@ -315,7 +324,7 @@ public:
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the operator
      */ 
-    Key_Farm_GPU(const win_mapreduce_gpu_t &_wm,
+    Key_Farm_GPU(win_mapreduce_gpu_t &_wm,
                  uint64_t _win_len,
                  uint64_t _slide_len,
                  win_type_t _winType,
@@ -330,7 +339,8 @@ public:
                  outer_opt_level(_opt_level),
                  inner_type(WMR_GPU),
                  parallelism(_pardegree),
-                 winType(_winType)
+                 winType(_winType),
+                 used(false)
     {      
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -346,6 +356,14 @@ public:
         if (_batch_len == 0) {
             std::cerr << RED << "WindFlow Error: batch length in Key_Farm_GPU cannot be zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
+        }
+        // check that the Win_MapReduce_GPU has not already been used in a nested structure
+        if (_wm.isUsed4Nesting()) {
+            std::cerr << RED << "WindFlow Error: Win_MapReduce_GPU has already been used in a nested structure" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);            
+        }
+        else {
+            _wm.used4Nesting = true;
         }
         // check the compatibility of the windowing/batching parameters
         if (_wm.win_len != _win_len || _wm.slide_len != _slide_len || _wm.winType != _winType || _wm.batch_len != _batch_len || _wm.n_thread_block != _n_thread_block) {
@@ -449,6 +467,21 @@ public:
     {
         return winType;
     }
+
+    /** 
+     *  \brief Check whether the Key_Farm_GPU has been used in a MultiPipe
+     *  \return true if the Key_Farm_GPU has been added/chained to an existing MultiPipe
+     */
+    bool isUsed() const
+    {
+        return used;
+    }
+
+    /// deleted constructors/operators
+    Key_Farm_GPU(const Key_Farm_GPU &) = delete; // copy constructor
+    //Key_Farm_GPU(Key_Farm_GPU &&) = delete; // move constructor
+    Key_Farm_GPU &operator=(const Key_Farm_GPU &) = delete; // copy assignment operator
+    Key_Farm_GPU &operator=(Key_Farm_GPU &&) = delete; // move assignment operator
 };
 
 } // namespace wf

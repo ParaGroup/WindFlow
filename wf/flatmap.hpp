@@ -72,6 +72,7 @@ private:
     // friendships with other classes in the library
     friend class MultiPipe;
     bool keyed; // flag stating whether the FlatMap is configured with keyBy or not
+    bool used; // true if the operator has been added/chained in a MultiPipe
     // class FlatMap_Node
     class FlatMap_Node: public ff::ff_node_t<tuple_t, result_t>
     {
@@ -209,7 +210,7 @@ public:
             size_t _pardegree,
             std::string _name,
             closing_func_t _closing_func):
-            keyed(false)
+            keyed(false), used(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -246,7 +247,7 @@ public:
             std::string _name,
             closing_func_t _closing_func,
             routing_func_t _routing_func):
-            keyed(true)
+            keyed(true), used(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -281,7 +282,7 @@ public:
             size_t _pardegree,
             std::string _name,
             closing_func_t _closing_func):
-            keyed(false)
+            keyed(false), used(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -318,7 +319,7 @@ public:
             std::string _name,
             closing_func_t _closing_func,
             routing_func_t _routing_func):
-            keyed(true)
+            keyed(true), used(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -349,6 +350,21 @@ public:
     {
         return keyed;
     }
+
+    /** 
+     *  \brief Check whether the FlatMap has been used in a MultiPipe
+     *  \return true if the FlatMap has been added/chained to an existing MultiPipe
+     */
+    bool isUsed() const
+    {
+        return used;
+    }
+
+    /// deleted constructors/operators
+    FlatMap(const FlatMap &) = delete; // copy constructor
+    FlatMap(FlatMap &&) = delete; // move constructor
+    FlatMap &operator=(const FlatMap &) = delete; // copy assignment operator
+    FlatMap &operator=(FlatMap &&) = delete; // move assignment operator
 };
 
 } // namespace wf

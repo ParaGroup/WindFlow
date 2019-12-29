@@ -192,7 +192,7 @@ class MultiPipe: public ff::ff_pipeline
 {
 private:
     // enumeration of the routing types
-    enum routing_types_t { SIMPLE, COMPLEX };
+    enum routing_types_t { STATELESS, KEYED, COMPLEX };
     PipeGraph *graph; // PipeGraph creating this MultiPipe
 	bool has_source; // true if the MultiPipe starts with a Source
 	bool has_sink; // true if the MultiPipe ends with a Sink
@@ -946,9 +946,17 @@ inline size_t PipeGraph::getNumThreads() const
 template<typename tuple_t>
 MultiPipe &MultiPipe::add_source(Source<tuple_t> &_source)
 {
+    // check whether the operator has already been used in a MultiPipe
+    if (_source.isUsed()) {
+        std::cerr << RED << "WindFlow Error: Source operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    else {
+        _source.used = true;
+    }
     // check the Source presence
     if (has_source) {
-        std::cerr << RED << "WindFlow Error: Source has been already defined for the MultiPipe" << DEFAULT_COLOR << std::endl;
+        std::cerr << RED << "WindFlow Error: Source has already been defined for the MultiPipe" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // create the initial matrioska
@@ -1035,7 +1043,7 @@ void MultiPipe::add_operator(ff::ff_farm *_op, routing_types_t _type, ordering_m
     size_t n1 = (last->getFirstSet()).size();
     size_t n2 = (_op->getWorkers()).size();
     // Case 2: direct connection
-    if ((n1 == n2) && _type == SIMPLE && !forceShuffling) {
+    if ((n1 == n2) && _type == STATELESS && !forceShuffling) {
         auto first_set = last->getFirstSet();
         auto worker_set = _op->getWorkers();
         // add the operator's workers to the pipelines in the first set of the matrioska
@@ -1121,7 +1129,7 @@ bool MultiPipe::chain_operator(ff::ff_farm *_op)
         return false;
     size_t n1 = (last->getFirstSet()).size();
     size_t n2 = (_op->getWorkers()).size();
-    // _op is for sure SIMPLE: check additional conditions for chaining
+    // distribution of _op is for sure STATELESS: check additional conditions for chaining
     if ((n1 == n2) && (!forceShuffling)) {
         auto first_set = (last)->getFirstSet();
         auto worker_set = _op->getWorkers();
@@ -1211,9 +1219,9 @@ inline std::vector<MultiPipe *> MultiPipe::prepareMergeSet()
 template<typename MULTIPIPE>
 std::vector<MultiPipe *> MultiPipe::prepareMergeSet(MULTIPIPE &_pipe)
 {
-    // check whether the MultiPipe has been already merged
+    // check whether the MultiPipe has already been merged
     if (_pipe.isMerged) {
-        std::cerr << RED << "WindFlow Error: MultiPipe has been already merged" << DEFAULT_COLOR << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe has already been merged" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // check whether the MultiPipe has been split
@@ -1230,9 +1238,9 @@ std::vector<MultiPipe *> MultiPipe::prepareMergeSet(MULTIPIPE &_pipe)
 template<typename MULTIPIPE, typename ...MULTIPIPES>
 std::vector<MultiPipe *> MultiPipe::prepareMergeSet(MULTIPIPE &_first, MULTIPIPES&... _pipes)
 {
-    // check whether the MultiPipe has been already merged
+    // check whether the MultiPipe has already been merged
     if (_first.isMerged) {
-        std::cerr << RED << "WindFlow Error: MultiPipe has been already merged" << DEFAULT_COLOR << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe has already been merged" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // check whether the MultiPipe has been split
@@ -1305,6 +1313,11 @@ inline int MultiPipe::run_and_wait_end()
 template<typename tuple_t>
 MultiPipe &MultiPipe::add(Filter<tuple_t> &_filter)
 {
+    // check whether the operator has already been used in a MultiPipe
+    if (_filter.isUsed()) {
+        std::cerr << RED << "WindFlow Error: Filter operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check the type compatibility
     tuple_t t;
     std::string opInType = typeid(t).name();
@@ -1313,9 +1326,10 @@ MultiPipe &MultiPipe::add(Filter<tuple_t> &_filter)
         exit(EXIT_FAILURE);
     }
     // call the generic method to add the operator to the MultiPipe
-    add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t, tuple_t>>(&_filter, _filter.isKeyed() ? COMPLEX : SIMPLE, TS);
+    add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_filter, _filter.isKeyed() ? KEYED : STATELESS, TS);
     // save the new output type from this MultiPipe
     outputType = opInType;
+    _filter.used = true;
 	return *this;
 }
 
@@ -1323,6 +1337,11 @@ MultiPipe &MultiPipe::add(Filter<tuple_t> &_filter)
 template<typename tuple_t>
 MultiPipe &MultiPipe::chain(Filter<tuple_t> &_filter)
 {
+    // check whether the operator has already been used in a MultiPipe
+    if (_filter.isUsed()) {
+        std::cerr << RED << "WindFlow Error: Filter operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check the type compatibility
     tuple_t t;
     std::string opInType = typeid(t).name();
@@ -1340,6 +1359,7 @@ MultiPipe &MultiPipe::chain(Filter<tuple_t> &_filter)
         add(_filter);
     // save the new output type from this MultiPipe
     outputType = opInType;
+    _filter.used = true;
     return *this;
 }
 
@@ -1347,6 +1367,11 @@ MultiPipe &MultiPipe::chain(Filter<tuple_t> &_filter)
 template<typename tuple_t, typename result_t>
 MultiPipe &MultiPipe::add(Map<tuple_t, result_t> &_map)
 {
+    // check whether the operator has already been used in a MultiPipe
+    if (_map.isUsed()) {
+        std::cerr << RED << "WindFlow Error: Map operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check the type compatibility
     tuple_t t;
     std::string opInType = typeid(t).name();
@@ -1355,10 +1380,11 @@ MultiPipe &MultiPipe::add(Map<tuple_t, result_t> &_map)
         exit(EXIT_FAILURE);
     }
     // call the generic method to add the operator to the MultiPipe
-    add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t, tuple_t>>(&_map, _map.isKeyed() ? COMPLEX : SIMPLE, TS);
+    add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_map, _map.isKeyed() ? KEYED : STATELESS, TS);
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
+    _map.used = true;
 	return *this;
 }
 
@@ -1366,6 +1392,11 @@ MultiPipe &MultiPipe::add(Map<tuple_t, result_t> &_map)
 template<typename tuple_t, typename result_t>
 MultiPipe &MultiPipe::chain(Map<tuple_t, result_t> &_map)
 {
+    // check whether the operator has already been used in a MultiPipe
+    if (_map.isUsed()) {
+        std::cerr << RED << "WindFlow Error: Map operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check the type compatibility
     tuple_t t;
     std::string opInType = typeid(t).name();
@@ -1384,6 +1415,7 @@ MultiPipe &MultiPipe::chain(Map<tuple_t, result_t> &_map)
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
+    _map.used = true;
     return *this;
 }
 
@@ -1391,6 +1423,11 @@ MultiPipe &MultiPipe::chain(Map<tuple_t, result_t> &_map)
 template<typename tuple_t, typename result_t>
 MultiPipe &MultiPipe::add(FlatMap<tuple_t, result_t> &_flatmap)
 {
+    // check whether the operator has already been used in a MultiPipe
+    if (_flatmap.isUsed()) {
+        std::cerr << RED << "WindFlow Error: FlatMap operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check the type compatibility
     tuple_t t;
     std::string opInType = typeid(t).name();
@@ -1399,10 +1436,11 @@ MultiPipe &MultiPipe::add(FlatMap<tuple_t, result_t> &_flatmap)
         exit(EXIT_FAILURE);
     }
     // call the generic method to add the operator
-    add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t, tuple_t>>(&_flatmap, _flatmap.isKeyed() ? COMPLEX : SIMPLE, TS);
+    add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_flatmap, _flatmap.isKeyed() ? KEYED : STATELESS, TS);
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
+    _flatmap.used = true;
 	return *this;
 }
 
@@ -1410,6 +1448,11 @@ MultiPipe &MultiPipe::add(FlatMap<tuple_t, result_t> &_flatmap)
 template<typename tuple_t, typename result_t>
 MultiPipe &MultiPipe::chain(FlatMap<tuple_t, result_t> &_flatmap)
 {
+    // check whether the operator has already been used in a MultiPipe
+    if (_flatmap.isUsed()) {
+        std::cerr << RED << "WindFlow Error: FlatMap operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check the type compatibility
     tuple_t t;
     std::string opInType = typeid(t).name();
@@ -1427,6 +1470,7 @@ MultiPipe &MultiPipe::chain(FlatMap<tuple_t, result_t> &_flatmap)
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
+    _flatmap.used = true;
     return *this;
 }
 
@@ -1434,6 +1478,11 @@ MultiPipe &MultiPipe::chain(FlatMap<tuple_t, result_t> &_flatmap)
 template<typename tuple_t, typename result_t>
 MultiPipe &MultiPipe::add(Accumulator<tuple_t, result_t> &_acc)
 {
+    // check whether the operator has already been used in a MultiPipe
+    if (_acc.isUsed()) {
+        std::cerr << RED << "WindFlow Error: Accumulator operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check the type compatibility
     tuple_t t;
     std::string opInType = typeid(t).name();
@@ -1442,10 +1491,11 @@ MultiPipe &MultiPipe::add(Accumulator<tuple_t, result_t> &_acc)
         exit(EXIT_FAILURE);
     }
     // call the generic method to add the operator to the MultiPipe
-    add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t, tuple_t>>(&_acc, COMPLEX, TS);
+    add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_acc, KEYED, TS);
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
+    _acc.used = true;
     return *this;
 }
 
@@ -1453,6 +1503,11 @@ MultiPipe &MultiPipe::add(Accumulator<tuple_t, result_t> &_acc)
 template<typename tuple_t, typename result_t>
 MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
 {
+    // check whether the operator has already been used in a MultiPipe
+    if (_wf.isUsed()) {
+        std::cerr << RED << "WindFlow Error: Win_Farm operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check the processing mode
     if (graph->mode != Mode::DETERMINISTIC) {
         std::cerr << RED << "WindFlow Error: the Win_Farm operator requires the DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
@@ -1543,6 +1598,7 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
+    _wf.used = true;
     return *this;
 }
 
@@ -1550,6 +1606,11 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
 template<typename tuple_t, typename result_t, typename F_t>
 MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
 {
+    // check whether the operator has already been used in a MultiPipe
+    if (_wf.isUsed()) {
+        std::cerr << RED << "WindFlow Error: Win_Farm_GPU operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check the processing mode
     if (graph->mode != Mode::DETERMINISTIC) {
         std::cerr << RED << "WindFlow Error: the Win_Farm_GPU operator requires the DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
@@ -1640,6 +1701,7 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
+    _wf.used = true;
     return *this;
 }
 
@@ -1647,6 +1709,11 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
 template<typename tuple_t, typename result_t>
 MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
 {
+    // check whether the operator has already been used in a MultiPipe
+    if (_kf.isUsed()) {
+        std::cerr << RED << "WindFlow Error: Key_Farm operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check the processing mode
     if (graph->mode != Mode::DETERMINISTIC) {
         std::cerr << RED << "WindFlow Error: the Key_Farm operator requires the DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
@@ -1740,6 +1807,7 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
+    _kf.used = true;
     return *this;
 }
 
@@ -1747,6 +1815,11 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
 template<typename tuple_t, typename result_t, typename F_t>
 MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
 {
+    // check whether the operator has already been used in a MultiPipe
+    if (_kf.isUsed()) {
+        std::cerr << RED << "WindFlow Error: Key_Farm_GPU operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check the processing mode
     if (graph->mode != Mode::DETERMINISTIC) {
         std::cerr << RED << "WindFlow Error: the Key_Farm_GPU operator requires the DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
@@ -1840,6 +1913,7 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
+    _kf.used = true;
     return *this;
 }
 
@@ -1847,6 +1921,11 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
 template<typename tuple_t, typename result_t>
 MultiPipe &MultiPipe::add(Pane_Farm<tuple_t, result_t> &_pf)
 {
+    // check whether the operator has already been used in a MultiPipe
+    if (_pf.isUsed()) {
+        std::cerr << RED << "WindFlow Error: Pane_Farm operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check the processing mode
     if (graph->mode != Mode::DETERMINISTIC) {
         std::cerr << RED << "WindFlow Error: the Pane_Farm operator requires the DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
@@ -1878,7 +1957,7 @@ MultiPipe &MultiPipe::add(Pane_Farm<tuple_t, result_t> &_pf)
         plq->cleanup_emitter(true);
         plq->cleanup_workers(false);
         // call the generic method to add the operator (PLQ stage) to the MultiPipe
-        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t, tuple_t>>(plq, COMPLEX, (_pf.getWinType() == TB) ? TS : TS_RENUMBERING);
+        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(plq, COMPLEX, (_pf.getWinType() == TB) ? TS : TS_RENUMBERING);
         delete plq;
     }
     else {
@@ -1908,7 +1987,7 @@ MultiPipe &MultiPipe::add(Pane_Farm<tuple_t, result_t> &_pf)
         wlq->cleanup_emitter(true);
         wlq->cleanup_workers(false);
         // call the generic method to add the operator (WLQ stage) to the MultiPipe
-        add_operator<Standard_Emitter<result_t>, Ordering_Node<result_t, result_t>>(wlq, COMPLEX, ID);
+        add_operator<Standard_Emitter<result_t>, Ordering_Node<result_t>>(wlq, COMPLEX, ID);
         delete wlq;
     }
     else {
@@ -1919,6 +1998,7 @@ MultiPipe &MultiPipe::add(Pane_Farm<tuple_t, result_t> &_pf)
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
+    _pf.used = true;
     return *this;
 }
 
@@ -1926,6 +2006,11 @@ MultiPipe &MultiPipe::add(Pane_Farm<tuple_t, result_t> &_pf)
 template<typename tuple_t, typename result_t, typename F_t>
 MultiPipe &MultiPipe::add(Pane_Farm_GPU<tuple_t, result_t, F_t> &_pf)
 {
+    // check whether the operator has already been used in a MultiPipe
+    if (_pf.isUsed()) {
+        std::cerr << RED << "WindFlow Error: Pane_Farm_GPU operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check the processing mode
     if (graph->mode != Mode::DETERMINISTIC) {
         std::cerr << RED << "WindFlow Error: the Pane_Farm_GPU operator requires the DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
@@ -1957,7 +2042,7 @@ MultiPipe &MultiPipe::add(Pane_Farm_GPU<tuple_t, result_t, F_t> &_pf)
         plq->cleanup_emitter(true);
         plq->cleanup_workers(false);
         // call the generic method to add the operator (PLQ stage) to the MultiPipe
-        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t, tuple_t>>(plq, COMPLEX, (_pf.getWinType() == TB) ? TS : TS_RENUMBERING);
+        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(plq, COMPLEX, (_pf.getWinType() == TB) ? TS : TS_RENUMBERING);
         delete plq;
     }
     else {
@@ -1987,7 +2072,7 @@ MultiPipe &MultiPipe::add(Pane_Farm_GPU<tuple_t, result_t, F_t> &_pf)
         wlq->cleanup_emitter(true);
         wlq->cleanup_workers(false);
         // call the generic method to add the operator (WLQ stage) to the MultiPipe
-        add_operator<Standard_Emitter<result_t>, Ordering_Node<result_t, result_t>>(wlq, COMPLEX, ID);
+        add_operator<Standard_Emitter<result_t>, Ordering_Node<result_t>>(wlq, COMPLEX, ID);
         delete wlq;
     }
     else {
@@ -1998,6 +2083,7 @@ MultiPipe &MultiPipe::add(Pane_Farm_GPU<tuple_t, result_t, F_t> &_pf)
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
+    _pf.used = true;
     return *this;
 }
 
@@ -2005,6 +2091,11 @@ MultiPipe &MultiPipe::add(Pane_Farm_GPU<tuple_t, result_t, F_t> &_pf)
 template<typename tuple_t, typename result_t>
 MultiPipe &MultiPipe::add(Win_MapReduce<tuple_t, result_t> &_wmr)
 {
+    // check whether the operator has already been used in a MultiPipe
+    if (_wmr.isUsed()) {
+        std::cerr << RED << "WindFlow Error: Win_MapReduce operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check the processing mode
     if (graph->mode != Mode::DETERMINISTIC) {
         std::cerr << RED << "WindFlow Error: the Win_MapReduce operator requires the DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
@@ -2063,7 +2154,7 @@ MultiPipe &MultiPipe::add(Win_MapReduce<tuple_t, result_t> &_wmr)
         reduce->cleanup_emitter(true);
         reduce->cleanup_workers(false);
         // call the generic method to add the operator (REDUCE stage) to the MultiPipe
-        add_operator<Standard_Emitter<result_t>, Ordering_Node<result_t, result_t>>(reduce, COMPLEX, ID);
+        add_operator<Standard_Emitter<result_t>, Ordering_Node<result_t>>(reduce, COMPLEX, ID);
         delete reduce;
     }
     else {
@@ -2074,6 +2165,7 @@ MultiPipe &MultiPipe::add(Win_MapReduce<tuple_t, result_t> &_wmr)
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
+    _wmr.used = true;
     return *this;
 }
 
@@ -2081,6 +2173,11 @@ MultiPipe &MultiPipe::add(Win_MapReduce<tuple_t, result_t> &_wmr)
 template<typename tuple_t, typename result_t, typename F_t>
 MultiPipe &MultiPipe::add(Win_MapReduce_GPU<tuple_t, result_t, F_t> &_wmr)
 {
+    // check whether the operator has already been used in a MultiPipe
+    if (_wmr.isUsed()) {
+        std::cerr << RED << "WindFlow Error: Win_MapReduce_GPU operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check the processing mode
     if (graph->mode != Mode::DETERMINISTIC) {
         std::cerr << RED << "WindFlow Error: the Win_MapReduce_GPU operator requires the DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
@@ -2139,7 +2236,7 @@ MultiPipe &MultiPipe::add(Win_MapReduce_GPU<tuple_t, result_t, F_t> &_wmr)
         reduce->cleanup_emitter(true);
         reduce->cleanup_workers(false);
         // call the generic method to add the operator (REDUCE stage) to the MultiPipe
-        add_operator<Standard_Emitter<result_t>, Ordering_Node<result_t, result_t>>(reduce, COMPLEX, ID);
+        add_operator<Standard_Emitter<result_t>, Ordering_Node<result_t>>(reduce, COMPLEX, ID);
         delete reduce;
     }
     else {
@@ -2150,6 +2247,7 @@ MultiPipe &MultiPipe::add(Win_MapReduce_GPU<tuple_t, result_t, F_t> &_wmr)
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
+    _wmr.used = true;
     return *this;
 }
 
@@ -2157,6 +2255,11 @@ MultiPipe &MultiPipe::add(Win_MapReduce_GPU<tuple_t, result_t, F_t> &_wmr)
 template<typename tuple_t>
 MultiPipe &MultiPipe::add_sink(Sink<tuple_t> &_sink)
 {
+    // check whether the operator has already been used in a MultiPipe
+    if (_sink.isUsed()) {
+        std::cerr << RED << "WindFlow Error: Sink operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check the type compatibility
     tuple_t t;
     std::string opInType = typeid(t).name();
@@ -2165,10 +2268,11 @@ MultiPipe &MultiPipe::add_sink(Sink<tuple_t> &_sink)
         exit(EXIT_FAILURE);
     }
     // call the generic method to add the operator to the MultiPipe
-    add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t, tuple_t>>(&_sink, _sink.isKeyed() ? COMPLEX : SIMPLE, TS);
+    add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_sink, _sink.isKeyed() ? KEYED : STATELESS, TS);
 	has_sink = true;
     // save the new output type from this MultiPipe
     outputType = opInType;
+    _sink.used = true;
 	return *this;
 }
 
@@ -2176,6 +2280,11 @@ MultiPipe &MultiPipe::add_sink(Sink<tuple_t> &_sink)
 template<typename tuple_t>
 MultiPipe &MultiPipe::chain_sink(Sink<tuple_t> &_sink)
 {
+    // check whether the operator has already been used in a MultiPipe
+    if (_sink.isUsed()) {
+        std::cerr << RED << "WindFlow Error: Sink operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // check the type compatibility
     tuple_t t;
     std::string opInType = typeid(t).name();
@@ -2194,6 +2303,7 @@ MultiPipe &MultiPipe::chain_sink(Sink<tuple_t> &_sink)
     has_sink = true;
     // save the new output type from this MultiPipe
     outputType = opInType;
+    _sink.used = true;
     return *this;
 }
 
@@ -2239,9 +2349,9 @@ MultiPipe &MultiPipe::split(F_t _splitting_func, size_t _cardinality)
         std::cerr << RED << "WindFlow Error: MultiPipe has been merged and cannot be split" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
-    // check whether the MultiPipe has been already split
+    // check whether the MultiPipe has already been split
     if (isSplit) {
-        std::cerr << RED << "WindFlow Error: MultiPipe has been already split" << DEFAULT_COLOR << std::endl;
+        std::cerr << RED << "WindFlow Error: MultiPipe has already been split" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // prepare the splitting of this

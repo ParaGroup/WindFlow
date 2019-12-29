@@ -75,6 +75,7 @@ private:
     // friendships with other classes in the library
     friend class MultiPipe;
     bool keyed; // flag stating whether the Map is configured with keyBy or not
+    bool used; // true if the operator has been added/chained in a MultiPipe
     // class Map_Node
     class Map_Node: public ff::ff_node_t<tuple_t, result_t>
     {
@@ -251,7 +252,7 @@ public:
         T _pardegree,
         std::string _name, 
         closing_func_t _closing_func):
-        keyed(false)
+        keyed(false), used(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -289,7 +290,7 @@ public:
         std::string _name,
         closing_func_t _closing_func, 
         routing_func_t _routing_func):
-        keyed(true)
+        keyed(true), used(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -325,7 +326,7 @@ public:
         T _pardegree,
         std::string _name,
         closing_func_t _closing_func):
-        keyed(false)
+        keyed(false), used(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -363,7 +364,7 @@ public:
         std::string _name,
         closing_func_t _closing_func,
         routing_func_t _routing_func):
-        keyed(true)
+        keyed(true), used(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -399,7 +400,7 @@ public:
         T _pardegree,
         std::string _name,
         closing_func_t _closing_func):
-        keyed(false)
+        keyed(false), used(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -437,7 +438,7 @@ public:
         std::string _name,
         closing_func_t _closing_func,
         routing_func_t _routing_func):
-        keyed(true)
+        keyed(true), used(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -473,7 +474,7 @@ public:
         T _pardegree,
         std::string _name,
         closing_func_t _closing_func):
-        keyed(false)
+        keyed(false), used(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -511,7 +512,7 @@ public:
         std::string _name,
         closing_func_t _closing_func,
         routing_func_t _routing_func):
-        keyed(true)
+        keyed(true), used(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -542,6 +543,21 @@ public:
     {
         return keyed;
     }
+
+    /** 
+     *  \brief Check whether the Map has been used in a MultiPipe
+     *  \return true if the Map has been added/chained to an existing MultiPipe
+     */
+    bool isUsed() const
+    {
+        return used;
+    }
+
+    /// deleted constructors/operators
+    Map(const Map &) = delete; // copy constructor
+    Map(Map &&) = delete; // move constructor
+    Map &operator=(const Map &) = delete; // copy assignment operator
+    Map &operator=(Map &&) = delete; // move assignment operator
 };
 
 } // namespace wf
