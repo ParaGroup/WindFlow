@@ -134,21 +134,21 @@ int main(int argc, char *argv[])
 	    						.withName("test_wf+pf_tb_gpu_filter")
 	    						.withParallelism(filter_degree)
 	    						.build_ptr();
-	    mp.add(*filter);
+	    mp.chain(*filter);
 	    // flatmap
 	    FlatMap_Functor flatmap_functor;
 	    auto *flatmap = FlatMap_Builder<decltype(flatmap_functor)>(flatmap_functor)
 	    						.withName("test_wf+pf_tb_gpu_flatmap")
 	    						.withParallelism(flatmap_degree)
 	    						.build_ptr();
-	    mp.add(*flatmap);
+	    mp.chain(*flatmap);
 	    // map
 	    Map_Functor map_functor;
 	    auto *map = Map_Builder<decltype(map_functor)>(map_functor)
 	    					.withName("test_wf+pf_tb_gpu_map")
 	    					.withParallelism(map_degree)
 	    					.build_ptr();
-	    mp.add(*map);
+	    mp.chain(*map);
 	    // pf
 	    // Pane_Farm (PLQ) function (non-incremental) on GPU
 		auto plq_function_gpu = [] __host__ __device__ (size_t pid, const tuple_t *data, output_t *res, size_t size, char *memory) {
@@ -187,7 +187,7 @@ int main(int argc, char *argv[])
 	    					.withName("test_wf+pf_tb_gpu_sink")
 	    					.withParallelism(1)
 	    					.build_ptr();
-	    mp.add_sink(*sink);
+	    mp.chain_sink(*sink);
 	   	// run the application
 	   	graph.run();
 	   	if (i == 0) {

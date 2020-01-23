@@ -103,17 +103,16 @@ private:
         archive_t archive; // archive of tuples of this key
         std::vector<win_t> wins; // open windows of this key
         uint64_t emit_counter; // progressive counter (used if role is PLQ or MAP)
-        uint64_t rcv_counter; // number of tuples received of this key
-        tuple_t last_tuple; // copy of the last tuple received of this key
         uint64_t next_lwid; // next window to be opened of this key (lwid)
+        int64_t last_lwid; // last window closed of this key (lwid)
 
         // Constructor
         Key_Descriptor(compare_func_t _compare_func,
                        uint64_t _emit_counter=0):
                        archive(_compare_func),
                        emit_counter(_emit_counter),
-                       rcv_counter(0),
-                       next_lwid(0)
+                       next_lwid(0),
+                       last_lwid(-1)
         {
             wins.reserve(DEFAULT_VECTOR_CAPACITY);
         }
@@ -123,8 +122,8 @@ private:
                        archive(move(_k.archive)),
                        wins(move(_k.wins)),
                        emit_counter(_k.emit_counter),
-                       rcv_counter(_k.rcv_counter),
-                       next_lwid(_k.next_lwid) {}
+                       next_lwid(_k.next_lwid),
+                       last_lwid(_k.last_lwid) {}
     };
     win_func_t win_func; // function for the non-incremental window processing
     rich_win_func_t rich_win_func; // rich function for the non-incremental window processing
@@ -134,6 +133,7 @@ private:
     compare_func_t compare_func; // function to compare two tuples
     uint64_t win_len; // window length (no. of tuples or in time units)
     uint64_t slide_len; // slide length (no. of tuples or in time units)
+    uint64_t triggering_delay; // triggering delay in time units (meaningful for TB windows only)
     win_type_t winType; // window type (CB or TB)
     std::string name; // std::string of the unique name of the operator
     bool isNIC; // this flag is true if the operator is instantiated with a non-incremental query function
@@ -143,6 +143,7 @@ private:
     role_t role; // role of the Win_Seq
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     std::pair<size_t, size_t> map_indexes = std::make_pair(0, 1); // indexes useful is the role is MAP
+    size_t dropped_tuples; // number of dropped tuples
 #if defined(TRACE_WINDFLOW)
     bool isTriggering = false;
     unsigned long rcvTuples = 0;
@@ -189,6 +190,7 @@ public:
      *  \param _win_func the non-incremental window processing function
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
@@ -199,6 +201,7 @@ public:
     Win_Seq(win_func_t _win_func,
             uint64_t _win_len,
             uint64_t _slide_len,
+            uint64_t _triggering_delay,
             win_type_t _winType,
             std::string _name,
             closing_func_t _closing_func,
@@ -208,6 +211,7 @@ public:
             win_func(_win_func),
             win_len(_win_len),
             slide_len(_slide_len),
+            triggering_delay(_triggering_delay),
             winType(_winType),
             name(_name),
             closing_func(_closing_func),
@@ -215,7 +219,8 @@ public:
             config(_config),
             role(_role),
             isNIC(true),
-            isRich(false)
+            isRich(false),
+            dropped_tuples(0)
     {
         init();
     }
@@ -226,6 +231,7 @@ public:
      *  \param _rich_win_func the rich non-incremental window processing function
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
@@ -236,6 +242,7 @@ public:
     Win_Seq(rich_win_func_t _rich_win_func,
             uint64_t _win_len,
             uint64_t _slide_len,
+            uint64_t _triggering_delay,
             win_type_t _winType,
             std::string _name,
             closing_func_t _closing_func,
@@ -245,6 +252,7 @@ public:
             rich_win_func(_rich_win_func),
             win_len(_win_len),
             slide_len(_slide_len),
+            triggering_delay(_triggering_delay),
             winType(_winType),
             name(_name),
             closing_func(_closing_func),
@@ -252,7 +260,8 @@ public:
             config(_config),
             role(_role),
             isNIC(true),
-            isRich(true)
+            isRich(true),
+            dropped_tuples(0)
     {
         init();
     }
@@ -263,6 +272,7 @@ public:
      *  \param _winupdate_func the incremental window processing function
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
@@ -273,6 +283,7 @@ public:
     Win_Seq(winupdate_func_t _winupdate_func,
             uint64_t _win_len,
             uint64_t _slide_len,
+            uint64_t _triggering_delay,
             win_type_t _winType,
             std::string _name,
             closing_func_t _closing_func,
@@ -282,6 +293,7 @@ public:
             winupdate_func(_winupdate_func),
             win_len(_win_len),
             slide_len(_slide_len),
+            triggering_delay(_triggering_delay),
             winType(_winType),
             name(_name),
             closing_func(_closing_func),
@@ -289,7 +301,8 @@ public:
             config(_config),
             role(_role),
             isNIC(false),
-            isRich(false)
+            isRich(false),
+            dropped_tuples(0)
     {
         init();
     }
@@ -300,6 +313,7 @@ public:
      *  \param _rich_winupdate_func the rich incremental window processing function
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _name std::string with the unique name of the operator
      *  \param _closing_func closing function
@@ -310,6 +324,7 @@ public:
     Win_Seq(rich_winupdate_func_t _rich_winupdate_func,
             uint64_t _win_len,
             uint64_t _slide_len,
+            uint64_t _triggering_delay,
             win_type_t _winType,
             std::string _name,
             closing_func_t _closing_func,
@@ -319,6 +334,7 @@ public:
             rich_winupdate_func(_rich_winupdate_func),
             win_len(_win_len),
             slide_len(_slide_len),
+            triggering_delay(_triggering_delay),
             winType(_winType),
             name(_name),
             closing_func(_closing_func),
@@ -326,7 +342,8 @@ public:
             config(_config),
             role(_role),
             isNIC(false),
-            isRich(true)
+            isRich(true),
+            dropped_tuples(0)
     {
         init();
     }
@@ -381,25 +398,6 @@ public:
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
-        // check duplicate or out-of-order tuples
-        if (key_d.rcv_counter == 0) {
-            key_d.rcv_counter++;
-            key_d.last_tuple = *t;
-        }
-        else {
-            // tuples can be received only ordered by id/timestamp
-            uint64_t last_id = (winType == CB) ? std::get<1>((key_d.last_tuple).getControlFields()) : std::get<2>((key_d.last_tuple).getControlFields());
-            if (id < last_id) {
-                std::cerr << YELLOW << "WindFlow Warning: tuple processed out-of-order" << DEFAULT_COLOR << std::endl;
-                // the tuple is immediately deleted
-                deleteTuple<tuple_t, input_t>(wt);
-                return this->GO_ON;
-            }
-            else {
-                key_d.rcv_counter++;
-                key_d.last_tuple = *t;
-            }
-        }
         // gwid of the first window of that key assigned to this Win_Seq
         uint64_t first_gwid_key = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) * config.n_outer + (config.id_outer - (hashcode % config.n_outer) + config.n_outer) % config.n_outer;
         // initial identifer/timestamp of the keyed sub-stream arriving at this Win_Seq
@@ -409,8 +407,11 @@ public:
         // special cases: if role is WLQ or REDUCE
         if (role == WLQ || role == REDUCE)
             initial_id = initial_inner;
-        // if the id/timestamp of the tuple is smaller than the initial one, it must be discarded
-        if (id < initial_id) {
+        // check if the tuple must be dropped
+        uint64_t min_boundary = (key_d.last_lwid >= 0) ? win_len + (key_d.last_lwid  * slide_len) : 0;
+        if (id < initial_id + min_boundary) {
+            if (key_d.last_lwid >= 0)
+                dropped_tuples++;
             deleteTuple<tuple_t, input_t>(wt);
             return this->GO_ON;
         }
@@ -444,13 +445,15 @@ public:
             if (winType == CB)
                 wins.push_back(win_t(key, lwid, gwid, Triggerer_CB(win_len, slide_len, lwid, initial_id), CB, win_len, slide_len));
             else
-                wins.push_back(win_t(key, lwid, gwid, Triggerer_TB(win_len, slide_len, lwid, initial_id), TB, win_len, slide_len));
+                wins.push_back(win_t(key, lwid, gwid, Triggerer_TB(win_len, slide_len, lwid, initial_id, triggering_delay), TB, win_len, slide_len));
             key_d.next_lwid++;
         }
         // evaluate all the open windows
         size_t cnt_fired = 0;
         for (auto &win: wins) {
-            if (win.onTuple(*t) == CONTINUE) { // window is not fired yet
+            // evaluate the status of the window given the input tuple *t
+            win_event_t event = win.onTuple(*t);
+            if (event == IN) { // *t is within the window
                 if (!isNIC && !isEOSMarker<tuple_t, input_t>(*wt)) {
                     // incremental query -> call rich_/winupdate_func
                     if (!isRich)
@@ -459,10 +462,10 @@ public:
                         rich_winupdate_func(win.getGWID(), *t, win.getResult(), context);
                 }
             }
-            else { // window is fired
+            else if (event == FIRED) { // window is fired
                 // acquire from the archive the optionals to the first and the last tuple of the window
                 std::optional<tuple_t> t_s = win.getFirstTuple();
-                std::optional<tuple_t> t_e = win.getFiringTuple();
+                std::optional<tuple_t> t_e = win.getLastTuple();
                 // non-incremental query -> call win_func
                 if (isNIC) {
 #if defined(TRACE_WINDFLOW)
@@ -489,6 +492,7 @@ public:
                 if (t_s)
                     (key_d.archive).purge(*t_s);
                 cnt_fired++;
+                key_d.last_lwid++;
                 // send the result of the fired window
                 result_t *out = new result_t(win.getResult());
                 // special cases: role is PLQ or MAP
@@ -537,8 +541,9 @@ public:
             for (auto &win: wins) {
                 // non-incremental query
                 if (isNIC) {
-                    // acquire from the archive the optional to the first tuple of the window
+                    // acquire from the archive the optional to the first and the last tuples of the window
                     std::optional<tuple_t> t_s = win.getFirstTuple();
+                    std::optional<tuple_t> t_e = win.getLastTuple();
                     std::pair<input_iterator_t, input_iterator_t> its;
                     // empty window
                     if (!t_s) {
@@ -546,8 +551,12 @@ public:
                         its.second = ((k.second).archive).end();
                     }
                     // non-empty window
-                    else
-                        its = ((k.second).archive).getWinRange(*t_s);
+                    else {
+                        if (!t_e)
+                            its = ((k.second).archive).getWinRange(*t_s);
+                        else
+                            its = ((k.second).archive).getWinRange(*t_s, *t_e);
+                    }
                     Iterable<tuple_t> iter(its.first, its.second);
                     // non-incremental query -> call rich_/win_func
                     if (!isRich)
@@ -585,6 +594,7 @@ public:
             stream << "No. of received tuples: " << rcvTuples << "\n";
             stream << "Average service time: " << avg_ts_us << " usec \n";
             stream << "Average inter-departure time: " << avg_td_us << " usec \n";
+            stream << "Dropped tuples: " << dropped_tuples << "\n";
             stream << "***************************************************************************\n";
         }
         else {
@@ -595,6 +605,7 @@ public:
             stream << "Average service time (triggering): " << avg_ts_triggering_us << " usec \n";
             stream << "Average service time (non triggering): " << avg_ts_non_triggering_us << " usec \n";
             stream << "Average inter-departure time: " << avg_td_us << " usec \n";
+            stream << "Dropped tuples: " << dropped_tuples << "\n";
             stream << "***************************************************************************\n";
         }
         *logfile << stream.str();

@@ -636,6 +636,7 @@ private:
     using closing_func_t = std::function<void(RuntimeContext&)>;
     uint64_t win_len = 1;
     uint64_t slide_len = 1;
+    uint64_t triggering_delay = 0;
     win_type_t winType = CB;
     std::string name = "anonymous_seq";
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
@@ -668,12 +669,14 @@ public:
      *  
      *  \param _win_len window length (in microseconds)
      *  \param _slide_len slide length (in microseconds)
+     *  \param _triggering_delay (in microseconds)
      *  \return the object itself
      */ 
-    WinSeq_Builder<F_t>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len)
+    WinSeq_Builder<F_t>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len, std::chrono::microseconds _triggering_delay=std::chrono::microseconds::zero())
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
+        triggering_delay = _triggering_delay.count();
         winType = TB;
         return *this;
     }
@@ -710,7 +713,7 @@ public:
      */ 
     winseq_t build()
     {
-        return winseq_t(func, win_len, slide_len, winType, name, closing_func, RuntimeContext(1, 0), PatternConfig(0, 1, slide_len, 0, 1, slide_len), SEQ); // copy elision in C++17
+        return winseq_t(func, win_len, slide_len, triggering_delay, winType, name, closing_func, RuntimeContext(1, 0), PatternConfig(0, 1, slide_len, 0, 1, slide_len), SEQ); // copy elision in C++17
     }
 #endif
 
@@ -721,7 +724,7 @@ public:
      */ 
     winseq_t *build_ptr()
     {
-        return new winseq_t(func, win_len, slide_len, winType, name, closing_func, RuntimeContext(1, 0), PatternConfig(0, 1, slide_len, 0, 1, slide_len), SEQ);
+        return new winseq_t(func, win_len, slide_len, triggering_delay, winType, name, closing_func, RuntimeContext(1, 0), PatternConfig(0, 1, slide_len, 0, 1, slide_len), SEQ);
     }
 
     /** 
@@ -731,7 +734,7 @@ public:
      */ 
     std::unique_ptr<winseq_t> build_unique()
     {
-        return std::make_unique<winseq_t>(func, win_len, slide_len, winType, name, closing_func, RuntimeContext(1, 0), PatternConfig(0, 1, slide_len, 0, 1, slide_len), SEQ);
+        return std::make_unique<winseq_t>(func, win_len, slide_len, triggering_delay, winType, name, closing_func, RuntimeContext(1, 0), PatternConfig(0, 1, slide_len, 0, 1, slide_len), SEQ);
     }
 };
 
@@ -753,6 +756,7 @@ private:
                                      decltype(func)>;
     uint64_t win_len = 1;
     uint64_t slide_len = 1;
+    uint64_t triggering_delay = 0;
     win_type_t winType = CB;
     size_t batch_len = 1;
     size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
@@ -787,12 +791,14 @@ public:
      *  
      *  \param _win_len window length (in microseconds)
      *  \param _slide_len slide length (in microseconds)
+     *  \param _triggering_delay (in microseconds)
      *  \return the object itself
      */ 
-    WinSeqGPU_Builder<F_t>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len)
+    WinSeqGPU_Builder<F_t>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len, std::chrono::microseconds _triggering_delay=std::chrono::microseconds::zero())
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
+        triggering_delay = _triggering_delay.count();
         winType = TB;
         return *this;
     }
@@ -842,7 +848,7 @@ public:
      */ 
     winseq_gpu_t *build_ptr()
     {
-        return new winseq_gpu_t(func, win_len, slide_len, winType, batch_len, n_thread_block, name, scratchpad_size);
+        return new winseq_gpu_t(func, win_len, slide_len, triggering_delay, winType, batch_len, n_thread_block, name, scratchpad_size);
     }
 
     /** 
@@ -852,7 +858,7 @@ public:
      */ 
     std::unique_ptr<winseq_gpu_t> build_unique()
     {
-        return std::make_unique<winseq_gpu_t>(func, win_len, slide_len, winType, batch_len, n_thread_block, name, scratchpad_size);
+        return std::make_unique<winseq_gpu_t>(func, win_len, slide_len, triggering_delay, winType, batch_len, n_thread_block, name, scratchpad_size);
     }
 };
 
@@ -874,6 +880,7 @@ private:
     using closing_func_t = std::function<void(RuntimeContext&)>;
     uint64_t win_len = 1;
     uint64_t slide_len = 1;
+    uint64_t triggering_delay = 0;
     win_type_t winType = CB;
     size_t pardegree = 1;
     std::string name = "anonymous_wf";
@@ -886,6 +893,7 @@ private:
     {
         win_len = _pf.win_len;
         slide_len = _pf.slide_len;
+        triggering_delay = _pf.triggering_delay;
         winType = _pf.winType;
     }
 
@@ -895,6 +903,7 @@ private:
     {
         win_len = _wm.win_len;
         slide_len = _wm.slide_len;
+        triggering_delay = _wm.triggering_delay;
         winType = _wm.winType;
     }
 
@@ -904,6 +913,7 @@ private:
     {
         win_len = 1;
         slide_len = 1;
+        triggering_delay = 0;
         winType = CB;
     }
 
@@ -938,12 +948,14 @@ public:
      *  
      *  \param _win_len window length (in microseconds)
      *  \param _slide_len slide length (in microseconds)
+     *  \param _triggering_delay (in microseconds)
      *  \return the object itself
      */ 
-    WinFarm_Builder<T>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len)
+    WinFarm_Builder<T>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len, std::chrono::microseconds _triggering_delay=std::chrono::microseconds::zero())
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
+        triggering_delay = _triggering_delay.count();
         winType = TB;
         return *this;
     }
@@ -1006,7 +1018,7 @@ public:
      */ 
     winfarm_t build()
     {
-        return winfarm_t(input, win_len, slide_len, winType, pardegree, name, closing_func, true, opt_level); // copy elision in C++17
+        return winfarm_t(input, win_len, slide_len, triggering_delay, winType, pardegree, name, closing_func, true, opt_level); // copy elision in C++17
     }
 #endif
 
@@ -1017,7 +1029,7 @@ public:
      */ 
     winfarm_t *build_ptr()
     {
-        return new winfarm_t(input, win_len, slide_len, winType, pardegree, name, closing_func, true, opt_level);
+        return new winfarm_t(input, win_len, slide_len, triggering_delay, winType, pardegree, name, closing_func, true, opt_level);
     }
 
     /** 
@@ -1027,7 +1039,7 @@ public:
      */ 
     std::unique_ptr<winfarm_t> build_unique()
     {
-        return std::make_unique<winfarm_t>(input, win_len, slide_len, winType, pardegree, name, closing_func, true, opt_level);
+        return std::make_unique<winfarm_t>(input, win_len, slide_len, triggering_delay, winType, pardegree, name, closing_func, true, opt_level);
     }
 };
 
@@ -1047,6 +1059,7 @@ private:
     using winfarm_gpu_t = std::remove_reference_t<decltype(*get_WF_GPU_nested_type(input))>;
     uint64_t win_len = 1;
     uint64_t slide_len = 1;
+    uint64_t triggering_delay = 0;
     win_type_t winType = CB;
     size_t pardegree = 1;
     size_t batch_len = 1;
@@ -1061,6 +1074,7 @@ private:
     {
         win_len = _pf.win_len;
         slide_len = _pf.slide_len;
+        triggering_delay = _pf.triggering_delay;
         winType = _pf.winType;
         batch_len = _pf.batch_len;
         n_thread_block = _pf.n_thread_block;
@@ -1072,6 +1086,7 @@ private:
     {
         win_len = _wm.win_len;
         slide_len = _wm.slide_len;
+        triggering_delay = _wm.triggering_delay;
         winType = _wm.winType;
         batch_len = _wm.batch_len;
         n_thread_block = _wm.n_thread_block;
@@ -1083,6 +1098,7 @@ private:
     {
         win_len = 1;
         slide_len = 1;
+        triggering_delay = 0;
         winType = CB;
         batch_len = 1;
         n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
@@ -1118,12 +1134,14 @@ public:
      *  
      *  \param _win_len window length (in microseconds)
      *  \param _slide_len slide length (in microseconds)
+     *  \param _triggering_delay (in microseconds)
      *  \return the object itself
      */ 
-    WinFarmGPU_Builder<T>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len)
+    WinFarmGPU_Builder<T>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len, std::chrono::microseconds _triggering_delay=std::chrono::microseconds::zero())
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
+        triggering_delay = _triggering_delay.count();
         winType = TB;
         return *this;
     }
@@ -1197,7 +1215,7 @@ public:
      */ 
     winfarm_gpu_t *build_ptr()
     {
-        return new winfarm_gpu_t(input, win_len, slide_len, winType, pardegree, batch_len, n_thread_block, name, scratchpad_size, true, opt_level);
+        return new winfarm_gpu_t(input, win_len, slide_len, triggering_delay, winType, pardegree, batch_len, n_thread_block, name, scratchpad_size, true, opt_level);
     }
 
     /** 
@@ -1207,7 +1225,7 @@ public:
      */ 
     std::unique_ptr<winfarm_gpu_t> build_unique()
     {
-        return std::make_unique<winfarm_gpu_t>(input, win_len, slide_len, winType, pardegree, batch_len, n_thread_block, name, scratchpad_size, true, opt_level);
+        return std::make_unique<winfarm_gpu_t>(input, win_len, slide_len, triggering_delay, winType, pardegree, batch_len, n_thread_block, name, scratchpad_size, true, opt_level);
     }
 };
 
@@ -1231,6 +1249,7 @@ private:
     using routing_func_t = std::function<size_t(size_t, size_t)>;
     uint64_t win_len = 1;
     uint64_t slide_len = 1;
+    uint64_t triggering_delay = 0;
     win_type_t winType = CB;
     size_t pardegree = 1;
     std::string name = "anonymous_kf";
@@ -1244,6 +1263,7 @@ private:
     {
         win_len = _pf.win_len;
         slide_len = _pf.slide_len;
+        triggering_delay = _pf.triggering_delay;
         winType = _pf.winType;
     }
 
@@ -1253,6 +1273,7 @@ private:
     {
         win_len = _wm.win_len;
         slide_len = _wm.slide_len;
+        triggering_delay = _wm.triggering_delay;
         winType = _wm.winType;
     }
 
@@ -1262,6 +1283,7 @@ private:
     {
         win_len = 1;
         slide_len = 1;
+        triggering_delay = 0;
         winType = CB;
     }
 
@@ -1296,12 +1318,14 @@ public:
      *  
      *  \param _win_len window length (in microseconds)
      *  \param _slide_len slide length (in microseconds)
+     *  \param _triggering_delay (in microseconds)
      *  \return the object itself
      */ 
-    KeyFarm_Builder<T>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len)
+    KeyFarm_Builder<T>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len, std::chrono::microseconds _triggering_delay=std::chrono::microseconds::zero())
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
+        triggering_delay = _triggering_delay.count();
         winType = TB;
         return *this;
     }
@@ -1362,7 +1386,7 @@ public:
      */ 
     keyfarm_t build()
     {
-        return keyfarm_t(input, win_len, slide_len, winType, pardegree, name, closing_func, routing_func, opt_level); // copy elision in C++17
+        return keyfarm_t(input, win_len, slide_len, triggering_delay, winType, pardegree, name, closing_func, routing_func, opt_level); // copy elision in C++17
     }
 #endif
 
@@ -1373,7 +1397,7 @@ public:
      */ 
     keyfarm_t *build_ptr()
     {
-        return new keyfarm_t(input, win_len, slide_len, winType, pardegree, name, closing_func, routing_func, opt_level);
+        return new keyfarm_t(input, win_len, slide_len, triggering_delay, winType, pardegree, name, closing_func, routing_func, opt_level);
     }
 
     /** 
@@ -1383,7 +1407,7 @@ public:
      */ 
     std::unique_ptr<keyfarm_t> build_unique()
     {
-        return std::make_unique<keyfarm_t>(input, win_len, slide_len, winType, pardegree, name, closing_func, routing_func, opt_level);
+        return std::make_unique<keyfarm_t>(input, win_len, slide_len, triggering_delay, winType, pardegree, name, closing_func, routing_func, opt_level);
     }
 };
 
@@ -1405,6 +1429,7 @@ private:
     using keyfarm_gpu_t = std::remove_reference_t<decltype(*get_KF_GPU_nested_type(input))>;
     uint64_t win_len = 1;
     uint64_t slide_len = 1;
+    uint64_t triggering_delay = 0;
     win_type_t winType = CB;
     size_t pardegree = 1;
     size_t batch_len = 1;
@@ -1420,6 +1445,7 @@ private:
     {
         win_len = _pf.win_len;
         slide_len = _pf.slide_len;
+        triggering_delay = _pf.triggering_delay;
         winType = _pf.winType;
         batch_len = _pf.batch_len;
         n_thread_block = _pf.n_thread_block;
@@ -1431,6 +1457,7 @@ private:
     {
         win_len = _wm.win_len;
         slide_len = _wm.slide_len;
+        triggering_delay = _wm.triggering_delay;
         winType = _wm.winType;
         batch_len = _wm.batch_len;
         n_thread_block = _wm.n_thread_block;
@@ -1442,6 +1469,7 @@ private:
     {
         win_len = 1;
         slide_len = 1;
+        triggering_delay = 0;
         winType = CB;
         batch_len = 1;
         n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
@@ -1477,12 +1505,14 @@ public:
      *  
      *  \param _win_len window length (in microseconds)
      *  \param _slide_len slide length (in microseconds)
+     *  \param _triggering_delay (in microseconds)
      *  \return the object itself
      */ 
-    KeyFarmGPU_Builder<T>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len)
+    KeyFarmGPU_Builder<T>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len, std::chrono::microseconds _triggering_delay=std::chrono::microseconds::zero())
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
+        triggering_delay = _triggering_delay.count();
         winType = TB;
         return *this;
     }
@@ -1556,7 +1586,7 @@ public:
      */ 
     keyfarm_gpu_t *build_ptr()
     {
-        return new keyfarm_gpu_t(input, win_len, slide_len, winType, pardegree, batch_len, n_thread_block, name, scratchpad_size, routing_func, opt_level);
+        return new keyfarm_gpu_t(input, win_len, slide_len, triggering_delay, winType, pardegree, batch_len, n_thread_block, name, scratchpad_size, routing_func, opt_level);
     }
 
     /** 
@@ -1566,7 +1596,7 @@ public:
      */ 
     std::unique_ptr<keyfarm_gpu_t> build_unique()
     {
-        return std::make_unique<keyfarm_gpu_t>(input, win_len, slide_len, winType, pardegree, batch_len, n_thread_block, name, scratchpad_size, routing_func, opt_level);
+        return std::make_unique<keyfarm_gpu_t>(input, win_len, slide_len, triggering_delay, winType, pardegree, batch_len, n_thread_block, name, scratchpad_size, routing_func, opt_level);
     }
 };
 
@@ -1589,6 +1619,7 @@ private:
     using closing_func_t = std::function<void(RuntimeContext&)>;
     uint64_t win_len = 1;
     uint64_t slide_len = 1;
+    uint64_t triggering_delay = 0;
     win_type_t winType = CB;
     size_t plq_degree = 1;
     size_t wlq_degree = 1;
@@ -1625,12 +1656,14 @@ public:
      *  
      *  \param _win_len window length (in microseconds)
      *  \param _slide_len slide length (in microseconds)
+     *  \param _triggering_delay (in microseconds)
      *  \return the object itself
      */ 
-    PaneFarm_Builder<F_t, G_t>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len)
+    PaneFarm_Builder<F_t, G_t>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len, std::chrono::microseconds _triggering_delay=std::chrono::microseconds::zero())
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
+        triggering_delay = _triggering_delay.count();
         winType = TB;
         return *this;
     }
@@ -1704,7 +1737,7 @@ public:
      */ 
     panefarm_t build()
     {
-        return panefarm_t(func_F, func_G, win_len, slide_len, winType, plq_degree, wlq_degree, name, closing_func, true, opt_level); // copy elision in C++17
+        return panefarm_t(func_F, func_G, win_len, slide_len, triggering_delay, winType, plq_degree, wlq_degree, name, closing_func, true, opt_level); // copy elision in C++17
     }
 #endif
 
@@ -1715,7 +1748,7 @@ public:
      */ 
     panefarm_t *build_ptr()
     {
-        return new panefarm_t(func_F, func_G, win_len, slide_len, winType, plq_degree, wlq_degree, name, closing_func, true, opt_level);
+        return new panefarm_t(func_F, func_G, win_len, slide_len, triggering_delay, winType, plq_degree, wlq_degree, name, closing_func, true, opt_level);
     }
 
     /** 
@@ -1725,7 +1758,7 @@ public:
      */ 
     std::unique_ptr<panefarm_t> build_unique()
     {
-        return std::make_unique<panefarm_t>(func_F, func_G, win_len, slide_len, winType, plq_degree, wlq_degree, name, closing_func, true, opt_level);
+        return std::make_unique<panefarm_t>(func_F, func_G, win_len, slide_len, triggering_delay, winType, plq_degree, wlq_degree, name, closing_func, true, opt_level);
     }
 };
 
@@ -1747,6 +1780,7 @@ private:
                                          decltype(get_GPU_F(&F_t::operator(), &G_t::operator()))>;
     uint64_t win_len = 1;
     uint64_t slide_len = 1;
+    uint64_t triggering_delay = 0;
     win_type_t winType = CB;
     size_t plq_degree = 1;
     size_t wlq_degree = 1;
@@ -1787,12 +1821,14 @@ public:
      *  
      *  \param _win_len window length (in microseconds)
      *  \param _slide_len slide length (in microseconds)
+     *  \param _triggering_delay (in microseconds)
      *  \return the object itself
      */ 
-    PaneFarmGPU_Builder<F_t, G_t>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len)
+    PaneFarmGPU_Builder<F_t, G_t>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len, std::chrono::microseconds _triggering_delay=std::chrono::microseconds::zero())
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
+        triggering_delay = _triggering_delay.count();
         winType = TB;
         return *this;
     }
@@ -1879,7 +1915,7 @@ public:
      */ 
     panefarm_gpu_t *build_ptr()
     {
-        return new panefarm_gpu_t(func_F, func_G, win_len, slide_len, winType, plq_degree, wlq_degree, batch_len, n_thread_block, name, scratchpad_size, true, opt_level);
+        return new panefarm_gpu_t(func_F, func_G, win_len, slide_len, triggering_delay, winType, plq_degree, wlq_degree, batch_len, n_thread_block, name, scratchpad_size, true, opt_level);
     }
 
     /** 
@@ -1889,7 +1925,7 @@ public:
      */ 
     std::unique_ptr<panefarm_gpu_t> build_unique()
     {
-        return std::make_unique<panefarm_gpu_t>(func_F, func_G, win_len, slide_len, winType, plq_degree, wlq_degree, batch_len, n_thread_block, name, scratchpad_size, true, opt_level);
+        return std::make_unique<panefarm_gpu_t>(func_F, func_G, win_len, slide_len, triggering_delay, winType, plq_degree, wlq_degree, batch_len, n_thread_block, name, scratchpad_size, true, opt_level);
     }
 };
 
@@ -1913,6 +1949,7 @@ private:
     using closing_func_t = std::function<void(RuntimeContext&)>;
     uint64_t win_len = 1;
     uint64_t slide_len = 1;
+    uint64_t triggering_delay = 0;
     win_type_t winType = CB;
     size_t map_degree = 2;
     size_t reduce_degree = 1;
@@ -1949,12 +1986,14 @@ public:
      *  
      *  \param _win_len window length (in microseconds)
      *  \param _slide_len slide length (in microseconds)
+     *  \param _triggering_delay (in microseconds)
      *  \return the object itself
      */ 
-    WinMapReduce_Builder<F_t, G_t>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len)
+    WinMapReduce_Builder<F_t, G_t>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len, std::chrono::microseconds _triggering_delay=std::chrono::microseconds::zero())
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
+        triggering_delay = _triggering_delay.count();
         winType = TB;
         return *this;
     }
@@ -2028,7 +2067,7 @@ public:
      */ 
     winmapreduce_t build()
     {
-        return winmapreduce_t(func_F, func_G, win_len, slide_len, winType, map_degree, reduce_degree, name, closing_func, true, opt_level); // copy elision in C++17
+        return winmapreduce_t(func_F, func_G, win_len, slide_len, triggering_delay, winType, map_degree, reduce_degree, name, closing_func, true, opt_level); // copy elision in C++17
     }
 #endif
 
@@ -2039,7 +2078,7 @@ public:
      */ 
     winmapreduce_t *build_ptr()
     {
-        return new winmapreduce_t(func_F, func_G, win_len, slide_len, winType, map_degree, reduce_degree, name, closing_func, true, opt_level);
+        return new winmapreduce_t(func_F, func_G, win_len, slide_len, triggering_delay, winType, map_degree, reduce_degree, name, closing_func, true, opt_level);
     }
 
     /** 
@@ -2049,7 +2088,7 @@ public:
      */ 
     std::unique_ptr<winmapreduce_t> build_unique()
     {
-        return std::make_unique<winmapreduce_t>(func_F, func_G, win_len, slide_len, winType, map_degree, reduce_degree, name, closing_func, true, opt_level);
+        return std::make_unique<winmapreduce_t>(func_F, func_G, win_len, slide_len, triggering_delay, winType, map_degree, reduce_degree, name, closing_func, true, opt_level);
     }
 };
 
@@ -2071,6 +2110,7 @@ private:
                                                  decltype(get_GPU_F(&F_t::operator(), &G_t::operator()))>;
     uint64_t win_len = 1;
     uint64_t slide_len = 1;
+    uint64_t triggering_delay = 0;
     win_type_t winType = CB;
     size_t map_degree = 2;
     size_t reduce_degree = 1;
@@ -2111,12 +2151,14 @@ public:
      *  
      *  \param _win_len window length (in microseconds)
      *  \param _slide_len slide length (in microseconds)
+     *  \param _triggering_delay (in microseconds)
      *  \return the object itself
      */ 
-    WinMapReduceGPU_Builder<F_t, G_t>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len)
+    WinMapReduceGPU_Builder<F_t, G_t>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len, std::chrono::microseconds _triggering_delay=std::chrono::microseconds::zero())
     {
         win_len = _win_len.count();
         slide_len = _slide_len.count();
+        triggering_delay = _triggering_delay.count();
         winType = TB;
         return *this;
     }
@@ -2203,7 +2245,7 @@ public:
      */ 
     winmapreduce_gpu_t *build_ptr()
     {
-        return new winmapreduce_gpu_t(func_F, func_G, win_len, slide_len, winType, map_degree, reduce_degree, batch_len, n_thread_block, name, scratchpad_size, true, opt_level);
+        return new winmapreduce_gpu_t(func_F, func_G, win_len, slide_len, triggering_delay, winType, map_degree, reduce_degree, batch_len, n_thread_block, name, scratchpad_size, true, opt_level);
     }
 
     /** 
@@ -2213,7 +2255,7 @@ public:
      */ 
     std::unique_ptr<winmapreduce_gpu_t> build_unique()
     {
-        return std::make_unique<winmapreduce_gpu_t>(func_F, func_G, win_len, slide_len, winType, map_degree, reduce_degree, batch_len, n_thread_block, name, scratchpad_size, true, opt_level);
+        return std::make_unique<winmapreduce_gpu_t>(func_F, func_G, win_len, slide_len, triggering_delay, winType, map_degree, reduce_degree, batch_len, n_thread_block, name, scratchpad_size, true, opt_level);
     }
 };
 

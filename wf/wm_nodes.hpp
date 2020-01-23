@@ -54,7 +54,7 @@ private:
     struct Key_Descriptor
     {
         uint64_t rcv_counter; // number of tuples received of this key
-        tuple_t last_tuple; // copy of the last tuple received of this key
+        tuple_t last_tuple; // copy of the last tuple received of this key (the one with highest timestamp)
         size_t nextDst; // id of the Win_Seq receiving the next tuple of this key
 
         // Constructor
@@ -103,22 +103,16 @@ public:
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
-        // check duplicate or out-of-order tuples
+        // keep track of the last tuple (the one with highest timestamp with that key)
         if (key_d.rcv_counter == 0) {
             key_d.rcv_counter++;
             key_d.last_tuple = *t;
         }
         else {
-            // tuples can be received only ordered by id/timestamp
+            key_d.rcv_counter++;
+            // get the id/timestamp of current last_tuple
             uint64_t last_id = (winType == CB) ? std::get<1>((key_d.last_tuple).getControlFields()) : std::get<2>((key_d.last_tuple).getControlFields());
-            if (id < last_id) {
-                std::cerr << YELLOW << "WindFlow Warning: tuple processed out-of-order" << DEFAULT_COLOR << std::endl;
-                // the tuple is immediately deleted
-                deleteTuple<tuple_t, input_t>(wt);
-                return this->GO_ON;
-            }
-            else {
-                key_d.rcv_counter++;
+            if (id > last_id) {
                 key_d.last_tuple = *t;
             }
         }
@@ -232,6 +226,7 @@ public:
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
+        // pass through of EOSMarkers
         if (isEOSMarker<tuple_t, wrapper_in_t>(*wt)) {
             // sent the tuple
             this->ff_send_out(wt);
@@ -276,9 +271,6 @@ private:
     std::unordered_map<key_t, Key_Descriptor> keyMap;
 
 public:
-    // Constructor
-    WinMap_Collector() {}
-
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
     {

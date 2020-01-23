@@ -28,8 +28,9 @@
 using namespace std;
 using namespace wf;
 
-// global variable for the result
+// global variables
 long global_sum;
+long global_received;
 
 // generation of pareto-distributed pseudo-random numbers
 double pareto(double alpha, double kappa)
@@ -236,11 +237,13 @@ public:
 			//if (check_counters[(*out).key] != (*out).id)
 				//cout << "Results received out-of-order!" << endl;
 			//else cout << "Received result window " << *out->id << " of key " << out->key << " with value " << (*out).value << endl;
+			//cout << "Received result window " << (*out).id << " of key " << (*out).key << " with value " << (*out).value << endl;
 			check_counters[(*out).key]++;	
 		}
 		else {
             cout << "Received " << received << " results, total sum " << totalsum << endl;
 			global_sum = totalsum;
+			global_received = received;
 		}
 	}
 };

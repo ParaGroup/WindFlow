@@ -113,14 +113,14 @@ int main(int argc, char *argv[])
 	    						.withName("test_kf_cb_gpu_filter")
 	    						.withParallelism(filter_degree)
 	    						.build_ptr();
-	    mp.add(*filter);
+	    mp.chain(*filter);
 	    // flatmap
 	    FlatMap_Functor flatmap_functor;
 	    auto *flatmap = FlatMap_Builder<decltype(flatmap_functor)>(flatmap_functor)
 	    						.withName("test_kf_cb_gpu_flatmap")
 	    						.withParallelism(flatmap_degree)
 	    						.build_ptr();
-	    mp.add(*flatmap);
+	    mp.chain(*flatmap);
 	    // map
 	    Map_Functor map_functor;
 	    auto *map = Map_Builder<decltype(map_functor)>(map_functor)
@@ -150,7 +150,7 @@ int main(int argc, char *argv[])
 	    					.withName("test_kf_cb_gpu_sink")
 	    					.withParallelism(1)
 	    					.build_ptr();
-	    mp.add_sink(*sink);
+	    mp.chain_sink(*sink);
 	   	// run the application
 	   	graph.run();
 	   	if (i == 0) {

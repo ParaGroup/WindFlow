@@ -31,6 +31,7 @@
 
 // includes
 #include <vector>
+#include <basic.hpp>
 #include <ff/multinode.hpp>
 #include <basic_emitter.hpp>
 
@@ -135,6 +136,12 @@ public:
 // class Standard_Collector
 class Standard_Collector: public ff::ff_minode
 {
+public:
+    // Constructor
+    Standard_Collector(ordering_mode_t _mode=TS) {
+        assert(_mode == TS);
+    }
+
     void *svc(void *t)
     {
         return t;

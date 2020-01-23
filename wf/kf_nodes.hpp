@@ -131,9 +131,6 @@ private:
     std::unordered_map<key_t, Key_Descriptor> keyMap;
 
 public:
-    // Constructor
-    KF_Collector() {}
-
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
     {

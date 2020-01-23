@@ -261,7 +261,7 @@ private:
 
     // method to add an operator to the MultiPipe
     template<typename emitter_t, typename collector_t>
-    void add_operator(ff::ff_farm *_op, routing_types_t _type, ordering_mode_t _ordering);
+    void add_operator(ff::ff_farm *_op, routing_types_t _type, ordering_mode_t _ordering=TS);
 
     // method to chain an operator with the previous one in the MultiPipe
     template<typename worker_t>
@@ -888,11 +888,15 @@ inline int PipeGraph::run()
 		// count number of threads
 		size_t count_threads = this->getNumThreads();
 		std::cout << GREEN << "WindFlow Status Message: PipeGraph [" << name << "] is running with " << count_threads << " threads" << DEFAULT_COLOR << std::endl;
+        if (mode == Mode::DEFAULT)
+            std::cout << "--> DEFAULT mode " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
+        else
+            std::cout << "--> DETERMINISTIC mode " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
 #if defined(TRACE_WINDFLOW)
-        std::cout << "WindFlow tracing " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
+        std::cout << "--> WindFlow tracing " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
 #endif
 #if defined(TRACE_FASTFLOW)
-        std::cout << "FastFlow tracing " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
+        std::cout << "--> FastFlow tracing " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
 #endif
 		int status = 0;
 		// running phase
@@ -951,9 +955,6 @@ MultiPipe &MultiPipe::add_source(Source<tuple_t> &_source)
         std::cerr << RED << "WindFlow Error: Source operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
-    else {
-        _source.used = true;
-    }
     // check the Source presence
     if (has_source) {
         std::cerr << RED << "WindFlow Error: Source has already been defined for the MultiPipe" << DEFAULT_COLOR << std::endl;
@@ -982,6 +983,8 @@ MultiPipe &MultiPipe::add_source(Source<tuple_t> &_source)
     // save the output type from this MultiPipe
     tuple_t t;
     outputType = typeid(t).name();
+    // the Source operator is now used
+    _source.used = true;
     return *this;
 }
 
@@ -1018,10 +1021,7 @@ void MultiPipe::add_operator(ff::ff_farm *_op, routing_types_t _type, ordering_m
         for (size_t i=0; i<workers.size(); i++) {
             ff::ff_pipeline *stage = new ff::ff_pipeline();
             stage->add_stage(workers[i], false);
-            if (graph->mode == Mode::DETERMINISTIC)
-                combine_with_firststage(*stage, new collector_t(_ordering), true);
-            else
-                combine_with_firststage(*stage, new dummy_mi(), true);
+            combine_with_firststage(*stage, new collector_t(_ordering), true);
             first_set.push_back(stage);
         }
         matrioska->add_firstset(first_set, 0, true);
@@ -1068,16 +1068,11 @@ void MultiPipe::add_operator(ff::ff_farm *_op, routing_types_t _type, ordering_m
         for (size_t i=0; i<n2; i++) {
             ff::ff_pipeline *stage = new ff::ff_pipeline();
             stage->add_stage(worker_set[i], false);
-            if (graph->mode == Mode::DETERMINISTIC) {
-                if (lastParallelism != 1 || forceShuffling || _ordering == ID || _ordering == TS_RENUMBERING) {
-                    combine_with_firststage(*stage, new collector_t(_ordering), true);
-                }
-                else { // we avoid the ordering node when possible
-                    combine_with_firststage(*stage, new dummy_mi(), true);
-                }
+            if (lastParallelism != 1 || forceShuffling || _ordering == ID || _ordering == TS_RENUMBERING) {
+                combine_with_firststage(*stage, new collector_t(_ordering), true);
             }
-            else {
-                combine_with_firststage(*stage, new dummy_mi(), true);
+            else { // we force the use of the Standard_Collector here
+                combine_with_firststage(*stage, new Standard_Collector(), true);
             }
             first_set.push_back(stage);
         }
@@ -1326,9 +1321,15 @@ MultiPipe &MultiPipe::add(Filter<tuple_t> &_filter)
         exit(EXIT_FAILURE);
     }
     // call the generic method to add the operator to the MultiPipe
-    add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_filter, _filter.isKeyed() ? KEYED : STATELESS, TS);
+    if (graph->mode == Mode::DETERMINISTIC) {
+        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_filter, _filter.isKeyed() ? KEYED : STATELESS, TS);
+    }
+    else {
+        add_operator<Standard_Emitter<tuple_t>, Standard_Collector>(&_filter, _filter.isKeyed() ? KEYED : STATELESS);
+    }
     // save the new output type from this MultiPipe
     outputType = opInType;
+    // the Filter operator is now used
     _filter.used = true;
 	return *this;
 }
@@ -1359,6 +1360,7 @@ MultiPipe &MultiPipe::chain(Filter<tuple_t> &_filter)
         add(_filter);
     // save the new output type from this MultiPipe
     outputType = opInType;
+    // the Filter operator is now used
     _filter.used = true;
     return *this;
 }
@@ -1380,10 +1382,16 @@ MultiPipe &MultiPipe::add(Map<tuple_t, result_t> &_map)
         exit(EXIT_FAILURE);
     }
     // call the generic method to add the operator to the MultiPipe
-    add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_map, _map.isKeyed() ? KEYED : STATELESS, TS);
+    if (graph->mode == Mode::DETERMINISTIC) {
+        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_map, _map.isKeyed() ? KEYED : STATELESS, TS);
+    }
+    else {
+        add_operator<Standard_Emitter<tuple_t>, Standard_Collector>(&_map, _map.isKeyed() ? KEYED : STATELESS);
+    }
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
+    // the Map operator is now used
     _map.used = true;
 	return *this;
 }
@@ -1415,6 +1423,7 @@ MultiPipe &MultiPipe::chain(Map<tuple_t, result_t> &_map)
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
+    // the Map operator is now used
     _map.used = true;
     return *this;
 }
@@ -1436,10 +1445,16 @@ MultiPipe &MultiPipe::add(FlatMap<tuple_t, result_t> &_flatmap)
         exit(EXIT_FAILURE);
     }
     // call the generic method to add the operator
-    add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_flatmap, _flatmap.isKeyed() ? KEYED : STATELESS, TS);
+    if (graph->mode == Mode::DETERMINISTIC) {
+        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_flatmap, _flatmap.isKeyed() ? KEYED : STATELESS, TS);
+    }
+    else {
+        add_operator<Standard_Emitter<tuple_t>, Standard_Collector>(&_flatmap, _flatmap.isKeyed() ? KEYED : STATELESS);    
+    }
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
+    // the FlatMap operator is now used
     _flatmap.used = true;
 	return *this;
 }
@@ -1470,6 +1485,7 @@ MultiPipe &MultiPipe::chain(FlatMap<tuple_t, result_t> &_flatmap)
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
+    // the FlatMap operator is now used
     _flatmap.used = true;
     return *this;
 }
@@ -1491,10 +1507,16 @@ MultiPipe &MultiPipe::add(Accumulator<tuple_t, result_t> &_acc)
         exit(EXIT_FAILURE);
     }
     // call the generic method to add the operator to the MultiPipe
-    add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_acc, KEYED, TS);
+    if (graph->mode == Mode::DETERMINISTIC) {
+        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_acc, KEYED, TS);
+    }
+    else {
+        add_operator<Standard_Emitter<tuple_t>, Standard_Collector>(&_acc, KEYED);
+    }
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
+    // the Accumulator operator is now used
     _acc.used = true;
     return *this;
 }
@@ -1508,10 +1530,10 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
         std::cerr << RED << "WindFlow Error: Win_Farm operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
-    // check the processing mode
-    if (graph->mode != Mode::DETERMINISTIC) {
-        std::cerr << RED << "WindFlow Error: the Win_Farm operator requires the DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
-        exit(EXIT_FAILURE);
+    // count-based windows are possible only in DETERMINISTIC mode
+    if (_wf.getWinType() == CB && graph->mode != Mode::DETERMINISTIC) {
+        std::cerr << RED << "WindFlow Error: count-based windows require DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);  
     }
     // check the type compatibility
     tuple_t t;
@@ -1534,7 +1556,12 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
                 if ((_wf.getInnerParallelism()).first > 1) {
                     if (_wf.getWinType() == TB) {
                         // call the generic method to add the operator to the MultiPipe
-                        add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                        if (graph->mode == Mode::DETERMINISTIC) {
+                            add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                        }
+                        else {
+                            add_operator<Tree_Emitter, Standard_Collector>(&_wf, COMPLEX);
+                        }
                     }
                     else {
                         // special case count-based windows
@@ -1546,7 +1573,12 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
                 else {
                     if (_wf.getWinType() == TB) {
                         // call the generic method to add the operator to the MultiPipe
-                        add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                        if (graph->mode == Mode::DETERMINISTIC) {
+                            add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                        }
+                        else {
+                           add_operator<WF_Emitter<tuple_t>, Standard_Collector>(&_wf, COMPLEX); 
+                        }
                     }
                     else {
                         // special case count-based windows
@@ -1560,7 +1592,12 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
             else if(_wf.getInnerType() == WMR_CPU) {
                 if (_wf.getWinType() == TB) {
                     // call the generic method to add the operator to the MultiPipe
-                    add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                    if (graph->mode == Mode::DETERMINISTIC) {
+                        add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                    }
+                    else {
+                        add_operator<Tree_Emitter, Standard_Collector>(&_wf, COMPLEX);
+                    }
                 }
                 else {
                     // special case count-based windows
@@ -1576,7 +1613,7 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
                         combine_a2a_withFirstNodes(a2a, nodes, true);
                     }
                     // call the generic method to add the operator to the MultiPipe
-                    add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);                 
+                    add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
                 }
             }
             forceShuffling = true;
@@ -1586,18 +1623,24 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
     else {
         if (_wf.getWinType() == TB) {
             // call the generic method to add the operator to the MultiPipe
-            add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+            if (graph->mode == Mode::DETERMINISTIC) {
+                add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+            }
+            else {
+                add_operator<WF_Emitter<tuple_t>, Standard_Collector>(&_wf, COMPLEX);
+            }
         }
         else {
             // special case count-based windows
             _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getParallelism()), true);
             // call the generic method to add the operator to the MultiPipe
-            add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);   
+            add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
         }
     }
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
+    // the Win_Farm operator is now used
     _wf.used = true;
     return *this;
 }
@@ -1611,9 +1654,9 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
         std::cerr << RED << "WindFlow Error: Win_Farm_GPU operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
-    // check the processing mode
-    if (graph->mode != Mode::DETERMINISTIC) {
-        std::cerr << RED << "WindFlow Error: the Win_Farm_GPU operator requires the DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
+    // count-based windows are possible only in DETERMINISTIC mode
+    if (_wf.getWinType() == CB && graph->mode != Mode::DETERMINISTIC) {
+        std::cerr << RED << "WindFlow Error: count-based windows require DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // check the type compatibility
@@ -1637,7 +1680,12 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
                 if ((_wf.getInnerParallelism()).first > 1) {
                     if (_wf.getWinType() == TB) {
                         // call the generic method to add the operator to the MultiPipe
-                        add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                        if (graph->mode == Mode::DETERMINISTIC) {
+                            add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                        }
+                        else {
+                            add_operator<Tree_Emitter, Standard_Collector>(&_wf, COMPLEX);
+                        }
                     }
                     else {
                         // special case count-based windows
@@ -1649,7 +1697,12 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
                 else {
                     if (_wf.getWinType() == TB) {
                         // call the generic method to add the operator to the MultiPipe
-                        add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                        if (graph->mode == Mode::DETERMINISTIC) {
+                            add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                        }
+                        else {
+                            add_operator<WF_Emitter<tuple_t>, Standard_Collector>(&_wf, COMPLEX);
+                        }
                     }
                     else {
                         // special case count-based windows
@@ -1663,7 +1716,12 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
             else if(_wf.getInnerType() == WMR_GPU) {
                 if (_wf.getWinType() == TB) {
                     // call the generic method to add the operator to the MultiPipe
-                    add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                    if (graph->mode == Mode::DETERMINISTIC) {
+                        add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                    }
+                    else {
+                        add_operator<Tree_Emitter, Standard_Collector>(&_wf, COMPLEX);
+                    }
                 }
                 else {
                     // special case count-based windows
@@ -1679,7 +1737,7 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
                         combine_a2a_withFirstNodes(a2a, nodes, true);
                     }
                     // call the generic method to add the operator to the MultiPipe
-                    add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);               
+                    add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
                 }
             }
             forceShuffling = true;
@@ -1689,18 +1747,24 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
     else {
         if (_wf.getWinType() == TB) {
             // call the generic method to add the operator to the MultiPipe
-            add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+            if (graph->mode == Mode::DETERMINISTIC) {
+                add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+            }
+            else {
+                add_operator<WF_Emitter<tuple_t>, Standard_Collector>(&_wf, COMPLEX);
+            }
         }
         else {
             // special case count-based windows
             _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getParallelism()), true);
             // call the generic method to add the operator to the MultiPipe
-            add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING); 
+            add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
         }
     }
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
+    // the Win_Farm_GPU operator is now used
     _wf.used = true;
     return *this;
 }
@@ -1714,9 +1778,9 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
         std::cerr << RED << "WindFlow Error: Key_Farm operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
-    // check the processing mode
-    if (graph->mode != Mode::DETERMINISTIC) {
-        std::cerr << RED << "WindFlow Error: the Key_Farm operator requires the DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
+    // count-based windows are possible only in DETERMINISTIC mode
+    if (_kf.getWinType() == CB && graph->mode != Mode::DETERMINISTIC) {
+        std::cerr << RED << "WindFlow Error: count-based windows require DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // check the type compatibility
@@ -1740,7 +1804,12 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
                 if ((_kf.getInnerParallelism()).first > 1) {
                     if (_kf.getWinType() == TB) {
                         // call the generic method to add the operator to the MultiPipe
-                        add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS);
+                        if (graph->mode == Mode::DETERMINISTIC) {
+                            add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS);
+                        }
+                        else {
+                            add_operator<Tree_Emitter, Standard_Collector>(&_kf, COMPLEX);
+                        }
                     }
                     else {
                         // special case count-based windows
@@ -1761,14 +1830,29 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
                 }
                 else {
                     // call the generic method to add the operator to the MultiPipe
-                    add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, (_kf.getWinType() == TB) ? TS : TS_RENUMBERING);
+                    if (_kf.getWinType() == TB) {
+                        if (graph->mode == Mode::DETERMINISTIC) {
+                            add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, TS);
+                        }
+                        else {
+                            add_operator<KF_Emitter<tuple_t>, Standard_Collector>(&_kf, COMPLEX);
+                        }
+                    }
+                    else {
+                        add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, TS_RENUMBERING);
+                    }
                 }
             }
             // inner replica is a Win_MapReduce
             else if(_kf.getInnerType() == WMR_CPU) {
                 if (_kf.getWinType() == TB) {
                     // call the generic method to add the operator to the MultiPipe
-                    add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS);        
+                    if (graph->mode == Mode::DETERMINISTIC) {
+                        add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS);
+                    }
+                    else {
+                        add_operator<Tree_Emitter, Standard_Collector>(&_kf, COMPLEX);
+                    }
                 }
                 else {
                     // special case count-based windows
@@ -1793,7 +1877,7 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
                         combine_a2a_withFirstNodes(a2a, nodes, true);
                     }
                     // call the generic method to add the operator to the MultiPipe
-                    add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS_RENUMBERING);           
+                    add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS_RENUMBERING);
                 }
             }
             forceShuffling = true;
@@ -1802,11 +1886,22 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
     // case with Win_Seq replicas inside
     else {
         // call the generic method to add the operator to the MultiPipe
-        add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, (_kf.getWinType() == TB) ? TS : TS_RENUMBERING);
+        if (_kf.getWinType() == TB) {
+            if (graph->mode == Mode::DETERMINISTIC) {
+                add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, TS);
+            }
+            else {
+                add_operator<KF_Emitter<tuple_t>, Standard_Collector>(&_kf, COMPLEX);
+            }
+        }
+        else {
+            add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, TS_RENUMBERING);
+        }
     }
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
+    // the Key_Farm operator is now used
     _kf.used = true;
     return *this;
 }
@@ -1820,9 +1915,9 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
         std::cerr << RED << "WindFlow Error: Key_Farm_GPU operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
-    // check the processing mode
-    if (graph->mode != Mode::DETERMINISTIC) {
-        std::cerr << RED << "WindFlow Error: the Key_Farm_GPU operator requires the DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
+    // count-based windows are possible only in DETERMINISTIC mode
+    if (_kf.getWinType() == CB && graph->mode != Mode::DETERMINISTIC) {
+        std::cerr << RED << "WindFlow Error: count-based windows require DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // check the type compatibility
@@ -1846,7 +1941,12 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
                 if ((_kf.getInnerParallelism()).first > 1) {
                     if (_kf.getWinType() == TB) {
                         // call the generic method to add the operator to the MultiPipe
-                        add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS);
+                        if (graph->mode == Mode::DETERMINISTIC) {
+                            add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS);
+                        }
+                        else {
+                            add_operator<Tree_Emitter, Standard_Collector>(&_kf, COMPLEX);
+                        }
                     }
                     else {
                         // special case count-based windows
@@ -1867,14 +1967,29 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
                 }
                 else {
                     // call the generic method to add the operator to the MultiPipe
-                    add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, (_kf.getWinType() == TB) ? TS : TS_RENUMBERING);
+                    if (_kf.getWinType() == TB) {
+                        if (graph->mode == Mode::DETERMINISTIC) {
+                            add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, TS);
+                        }
+                        else {
+                            add_operator<KF_Emitter<tuple_t>, Standard_Collector>(&_kf, COMPLEX);
+                        }
+                    }
+                    else {
+                        add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, TS_RENUMBERING);
+                    }
                 }
             }
             // inner replica is a Win_MapReduce_GPU
             else if(_kf.getInnerType() == WMR_GPU) {
                 if (_kf.getWinType() == TB) {
                     // call the generic method to add the operator to the MultiPipe
-                    add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS);          
+                    if (graph->mode == Mode::DETERMINISTIC) {
+                        add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS);
+                    }
+                    else {
+                        add_operator<Tree_Emitter, Standard_Collector>(&_kf, COMPLEX);
+                    }
                 }
                 else {
                     // special case count-based windows
@@ -1908,11 +2023,22 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
     // case with Win_Seq_GPU replicas inside
     else {
         // call the generic method to add the operator to the MultiPipe
-        add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, (_kf.getWinType() == TB) ? TS : TS_RENUMBERING);
+        if (_kf.getWinType() == TB) {
+            if (graph->mode == Mode::DETERMINISTIC) {
+                add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, TS);
+            }
+            else {
+                add_operator<KF_Emitter<tuple_t>, Standard_Collector>(&_kf, COMPLEX);
+            }
+        }
+        else {
+            add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, TS_RENUMBERING);
+        }
     }
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
+    // the Key_Farm_GPU operator is now used
     _kf.used = true;
     return *this;
 }
@@ -1926,9 +2052,9 @@ MultiPipe &MultiPipe::add(Pane_Farm<tuple_t, result_t> &_pf)
         std::cerr << RED << "WindFlow Error: Pane_Farm operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
-    // check the processing mode
-    if (graph->mode != Mode::DETERMINISTIC) {
-        std::cerr << RED << "WindFlow Error: the Pane_Farm operator requires the DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
+    // count-based windows are possible only in DETERMINISTIC mode
+    if (_pf.getWinType() == CB && graph->mode != Mode::DETERMINISTIC) {
+        std::cerr << RED << "WindFlow Error: count-based windows require DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // check the type compatibility
@@ -1957,7 +2083,17 @@ MultiPipe &MultiPipe::add(Pane_Farm<tuple_t, result_t> &_pf)
         plq->cleanup_emitter(true);
         plq->cleanup_workers(false);
         // call the generic method to add the operator (PLQ stage) to the MultiPipe
-        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(plq, COMPLEX, (_pf.getWinType() == TB) ? TS : TS_RENUMBERING);
+        if (_pf.getWinType() == TB) {
+            if (graph->mode == Mode::DETERMINISTIC) {
+                add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(plq, COMPLEX, TS);
+            }
+            else {
+                add_operator<Standard_Emitter<tuple_t>, Standard_Collector>(plq, COMPLEX);
+            }
+        }
+        else {
+            add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(plq, COMPLEX, TS_RENUMBERING);
+        }
         delete plq;
     }
     else {
@@ -1965,7 +2101,12 @@ MultiPipe &MultiPipe::add(Pane_Farm<tuple_t, result_t> &_pf)
         // check the type of the windows
         if (_pf.getWinType() == TB) { // time-based windows
             // call the generic method to add the operator (PLQ stage) to the MultiPipe
-            add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, COMPLEX, TS);
+            if (graph->mode == Mode::DETERMINISTIC) {
+                add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, COMPLEX, TS);
+            }
+            else {
+                add_operator<WF_Emitter<tuple_t>, Standard_Collector>(plq, COMPLEX);
+            }
         }
         else {
             // special case count-based windows
@@ -1998,6 +2139,7 @@ MultiPipe &MultiPipe::add(Pane_Farm<tuple_t, result_t> &_pf)
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
+    // the Pane_Farm operator is now used
     _pf.used = true;
     return *this;
 }
@@ -2011,9 +2153,9 @@ MultiPipe &MultiPipe::add(Pane_Farm_GPU<tuple_t, result_t, F_t> &_pf)
         std::cerr << RED << "WindFlow Error: Pane_Farm_GPU operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
-    // check the processing mode
-    if (graph->mode != Mode::DETERMINISTIC) {
-        std::cerr << RED << "WindFlow Error: the Pane_Farm_GPU operator requires the DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
+    // count-based windows are possible only in DETERMINISTIC mode
+    if (_pf.getWinType() == CB && graph->mode != Mode::DETERMINISTIC) {
+        std::cerr << RED << "WindFlow Error: count-based windows require DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // check the type compatibility
@@ -2042,7 +2184,17 @@ MultiPipe &MultiPipe::add(Pane_Farm_GPU<tuple_t, result_t, F_t> &_pf)
         plq->cleanup_emitter(true);
         plq->cleanup_workers(false);
         // call the generic method to add the operator (PLQ stage) to the MultiPipe
-        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(plq, COMPLEX, (_pf.getWinType() == TB) ? TS : TS_RENUMBERING);
+        if (_pf.getWinType() == TB) {
+            if (graph->mode == Mode::DETERMINISTIC) {
+                add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(plq, COMPLEX, TS);
+            }
+            else {
+                add_operator<Standard_Emitter<tuple_t>, Standard_Collector>(plq, COMPLEX);
+            }
+        }
+        else {
+            add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(plq, COMPLEX, TS_RENUMBERING);
+        }
         delete plq;
     }
     else {
@@ -2050,7 +2202,12 @@ MultiPipe &MultiPipe::add(Pane_Farm_GPU<tuple_t, result_t, F_t> &_pf)
         // check the type of the windows
         if (_pf.getWinType() == TB) { // time-based windows
             // call the generic method to add the operator (PLQ stage) to the MultiPipe
-            add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, COMPLEX, TS);
+            if (graph->mode == Mode::DETERMINISTIC) {
+                add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, COMPLEX, TS);
+            }
+            else {
+                add_operator<WF_Emitter<tuple_t>, Standard_Collector>(plq, COMPLEX);
+            }
         }
         else {
             // special case count-based windows
@@ -2083,6 +2240,7 @@ MultiPipe &MultiPipe::add(Pane_Farm_GPU<tuple_t, result_t, F_t> &_pf)
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
+    // the Pane_Farm operator is now used
     _pf.used = true;
     return *this;
 }
@@ -2096,9 +2254,9 @@ MultiPipe &MultiPipe::add(Win_MapReduce<tuple_t, result_t> &_wmr)
         std::cerr << RED << "WindFlow Error: Win_MapReduce operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
-    // check the processing mode
-    if (graph->mode != Mode::DETERMINISTIC) {
-        std::cerr << RED << "WindFlow Error: the Win_MapReduce operator requires the DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
+    // count-based windows are possible only in DETERMINISTIC mode
+    if (_wmr.getWinType() == CB && graph->mode != Mode::DETERMINISTIC) {
+        std::cerr << RED << "WindFlow Error: count-based windows require DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // check the type compatibility
@@ -2120,7 +2278,12 @@ MultiPipe &MultiPipe::add(Win_MapReduce<tuple_t, result_t> &_wmr)
     // check the type of the windows
     if (_wmr.getWinType() == TB) { // time-based windows
         // call the generic method to add the operator (MAP stage) to the MultiPipe
-        add_operator<WinMap_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(map, COMPLEX, TS);
+        if (graph->mode == Mode::DETERMINISTIC) {
+            add_operator<WinMap_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(map, COMPLEX, TS);
+        }
+        else {
+            add_operator<WinMap_Emitter<tuple_t>, Standard_Collector>(map, COMPLEX);
+        }
     }
     else {
         // special case count-based windows
@@ -2165,6 +2328,7 @@ MultiPipe &MultiPipe::add(Win_MapReduce<tuple_t, result_t> &_wmr)
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
+    // the Win_MapReduce operator is now used
     _wmr.used = true;
     return *this;
 }
@@ -2178,9 +2342,9 @@ MultiPipe &MultiPipe::add(Win_MapReduce_GPU<tuple_t, result_t, F_t> &_wmr)
         std::cerr << RED << "WindFlow Error: Win_MapReduce_GPU operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
-    // check the processing mode
-    if (graph->mode != Mode::DETERMINISTIC) {
-        std::cerr << RED << "WindFlow Error: the Win_MapReduce_GPU operator requires the DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
+    // count-based windows are possible only in DETERMINISTIC mode
+    if (_wmr.getWinType() == CB && graph->mode != Mode::DETERMINISTIC) {
+        std::cerr << RED << "WindFlow Error: count-based windows require DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
     // check the type compatibility
@@ -2202,7 +2366,12 @@ MultiPipe &MultiPipe::add(Win_MapReduce_GPU<tuple_t, result_t, F_t> &_wmr)
     // check the type of the windows
     if (_wmr.getWinType() == TB) { // time-based windows
         // call the generic method to add the operator (MAP stage) to the MultiPipe
-        add_operator<WinMap_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(map, COMPLEX, TS);
+        if (graph->mode == Mode::DETERMINISTIC) {
+            add_operator<WinMap_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(map, COMPLEX, TS);
+        }
+        else {
+            add_operator<WinMap_Emitter<tuple_t>, Standard_Collector>(map, COMPLEX);
+        }
     }
     else {
         // special case count-based windows
@@ -2247,6 +2416,7 @@ MultiPipe &MultiPipe::add(Win_MapReduce_GPU<tuple_t, result_t, F_t> &_wmr)
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
+    // the Win_MapReduce_GPU operator is now used
     _wmr.used = true;
     return *this;
 }
@@ -2268,10 +2438,16 @@ MultiPipe &MultiPipe::add_sink(Sink<tuple_t> &_sink)
         exit(EXIT_FAILURE);
     }
     // call the generic method to add the operator to the MultiPipe
-    add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_sink, _sink.isKeyed() ? KEYED : STATELESS, TS);
+    if (graph->mode == Mode::DETERMINISTIC) {
+        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_sink, _sink.isKeyed() ? KEYED : STATELESS, TS);
+    }
+    else {
+        add_operator<Standard_Emitter<tuple_t>, Standard_Collector>(&_sink, _sink.isKeyed() ? KEYED : STATELESS);
+    }
 	has_sink = true;
     // save the new output type from this MultiPipe
     outputType = opInType;
+    // the Sink operator is now used
     _sink.used = true;
 	return *this;
 }
@@ -2303,6 +2479,7 @@ MultiPipe &MultiPipe::chain_sink(Sink<tuple_t> &_sink)
     has_sink = true;
     // save the new output type from this MultiPipe
     outputType = opInType;
+    // the Sink operator is now used
     _sink.used = true;
     return *this;
 }

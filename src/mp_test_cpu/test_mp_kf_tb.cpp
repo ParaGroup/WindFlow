@@ -108,21 +108,21 @@ int main(int argc, char *argv[])
 	    					.withName("test_kf_tb_filter")
 	    					.withParallelism(filter_degree)
 	    					.build();
-	    mp.add(filter);
+	    mp.chain(filter);
 	    // flatmap
 	    FlatMap_Functor flatmap_functor;
 	    FlatMap flatmap = FlatMap_Builder(flatmap_functor)
 	    						.withName("test_kf_tb_flatmap")
 	    						.withParallelism(flatmap_degree)
 	    						.build();
-	    mp.add(flatmap);
+	    mp.chain(flatmap);
 	    // map
 	    Map_Functor map_functor;
 	    Map map = Map_Builder(map_functor)
 	    				.withName("test_kf_tb_map")
 	    				.withParallelism(map_degree)
 	    				.build();
-	    mp.add(map);
+	    mp.chain(map);
 	    // kf
 	    Key_Farm kf = KeyFarm_Builder(kf_function)
 	    					.withName("test_kf_tb_kf")
@@ -136,7 +136,7 @@ int main(int argc, char *argv[])
 	    					.withName("test_kf_tb_sink")
 	    					.withParallelism(1)
 	    					.build();
-	    mp.add_sink(sink);
+	    mp.chain_sink(sink);
 	   	// run the application
 	   	graph.run();
 	   	if (i == 0) {

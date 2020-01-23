@@ -127,22 +127,22 @@ private:
         archive_t archive; // archive of tuples of this key
         std::vector<win_t> wins; // open windows of this key
         uint64_t emit_counter; // progressive counter (used if role is PLQ or MAP)
-        uint64_t rcv_counter; // number of tuples received of this key
-        tuple_t last_tuple; // copy of the last tuple received of this key
         uint64_t next_lwid; // next window to be opened of this key (lwid)
+        int64_t last_lwid; // last window closed of this key (lwid)
         size_t batchedWin; // number of batched windows of the key
         std::vector<size_t> start, end; // vector of initial/final positions of each window in the current micro-batch
         std::vector<uint64_t> gwids; // vector of gwid of the windows in the current micro-batch
         std::vector<uint64_t> tsWin; // vector of the final timestamp of the windows in the current micro-batch
         std::optional<tuple_t> start_tuple; // optional to the first tuple of the current micro-batch
+        std::optional<tuple_t> end_tuple; // optional to the last tuple of the current micro-batch
 
         // Constructor
         Key_Descriptor(compare_func_t _compare_func,
                        uint64_t _emit_counter=0):
                        archive(_compare_func),
                        emit_counter(_emit_counter),
-                       rcv_counter(0),
                        next_lwid(0),
+                       last_lwid(-1),
                        batchedWin(0)
         {
             wins.reserve(DEFAULT_VECTOR_CAPACITY);
@@ -153,20 +153,21 @@ private:
                        archive(move(_k.archive)),
                        wins(move(_k.wins)),
                        emit_counter(_k.emit_counter),
-                       rcv_counter(_k.rcv_counter),
-                       last_tuple(_k.last_tuple),
                        next_lwid(_k.next_lwid),
+                       last_lwid(_k.last_lwid),
                        batchedWin(_k.batchedWin),
                        start(_k.start),
                        end(_k.end),
                        gwids(_k.gwids),
                        tsWin(_k.tsWin),
-                       start_tuple(_k.start_tuple) {}
+                       start_tuple(_k.start_tuple),
+                       end_tuple(_k.end_tuple) {}
     };
     // CPU variables
     compare_func_t compare_func; // function to compare two tuples
     uint64_t win_len; // window length (no. of tuples or in time units)
     uint64_t slide_len; // slide length (no. of tuples or in time units)
+    uint64_t triggering_delay; // triggering delay in time units (meaningful for TB windows only)
     win_type_t winType; // window type (CB or TB)
     std::string name; // std::string of the unique name of the operator
     PatternConfig config; // configuration structure of the Win_Seq_GPU operator
@@ -187,6 +188,7 @@ private:
     uint64_t *gpu_gwids = nullptr; // array of the gwids of the windows in the microbatch (allocated on the GPU)
     size_t scratchpad_size = 0; // size of the scratchpage memory area on the GPU (one per CUDA thread)
     char *scratchpad_memory = nullptr; // scratchpage memory area (allocated on the GPU, one per CUDA thread)
+    size_t dropped_tuples; // number of dropped tuples
 #if defined(TRACE_WINDFLOW)
     bool isTriggering = false;
     unsigned long rcvTuples = 0;
@@ -203,6 +205,7 @@ private:
     Win_Seq_GPU(win_F_t _win_func,
                 uint64_t _win_len,
                 uint64_t _slide_len,
+                uint64_t _triggering_delay,
                 win_type_t _winType,
                 size_t _batch_len,
                 size_t _n_thread_block,
@@ -213,13 +216,15 @@ private:
                 win_func(_win_func),
                 win_len(_win_len),
                 slide_len(_slide_len),
+                triggering_delay(_triggering_delay),
                 winType(_winType),
                 batch_len(_batch_len),
                 n_thread_block(_n_thread_block),
                 name(_name),
                 scratchpad_size(_scratchpad_size),
                 config(_config),
-                role(_role)
+                role(_role),
+                dropped_tuples(0)
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -262,6 +267,7 @@ public:
      *  \param _win_func the non-incremental window processing function (CPU/GPU function)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _batch_len no. of windows in a batch (i.e. 1 window mapped onto 1 CUDA thread)
      *  \param _n_thread_block number of threads (i.e. windows) per block
@@ -271,12 +277,13 @@ public:
     Win_Seq_GPU(win_F_t _win_func,
                 uint64_t _win_len,
                 uint64_t _slide_len,
+                uint64_t _triggering_delay,
                 win_type_t _winType,
                 size_t _batch_len,
                 size_t _n_thread_block,
                 std::string _name,
                 size_t _scratchpad_size):
-                Win_Seq_GPU(_win_func, _win_len, _slide_len, _winType, _batch_len, _n_thread_block, _name, _scratchpad_size, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
+                Win_Seq_GPU(_win_func, _win_len, _slide_len, _triggering_delay, _winType, _batch_len, _n_thread_block, _name, _scratchpad_size, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
     {}
 
 //@cond DOXY_IGNORE
@@ -355,25 +362,6 @@ public:
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
-        // check duplicate or out-of-order tuples
-        if (key_d.rcv_counter == 0) {
-            key_d.rcv_counter++;
-            key_d.last_tuple = *t;
-        }
-        else {
-            // tuples can be received only ordered by id/timestamp
-            uint64_t last_id = (winType == CB) ? std::get<1>((key_d.last_tuple).getControlFields()) : std::get<2>((key_d.last_tuple).getControlFields());
-            if (id < last_id) {
-                std::cerr << YELLOW << "WindFlow Warning: tuple processed out-of-order" << DEFAULT_COLOR << std::endl;
-                // the tuple is immediately deleted
-                deleteTuple<tuple_t, input_t>(wt);
-                return this->GO_ON;
-            }
-            else {
-                key_d.rcv_counter++;
-                key_d.last_tuple = *t;
-            }
-        }
         // gwid of the first window of that key assigned to this Win_Seq_GPU
         uint64_t first_gwid_key = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) * config.n_outer + (config.id_outer - (hashcode % config.n_outer) + config.n_outer) % config.n_outer;
         // initial identifer/timestamp of the keyed sub-stream arriving at this Win_Seq_GPU
@@ -383,8 +371,11 @@ public:
         // special cases: if role is WLQ or REDUCE
         if (role == WLQ || role == REDUCE)
             initial_id = initial_inner;
-        // if the id/timestamp of the tuple is smaller than the initial one, it must be discarded
-        if (id < initial_id) {
+        // check if the tuple must be dropped
+        uint64_t min_boundary = (key_d.last_lwid >= 0) ? win_len + (key_d.last_lwid  * slide_len) : 0;
+        if (id < initial_id + min_boundary) {
+            if (key_d.last_lwid >= 0)
+                dropped_tuples++;
             deleteTuple<tuple_t, input_t>(wt);
             return this->GO_ON;
         }
@@ -418,7 +409,7 @@ public:
             if (winType == CB)
                 wins.push_back(win_t(key, lwid, gwid, Triggerer_CB(win_len, slide_len, lwid, initial_id), CB, win_len, slide_len));
             else
-                wins.push_back(win_t(key, lwid, gwid, Triggerer_TB(win_len, slide_len, lwid, initial_id), TB, win_len, slide_len));
+                wins.push_back(win_t(key, lwid, gwid, Triggerer_TB(win_len, slide_len, lwid, initial_id, triggering_delay), TB, win_len, slide_len));
             key_d.next_lwid++;
         }
         // evaluate all the open windows
@@ -427,12 +418,12 @@ public:
             // if the window is fired
             if (win.onTuple(*t) == FIRED) {
                 key_d.batchedWin++;
+                key_d.last_lwid++;
                 (key_d.gwids).push_back(win.getGWID());
                 (key_d.tsWin).push_back(std::get<2>((win.getResult()).getControlFields()));
                 // acquire from the archive the optionals to the first and the last tuple of the window
                 std::optional<tuple_t> t_s = win.getFirstTuple();
-                std::optional<tuple_t> t_e = win.getFiringTuple();
-                std::pair<input_iterator_t, input_iterator_t> its;
+                std::optional<tuple_t> t_e = win.getLastTuple();
                 // empty window
                 if (!t_s) {
                     if ((key_d.start).size() == 0)
@@ -443,17 +434,14 @@ public:
                 }
                 // non-empty window
                 else {
-                    its = (key_d.archive).getWinRange(*t_s, *t_e);
                     if (!key_d.start_tuple)
                         key_d.start_tuple = t_s;
                     size_t start_pos = (key_d.archive).getDistance(*(key_d.start_tuple), *t_s);
                     (key_d.start).push_back(start_pos);
-                    size_t end_pos = (key_d.archive).getDistance(*(key_d.start_tuple))-1;
-                    if (isEOSMarker<tuple_t, input_t>(*wt))
-                        end_pos++;
+                    size_t end_pos = (key_d.archive).getDistance(*(key_d.start_tuple), *t_e);
                     (key_d.end).push_back(end_pos);
                 }
-                // the fired window is batched
+                // the fired window is put in batched mode
                 win.setBatched();
                 // a new micro-batch is complete
                 if (key_d.batchedWin == batch_len) {
@@ -469,10 +457,9 @@ public:
                         size_copy = 0;
                     }
                     else { // the batch is not empty
+                        key_d.end_tuple = t_e;
                         dataBatch = (const tuple_t *) &(*((key_d.archive).getIterator(*(key_d.start_tuple))));
-                        size_copy = (key_d.archive).getDistance(*(key_d.start_tuple)) - 1;
-                        if (isEOSMarker<tuple_t, input_t>(*wt))
-                            size_copy++;
+                        size_copy = (key_d.archive).getDistance(*(key_d.start_tuple), *(key_d.end_tuple));
                     }
                     // prepare the host_results
                     for (size_t i=0; i < batch_len; i++)
@@ -535,6 +522,7 @@ public:
                     (key_d.end).clear();
                     (key_d.gwids).clear();
                     key_d.start_tuple = std::nullopt;
+                    key_d.end_tuple = std::nullopt;
                 }
             }
         }
@@ -572,11 +560,11 @@ public:
             // iterate over all the existing windows of the key and execute them on the CPU
             for (auto &win: wins) {
                 std::optional<tuple_t> t_s = win.getFirstTuple();
-                std::optional<tuple_t> t_e = win.getFiringTuple();
+                std::optional<tuple_t> t_e = win.getLastTuple();
                 std::pair<input_iterator_t, input_iterator_t> its;
                 result_t *out = new result_t(win.getResult());
                 if (t_s) { // not-empty window
-                    if (t_e) // BATCHED window
+                    if (t_e) // DELAYED or BATCHED window
                         its = (key_d.archive).getWinRange(*t_s, *t_e);
                     else // not-FIRED window
                         its = (key_d.archive).getWinRange(*t_s);
@@ -631,6 +619,7 @@ public:
         stream << "Average service time (triggering): " << avg_ts_triggering_us << " usec \n";
         stream << "Average service time (non triggering): " << avg_ts_non_triggering_us << " usec \n";
         stream << "Average inter-departure time: " << avg_td_us << " usec \n";
+        stream << "Dropped tuples: " << dropped_tuples << "\n";
         stream << "***************************************************************************\n";
         *logfile << stream.str();
         logfile->close();

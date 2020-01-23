@@ -28,8 +28,9 @@
 using namespace std;
 using namespace wf;
 
-// global variable for the result
+// global variables
 long global_sum;
+long global_received;
 
 // generation of pareto-distributed pseudo-random numbers
 double pareto(double alpha, double kappa)
@@ -307,6 +308,7 @@ public:
 		else {
 			cout << "Received " << received << " results, total sum " << totalsum << endl;
 			global_sum = totalsum;
+			global_received = received;
 		}
 	}
 };

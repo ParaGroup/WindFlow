@@ -44,62 +44,74 @@
 
 namespace wf {
 
-// window events
-enum win_event_t { CONTINUE, FIRED, BATCHED };
-
-// class Triggerer_CB
+// class Triggerer_CB (for in-order streams only)
 class Triggerer_CB
 {
 private:
     uint64_t win_len; // window length in number of tuples
     uint64_t slide_len; // slide length in number of tuples
-    uint64_t wid; // window identifier (starting from zero)
+    uint64_t lwid; // local window identifier (starting from zero)
     uint64_t initial_id; // identifier of the first tuple
 
 public:
     // Constructor
     Triggerer_CB(uint64_t _win_len,
                  uint64_t _slide_len,
-                 uint64_t _wid,
-                 uint64_t _initial_id=0):
+                 uint64_t _lwid,
+                 uint64_t _initial_id):
                  win_len(_win_len),
                  slide_len(_slide_len),
-                 wid(_wid),
+                 lwid(_lwid),
                  initial_id(_initial_id)
     {}
 
-    // method to trigger a new event from a tuple's identifier
+    // method to trigger a new event from the input tuple's identifier
     win_event_t operator()(uint64_t _id) const
     {
-        return (_id > (win_len + wid * slide_len - 1) + initial_id) ? FIRED : CONTINUE;
+        if (_id < initial_id + lwid * slide_len)
+            return OLD;
+        else if (_id <= (win_len + lwid * slide_len - 1) + initial_id)
+            return IN;
+        else
+            return FIRED;
     }
 };
 
-// class Triggerer_TB
+// class Triggerer_TB (also for out-of-order streams)
 class Triggerer_TB
 {
 private:
     uint64_t win_len; // window length in time units
     uint64_t slide_len; // slide length in time units
-    uint64_t wid; // window identifier (starting from zero)
+    uint64_t lwid; // local window identifier (starting from zero)
     uint64_t starting_ts; // starting timestamp
+    uint64_t triggering_delay; // triggering delay in time units
 
 public:
-    // Constructor 
+    // Constructor
     Triggerer_TB(uint64_t _win_len,
                  uint64_t _slide_len,
-                 uint64_t _wid,
-                 uint64_t _starting_ts=0):
+                 uint64_t _lwid,
+                 uint64_t _starting_ts,
+                 uint64_t _triggering_delay):
                  win_len(_win_len),
                  slide_len(_slide_len),
-                 wid(_wid),
-                 starting_ts(_starting_ts)
+                 lwid(_lwid),
+                 starting_ts(_starting_ts),
+                 triggering_delay(_triggering_delay)
     {}
 
-    // method to trigger a new event from a tuple's identifier
+    // method to trigger a new event from the input tuple's timestamp
     win_event_t operator()(uint64_t _ts) const
     {
-        return (_ts >= (win_len + wid * slide_len) + starting_ts) ? FIRED : CONTINUE;
+        if (_ts < starting_ts + lwid * slide_len)
+            return OLD;
+        else if (_ts < (win_len + lwid * slide_len) + starting_ts)
+            return IN;
+        else if (_ts < (win_len + lwid * slide_len) + starting_ts + triggering_delay)
+            return DELAYED;
+        else
+            return FIRED;
     }
 };
 
@@ -113,16 +125,16 @@ private:
     tuple_t tmp; // never used
     // key data type
     using key_t = typename std::remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
-    win_type_t winType; // type of the window (CB or TB)
-    triggerer_t triggerer; // triggerer used by the window (it must be compliant with its type)
-    result_t result; // result of the window processing
-    std::optional<tuple_t> firstTuple; // optional object containing the first tuple raising a CONTINUE event
-    std::optional<tuple_t> firingTuple; // optional object containing the first tuple raising a FIRED event
     key_t key; // key attribute
     uint64_t lwid; // local identifier of the window (starting from zero)
     uint64_t gwid; // global identifier of the window (starting from zero)
-    size_t no_tuples; // number of tuples that raised a CONTINUE event on the window
+    triggerer_t triggerer; // triggerer used by the window (it must be compliant with its type)
+    win_type_t winType; // type of the window (CB or TB)
+    size_t no_tuples; // number of tuples raising a IN event for the window
     bool batched; // flag stating whether the window is batched or not
+    result_t result; // result of the window processing
+    std::optional<tuple_t> firstTuple;
+    std::optional<tuple_t> lastTuple;
 
 public:
     // Constructor 
@@ -133,11 +145,11 @@ public:
            win_type_t _winType,
            uint64_t _win_len,
            uint64_t _slide_len):
-           winType(_winType),
-           triggerer(_triggerer),
            key(_key),
            lwid(_lwid),
            gwid(_gwid),
+           triggerer(_triggerer),
+           winType(_winType),
            no_tuples(0),
            batched(false)
     {
@@ -151,39 +163,73 @@ public:
     // copy Constructor
     Window(const Window &win)
     {
-        winType = win.winType;
-        triggerer = win.triggerer;
-        result = win.result;
-        firstTuple = win.firstTuple;
-        firingTuple = win.firingTuple;
         key = win.key;
         lwid = win.lwid;
         gwid = win.gwid;
+        triggerer = win.triggerer;
+        winType = win.winType;
         no_tuples = win.no_tuples;
         batched = win.batched;
+        result = win.result;
+        firstTuple = win.firstTuple;
+        lastTuple = win.lastTuple;
     }
 
-    // method to evaluate the status of the window
+    // method to evaluate the status of the window given a new input tuple _t
     win_event_t onTuple(const tuple_t &_t)
     {
-        // extract the tuple identifier/timestamp field
-        uint64_t id = (winType == CB) ? std::get<1>(_t.getControlFields()) : std::get<2>(_t.getControlFields());
-        // evaluate the triggerer
-        win_event_t event = triggerer(id);
-        if (event == CONTINUE) {
-            no_tuples++;
-            if (!firstTuple)
-                firstTuple = std::make_optional(_t); // need a copy Constructor for tuple_t
-            if (winType == CB)
-                result.setControlFields(key, gwid, std::get<2>(_t.getControlFields()));
-        }
-        if (event == FIRED) {
-            if (!firingTuple)
-                firingTuple = std::make_optional(_t); // need a copy Constructor for tuple_t
-        }
+        // the window has been batched, doing nothing
         if (batched)
             return BATCHED;
-        else return event;
+        if (winType == CB) { // count-based windows (in-order streams only)
+            uint64_t id = std::get<1>(_t.getControlFields()); // id of the input tuple
+            // evaluate the triggerer
+            win_event_t event = triggerer(id);
+            if (event == IN) {
+                no_tuples++;
+                if (!firstTuple) {
+                    firstTuple = std::make_optional(_t); // save the first tuple returning IN
+                }
+            }
+            else if (event == FIRED) {
+                if (!lastTuple) {
+                    lastTuple = std::make_optional(_t); // save the first tuple returning FIRED
+                }
+            }
+            else {
+                abort(); // OLD is not possible with in-order streams
+            }
+            return event;
+        }
+        else { // time-based windows (out-of-order streams are possible)
+            uint64_t ts = std::get<2>(_t.getControlFields()); // timestamp of the input tuple
+            // evaluate the triggerer
+            win_event_t event = triggerer(ts);
+            if (event == IN) {
+                no_tuples++;
+                if (!firstTuple) {
+                    firstTuple = std::make_optional(_t); // save the oldest tuple returning IN
+                }
+                else {
+                    uint64_t old_ts = std::get<2>(firstTuple->getControlFields());
+                    if (ts < old_ts) {
+                        firstTuple = std::make_optional(_t); // save the oldest tuple returning IN
+                    }
+                }
+            }
+            else if (event == DELAYED || event == FIRED) {
+                if (!lastTuple) {
+                    lastTuple = std::make_optional(_t); // save the oldest tuple more recent that the window final boundary
+                }
+                else {
+                    uint64_t old_ts = std::get<2>(lastTuple->getControlFields());
+                    if (ts < old_ts) {
+                        lastTuple = std::make_optional(_t); // save the oldest tuple more recent that the window final boundary
+                    }
+                }
+            }
+            return event;
+        }
     }
 
     // set the window as batched
@@ -198,16 +244,16 @@ public:
         return result;
     }
 
-    // method to get an optional object to the first tuple raising a CONTINUE event on the window
+    // method to get an optional object to the first tuple
     std::optional<tuple_t> getFirstTuple() const
     {
         return firstTuple;
     }
 
-    // method to get an optional object to the first tuple raising a FIRED event on the window
-    std::optional<tuple_t> getFiringTuple() const
+    // method to get an optional object to the last tuple
+    std::optional<tuple_t> getLastTuple() const
     {
-        return firingTuple;
+        return lastTuple;
     }
 
     // method to get the key identifier

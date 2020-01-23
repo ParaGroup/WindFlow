@@ -119,6 +119,7 @@ private:
     Key_Farm(F_t _func,
              uint64_t _win_len,
              uint64_t _slide_len,
+             uint64_t _triggering_delay,
              win_type_t _winType,
              size_t _pardegree,
              std::string _name,
@@ -156,7 +157,7 @@ private:
         // create the Win_Seq
         for (size_t i = 0; i < _pardegree; i++) {
             PatternConfig configSeq(0, 1, _slide_len, 0, 1, _slide_len);
-            auto *seq = new win_seq_t(_func, _win_len, _slide_len, _winType, _name + "_kf", _closing_func, RuntimeContext(_pardegree, i), configSeq, SEQ);
+            auto *seq = new win_seq_t(_func, _win_len, _slide_len, _triggering_delay, _winType, _name + "_kf", _closing_func, RuntimeContext(_pardegree, i), configSeq, SEQ);
             w[i] = seq;
         }
         ff::ff_farm::add_workers(w);
@@ -208,6 +209,7 @@ public:
      *  \param _win_func the non-incremental window processing function
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _pardegree parallelism degree of the Key_Farm operator
      *  \param _name std::string with the unique name of the operator
@@ -218,13 +220,14 @@ public:
     Key_Farm(win_func_t _win_func,
              uint64_t _win_len,
              uint64_t _slide_len,
+             uint64_t _triggering_delay,
              win_type_t _winType,
              size_t _pardegree,
              std::string _name,
              closing_func_t _closing_func,
              routing_func_t _routing_func,
              opt_level_t _opt_level):
-             Key_Farm(_win_func, _win_len, _slide_len, _winType, _pardegree, _name, _closing_func, _routing_func, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
+             Key_Farm(_win_func, _win_len, _slide_len, _triggering_delay, _winType, _pardegree, _name, _closing_func, _routing_func, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
     {
         used = false;
     }
@@ -235,6 +238,7 @@ public:
      *  \param _rich_win_func the rich non-incremental window processing function
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _pardegree parallelism degree of the Key_Farm operator
      *  \param _name std::string with the unique name of the operator
@@ -245,13 +249,14 @@ public:
     Key_Farm(rich_win_func_t _rich_win_func,
              uint64_t _win_len,
              uint64_t _slide_len,
+             uint64_t _triggering_delay,
              win_type_t _winType,
              size_t _pardegree,
              std::string _name,
              closing_func_t _closing_func,
              routing_func_t _routing_func,
              opt_level_t _opt_level):
-             Key_Farm(_rich_win_func, _win_len, _slide_len, _winType, _pardegree, _name, _closing_func, _routing_func, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
+             Key_Farm(_rich_win_func, _win_len, _slide_len, _triggering_delay, _winType, _pardegree, _name, _closing_func, _routing_func, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
     {
         used = false;
     }
@@ -262,6 +267,7 @@ public:
      *  \param _winupdate_func the incremental window processing function
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _pardegree parallelism degree of the Key_Farm operator
      *  \param _name std::string with the unique name of the operator
@@ -272,13 +278,14 @@ public:
     Key_Farm(winupdate_func_t _winupdate_func,
              uint64_t _win_len,
              uint64_t _slide_len,
+             uint64_t _triggering_delay,
              win_type_t _winType,
              size_t _pardegree,
              std::string _name,
              closing_func_t _closing_func,
              routing_func_t _routing_func,
              opt_level_t _opt_level):
-             Key_Farm(_winupdate_func, _win_len, _slide_len, _winType, _pardegree, _name, _closing_func, _routing_func, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
+             Key_Farm(_winupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _pardegree, _name, _closing_func, _routing_func, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
     {
         used = false;
     }
@@ -289,6 +296,7 @@ public:
      *  \param _rich_winupdate_func the rich incremental window processing function
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _pardegree parallelism degree of the Key_Farm operator
      *  \param _name std::string with the unique name of the operator
@@ -299,13 +307,14 @@ public:
     Key_Farm(rich_winupdate_func_t _rich_winupdate_func,
              uint64_t _win_len,
              uint64_t _slide_len,
+             uint64_t _triggering_delay,
              win_type_t _winType,
              size_t _pardegree,
              std::string _name,
              closing_func_t _closing_func,
              routing_func_t _routing_func,
              opt_level_t _opt_level):
-             Key_Farm(_rich_winupdate_func, _win_len, _slide_len, _winType, _pardegree, _name, _closing_func, _routing_func, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
+             Key_Farm(_rich_winupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _pardegree, _name, _closing_func, _routing_func, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
     {
         used = false;
     }
@@ -316,6 +325,7 @@ public:
      *  \param _pf Pane_Farm to be replicated within the Key_Farm operator
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _pardegree parallelism degree of the Key_Farm operator
      *  \param _name std::string with the unique name of the operator
@@ -326,6 +336,7 @@ public:
     Key_Farm(pane_farm_t &_pf,
              uint64_t _win_len,
              uint64_t _slide_len,
+             uint64_t _triggering_delay,
              win_type_t _winType,
              size_t _pardegree,
              std::string _name,
@@ -357,7 +368,7 @@ public:
             _pf.used4Nesting = true;
         }
         // check the compatibility of the windowing parameters
-        if (_pf.win_len != _win_len || _pf.slide_len != _slide_len || _pf.winType != _winType) {
+        if (_pf.win_len != _win_len || _pf.slide_len != _slide_len || _pf.triggering_delay != _triggering_delay || _pf.winType != _winType) {
             std::cerr << RED << "WindFlow Error: incompatible windowing parameters between Key_Farm and Pane_Farm" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -373,37 +384,37 @@ public:
             // create the correct Pane_Farm
             pane_farm_t *pf_W = nullptr;
             if (_pf.isNICPLQ && _pf.isNICWLQ && !_pf.isRichPLQ && !_pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.plq_func, _pf.wlq_func, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.plq_func, _pf.wlq_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (_pf.isNICPLQ && !_pf.isNICWLQ && !_pf.isRichPLQ && !_pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.plq_func, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.plq_func, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (!_pf.isNICPLQ && _pf.isNICWLQ && !_pf.isRichPLQ && !_pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.plqupdate_func, _pf.wlq_func, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.plqupdate_func, _pf.wlq_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (!_pf.isNICPLQ && !_pf.isNICWLQ && !_pf.isRichPLQ && !_pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.plqupdate_func, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.plqupdate_func, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (_pf.isNICPLQ && _pf.isNICWLQ && _pf.isRichPLQ && !_pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.rich_plq_func, _pf.wlq_func, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.rich_plq_func, _pf.wlq_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (_pf.isNICPLQ && !_pf.isNICWLQ && _pf.isRichPLQ && !_pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.rich_plq_func, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.rich_plq_func, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (!_pf.isNICPLQ && _pf.isNICWLQ && _pf.isRichPLQ && !_pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.rich_plqupdate_func, _pf.wlq_func, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.rich_plqupdate_func, _pf.wlq_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (!_pf.isNICPLQ && !_pf.isNICWLQ && _pf.isRichPLQ && !_pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.rich_plqupdate_func, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.rich_plqupdate_func, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (_pf.isNICPLQ && _pf.isNICWLQ && !_pf.isRichPLQ && _pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.plq_func, _pf.rich_wlq_func, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.plq_func, _pf.rich_wlq_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (_pf.isNICPLQ && !_pf.isNICWLQ && !_pf.isRichPLQ && _pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.plq_func, _pf.rich_wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.plq_func, _pf.rich_wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (!_pf.isNICPLQ && _pf.isNICWLQ && !_pf.isRichPLQ && _pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.plqupdate_func, _pf.rich_wlq_func, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.plqupdate_func, _pf.rich_wlq_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (!_pf.isNICPLQ && !_pf.isNICWLQ && !_pf.isRichPLQ && _pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.plqupdate_func, _pf.rich_wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.plqupdate_func, _pf.rich_wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (_pf.isNICPLQ && _pf.isNICWLQ && _pf.isRichPLQ && _pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.rich_plq_func, _pf.rich_wlq_func, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.rich_plq_func, _pf.rich_wlq_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (_pf.isNICPLQ && !_pf.isNICWLQ && _pf.isRichPLQ && _pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.rich_plq_func, _pf.rich_wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.rich_plq_func, _pf.rich_wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (!_pf.isNICPLQ && _pf.isNICWLQ && _pf.isRichPLQ && _pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.rich_plqupdate_func, _pf.rich_wlq_func, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.rich_plqupdate_func, _pf.rich_wlq_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (!_pf.isNICPLQ && !_pf.isNICWLQ && _pf.isRichPLQ && _pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.rich_plqupdate_func, _pf.rich_wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.rich_plqupdate_func, _pf.rich_wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             w[i] = pf_W;
         }
         ff::ff_farm::add_workers(w);
@@ -422,6 +433,7 @@ public:
      *  \param _wm Win_MapReduce to be replicated within the Key_Farm operator
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _pardegree parallelism degree of the Key_Farm operator
      *  \param _name std::string with the unique name of the operator
@@ -432,6 +444,7 @@ public:
     Key_Farm(win_mapreduce_t &_wm,
              uint64_t _win_len,
              uint64_t _slide_len,
+             uint64_t _triggering_delay,
              win_type_t _winType,
              size_t _pardegree,
              std::string _name,
@@ -463,7 +476,7 @@ public:
             _wm.used4Nesting = true;
         }
         // check the compatibility of the windowing parameters
-        if (_wm.win_len != _win_len || _wm.slide_len != _slide_len || _wm.winType != _winType) {
+        if (_wm.win_len != _win_len || _wm.slide_len != _slide_len || _wm.triggering_delay != _triggering_delay || _wm.winType != _winType) {
             std::cerr << RED << "WindFlow Error: incompatible windowing parameters between Key_Farm and Win_MapReduce" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -479,37 +492,37 @@ public:
             // create the correct Win_MapReduce
             win_mapreduce_t *wm_W = nullptr;
             if (_wm.isNICMAP && _wm.isNICREDUCE && !_wm.isRichMAP && !_wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.map_func, _wm.reduce_func, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                wm_W = new win_mapreduce_t(_wm.map_func, _wm.reduce_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
             if (_wm.isNICMAP && !_wm.isNICREDUCE && !_wm.isRichMAP && !_wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.map_func, _wm.reduceupdate_func, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                wm_W = new win_mapreduce_t(_wm.map_func, _wm.reduceupdate_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
             if (!_wm.isNICMAP && _wm.isNICREDUCE && !_wm.isRichMAP && !_wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.mapupdate_func, _wm.reduce_func, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                wm_W = new win_mapreduce_t(_wm.mapupdate_func, _wm.reduce_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
             if (!_wm.isNICMAP && !_wm.isNICREDUCE && !_wm.isRichMAP && !_wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.mapupdate_func, _wm.reduceupdate_func, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                wm_W = new win_mapreduce_t(_wm.mapupdate_func, _wm.reduceupdate_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
             if (_wm.isNICMAP && _wm.isNICREDUCE && _wm.isRichMAP && !_wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.rich_map_func, _wm.reduce_func, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                wm_W = new win_mapreduce_t(_wm.rich_map_func, _wm.reduce_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
             if (_wm.isNICMAP && !_wm.isNICREDUCE && _wm.isRichMAP && !_wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.rich_map_func, _wm.reduceupdate_func, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                wm_W = new win_mapreduce_t(_wm.rich_map_func, _wm.reduceupdate_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
             if (!_wm.isNICMAP && _wm.isNICREDUCE && _wm.isRichMAP && !_wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.rich_mapupdate_func, _wm.reduce_func, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                wm_W = new win_mapreduce_t(_wm.rich_mapupdate_func, _wm.reduce_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
             if (!_wm.isNICMAP && !_wm.isNICREDUCE && _wm.isRichMAP && !_wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.rich_mapupdate_func, _wm.reduceupdate_func, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                wm_W = new win_mapreduce_t(_wm.rich_mapupdate_func, _wm.reduceupdate_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
             if (_wm.isNICMAP && _wm.isNICREDUCE && !_wm.isRichMAP && _wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.map_func, _wm.rich_reduce_func, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                wm_W = new win_mapreduce_t(_wm.map_func, _wm.rich_reduce_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
             if (_wm.isNICMAP && !_wm.isNICREDUCE && !_wm.isRichMAP && _wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.map_func, _wm.rich_reduceupdate_func, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                wm_W = new win_mapreduce_t(_wm.map_func, _wm.rich_reduceupdate_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
             if (!_wm.isNICMAP && _wm.isNICREDUCE && !_wm.isRichMAP && _wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.mapupdate_func, _wm.rich_reduce_func, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                wm_W = new win_mapreduce_t(_wm.mapupdate_func, _wm.rich_reduce_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
             if (!_wm.isNICMAP && !_wm.isNICREDUCE && !_wm.isRichMAP && _wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.mapupdate_func, _wm.rich_reduceupdate_func, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                wm_W = new win_mapreduce_t(_wm.mapupdate_func, _wm.rich_reduceupdate_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
             if (_wm.isNICMAP && _wm.isNICREDUCE && _wm.isRichMAP && _wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.rich_map_func, _wm.rich_reduce_func, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                wm_W = new win_mapreduce_t(_wm.rich_map_func, _wm.rich_reduce_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
             if (_wm.isNICMAP && !_wm.isNICREDUCE && _wm.isRichMAP && _wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.rich_map_func, _wm.rich_reduceupdate_func, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                wm_W = new win_mapreduce_t(_wm.rich_map_func, _wm.rich_reduceupdate_func, _wm.win_len, _wm.slide_len,_wm.triggering_delay,  _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
             if (!_wm.isNICMAP && _wm.isNICREDUCE && _wm.isRichMAP && _wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.rich_mapupdate_func, _wm.rich_reduce_func, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                wm_W = new win_mapreduce_t(_wm.rich_mapupdate_func, _wm.rich_reduce_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
             if (!_wm.isNICMAP && !_wm.isNICREDUCE && _wm.isRichMAP && _wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.rich_mapupdate_func, _wm.rich_reduceupdate_func, _wm.win_len, _wm.slide_len, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
+                wm_W = new win_mapreduce_t(_wm.rich_mapupdate_func, _wm.rich_reduceupdate_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
             w[i] = wm_W;
         }
         ff::ff_farm::add_workers(w);

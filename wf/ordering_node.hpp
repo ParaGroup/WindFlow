@@ -42,9 +42,6 @@
 
 namespace wf {
 
-// supported ordering modes
-enum ordering_mode_t { ID, TS, TS_RENUMBERING };
-
 // class Ordering_Node
 template<typename tuple_t, typename input_t=tuple_t>
 class Ordering_Node: public ff::ff_minode_t<input_t, input_t>

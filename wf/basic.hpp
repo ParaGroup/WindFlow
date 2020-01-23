@@ -78,10 +78,10 @@ inline unsigned long current_time_nsecs()
 // supported processing modes of the PipeGraph
 enum class Mode { DEFAULT, DETERMINISTIC };
 
-// window types
+// supported window types
 enum win_type_t { CB, TB };
 
-// optimization levels
+// supported optimization levels
 enum opt_level_t { LEVEL0, LEVEL1, LEVEL2 };
 
 //@cond DOXY_IGNORE
@@ -90,10 +90,16 @@ enum opt_level_t { LEVEL0, LEVEL1, LEVEL2 };
 #define STRINGIFY(x) XSTRINGIFY(x)
 #define XSTRINGIFY(x) #x
 
-// supported roles of the Win_Seq operator
+// supported window events
+enum win_event_t { OLD, IN, DELAYED, FIRED, BATCHED };
+
+// supported ordering modes
+enum ordering_mode_t { ID, TS, TS_RENUMBERING };
+
+// supported roles of the Win_Seq/Win_Seq_GPU operators
 enum role_t { SEQ, PLQ, WLQ, MAP, REDUCE };
 
-// window-based operators of the library
+// existing window-based operators of the library
 enum pattern_t { SEQ_CPU, SEQ_GPU, KF_CPU, KF_GPU, WF_CPU, WF_GPU, PF_CPU, PF_GPU, WMR_CPU, WMR_GPU };
 
 // macros for the linux terminal colors
