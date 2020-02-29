@@ -13,6 +13,16 @@ The library needs the following dependencies:
 * CUDA >= 9 (for compiling GPU examples)
 * FastFlow version >= 3.0
 
+When downloaded FastFlow, it is important to properly configure the library. By default, FastFlow applies pinning of its threads onto the cores of the machine and this must be done correctly. To be sure of the ordering of cores, and to place communicating threads on sibling cores, it is important to run the script "mapping_string.sh" in the folder fastflow/ff before compiling any code using WindFlow/FastFlow.
+
+# Macros
+WindFlow and its underlying level FastFlow come with some important macros that can be used during compilation to enable specific behaviors:
+* -DTRACE_WINDFLOW -> enables the tracing (logging) at the WindFlow level (operator replicas)
+* -DTRACE_FASTFLOW -> enables the tracing (logging) at the FastFlow level (raw threads and FastFlow nodes)
+* -DFF_BOUNDED_BUFFER -> enables the use of bounded lock-free queues for pointer passing between threads. Otherwise, queues are unbounded (no backpressure mechanism)
+* -DDEFAULT_BUFFER_CAPACITY=VALUE -> set the size of the lock-free queues capacity in terms of pointers
+* -DNO_DEFAULT_MAPPING -> if set, FastFlow threads are not pinned and mapped by WindFlow/FastFlow and they are executed based on the default OS scheduler decision
+
 # Build the Examples
 WindFlow is a header-only template library. To build your applications you have to include the main header of the library (windflow.hpp). For using the GPU operators you further have to include windflow_gpu.hpp. To compile the examples provided alongside the library:
 * make -> generate all the examples
