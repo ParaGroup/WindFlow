@@ -11,7 +11,7 @@ The web site of the library is available at https://paragroup.github.io/WindFlow
 The library needs the following dependencies:
 * GCC (GNU Compiler Collection) version >= 7.2
 * CUDA >= 9 (for compiling GPU examples)
-* FastFlow version >= 3.0
+* FastFlow version >= 3.0 (https://github.com/fastflow/fastflow)
 
 When downloaded FastFlow, it is important to properly configure the library. By default, FastFlow applies pinning of its threads onto the cores of the machine and this must be done correctly. To be sure of the ordering of cores, and to place communicating threads on sibling cores, it is important to run the script "mapping_string.sh" in the folder fastflow/ff before compiling any code using WindFlow/FastFlow.
 
