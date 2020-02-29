@@ -9,9 +9,9 @@ The web site of the library is available at https://paragroup.github.io/WindFlow
 
 # Dependencies
 The library needs the following dependencies:
-* GCC (GNU Compiler Collection) version >= 7.2
-* CUDA >= 9 (for compiling GPU examples)
-* FastFlow version >= 3.0 (https://github.com/fastflow/fastflow)
+* <strong>GCC</strong> (GNU Compiler Collection) version >= 7.2
+* <strong>CUDA</strong> >= 9 (for compiling GPU examples)
+* <strong>FastFlow</strong> version >= 3.0 (https://github.com/fastflow/fastflow)
 
 When downloaded FastFlow, it is important to properly configure the library. By default, FastFlow applies pinning of its threads onto the cores of the machine and this must be done correctly. To be sure of the ordering of cores, and to place communicating threads on sibling cores, it is important to run the script <strong>"mapping_string.sh"</strong> in the folder fastflow/ff before compiling any code using WindFlow/FastFlow.
 
@@ -25,9 +25,9 @@ WindFlow and its underlying level FastFlow come with some important macros that 
 
 # Build the Examples
 WindFlow is a header-only template library. To build your applications you have to include the main header of the library (windflow.hpp). For using the GPU operators you further have to include windflow_gpu.hpp. To compile the examples provided alongside the library:
-* make -> generate all the examples
-* make all_cpu -> generate only the examples with operators running on CPU
-* male all_gpu -> generate only the examples with operators running on GPU
+* <strong>make</strong> -> generate all the examples
+* <strong>make all_cpu</strong> -> generate only the examples with operators running on CPU
+* <strong>male all_gpu</strong> -> generate only the examples with operators running on GPU
 
 # Contributors
 The main developer and maintainer of WindFlow is [Gabriele Mencagli](mailto:mencagli@di.unipi.it).
