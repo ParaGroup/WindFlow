@@ -30,4 +30,6 @@
 *.exe
 *.out
 *.app
+
+# .DS_Store are banished
 .DS_Store
