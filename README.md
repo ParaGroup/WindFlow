@@ -13,7 +13,7 @@ The library needs the following dependencies:
 * <strong>CUDA</strong> >= 9 (for compiling GPU examples)
 * <strong>FastFlow</strong> version >= 3.0 (https://github.com/fastflow/fastflow)
 
-When downloaded FastFlow, it is important to properly configure the library. By default, FastFlow applies pinning of its threads onto the cores of the machine and this must be done correctly. To be sure of the ordering of cores, and to place communicating threads on sibling cores, it is important to run the script <strong>"mapping_string.sh"</strong> in the folder fastflow/ff before compiling any code using WindFlow/FastFlow.
+When downloaded FastFlow, it is important to properly configure the library. By default, FastFlow applies pinning of its threads onto the cores of the machine and this must be done correctly. To be sure of the ordering of cores, and to place communicating threads on sibling cores, it is important to run the script <strong>"mapping_string.sh"</strong> in the folder <tt>fastflow/ff</tt> before compiling any code using the library.
 
 # Macros
 WindFlow and its underlying level FastFlow come with some important macros that can be used during compilation to enable specific behaviors:
@@ -21,13 +21,13 @@ WindFlow and its underlying level FastFlow come with some important macros that 
 * <strong>-DTRACE_FASTFLOW</strong> -> enables the tracing (logging) at the FastFlow level (raw threads and FastFlow nodes)
 * <strong>-DFF_BOUNDED_BUFFER</strong> -> enables the use of bounded lock-free queues for pointer passing between threads. Otherwise, queues are unbounded (no backpressure mechanism)
 * <strong>-DDEFAULT_BUFFER_CAPACITY=VALUE</strong> -> set the size of the lock-free queues capacity in terms of pointers
-* <strong>-DNO_DEFAULT_MAPPING</strong> -> if set, FastFlow threads are not pinned and mapped by WindFlow/FastFlow and they are executed based on the default OS scheduler decision
+* <strong>-DNO_DEFAULT_MAPPING</strong> -> if set, FastFlow threads are not pinned onto the CPU cores but they are scheduled by the standard OS scheduling policy.
 
 # Build the Examples
-WindFlow is a header-only template library. To build your applications you have to include the main header of the library (windflow.hpp). For using the GPU operators you further have to include windflow_gpu.hpp. To compile the examples provided alongside the library:
+WindFlow is a header-only template library. To build your applications you have to include the main header of the library (<tt>windflow.hpp</tt>). For using the GPU operators, you further have to include <tt>windflow_gpu.hpp</tt>. To compile the examples:
 * <strong>make</strong> -> generate all the examples
 * <strong>make all_cpu</strong> -> generate only the examples with operators running on CPU
 * <strong>male all_gpu</strong> -> generate only the examples with operators running on GPU
 
 # Contributors
-The main developer and maintainer of WindFlow is [Gabriele Mencagli](mailto:mencagli@di.unipi.it).
+The main developer and maintainer of WindFlow is [Gabriele Mencagli](mailto:mencagli@di.unipi.it) (Department of Computer Science, University of Pisa, Italy).
