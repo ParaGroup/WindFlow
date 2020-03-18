@@ -325,3 +325,13 @@ div.code-toolbar > .toolbar span:focus {
 	content: attr(data-prompt);
 }
 
+.oversizedImage {
+  text-align: center;
+}
+
+.oversizedImage img {
+  margin: 0 -100%;
+}
+/* demo purpose */
+
+
