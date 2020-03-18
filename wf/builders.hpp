@@ -34,7 +34,7 @@
 #include <memory>
 #include <functional>
 #include <basic.hpp>
-#include <meta_utils.hpp>
+#include <meta.hpp>
 
 namespace wf {
 
@@ -69,7 +69,7 @@ public:
     /** 
      *  \brief Method to specify the name of the Source operator
      *  
-     *  \param _name std::string with the name to be given
+     *  \param _name string with the name to be given
      *  \return the object itself
      */ 
     Source_Builder<F_t>& withName(std::string _name)
@@ -148,7 +148,7 @@ class Filter_Builder
 private:
     F_t func;
     // type of the operator to be created by this builder
-    using filter_t = Filter<decltype(get_tuple_t(func))>;
+    using filter_t = Filter<decltype(get_tuple_t(func)), decltype(get_result_t(func))>;
     // type of the closing function
     using closing_func_t = std::function<void(RuntimeContext&)>;
     // type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
@@ -163,14 +163,14 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _func function implementing the boolean predicate
+     *  \param _func function implementing the predicate
      */ 
     Filter_Builder(F_t _func): func(_func) {}
 
     /** 
      *  \brief Method to specify the name of the Filter operator
      *  
-     *  \param _name std::string with the name to be given
+     *  \param _name string with the name to be given
      *  \return the object itself
      */ 
     Filter_Builder<F_t>& withName(std::string _name)
@@ -285,14 +285,14 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _func function of the one-to-one transformation
+     *  \param _func function implementing the one-to-one transformation
      */ 
     Map_Builder(F_t _func): func(_func) {}
 
     /** 
      *  \brief Method to specify the name of the Map operator
      *  
-     *  \param _name std::string with the name to be given
+     *  \param _name string with the name to be given
      *  \return the object itself
      */ 
     Map_Builder<F_t>& withName(std::string _name)
@@ -407,14 +407,14 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _func function of the one-to-any transformation
+     *  \param _func function implementing the one-to-any transformation
      */ 
     FlatMap_Builder(F_t _func): func(_func) {}
 
     /** 
      *  \brief Method to specify the name of the FlatMap operator
      *  
-     *  \param _name std::string with the name to be given
+     *  \param _name string with the name to be given
      *  \return the object itself
      */ 
     FlatMap_Builder<F_t>& withName(std::string _name)
@@ -530,14 +530,14 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _func function implementing the reduce/fold
+     *  \param _func function implementing the reduce/fold logic
      */ 
     Accumulator_Builder(F_t _func): func(_func) {}
 
     /** 
      *  \brief Method to specify the name of the Accumulator operator
      *  
-     *  \param _name std::string with the name to be given
+     *  \param _name string with the name to be given
      *  \return the object itself
      */ 
     Accumulator_Builder<F_t>& withName(std::string _name)
@@ -645,7 +645,7 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _func non-incremental/incremental function
+     *  \param _func function implementing the non-incremental/incremental window processing function
      */ 
     WinSeq_Builder(F_t _func): func(_func) {}
 
@@ -684,7 +684,7 @@ public:
     /** 
      *  \brief Method to specify the name of the Win_Seq operator
      *  
-     *  \param _name std::string with the name to be given
+     *  \param _name string with the name to be given
      *  \return the object itself
      */ 
     WinSeq_Builder<F_t>& withName(std::string _name)
@@ -713,7 +713,7 @@ public:
      */ 
     winseq_t build()
     {
-        return winseq_t(func, win_len, slide_len, triggering_delay, winType, name, closing_func, RuntimeContext(1, 0), PatternConfig(0, 1, slide_len, 0, 1, slide_len), SEQ); // copy elision in C++17
+        return winseq_t(func, win_len, slide_len, triggering_delay, winType, name, closing_func, RuntimeContext(1, 0), OperatorConfig(0, 1, slide_len, 0, 1, slide_len), SEQ); // copy elision in C++17
     }
 #endif
 
@@ -724,7 +724,7 @@ public:
      */ 
     winseq_t *build_ptr()
     {
-        return new winseq_t(func, win_len, slide_len, triggering_delay, winType, name, closing_func, RuntimeContext(1, 0), PatternConfig(0, 1, slide_len, 0, 1, slide_len), SEQ);
+        return new winseq_t(func, win_len, slide_len, triggering_delay, winType, name, closing_func, RuntimeContext(1, 0), OperatorConfig(0, 1, slide_len, 0, 1, slide_len), SEQ);
     }
 
     /** 
@@ -734,7 +734,130 @@ public:
      */ 
     std::unique_ptr<winseq_t> build_unique()
     {
-        return std::make_unique<winseq_t>(func, win_len, slide_len, triggering_delay, winType, name, closing_func, RuntimeContext(1, 0), PatternConfig(0, 1, slide_len, 0, 1, slide_len), SEQ);
+        return std::make_unique<winseq_t>(func, win_len, slide_len, triggering_delay, winType, name, closing_func, RuntimeContext(1, 0), OperatorConfig(0, 1, slide_len, 0, 1, slide_len), SEQ);
+    }
+};
+
+/** 
+ *  \class WinSeqFFAT_Builder
+ *  
+ *  \brief Builder of the Win_SeqFFAT operator
+ *  
+ *  Builder class to ease the creation of the Win_SeqFFAT operator.
+ */ 
+template<typename F_t, typename G_t>
+class WinSeqFFAT_Builder
+{
+private:
+    F_t lift_func;
+    G_t comb_func;
+    // type of the operator to be created by this builder
+    using winffat_t = Win_SeqFFAT<decltype(get_tuple_t(lift_func)),
+                             decltype(get_result_t(lift_func))>;
+    // type of the closing function
+    using closing_func_t = std::function<void(RuntimeContext&)>;
+    uint64_t win_len = 1;
+    uint64_t slide_len = 1;
+    uint64_t triggering_delay = 0;
+    win_type_t winType = CB;
+    std::string name = "anonymous_seqffat";
+    closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
+
+public:
+    /** 
+     *  \brief Constructor
+     *  
+     *  \param _lift_func the lift function to translate a tuple into a result
+     *  \param _comb_func the combine function to combine two results into a result
+     */ 
+    WinSeqFFAT_Builder(F_t _lift_func, G_t _comb_func): lift_func(_lift_func), comb_func(_comb_func) {}
+
+    /** 
+     *  \brief Method to specify the configuration for count-based windows
+     *  
+     *  \param _win_len window length (in no. of tuples)
+     *  \param _slide_len slide length (in no. of tuples)
+     *  \return the object itself
+     */ 
+    WinSeqFFAT_Builder<F_t, G_t>& withCBWindows(uint64_t _win_len, uint64_t _slide_len)
+    {
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = CB;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to specify the configuration for time-based windows
+     *  
+     *  \param _win_len window length (in microseconds)
+     *  \param _slide_len slide length (in microseconds)
+     *  \param _triggering_delay (in microseconds)
+     *  \return the object itself
+     */ 
+    WinSeqFFAT_Builder<F_t, G_t>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len, std::chrono::microseconds _triggering_delay=std::chrono::microseconds::zero())
+    {
+        win_len = _win_len.count();
+        slide_len = _slide_len.count();
+        triggering_delay = _triggering_delay.count();
+        winType = TB;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to specify the name of the Win_SeqFFAT operator
+     *  
+     *  \param _name string with the name to be given
+     *  \return the object itself
+     */ 
+    WinSeqFFAT_Builder<F_t, G_t>& withName(std::string _name)
+    {
+        name = _name;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to specify the closing function used by the operator
+     *  
+     *  \param _closing_func closing function to be used by the operator
+     *  \return the object itself
+     */ 
+    WinSeqFFAT_Builder<F_t, G_t>& withClosingFunction(closing_func_t _closing_func)
+    {
+        closing_func = _closing_func;
+        return *this;
+    }
+
+#if __cplusplus >= 201703L
+    /** 
+     *  \brief Method to create the Win_SeqFFAT operator (only C++17)
+     *  
+     *  \return a copy of the created Win_SeqFFAT operator
+     */ 
+    winffat_t build()
+    {
+        return winffat_t(lift_func, comb_func, win_len, slide_len, triggering_delay, winType, name, closing_func, RuntimeContext(1, 0), OperatorConfig(0, 1, slide_len, 0, 1, slide_len));
+    }
+#endif
+
+    /** 
+     *  \brief Method to create the Win_SeqFFAT operator
+     *  
+     *  \return a pointer to the created Win_SeqFFAT operator (to be explicitly deallocated/destroyed)
+     */ 
+    winffat_t *build_ptr()
+    {
+        return new winffat_t(lift_func, comb_func, win_len, slide_len, triggering_delay, winType, name, closing_func, RuntimeContext(1, 0), OperatorConfig(0, 1, slide_len, 0, 1, slide_len));
+    }
+
+    /** 
+     *  \brief Method to create the Win_SeqFFAT operator
+     *  
+     *  \return a unique_ptr to the created Win_SeqFFAT operator
+     */ 
+    std::unique_ptr<winffat_t> build_unique()
+    {
+        return std::make_unique<winffat_t>(lift_func, comb_func, win_len, slide_len, triggering_delay, winType, name, closing_func, RuntimeContext(1, 0), OperatorConfig(0, 1, slide_len, 0, 1, slide_len));
     }
 };
 
@@ -767,7 +890,7 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _func host/device function
+     *  \param _func the non-incremental window processing function (__host__ __device__ function)
      */ 
     WinSeqGPU_Builder(F_t _func): func(_func) {}
 
@@ -806,7 +929,7 @@ public:
     /** 
      *  \brief Method to specify the batch configuration
      *  
-     *  \param _batch_len number of windows in a batch (1 window executed by 1 CUDA thread)
+     *  \param _batch_len number of windows in a batch
      *  \param _n_thread_block number of threads per block
      *  \return the object itself
      */ 
@@ -820,7 +943,7 @@ public:
     /** 
      *  \brief Method to specify the name of the Win_Seq_GPU operator
      *  
-     *  \param _name std::string with the name to be given
+     *  \param _name string with the name to be given
      *  \return the object itself
      */ 
     WinSeqGPU_Builder<F_t>& withName(std::string _name)
@@ -832,7 +955,7 @@ public:
     /** 
      *  \brief Method to specify the size in bytes of the scratchpad memory per CUDA thread
      *  
-     *  \param _scratchpad_size size in bytes of the scratchpad memory per CUDA thread
+     *  \param _scratchpad_size size in bytes of the scratchpad area local of a CUDA thread (pre-allocated on the global memory of the GPU)
      *  \return the object itself
      */ 
     WinSeqGPU_Builder<F_t>& withScratchpad(size_t _scratchpad_size)
@@ -859,6 +982,132 @@ public:
     std::unique_ptr<winseq_gpu_t> build_unique()
     {
         return std::make_unique<winseq_gpu_t>(func, win_len, slide_len, triggering_delay, winType, batch_len, n_thread_block, name, scratchpad_size);
+    }
+};
+
+/** 
+ *  \class WinSeqFFATGPU_Builder
+ *  
+ *  \brief Builder of the WinSeqFFAT_GPU operator
+ *  
+ *  Builder class to ease the creation of the WinSeqFFAT_GPU operator.
+ */ 
+template<typename F_t, typename G_t>
+class WinSeqFFATGPU_Builder
+{
+private:
+    F_t lift_func;
+    G_t comb_func;
+    // type of the operator to be created by this builder
+    using winffat_gpu_t = Win_SeqFFAT_GPU<decltype(get_tuple_t(lift_func)),
+                                         decltype(get_result_t(lift_func)),
+                                         decltype(comb_func)>;
+    uint64_t win_len = 1;
+    uint64_t slide_len = 1;
+    uint64_t triggering_delay = 0;
+    win_type_t winType = CB;
+    size_t batch_len = 1;
+    size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
+    bool rebuild = false;
+    std::string name = "anonymous_seqffat_gpu";
+
+public:
+    /** 
+     *  \brief Constructor
+     *  
+     *  \param _lift_func the lift function to translate a tuple into a result
+     *  \param _comb_func the combine function to combine two results into a result (__host__ __device__ function)
+     */ 
+    WinSeqFFATGPU_Builder(F_t _lift_func, G_t _comb_func): lift_func(_lift_func), comb_func(_comb_func) {}
+
+    /** 
+     *  \brief Method to specify the configuration for count-based windows
+     *  
+     *  \param _win_len window length (in no. of tuples)
+     *  \param _slide_len slide length (in no. of tuples)
+     *  \return the object itself
+     */ 
+    WinSeqFFATGPU_Builder<F_t, G_t>& withCBWindows(uint64_t _win_len, uint64_t _slide_len)
+    {
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = CB;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to specify the configuration for time-based windows
+     *  
+     *  \param _win_len window length (in microseconds)
+     *  \param _slide_len slide length (in microseconds)
+     *  \param _triggering_delay (in microseconds)
+     *  \return the object itself
+     */ 
+    WinSeqFFATGPU_Builder<F_t, G_t>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len, std::chrono::microseconds _triggering_delay=std::chrono::microseconds::zero())
+    {
+        win_len = _win_len.count();
+        slide_len = _slide_len.count();
+        triggering_delay = _triggering_delay.count();
+        winType = TB;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to specify the batch configuration
+     *  
+     *  \param _batch_len number of windows in a batch
+     *  \param _n_thread_block number of threads per block
+     *  \return the object itself
+     */ 
+    WinSeqFFATGPU_Builder<F_t, G_t>& withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_CUDA_NUM_THREAD_BLOCK)
+    {
+        batch_len = _batch_len;
+        n_thread_block = _n_thread_block;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to specify the name of the Win_SeqFFAT_GPU operator
+     *  
+     *  \param _name string with the name to be given
+     *  \return the object itself
+     */ 
+    WinSeqFFATGPU_Builder<F_t, G_t>& withName(std::string _name)
+    {
+        name = _name;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to specify if the FlatFAT_GPU must recomputed from scratch for each batch
+     *  
+     *  \param _rebuild if true the FlatFAT_GPU structure is rebuilt for each batch (it is updated otherwise)
+     *  \return the object itself
+     */ 
+    WinSeqFFATGPU_Builder<F_t, G_t>& withRebuild(bool _rebuild)
+    {
+        rebuild = _rebuild;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to create the Win_SeqFFAT_GPU operator
+     *  
+     *  \return a pointer to the created Win_SeqFFAT_GPU operator (to be explicitly deallocated/destroyed)
+     */ 
+    winffat_gpu_t *build_ptr()
+    {
+        return new winffat_gpu_t(lift_func, comb_func, win_len, slide_len, triggering_delay, winType, batch_len, n_thread_block, rebuild, name);
+    }
+
+    /** 
+     *  \brief Method to create the Win_SeqFFAT_GPU operator
+     *  
+     *  \return a unique_ptr to the created Win_SeqFFAT_GPU operator
+     */ 
+    std::unique_ptr<winffat_gpu_t> build_unique()
+    {
+        return std::make_unique<winffat_gpu_t>(lift_func, comb_func, win_len, slide_len, triggering_delay, winType, batch_len, n_thread_block, rebuild, name);
     }
 };
 
@@ -921,7 +1170,8 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _input can be either a function or an already instantiated Pane_Farm or Win_MapReduce operator.
+     *  \param _input can be either a non-incremental/incremental window processing function or an
+     *                already instantiated Pane_Farm or Win_MapReduce operator.
      */ 
     WinFarm_Builder(T &_input): input(_input)
     {
@@ -975,7 +1225,7 @@ public:
     /** 
      *  \brief Method to specify the name of the Win_Farm operator
      *  
-     *  \param _name std::string with the name to be given
+     *  \param _name string with the name to be given
      *  \return the object itself
      */ 
     WinFarm_Builder<T>& withName(std::string _name)
@@ -1108,7 +1358,8 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _input can be either a host/device function or an already instantiated Pane_Farm_GPU or Win_MapReduce_GPU operator.
+     *  \param _input can be either a non-incremental window processing function (__host__ __device__ function) or an
+     *                already instantiated Pane_Farm_GPU or Win_MapReduce_GPU operator.
      */ 
     WinFarmGPU_Builder(T &_input): input(_input) {
         initWindowConf(input);
@@ -1161,7 +1412,7 @@ public:
     /** 
      *  \brief Method to specify the batch configuration
      *  
-     *  \param _batch_len number of windows in a batch (1 window executed by 1 CUDA thread)
+     *  \param _batch_len number of windows in a batch
      *  \param _n_thread_block number of threads per block
      *  \return the object itself
      */ 
@@ -1175,7 +1426,7 @@ public:
     /** 
      *  \brief Method to specify the name of the Win_Farm_GPU operator
      *  
-     *  \param _name std::string with the name to be given
+     *  \param _name string with the name to be given
      *  \return the object itself
      */ 
     WinFarmGPU_Builder<T>& withName(std::string _name)
@@ -1187,7 +1438,7 @@ public:
     /** 
      *  \brief Method to specify the size in bytes of the scratchpad memory per CUDA thread
      *  
-     *  \param _scratchpad_size size in bytes of the scratchpad memory per CUDA thread
+     *  \param _scratchpad_size size in bytes of the scratchpad area local of a CUDA thread (pre-allocated on the global memory of the GPU)
      *  \return the object itself
      */ 
     WinFarmGPU_Builder<T>& withScratchpad(size_t _scratchpad_size)
@@ -1291,7 +1542,8 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _input can be either a function or an already instantiated Pane_Farm or Win_MapReduce operator.
+     *  \param _input can be either a non-incremental/incremental window processing function or an
+     *                already instantiated Pane_Farm or Win_MapReduce operator.
      */ 
     KeyFarm_Builder(T &_input): input(_input)
     {
@@ -1345,7 +1597,7 @@ public:
     /** 
      *  \brief Method to specify the name of the Key_Farm operator
      *  
-     *  \param _name std::string with the name to be given
+     *  \param _name string with the name to be given
      *  \return the object itself
      */ 
     KeyFarm_Builder<T>& withName(std::string _name)
@@ -1408,6 +1660,145 @@ public:
     std::unique_ptr<keyfarm_t> build_unique()
     {
         return std::make_unique<keyfarm_t>(input, win_len, slide_len, triggering_delay, winType, pardegree, name, closing_func, routing_func, opt_level);
+    }
+};
+
+/** 
+ *  \class KeyFFAT_Builder
+ *  
+ *  \brief Builder of the Key_FFAT operator
+ *  
+ *  Builder class to ease the creation of the Key_FFAT operator.
+ */ 
+template<typename F_t, typename G_t>
+class KeyFFAT_Builder
+{
+private:
+    F_t lift_func;
+    G_t comb_func;
+    // type of the operator to be created by this builder
+    using keyffat_t = Key_FFAT<decltype(get_tuple_t(lift_func)),
+                             decltype(get_result_t(lift_func))>;
+    // type of the closing function
+    using closing_func_t = std::function<void(RuntimeContext&)>;
+    // type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
+    using routing_func_t = std::function<size_t(size_t, size_t)>;
+    uint64_t win_len = 1;
+    uint64_t slide_len = 1;
+    uint64_t triggering_delay = 0;
+    win_type_t winType = CB;
+    size_t pardegree = 1;
+    std::string name = "anonymous_kff";
+    routing_func_t routing_func = [](size_t k, size_t n) { return k%n; };
+    closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
+
+public:
+    /** 
+     *  \brief Constructor
+     *  
+     *  \param _lift_func the lift function to translate a tuple into a result
+     *  \param _comb_func the combine function to combine two results into a result
+     */ 
+    KeyFFAT_Builder(F_t _lift_func, G_t _comb_func): lift_func(_lift_func), comb_func(_comb_func) {}
+
+    /** 
+     *  \brief Method to specify the configuration for count-based windows
+     *  
+     *  \param _win_len window length (in no. of tuples)
+     *  \param _slide_len slide length (in no. of tuples)
+     *  \return the object itself
+     */ 
+    KeyFFAT_Builder<F_t, G_t>& withCBWindows(uint64_t _win_len, uint64_t _slide_len)
+    {
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = CB;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to specify the configuration for time-based windows
+     *  
+     *  \param _win_len window length (in microseconds)
+     *  \param _slide_len slide length (in microseconds)
+     *  \param _triggering_delay (in microseconds)
+     *  \return the object itself
+     */ 
+    KeyFFAT_Builder<F_t, G_t>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len, std::chrono::microseconds _triggering_delay=std::chrono::microseconds::zero())
+    {
+        win_len = _win_len.count();
+        slide_len = _slide_len.count();
+        triggering_delay = _triggering_delay.count();
+        winType = TB;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to specify the parallelism of the Key_FFAT operator
+     *  
+     *  \param _pardegree number of replicas
+     *  \return the object itself
+     */ 
+    KeyFFAT_Builder<F_t, G_t>& withParallelism(size_t _pardegree)
+    {
+        pardegree = _pardegree;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to specify the name of the Key_FFAT operator
+     *  
+     *  \param _name string with the name to be given
+     *  \return the object itself
+     */ 
+    KeyFFAT_Builder<F_t, G_t>& withName(std::string _name)
+    {
+        name = _name;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to specify the closing function used by the operator
+     *  
+     *  \param _closing_func closing function to be used by the operator
+     *  \return the object itself
+     */ 
+    KeyFFAT_Builder<F_t, G_t>& withClosingFunction(closing_func_t _closing_func)
+    {
+        closing_func = _closing_func;
+        return *this;
+    }
+
+#if __cplusplus >= 201703L
+    /** 
+     *  \brief Method to create the Key_FFAT operator (only C++17)
+     *  
+     *  \return a copy of the created Key_Farm operator
+     */ 
+    keyffat_t build()
+    {
+        return keyffat_t(lift_func, comb_func, win_len, slide_len, triggering_delay, winType, pardegree, name, closing_func, routing_func); // copy elision in C++17
+    }
+#endif
+
+    /** 
+     *  \brief Method to create the Key_FFAT operator
+     *  
+     *  \return a pointer to the created Key_FFAT operator (to be explicitly deallocated/destroyed)
+     */ 
+    keyffat_t *build_ptr()
+    {
+        return new keyffat_t(lift_func, comb_func, win_len, slide_len, triggering_delay, winType, pardegree, name, closing_func, routing_func);
+    }
+
+    /** 
+     *  \brief Method to create the Key_FFAT operator
+     *  
+     *  \return a unique_ptr to the created Key_FFAT operator
+     */ 
+    std::unique_ptr<keyffat_t> build_unique()
+    {
+        return std::make_unique<keyffat_t>(lift_func, comb_func, win_len, slide_len, triggering_delay, winType, pardegree, name, closing_func, routing_func);
     }
 };
 
@@ -1479,7 +1870,8 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _input can be either a host/device function or an already instantiated Pane_Farm_GPU or Win_MapReduce_GPU operator.
+     *  \param _input can be either a non-incremental window processing function (__host__ __device__ function) or an
+     *                already instantiated Pane_Farm_GPU or Win_MapReduce_GPU operator.
      */ 
     KeyFarmGPU_Builder(T &_input): input(_input) {
         initWindowConf(input);
@@ -1532,7 +1924,7 @@ public:
     /** 
      *  \brief Method to specify the batch configuration
      *  
-     *  \param _batch_len number of windows in a batch (1 window executed by 1 CUDA thread)
+     *  \param _batch_len number of windows in a batch
      *  \param _n_thread_block number of threads per block
      *  \return the object itself
      */ 
@@ -1546,7 +1938,7 @@ public:
     /** 
      *  \brief Method to specify the name of the Key_Farm_GPU operator
      *  
-     *  \param _name std::string with the name to be given
+     *  \param _name string with the name to be given
      *  \return the object itself
      */ 
     KeyFarmGPU_Builder<T>& withName(std::string _name)
@@ -1558,7 +1950,7 @@ public:
     /** 
      *  \brief Method to specify the size in bytes of the scratchpad memory per CUDA thread
      *  
-     *  \param _scratchpad_size size in bytes of the scratchpad memory per CUDA thread
+     *  \param _scratchpad_size size in bytes of the scratchpad area local of a CUDA thread (pre-allocated on the global memory of the GPU)
      *  \return the object itself
      */ 
     KeyFarmGPU_Builder<T>& withScratchpad(size_t _scratchpad_size)
@@ -1601,6 +1993,149 @@ public:
 };
 
 /** 
+ *  \class KeyFFATGPU_Builder
+ *  
+ *  \brief Builder of the Key_FFAT_GPU operator
+ *  
+ *  Builder class to ease the creation of the Key_FFFAT_GPU operator.
+ */ 
+template<typename F_t, typename G_t>
+class KeyFFATGPU_Builder
+{
+private:
+    F_t lift_func;
+    G_t comb_func;
+    // type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
+    using routing_func_t = std::function<size_t(size_t, size_t)>;
+    // type of the operator to be created by this builder
+    using keyffat_gpu_t = Key_FFAT_GPU<decltype(get_tuple_t(lift_func)),
+                                       decltype(get_result_t(lift_func)),
+                                       decltype(comb_func)>;
+    uint64_t win_len = 1;
+    uint64_t slide_len = 1;
+    uint64_t triggering_delay = 0;
+    win_type_t winType = CB;
+    size_t pardegree = 1;
+    size_t batch_len = 1;
+    size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
+    bool rebuild = false;
+    std::string name = "anonymous_kff_gpu";
+    routing_func_t routing_func = [](size_t k, size_t n) { return k%n; };
+
+public:
+    /** 
+     *  \brief Constructor
+     *  
+     *  \param _lift_func the lift function to translate a tuple into a result
+     *  \param _comb_func the combine function to combine two results into a result (__host__ __device__ function)
+     */ 
+    KeyFFATGPU_Builder(F_t _lift_func, G_t _comb_func): lift_func(_lift_func), comb_func(_comb_func) {}
+
+    /** 
+     *  \brief Method to specify the configuration for count-based windows
+     *  
+     *  \param _win_len window length (in no. of tuples)
+     *  \param _slide_len slide length (in no. of tuples)
+     *  \return the object itself
+     */ 
+    KeyFFATGPU_Builder<F_t, G_t>& withCBWindows(uint64_t _win_len, uint64_t _slide_len)
+    {
+        win_len = _win_len;
+        slide_len = _slide_len;
+        winType = CB;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to specify the configuration for time-based windows
+     *  
+     *  \param _win_len window length (in microseconds)
+     *  \param _slide_len slide length (in microseconds)
+     *  \param _triggering_delay (in microseconds)
+     *  \return the object itself
+     */ 
+    KeyFFATGPU_Builder<F_t, G_t>& withTBWindows(std::chrono::microseconds _win_len, std::chrono::microseconds _slide_len, std::chrono::microseconds _triggering_delay=std::chrono::microseconds::zero())
+    {
+        win_len = _win_len.count();
+        slide_len = _slide_len.count();
+        triggering_delay = _triggering_delay.count();
+        winType = TB;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to specify the parallelism of the Key_FFAT_GPU operator
+     *  
+     *  \param _pardegree number of replicas
+     *  \return the object itself
+     */ 
+    KeyFFATGPU_Builder<F_t, G_t>& withParallelism(size_t _pardegree)
+    {
+        pardegree = _pardegree;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to specify the batch configuration
+     *  
+     *  \param _batch_len number of windows in a batch
+     *  \param _n_thread_block number of threads per block
+     *  \return the object itself
+     */ 
+    KeyFFATGPU_Builder<F_t, G_t>& withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_CUDA_NUM_THREAD_BLOCK)
+    {
+        batch_len = _batch_len;
+        n_thread_block = _n_thread_block;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to specify the name of the Key_FFAT_GPU operator
+     *  
+     *  \param _name string with the name to be given
+     *  \return the object itself
+     */ 
+    KeyFFATGPU_Builder<F_t, G_t>& withName(std::string _name)
+    {
+        name = _name;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to specify if the FlatFAT_GPU must recomputed from scratch for each batch
+     *  
+     *  \param _rebuild if true the FlatFAT_GPU structure is rebuilt for each batch (it is updated otherwise)
+     *  \return the object itself
+     */ 
+    KeyFFATGPU_Builder<F_t, G_t>& withRebuild(bool _rebuild)
+    {
+        rebuild = _rebuild;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to create the Key_FFAT_GPU operator
+     *  
+     *  \return a pointer to the created Key_FFAT_GPU operator (to be explicitly deallocated/destroyed)
+     */ 
+    keyffat_gpu_t *build_ptr()
+    {
+        return new keyffat_gpu_t(lift_func, comb_func, win_len, slide_len, triggering_delay, winType, pardegree, batch_len, n_thread_block, rebuild, name, routing_func);
+    }
+
+    /** 
+     *  \brief Method to create the Key_FFAT_GPU operator
+     *  
+     *  \return a unique_ptr to the created Key_FFAT_GPU operator
+     */ 
+    std::unique_ptr<keyffat_gpu_t> build_unique()
+    {
+        return std::make_unique<keyffat_gpu_t>(lift_func, comb_func, win_len, slide_len, triggering_delay, winType, pardegree, batch_len, n_thread_block, rebuild, name, routing_func);
+    }
+};
+
+
+/** 
  *  \class PaneFarm_Builder
  *  
  *  \brief Builder of the Pane_Farm operator
@@ -1631,8 +2166,8 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _func_F non-incremental/incremental function for the PLQ stage
-     *  \param _func_G non-incremental/incremental function for the WLQ stage
+     *  \param _func_F the non-incremental/incremental pane procesing function (PLQ)
+     *  \param _func_G the non-incremental/incremental window processing function (PLQ)
      */ 
     PaneFarm_Builder(F_t _func_F, G_t _func_G): func_F(_func_F), func_G(_func_G) {}
 
@@ -1685,7 +2220,7 @@ public:
     /** 
      *  \brief Method to specify the name of the Pane_Farm operator
      *  
-     *  \param _name std::string with the name to be given
+     *  \param _name string with the name to be given
      *  \return the object itself
      */ 
     PaneFarm_Builder<F_t, G_t>& withName(std::string _name)
@@ -1792,12 +2327,12 @@ private:
 
 public:
     /** 
-     *  \brief Constructor
+     *  \brief Constructor (only one of the two functions can be __host__ __device__)
      *  
-     *  \param _func_F host or host/device function for the PLQ stage
-     *  \param _func_G host or host/device function for the WLQ stage
+     *  \param _func_F the pane procesing function (PLQ)
+     *  \param _func_G the window processing function (PLQ)
      *  \note
-     *  The GPU function must be passed through a callable object (e.g., lambda, functor)
+     *  The __host__ __device__ function must be passed through a callable object (e.g., lambda, functor)
      */ 
     PaneFarmGPU_Builder(F_t _func_F, G_t _func_G): func_F(_func_F), func_G(_func_G) {}
 
@@ -1850,7 +2385,7 @@ public:
     /** 
      *  \brief Method to specify the batch configuration
      *  
-     *  \param _batch_len number of windows in a batch (1 window executed by 1 CUDA thread)
+     *  \param _batch_len number of panes/windows in a batch
      *  \param _n_thread_block number of threads per block
      *  \return the object itself
      */ 
@@ -1864,7 +2399,7 @@ public:
     /** 
      *  \brief Method to specify the name of the Pane_Farm_GPU operator
      *  
-     *  \param _name std::string with the name to be given
+     *  \param _name string with the name to be given
      *  \return the object itself
      */ 
     PaneFarmGPU_Builder<F_t, G_t>& withName(std::string _name)
@@ -1876,7 +2411,7 @@ public:
     /** 
      *  \brief Method to specify the size in bytes of the scratchpad memory per CUDA thread
      *  
-     *  \param _scratchpad_size size in bytes of the scratchpad memory per CUDA thread
+     *  \param _scratchpad_size size in bytes of the scratchpad area local of a CUDA thread (pre-allocated on the global memory of the GPU)
      *  \return the object itself
      */ 
     PaneFarmGPU_Builder<F_t, G_t>& withScratchpad(size_t _scratchpad_size)
@@ -1961,8 +2496,8 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _func_F non-incremental/incremental function for the MAP stage
-     *  \param _func_G non-incremental/incremental function for the REDUCE stage
+     *  \param _func_F the non-incremental/incremental window map function (MAP)
+     *  \param _func_G the non-incremental/incremental window reduce function (REDUCE)
      */ 
     WinMapReduce_Builder(F_t _func_F, G_t _func_G): func_F(_func_F), func_G(_func_G) {}
 
@@ -2015,7 +2550,7 @@ public:
     /** 
      *  \brief Method to specify the name of the Win_MapReduce operator
      *  
-     *  \param _name std::string with the name to be given
+     *  \param _name string with the name to be given
      *  \return the object itself
      */ 
     WinMapReduce_Builder<F_t, G_t>& withName(std::string _name)
@@ -2122,12 +2657,12 @@ private:
 
 public:
     /** 
-     *  \brief Constructor
+     *  \brief Constructor (only one of the two functions can be __host__ __device__)
      *  
-     *  \param _func_F host or host/device function for the MAP stage
-     *  \param _func_G host or host/device function for the REDUCE stage
+     *  \param _func_F the window map function (MAP)
+     *  \param _func_G the window reduce function (REDUCE)
      *  \note
-     *  The GPU function must be passed through a callable object (e.g., lambda, functor)
+     *  The __host__ __device__ function must be passed through a callable object (e.g., lambda, functor)
      */ 
     WinMapReduceGPU_Builder(F_t _func_F, G_t _func_G): func_F(_func_F), func_G(_func_G) {}
 
@@ -2180,7 +2715,7 @@ public:
     /** 
      *  \brief Method to specify the batch configuration
      *  
-     *  \param _batch_len number of windows in a batch (1 window executed by 1 CUDA thread)
+     *  \param _batch_len number of partitions/windows in a batch
      *  \param _n_thread_block number of threads per block
      *  \return the object itself
      */ 
@@ -2194,7 +2729,7 @@ public:
     /** 
      *  \brief Method to specify the name of the Win_MapReduce_GPU operator
      *  
-     *  \param _name std::string with the name to be given
+     *  \param _name string with the name to be given
      *  \return the object itself
      */ 
     WinMapReduceGPU_Builder<F_t, G_t>& withName(std::string _name)
@@ -2206,7 +2741,7 @@ public:
     /** 
      *  \brief Method to specify the size in bytes of the scratchpad memory per CUDA thread
      *  
-     *  \param _scratchpad_size size in bytes of the scratchpad memory per CUDA thread
+     *  \param _scratchpad_size size in bytes of the scratchpad area local of a CUDA thread (pre-allocated on the global memory of the GPU)
      *  \return the object itself
      */ 
     WinMapReduceGPU_Builder<F_t, G_t>& withScratchpad(size_t _scratchpad_size)
@@ -2294,7 +2829,7 @@ public:
     /** 
      *  \brief Method to specify the name of the Sink operator
      *  
-     *  \param _name std::string with the name to be given
+     *  \param _name string with the name to be given
      *  \return the object itself
      */ 
     Sink_Builder<F_t>& withName(std::string _name)

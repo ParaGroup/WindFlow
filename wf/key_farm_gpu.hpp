@@ -59,7 +59,7 @@ namespace wf {
 /** 
  *  \class Key_Farm_GPU
  *  
- *  \brief Key_Farm_GPU operator executing a windowed transformation in parallel on a CPU+GPU system
+ *  \brief Key_Farm_GPU operator executing a windowed query in parallel on a CPU+GPU system
  *  
  *  This class implements the Key_Farm_GPU operator. The operator prepares in parallel distinct
  *  batches of tuples (on the CPU cores) and offloads the processing of the batches on the GPU
@@ -70,12 +70,12 @@ template<typename tuple_t, typename result_t, typename win_F_t>
 class Key_Farm_GPU: public ff::ff_farm
 {
 public:
-    /// function type to map the key hashcode onto an identifier starting from zero to pardegree-1
-    using routing_func_t = std::function<size_t(size_t, size_t)>;
     /// type of the Pane_Farm_GPU passed to the proper nesting Constructor
     using pane_farm_gpu_t = Pane_Farm_GPU<tuple_t, result_t, win_F_t>;
     /// type of the Win_MapReduce_GPU passed to the proper nesting Constructor
     using win_mapreduce_gpu_t = Win_MapReduce_GPU<tuple_t, result_t, win_F_t>;
+    /// function type to map the key hashcode onto an identifier starting from zero to pardegree-1
+    using routing_func_t = std::function<size_t(size_t, size_t)>;
 
 private:
     // type of the wrapper of input tuples
@@ -106,6 +106,7 @@ private:
     // window type (CB or TB)
     win_type_t winType;
     bool used; // true if the operator has been added/chained in a MultiPipe
+    std::vector<ff_node *> kf_workers; // vector of pointers to the Key_Farm_GPU workers
 
     // method to optimize the structure of the Key_Farm_GPU operator
     void optimize_KeyFarmGPU(opt_level_t opt)
@@ -145,16 +146,16 @@ public:
     /** 
      *  \brief Constructor I
      *  
-     *  \param _win_func the non-incremental window processing function (CPU/GPU function)
+     *  \param _win_func the non-incremental window processing function (__host__ __device__ function)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _pardegree parallelism degree of the Key_Farm_GPU operator
-     *  \param _batch_len no. of windows in a batch (i.e. 1 window mapped onto 1 CUDA thread)
-     *  \param _n_thread_block number of threads (i.e. windows) per block
-     *  \param _name std::string with the unique name of the operator
-     *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
+     *  \param _batch_len no. of windows in a batch
+     *  \param _n_thread_block number of threads per block
+     *  \param _name string with the unique name of the operator
+     *  \param _scratchpad_size size in bytes of the scratchpad area local of a CUDA thread (pre-allocated on the global memory of the GPU)
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the operator
      */ 
@@ -206,6 +207,7 @@ public:
         for (size_t i = 0; i < _pardegree; i++) {
             auto *seq = new win_seq_gpu_t(_win_func, _win_len, _slide_len, _triggering_delay, _winType, _batch_len, _n_thread_block, _name + "_kf", _scratchpad_size);
             w[i] = seq;
+            kf_workers.push_back(seq);
         }
         ff::ff_farm::add_workers(w);
         ff::ff_farm::add_collector(nullptr);
@@ -224,10 +226,10 @@ public:
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _pardegree parallelism degree of the Key_Farm_GPU operator
-     *  \param _batch_len no. of windows in a batch (i.e. 1 window mapped onto 1 CUDA thread)
-     *  \param _n_thread_block number of threads (i.e. windows) per block
-     *  \param _name std::string with the unique name of the operator
-     *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
+     *  \param _batch_len no. of windows in a batch
+     *  \param _n_thread_block number of threads per block
+     *  \param _name string with the unique name of the operator
+     *  \param _scratchpad_size size in bytes of the scratchpad area local of a CUDA thread (pre-allocated on the global memory of the GPU)
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the operator
      */ 
@@ -286,7 +288,7 @@ public:
         // create the Pane_Farm_GPU starting from the passed one
         for (size_t i = 0; i < _pardegree; i++) {
             // configuration structure of the Pane_Farm_GPU
-            PatternConfig configPF(0, 1, _slide_len, 0, 1, _slide_len);
+            OperatorConfig configPF(0, 1, _slide_len, 0, 1, _slide_len);
             // create the correct Pane_Farm_GPU
             pane_farm_gpu_t *pf_W = nullptr;
             if (_pf.isGPUPLQ) {
@@ -302,6 +304,7 @@ public:
                     pf_W = new pane_farm_gpu_t(_pf.plqupdate_func, _pf.gpuFunction, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_kf_" + std::to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
             }
             w[i] = pf_W;
+            kf_workers.push_back(pf_W);
         }
         ff::ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
@@ -322,10 +325,10 @@ public:
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _pardegree parallelism degree of the Key_Farm_GPU operator
-     *  \param _batch_len no. of windows in a batch (i.e. 1 window mapped onto 1 CUDA thread)
-     *  \param _n_thread_block number of threads (i.e. windows) per block
-     *  \param _name std::string with the unique name of the operator
-     *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
+     *  \param _batch_len no. of windows in a batch
+     *  \param _n_thread_block number of threads per block
+     *  \param _name string with the unique name of the operator
+     *  \param _scratchpad_size size in bytes of the scratchpad area local of a CUDA thread (pre-allocated on the global memory of the GPU)
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the operator
      */ 
@@ -384,7 +387,7 @@ public:
         // create the Win_MapReduce_GPU starting from the passed one
         for (size_t i = 0; i < _pardegree; i++) {
             // configuration structure of the Win_MapReduce_GPU
-            PatternConfig configWM(0, 1, _slide_len, 0, 1, _slide_len);
+            OperatorConfig configWM(0, 1, _slide_len, 0, 1, _slide_len);
             // create the correct Win_MapReduce_GPU
             win_mapreduce_gpu_t *wm_W = nullptr;
             if (_wm.isGPUMAP) {
@@ -400,6 +403,7 @@ public:
                     wm_W = new win_mapreduce_gpu_t(_wm.mapupdate_func, _wm.gpuFunction, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_kf_" + std::to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
             }
             w[i] = wm_W;
+            kf_workers.push_back(wm_W);
         }
         ff::ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
@@ -483,9 +487,40 @@ public:
         return used;
     }
 
+    /** 
+     *  \brief Get the number of dropped tuples by the Key_Farm_GPU
+     *  \return number of tuples dropped during the processing by the Key_Farm_GPU
+     */ 
+    size_t getNumDroppedTuples() const
+    {
+        size_t count = 0;
+        if (this->getInnerType() == SEQ_GPU) {
+            for (auto *w: kf_workers) {
+                auto *seq = static_cast<win_seq_gpu_t *>(w);
+                count += seq->getNumDroppedTuples();
+            }
+        }
+        else if (this->getInnerType() == PF_GPU) {
+            for (auto *w: kf_workers) {
+                auto *pf = static_cast<pane_farm_gpu_t *>(w);
+                count += pf->getNumDroppedTuples();
+            }
+        }
+        else if (this->getInnerType() == WMR_GPU) {
+            for (auto *w: kf_workers) {
+                auto *wmr = static_cast<win_mapreduce_gpu_t *>(w);
+                count += wmr->getNumDroppedTuples();
+            }
+        }
+        else {
+            abort();
+        }
+        return count;
+    }
+
     /// deleted constructors/operators
     Key_Farm_GPU(const Key_Farm_GPU &) = delete; // copy constructor
-    //Key_Farm_GPU(Key_Farm_GPU &&) = delete; // move constructor
+    Key_Farm_GPU(Key_Farm_GPU &&) = delete; // move constructor
     Key_Farm_GPU &operator=(const Key_Farm_GPU &) = delete; // copy assignment operator
     Key_Farm_GPU &operator=(Key_Farm_GPU &&) = delete; // move assignment operator
 };

@@ -19,7 +19,7 @@
  *  @author  Gabriele Mencagli
  *  @date    17/10/2017
  *  
- *  @brief Pane_Farm operator executing a windowed transformation in parallel
+ *  @brief Pane_Farm operator executing a windowed query in parallel
  *         on multi-core CPUs
  *  
  *  @section Pane_Farm (Description)
@@ -45,14 +45,14 @@
 #include <ff/farm.hpp>
 #include <win_farm.hpp>
 #include <basic.hpp>
-#include <meta_utils.hpp>
+#include <meta.hpp>
 
 namespace wf {
 
 /** 
  *  \class Pane_Farm
  *  
- *  \brief Pane_Farm operator executing a windowed transformation in parallel on multi-core CPUs
+ *  \brief Pane_Farm operator executing a windowed query in parallel on multi-core CPUs
  *  
  *  This class implements the Pane_Farm operator executing windowed queries in parallel on
  *  a multicore. The operator processes (possibly in parallel) panes in the PLQ stage while
@@ -93,15 +93,6 @@ private:
     template<typename T>
     friend class KeyFarm_Builder;
     friend class MultiPipe;
-    // compute the gcd between two numbers
-    std::function<uint64_t(uint64_t, uint64_t)> gcd = [](uint64_t u, uint64_t v) {
-        while (v != 0) {
-            unsigned long r = u % v;
-            u = v;
-            v = r;
-        }
-        return u;
-    };
     // configuration variables of the Pane_Farm
     plq_func_t plq_func;
     rich_plq_func_t rich_plq_func;
@@ -125,9 +116,10 @@ private:
     std::string name;
     bool ordered;
     opt_level_t opt_level;
-    PatternConfig config;
+    OperatorConfig config;
     bool used; // true if the operator has been added/chained in a MultiPipe
     bool used4Nesting; // true if the operator has been used in a nested structure
+    ff_node *plq; // pointer to the PLQ stage
 
     // Private Constructor
     template<typename F_t, typename G_t>
@@ -143,7 +135,7 @@ private:
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level,
-              PatternConfig _config):
+              OperatorConfig _config):
               win_len(_win_len),
               slide_len(_slide_len),
               triggering_delay(_triggering_delay),
@@ -154,7 +146,7 @@ private:
               closing_func(_closing_func),
               ordered(_ordered),
               opt_level(_opt_level),
-              config(PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+              config(OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -178,26 +170,28 @@ private:
         // create the first stage PLQ (Pane Level Query)
         if (_plq_degree > 1) {
             // configuration structure of the Win_Farm (PLQ)
-            PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
+            OperatorConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_func_PLQ, _pane_len, _pane_len, _triggering_delay, _winType, _plq_degree, _name + "_plq", _closing_func, true, LEVEL0, configWFPLQ, PLQ);
             plq_stage = plq_wf;
+            plq = plq_wf;
         }
         else {
             // configuration structure of the Win_Seq (PLQ)
-            PatternConfig configSeqPLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _pane_len);
+            OperatorConfig configSeqPLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _pane_len);
             auto *plq_seq = new Win_Seq<tuple_t, result_t, input_t>(_func_PLQ, _pane_len, _pane_len, _triggering_delay, _winType, _name + "_plq", _closing_func, RuntimeContext(1, 0), configSeqPLQ, PLQ);
             plq_stage = plq_seq;
+            plq = plq_seq;
         }
         // create the second stage WLQ (Window Level Query)
         if (_wlq_degree > 1) {
             // configuration structure of the Win_Farm (WLQ)
-            PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
+            OperatorConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *wlq_wf = new Win_Farm<result_t, result_t>(_func_WLQ, (_win_len/_pane_len), (_slide_len/_pane_len), 0, CB, _wlq_degree, _name + "_wlq", _closing_func, _ordered, LEVEL0, configWFWLQ, WLQ);
             wlq_stage = wlq_wf;
         }
         else {
             // configuration structure of the Win_Seq (WLQ)
-            PatternConfig configSeqWLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, (_slide_len/_pane_len));
+            OperatorConfig configSeqWLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, (_slide_len/_pane_len));
             auto *wlq_seq = new Win_Seq<result_t, result_t>(_func_WLQ, (_win_len/_pane_len), (_slide_len/_pane_len), 0, CB, _name + "_wlq", _closing_func, RuntimeContext(1, 0), configSeqWLQ, WLQ);
             wlq_stage = wlq_seq;
         }
@@ -255,6 +249,16 @@ private:
         }
     }
 
+    // function to compute the gcd (std::gcd is available only in C++17)
+    uint64_t gcd(uint64_t u, uint64_t v) {
+        while (v != 0) {
+            unsigned long r = u % v;
+            u = v;
+            v = r;
+        }
+        return u;
+    };
+
 public:
     /** 
      *  \brief Constructor I
@@ -267,7 +271,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -284,7 +288,7 @@ public:
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
-              Pane_Farm(_plq_func, _wlq_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+              Pane_Farm(_plq_func, _wlq_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         plq_func = _plq_func;
         wlq_func = _wlq_func;
@@ -307,7 +311,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -324,7 +328,7 @@ public:
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
-              Pane_Farm(_rich_plq_func, _wlq_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+              Pane_Farm(_rich_plq_func, _wlq_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         rich_plq_func = _rich_plq_func;
         wlq_func = _wlq_func;
@@ -347,7 +351,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -364,7 +368,7 @@ public:
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
-              Pane_Farm(_plq_func, _rich_wlq_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+              Pane_Farm(_plq_func, _rich_wlq_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         plq_func = _plq_func;
         rich_wlq_func = _rich_wlq_func;
@@ -387,7 +391,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -404,7 +408,7 @@ public:
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
-              Pane_Farm(_rich_plq_func, _rich_wlq_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+              Pane_Farm(_rich_plq_func, _rich_wlq_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         rich_plq_func = _rich_plq_func;
         rich_wlq_func = _rich_wlq_func;
@@ -427,7 +431,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -444,7 +448,7 @@ public:
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
-              Pane_Farm(_plqupdate_func, _wlqupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+              Pane_Farm(_plqupdate_func, _wlqupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         plqupdate_func = _plqupdate_func;
         wlqupdate_func = _wlqupdate_func;
@@ -467,7 +471,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -484,7 +488,7 @@ public:
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
-              Pane_Farm(_rich_plqupdate_func, _wlqupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+              Pane_Farm(_rich_plqupdate_func, _wlqupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         rich_plqupdate_func = _rich_plqupdate_func;
         wlqupdate_func = _wlqupdate_func;
@@ -507,7 +511,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -524,7 +528,7 @@ public:
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
-              Pane_Farm(_plqupdate_func, _rich_wlqupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+              Pane_Farm(_plqupdate_func, _rich_wlqupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         plqupdate_func = _plqupdate_func;
         rich_wlqupdate_func = _rich_wlqupdate_func;
@@ -547,7 +551,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -564,7 +568,7 @@ public:
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
-              Pane_Farm(_rich_plqupdate_func, _rich_wlqupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+              Pane_Farm(_rich_plqupdate_func, _rich_wlqupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         rich_plqupdate_func = rich_plqupdate_func;
         rich_wlqupdate_func = _rich_wlqupdate_func;
@@ -587,7 +591,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -604,7 +608,7 @@ public:
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
-              Pane_Farm(_plq_func, _wlqupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+              Pane_Farm(_plq_func, _wlqupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         plq_func = _plq_func;
         wlqupdate_func = _wlqupdate_func;
@@ -627,7 +631,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -644,7 +648,7 @@ public:
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
-              Pane_Farm(_rich_plq_func, _wlqupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+              Pane_Farm(_rich_plq_func, _wlqupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         rich_plq_func = _rich_plq_func;
         wlqupdate_func = _wlqupdate_func;
@@ -667,7 +671,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -684,7 +688,7 @@ public:
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
-              Pane_Farm(_plq_func, _rich_wlqupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+              Pane_Farm(_plq_func, _rich_wlqupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         plq_func = _plq_func;
         rich_wlqupdate_func = _rich_wlqupdate_func;
@@ -707,7 +711,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -724,7 +728,7 @@ public:
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
-              Pane_Farm(_rich_plq_func, _rich_wlqupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+              Pane_Farm(_rich_plq_func, _rich_wlqupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         rich_plq_func = _rich_plq_func;
         rich_wlqupdate_func = _rich_wlqupdate_func;
@@ -747,7 +751,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -764,7 +768,7 @@ public:
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
-              Pane_Farm(_plqupdate_func, _wlq_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+              Pane_Farm(_plqupdate_func, _wlq_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         plqupdate_func = _plqupdate_func;
         wlq_func = _wlq_func;
@@ -787,7 +791,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -804,7 +808,7 @@ public:
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
-              Pane_Farm(_rich_plqupdate_func, _wlq_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+              Pane_Farm(_rich_plqupdate_func, _wlq_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         rich_plqupdate_func = _rich_plqupdate_func;
         wlq_func = _wlq_func;
@@ -827,7 +831,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -844,7 +848,7 @@ public:
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
-              Pane_Farm(_plqupdate_func, _rich_wlq_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+              Pane_Farm(_plqupdate_func, _rich_wlq_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         plqupdate_func = _plqupdate_func;
         rich_wlq_func = _rich_wlq_func;
@@ -867,7 +871,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -884,7 +888,7 @@ public:
               closing_func_t _closing_func,
               bool _ordered,
               opt_level_t _opt_level):
-              Pane_Farm(_rich_plqupdate_func, _rich_wlq_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+              Pane_Farm(_rich_plqupdate_func, _rich_wlq_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         rich_plqupdate_func = _rich_plqupdate_func;
         rich_wlq_func = _rich_wlq_func;
@@ -948,6 +952,24 @@ public:
     bool isUsed4Nesting() const
     {
         return used4Nesting;
+    }
+
+    /** 
+     *  \brief Get the number of dropped tuples by the Pane_Farm
+     *  \return number of tuples dropped during the processing by the Pane_Farm
+     */ 
+    size_t getNumDroppedTuples() const
+    {
+        size_t count = 0;
+        if (plq_degree == 1) {
+            auto *seq = static_cast<Win_Seq<tuple_t, result_t, input_t> *>(plq);
+            count += seq->getNumDroppedTuples();
+        }
+        else {
+            auto *wf = static_cast<Win_Farm<tuple_t, result_t, input_t> *>(plq);
+            count += wf->getNumDroppedTuples();
+        }
+        return count;
     }
 
     /// deleted constructors/operators

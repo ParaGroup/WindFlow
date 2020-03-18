@@ -26,9 +26,9 @@
  *  This file implements the Filter operator able to drop all the input items that do not
  *  respect a given predicate given by the user.
  *  
- *  The template parameter tuple_t must be default constructible, with a copy constructor
- *  and copy assignment operator, and it must provide and implement the setControlFields()
- *  and getControlFields() methods.
+ *  The template parameters tuple_t and result_t must be default constructible, with
+ *  a copy constructor and copy assignment operator, and they must provide and implement
+ *  the setControlFields() and getControlFields() methods.
  */ 
 
 #ifndef FILTER_H
@@ -54,14 +54,22 @@ namespace wf {
  *  This class implements the Filter operator applying a given predicate to all the input
  *  items and dropping out all of them for which the predicate evaluates to false.
  */ 
-template<typename tuple_t>
+template<typename tuple_t, typename result_t>
 class Filter: public ff::ff_farm
 {
 public:
-    /// type of the predicate function
+    /// type of the predicate function (with boolean return type)
     using filter_func_t = std::function<bool(tuple_t &)>;
-    /// type of the rich predicate function
+    /// type of the rich predicate function (with boolean return type)
     using rich_filter_func_t = std::function<bool(tuple_t &, RuntimeContext &)>;
+    /// type of the predicate function (with optional return type)
+    using filter_func_opt_t = std::function<std::optional<result_t>(const tuple_t &)>;
+    /// type of the rich predicate function (with optional return type)
+    using rich_filter_func_opt_t = std::function<std::optional<result_t>(const tuple_t &, RuntimeContext &)>;
+    /// type of the predicate function (with optional return type containing a pointer)
+    using filter_func_optptr_t = std::function<std::optional<result_t *>(const tuple_t &)>;
+    /// type of the rich predicate function (with optional return type containing a pointer)
+    using rich_filter_func_optptr_t = std::function<std::optional<result_t *>(const tuple_t &, RuntimeContext &)>;
     /// type of the closing function
     using closing_func_t = std::function<void(RuntimeContext &)>;
     /// type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
@@ -73,13 +81,18 @@ private:
     bool used; // true if the operator has been added/chained in a MultiPipe
     bool keyed; // flag stating whether the Filter is configured with keyBy or not
     // class Filter_Node
-    class Filter_Node: public ff::ff_node_t<tuple_t>
+    class Filter_Node: public ff::ff_node_t<tuple_t, result_t>
     {
 private:
-        filter_func_t filter_func; // filter function (predicate)
-        rich_filter_func_t rich_filter_func; // rich filter function (predicate)
+        filter_func_t filter_func; // filter function (with boolean return type)
+        rich_filter_func_t rich_filter_func; // rich filter function (with boolean return type)
+        filter_func_opt_t filter_func_opt; // filter function (with optional return type)
+        rich_filter_func_opt_t rich_filter_func_opt; // rich filter function (with optional return type)
+        filter_func_optptr_t filter_func_optptr; // filter function (with optional return type containing a pointer)
+        rich_filter_func_optptr_t rich_filter_func_optptr; // rich filter function (with optional return type containing a pointer)
         closing_func_t closing_func; // closing function
         std::string name; // string of the unique name of the operator
+        size_t isOPT; // 0 = function returning a boolean, 1 = function returning an optional, 2 = function returning an optional containing a pointer
         bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
         RuntimeContext context; // RuntimeContext
 #if defined(TRACE_WINDFLOW)
@@ -92,24 +105,85 @@ private:
 
 public:
         // Constructor I
-        Filter_Node(filter_func_t _filter_func,
-                    std::string _name,
+        template<typename T=std::string>
+        Filter_Node(typename std::enable_if<std::is_same<T,T>::value && std::is_same<tuple_t,result_t>::value, filter_func_t>::type _filter_func,
+                    T _name,
                     RuntimeContext _context,
                     closing_func_t _closing_func):
                     filter_func(_filter_func),
                     name(_name),
+                    isOPT(0),
                     isRich(false),
                     context(_context),
                     closing_func(_closing_func)
         {}
 
         // Constructor II
-        Filter_Node(rich_filter_func_t _rich_filter_func, 
-                    std::string _name,
+        template<typename T=std::string>
+        Filter_Node(typename std::enable_if<std::is_same<T,T>::value && std::is_same<tuple_t,result_t>::value, rich_filter_func_t>::type _rich_filter_func,
+                    T _name,
                     RuntimeContext _context,
                     closing_func_t _closing_func):
                     rich_filter_func(_rich_filter_func),
-                    name(_name), isRich(true),
+                    name(_name),
+                    isOPT(0),
+                    isRich(true),
+                    context(_context),
+                    closing_func(_closing_func)
+        {}
+
+        // Constructor III
+        template<typename T=std::string>
+        Filter_Node(typename std::enable_if<std::is_same<T,T>::value && !std::is_same<tuple_t,result_t>::value, filter_func_opt_t>::type _filter_func_opt,
+                    T _name,
+                    RuntimeContext _context,
+                    closing_func_t _closing_func):
+                    filter_func_opt(_filter_func_opt),
+                    name(_name),
+                    isOPT(1),
+                    isRich(false),
+                    context(_context),
+                    closing_func(_closing_func)
+        {}
+
+        // Constructor IV
+        template<typename T=std::string>
+        Filter_Node(typename std::enable_if<std::is_same<T,T>::value && !std::is_same<tuple_t,result_t>::value, rich_filter_func_opt_t>::type _rich_filter_func_opt,
+                    T _name,
+                    RuntimeContext _context,
+                    closing_func_t _closing_func):
+                    rich_filter_func_opt(_rich_filter_func_opt),
+                    name(_name),
+                    isOPT(1),
+                    isRich(true),
+                    context(_context),
+                    closing_func(_closing_func)
+        {}
+
+        // Constructor V
+        template<typename T=std::string>
+        Filter_Node(typename std::enable_if<std::is_same<T,T>::value && !std::is_same<tuple_t,result_t>::value, filter_func_optptr_t>::type _filter_func_optptr,
+                    T _name,
+                    RuntimeContext _context,
+                    closing_func_t _closing_func):
+                    filter_func_optptr(_filter_func_optptr),
+                    name(_name),
+                    isOPT(2),
+                    isRich(false),
+                    context(_context),
+                    closing_func(_closing_func)
+        {}
+
+        // Constructor VI
+        template<typename T=std::string>
+        Filter_Node(typename std::enable_if<std::is_same<T,T>::value && !std::is_same<tuple_t,result_t>::value, rich_filter_func_optptr_t>::type _rich_filter_func_optptr,
+                    T _name,
+                    RuntimeContext _context,
+                    closing_func_t _closing_func):
+                    rich_filter_func_optptr(_rich_filter_func_optptr),
+                    name(_name),
+                    isOPT(2),
+                    isRich(true),
                     context(_context),
                     closing_func(_closing_func)
         {}
@@ -141,7 +215,7 @@ public:
         }
 
         // svc method (utilized by the FastFlow runtime)
-        tuple_t *svc(tuple_t *t)
+        result_t *svc(tuple_t *t)
         {
 #if defined(TRACE_WINDFLOW)
             startTS = current_time_nsecs();
@@ -149,27 +223,90 @@ public:
                 startTD = current_time_nsecs();
             rcvTuples++;
 #endif
-            // evaluate the predicate on the input item
-            bool predicate;
-            if (!isRich)
-                predicate = filter_func(*t);
-            else
-                predicate = rich_filter_func(*t, context);
+            // we use the version returning a boolean
+            if (isOPT == 0) {
+                // evaluate the predicate on the input item
+                bool predicate;
+                if (!isRich) {
+                    predicate = filter_func(*t);
+                }
+                else {
+                    predicate = rich_filter_func(*t, context);
+                }
 #if defined(TRACE_WINDFLOW)
-            endTS = current_time_nsecs();
-            endTD = current_time_nsecs();
-            double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
-            avg_ts_us += (1.0 / rcvTuples) * (elapsedTS_us - avg_ts_us);
-            double elapsedTD_us = ((double) (endTD - startTD)) / 1000;
-            avg_td_us += (1.0 / rcvTuples) * (elapsedTD_us - avg_td_us);
-            startTD = current_time_nsecs();
+                endTS = current_time_nsecs();
+                endTD = current_time_nsecs();
+                double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
+                avg_ts_us += (1.0 / rcvTuples) * (elapsedTS_us - avg_ts_us);
+                double elapsedTD_us = ((double) (endTD - startTD)) / 1000;
+                avg_td_us += (1.0 / rcvTuples) * (elapsedTD_us - avg_td_us);
+                startTD = current_time_nsecs();
 #endif
-            if (!predicate) {
-                delete t;
-                return this->GO_ON;
+                if (!predicate) {
+                    delete t;
+                    return this->GO_ON;
+                }
+                else {
+                    return t;
+                }
             }
-            else
-                return t;
+            // we use the version returning an optional
+            else if (isOPT == 1) {
+                // evaluate the predicate on the input item
+                std::optional<result_t> out;
+                if (!isRich) {
+                    out = filter_func_opt(*t);
+                }
+                else {
+                    out = rich_filter_func_opt(*t, context);
+                }
+                delete t;
+#if defined(TRACE_WINDFLOW)
+                endTS = current_time_nsecs();
+                endTD = current_time_nsecs();
+                double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
+                avg_ts_us += (1.0 / rcvTuples) * (elapsedTS_us - avg_ts_us);
+                double elapsedTD_us = ((double) (endTD - startTD)) / 1000;
+                avg_td_us += (1.0 / rcvTuples) * (elapsedTD_us - avg_td_us);
+                startTD = current_time_nsecs();
+#endif
+                if (!out) {
+                    return this->GO_ON;
+                }
+                else {
+                    result_t *result = new result_t();
+                    *result = *out;
+                    return result;
+                }
+            }
+            // we use the version returning an optional containing a pointer
+            else {
+                assert(isOPT == 2);
+                // evaluate the predicate on the input item
+                std::optional<result_t *> out;
+                if (!isRich) {
+                    out = filter_func_optptr(*t);
+                }
+                else {
+                    out = rich_filter_func_optptr(*t, context);
+                }
+                delete t;
+#if defined(TRACE_WINDFLOW)
+                endTS = current_time_nsecs();
+                endTD = current_time_nsecs();
+                double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
+                avg_ts_us += (1.0 / rcvTuples) * (elapsedTS_us - avg_ts_us);
+                double elapsedTD_us = ((double) (endTD - startTD)) / 1000;
+                avg_td_us += (1.0 / rcvTuples) * (elapsedTD_us - avg_td_us);
+                startTD = current_time_nsecs();
+#endif
+                if (!out) {
+                    return this->GO_ON;
+                }
+                else {
+                    return *out;
+                }
+            }
         }
 
         // svc_end method (utilized by the FastFlow runtime)
@@ -195,16 +332,18 @@ public:
     /** 
      *  \brief Constructor I
      *  
-     *  \param _func filter function (boolean predicate)
+     *  \param _func filter function (with boolean return type)
      *  \param _pardegree parallelism degree of the Filter operator
      *  \param _name string with the unique name of the Filter operator
      *  \param _closing_func closing function
-     */ 
-    Filter(filter_func_t _func,
-           size_t _pardegree,
+     */
+    template<typename T=size_t>
+    Filter(typename std::enable_if<std::is_same<T,T>::value && std::is_same<tuple_t,result_t>::value, filter_func_t>::type _func,
+           T _pardegree,
            std::string _name,
            closing_func_t _closing_func):
-           keyed(false), used(false)
+           keyed(false),
+           used(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -230,14 +369,167 @@ public:
     /** 
      *  \brief Constructor II
      *  
-     *  \param _func filter function (boolean predicate)
+     *  \param _func filter function (with boolean return type)
      *  \param _pardegree parallelism degree of the Filter operator
      *  \param _name string with the unique name of the Filter operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
-    Filter(filter_func_t _func,
-           size_t _pardegree,
+    template<typename T=size_t>
+    Filter(typename std::enable_if<std::is_same<T,T>::value && std::is_same<tuple_t,result_t>::value, filter_func_t>::type _func,
+           T _pardegree,
+           std::string _name,
+           closing_func_t _closing_func,
+           routing_func_t _routing_func):
+           keyed(true),
+           used(false)
+    {
+        // check the validity of the parallelism degree
+        if (_pardegree == 0) {
+            std::cerr << RED << "WindFlow Error: Filter has parallelism zero" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        // vector of Filter_Node
+        std::vector<ff_node *> w;
+        for (size_t i=0; i<_pardegree; i++) {
+            auto *seq = new Filter_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
+            w.push_back(seq);
+        }
+        // add emitter
+        ff::ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func, _pardegree));
+        // add workers
+        ff::ff_farm::add_workers(w);
+        // add default collector
+        ff::ff_farm::add_collector(nullptr);
+        // when the Filter will be destroyed we need aslo to destroy the emitter, workers and collector
+        ff::ff_farm::cleanup_all();
+    }
+
+    /** 
+     *  \brief Constructor III
+     *  
+     *  \param _func rich filter function (with boolean return type)
+     *  \param _pardegree parallelism degree of the Filter operator
+     *  \param _name string with the unique name of the Filter operator
+     *  \param _closing_func closing function
+     */ 
+    template<typename T=size_t>
+    Filter(typename std::enable_if<std::is_same<T,T>::value && std::is_same<tuple_t,result_t>::value, rich_filter_func_t>::type _func,
+           T _pardegree,
+           std::string _name,
+           closing_func_t _closing_func):
+           keyed(false),
+           used(false)
+    {
+        // check the validity of the parallelism degree
+        if (_pardegree == 0) {
+            std::cerr << RED << "WindFlow Error: Filter has parallelism zero" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        // vector of Filter_Node
+        std::vector<ff_node *> w;
+        for (size_t i=0; i<_pardegree; i++) {
+            auto *seq = new Filter_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
+            w.push_back(seq);
+        }
+        // add emitter
+        ff::ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_pardegree));
+        // add workers
+        ff::ff_farm::add_workers(w);
+        // add default collector
+        ff::ff_farm::add_collector(nullptr);
+        // when the Filter will be destroyed we need aslo to destroy the emitter, workers and collector
+        ff::ff_farm::cleanup_all();
+    }
+
+    /** 
+     *  \brief Constructor IV
+     *  
+     *  \param _func rich filter function (with boolean return type)
+     *  \param _pardegree parallelism degree of the Filter operator
+     *  \param _name string with the unique name of the Filter operator
+     *  \param _closing_func closing function
+     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
+     */ 
+    template<typename T=size_t>
+    Filter(typename std::enable_if<std::is_same<T,T>::value && std::is_same<tuple_t,result_t>::value, rich_filter_func_t>::type _func,
+           T _pardegree,
+           std::string _name,
+           closing_func_t _closing_func,
+           routing_func_t _routing_func):
+           keyed(true),
+           used(false)
+    {
+        // check the validity of the parallelism degree
+        if (_pardegree == 0) {
+            std::cerr << RED << "WindFlow Error: Filter has parallelism zero" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        // vector of Filter_Node
+        std::vector<ff_node *> w;
+        for (size_t i=0; i<_pardegree; i++) {
+            auto *seq = new Filter_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
+            w.push_back(seq);
+        }
+        // add emitter
+        ff::ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func, _pardegree));
+        // add workers
+        ff::ff_farm::add_workers(w);
+        // add default collector
+        ff::ff_farm::add_collector(nullptr);
+        // when the Filter will be destroyed we need aslo to destroy the emitter, workers and collector
+        ff::ff_farm::cleanup_all();
+    }
+
+    /** 
+     *  \brief Constructor V
+     *  
+     *  \param _func filter function (with optional return type)
+     *  \param _pardegree parallelism degree of the Filter operator
+     *  \param _name string with the unique name of the Filter operator
+     *  \param _closing_func closing function
+     */ 
+    template<typename T=size_t>
+    Filter(typename std::enable_if<std::is_same<T,T>::value && std::is_same<tuple_t,result_t>::value, filter_func_opt_t>::type _func,
+           T _pardegree,
+           std::string _name,
+           closing_func_t _closing_func):
+           keyed(false),
+           used(false)
+    {
+        // check the validity of the parallelism degree
+        if (_pardegree == 0) {
+            std::cerr << RED << "WindFlow Error: Filter has parallelism zero" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        // vector of Filter_Node
+        std::vector<ff_node *> w;
+        for (size_t i=0; i<_pardegree; i++) {
+            auto *seq = new Filter_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
+            w.push_back(seq);
+        }
+        // add emitter
+        ff::ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_pardegree));
+        // add workers
+        ff::ff_farm::add_workers(w);
+        // add default collector
+        ff::ff_farm::add_collector(nullptr);
+        // when the Filter will be destroyed we need aslo to destroy the emitter, workers and collector
+        ff::ff_farm::cleanup_all();
+    }
+
+    /** 
+     *  \brief Constructor VI
+     *  
+     *  \param _func filter function (with optional return type)
+     *  \param _pardegree parallelism degree of the Filter operator
+     *  \param _name string with the unique name of the Filter operator
+     *  \param _closing_func closing function
+     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
+     */ 
+    template<typename T=size_t>
+    Filter(typename std::enable_if<std::is_same<T,T>::value && std::is_same<tuple_t,result_t>::value, filter_func_opt_t>::type _func,
+           T _pardegree,
            std::string _name,
            closing_func_t _closing_func,
            routing_func_t _routing_func):
@@ -265,15 +557,16 @@ public:
     }
 
     /** 
-     *  \brief Constructor III
+     *  \brief Constructor VII
      *  
-     *  \param _func rich filter function (boolean predicate)
+     *  \param _func rich filter function (with optional return type)
      *  \param _pardegree parallelism degree of the Filter operator
      *  \param _name string with the unique name of the Filter operator
      *  \param _closing_func closing function
      */ 
-    Filter(rich_filter_func_t _func,
-           size_t _pardegree,
+    template<typename T=size_t>
+    Filter(typename std::enable_if<std::is_same<T,T>::value && std::is_same<tuple_t,result_t>::value, rich_filter_func_opt_t>::type _func,
+           T _pardegree,
            std::string _name,
            closing_func_t _closing_func):
            keyed(false), used(false)
@@ -300,15 +593,165 @@ public:
     }
 
     /** 
-     *  \brief Constructor IV
+     *  \brief Constructor VIII
      *  
-     *  \param _func rich filter function (boolean predicate)
+     *  \param _func rich filter function (with optional return type)
      *  \param _pardegree parallelism degree of the Filter operator
      *  \param _name string with the unique name of the Filter operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
-    Filter(rich_filter_func_t _func,
+    template<typename T=size_t>
+    Filter(typename std::enable_if<std::is_same<T,T>::value && std::is_same<tuple_t,result_t>::value, rich_filter_func_opt_t>::type _func,
+           T _pardegree,
+           std::string _name,
+           closing_func_t _closing_func,
+           routing_func_t _routing_func):
+           keyed(true), used(false)
+    {
+        // check the validity of the parallelism degree
+        if (_pardegree == 0) {
+            std::cerr << RED << "WindFlow Error: Filter has parallelism zero" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        // vector of Filter_Node
+        std::vector<ff_node *> w;
+        for (size_t i=0; i<_pardegree; i++) {
+            auto *seq = new Filter_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
+            w.push_back(seq);
+        }
+        // add emitter
+        ff::ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func, _pardegree));
+        // add workers
+        ff::ff_farm::add_workers(w);
+        // add default collector
+        ff::ff_farm::add_collector(nullptr);
+        // when the Filter will be destroyed we need aslo to destroy the emitter, workers and collector
+        ff::ff_farm::cleanup_all();
+    }
+
+    /** 
+     *  \brief Constructor IX
+     *  
+     *  \param _func filter function (with optional return type containing a pointer)
+     *  \param _pardegree parallelism degree of the Filter operator
+     *  \param _name string with the unique name of the Filter operator
+     *  \param _closing_func closing function
+     */ 
+    template<typename T=size_t>
+    Filter(typename std::enable_if<std::is_same<T,T>::value && std::is_same<tuple_t,result_t>::value, filter_func_optptr_t>::type _func,
+           size_t _pardegree,
+           std::string _name,
+           closing_func_t _closing_func):
+           keyed(false),
+           used(false)
+    {
+        // check the validity of the parallelism degree
+        if (_pardegree == 0) {
+            std::cerr << RED << "WindFlow Error: Filter has parallelism zero" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        // vector of Filter_Node
+        std::vector<ff_node *> w;
+        for (size_t i=0; i<_pardegree; i++) {
+            auto *seq = new Filter_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
+            w.push_back(seq);
+        }
+        // add emitter
+        ff::ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_pardegree));
+        // add workers
+        ff::ff_farm::add_workers(w);
+        // add default collector
+        ff::ff_farm::add_collector(nullptr);
+        // when the Filter will be destroyed we need aslo to destroy the emitter, workers and collector
+        ff::ff_farm::cleanup_all();
+    }
+
+    /** 
+     *  \brief Constructor X
+     *  
+     *  \param _func filter function (with optional return type containing a pointer)
+     *  \param _pardegree parallelism degree of the Filter operator
+     *  \param _name string with the unique name of the Filter operator
+     *  \param _closing_func closing function
+     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
+     */ 
+    template<typename T=size_t>
+    Filter(typename std::enable_if<std::is_same<T,T>::value && std::is_same<tuple_t,result_t>::value, filter_func_optptr_t>::type _func,
+           T _pardegree,
+           std::string _name,
+           closing_func_t _closing_func,
+           routing_func_t _routing_func):
+           keyed(true), used(false)
+    {
+        // check the validity of the parallelism degree
+        if (_pardegree == 0) {
+            std::cerr << RED << "WindFlow Error: Filter has parallelism zero" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        // vector of Filter_Node
+        std::vector<ff_node *> w;
+        for (size_t i=0; i<_pardegree; i++) {
+            auto *seq = new Filter_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
+            w.push_back(seq);
+        }
+        // add emitter
+        ff::ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func, _pardegree));
+        // add workers
+        ff::ff_farm::add_workers(w);
+        // add default collector
+        ff::ff_farm::add_collector(nullptr);
+        // when the Filter will be destroyed we need aslo to destroy the emitter, workers and collector
+        ff::ff_farm::cleanup_all();
+    }
+
+    /** 
+     *  \brief Constructor XI
+     *  
+     *  \param _func rich filter function (with optional return type containing a pointer)
+     *  \param _pardegree parallelism degree of the Filter operator
+     *  \param _name string with the unique name of the Filter operator
+     *  \param _closing_func closing function
+     */ 
+    template<typename T=size_t>
+    Filter(typename std::enable_if<std::is_same<T,T>::value && std::is_same<tuple_t,result_t>::value, rich_filter_func_optptr_t>::type _func,
+           T _pardegree,
+           std::string _name,
+           closing_func_t _closing_func):
+           keyed(false), used(false)
+    {
+        // check the validity of the parallelism degree
+        if (_pardegree == 0) {
+            std::cerr << RED << "WindFlow Error: Filter has parallelism zero" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        // vector of Filter_Node
+        std::vector<ff_node *> w;
+        for (size_t i=0; i<_pardegree; i++) {
+            auto *seq = new Filter_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
+            w.push_back(seq);
+        }
+        // add emitter
+        ff::ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_pardegree));
+        // add workers
+        ff::ff_farm::add_workers(w);
+        // add default collector
+        ff::ff_farm::add_collector(nullptr);
+        // when the Filter will be destroyed we need aslo to destroy the emitter, workers and collector
+        ff::ff_farm::cleanup_all();
+    }
+
+    /** 
+     *  \brief Constructor XII
+     *  
+     *  \param _func rich filter function (with optional return type containing a pointer)
+     *  \param _pardegree parallelism degree of the Filter operator
+     *  \param _name string with the unique name of the Filter operator
+     *  \param _closing_func closing function
+     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
+     */ 
+    template<typename T=size_t>
+    Filter(typename std::enable_if<std::is_same<T,T>::value && std::is_same<tuple_t,result_t>::value, rich_filter_func_optptr_t>::type _func,
            size_t _pardegree,
            std::string _name,
            closing_func_t _closing_func,

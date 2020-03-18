@@ -19,7 +19,7 @@
  *  @author  Gabriele Mencagli
  *  @date    29/10/2017
  *  
- *  @brief Win_MapReduce operator executing a windowed transformation in parallel
+ *  @brief Win_MapReduce operator executing a windowed query in parallel
  *         on multi-core CPUs
  *  
  *  @section Win_MapReduce (Description)
@@ -43,14 +43,14 @@
 #include <ff/farm.hpp>
 #include <win_farm.hpp>
 #include <basic.hpp>
-#include <meta_utils.hpp>
+#include <meta.hpp>
 
 namespace wf {
 
 /** 
  *  \class Win_MapReduce
  *  
- *  \brief Win_MapReduce operator executing a windowed transformation in parallel
+ *  \brief Win_MapReduce operator executing a windowed query in parallel
  *         on multi-core CPUs
  *  
  *  This class implements the Win_MapReduce operator executing windowed queries in parallel on
@@ -121,9 +121,10 @@ private:
     std::string name;
     bool ordered;
     opt_level_t opt_level;
-    PatternConfig config;
+    OperatorConfig config;
     bool used; // true if the operator has been added/chained in a MultiPipe
     bool used4Nesting; // true if the operator has been used in a nested structure
+    std::vector<ff_node *> map_workers; // vector of pointers to the workers in the MAP stage
 
     // Private Constructor
     template <typename F_t, typename G_t>
@@ -139,7 +140,7 @@ private:
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level,
-                  PatternConfig _config):
+                  OperatorConfig _config):
                   win_len(_win_len),
                   slide_len(_slide_len),
                   triggering_delay(_triggering_delay),
@@ -150,7 +151,7 @@ private:
                   closing_func(_closing_func),
                   ordered(_ordered),
                   opt_level(_opt_level),
-                  config(PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+                  config(OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -176,10 +177,11 @@ private:
             // create the Win_Seq
             for (size_t i = 0; i < _map_degree; i++) {
                 // configuration structure of the Win_Seq (MAP)
-                PatternConfig configSeqMAP(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _slide_len);
+                OperatorConfig configSeqMAP(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _slide_len);
                 auto *seq = new Win_Seq<tuple_t, result_t, wrapper_in_t>(_func_MAP, _win_len, _slide_len, _triggering_delay, _winType, _name + "_map_wf", _closing_func, RuntimeContext(_map_degree, i), configSeqMAP, MAP);
                 seq->setMapIndexes(i, _map_degree);
                 w[i] = seq;
+                map_workers.push_back(seq);
             }
             ff::ff_farm *farm_map = new ff::ff_farm(w);
             farm_map->remove_collector();
@@ -190,21 +192,22 @@ private:
         }
         else {
             // configuration structure of the Win_Seq (MAP)
-            PatternConfig configSeqMAP(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _slide_len);
+            OperatorConfig configSeqMAP(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _slide_len);
             auto *seq_map = new Win_Seq<tuple_t, result_t, wrapper_in_t>(_func_MAP, _win_len, _slide_len, _triggering_delay, _winType, _name + "_map", _closing_func, RuntimeContext(1, 0), configSeqMAP, MAP);
             seq_map->setMapIndexes(0, 1);
             map_stage = seq_map;
+            map_workers.push_back(seq_map);
         }
         // create the REDUCE phase
         if (_reduce_degree > 1) {
             // configuration structure of the Win_Farm (REDUCE)
-            PatternConfig configWFREDUCE(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
+            OperatorConfig configWFREDUCE(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *farm_reduce = new Win_Farm<result_t, result_t>(_func_REDUCE, _map_degree, _map_degree, 0, CB, _reduce_degree, _name + "_reduce", _closing_func, _ordered, LEVEL0, configWFREDUCE, REDUCE);
             reduce_stage = farm_reduce;
         }
         else {
             // configuration structure of the Win_Seq (REDUCE)
-            PatternConfig configSeqREDUCE(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _map_degree);
+            OperatorConfig configSeqREDUCE(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _map_degree);
             auto *seq_reduce = new Win_Seq<result_t, result_t>(_func_REDUCE, _map_degree, _map_degree, 0, CB, _name + "_reduce", _closing_func, RuntimeContext(1, 0), configSeqREDUCE, REDUCE);
             reduce_stage = seq_reduce;
         }
@@ -261,7 +264,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -278,7 +281,7 @@ public:
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
-                  Win_MapReduce(_map_func, _reduce_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+                  Win_MapReduce(_map_func, _reduce_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         map_func = _map_func;
         reduce_func = _reduce_func;
@@ -301,7 +304,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -318,7 +321,7 @@ public:
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
-                  Win_MapReduce(_rich_map_func, _reduce_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+                  Win_MapReduce(_rich_map_func, _reduce_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         rich_map_func = _rich_map_func;
         reduce_func = _reduce_func;
@@ -341,7 +344,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -358,7 +361,7 @@ public:
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
-                  Win_MapReduce(_map_func, _rich_reduce_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+                  Win_MapReduce(_map_func, _rich_reduce_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         map_func = _map_func;
         rich_reduce_func = _rich_reduce_func;
@@ -381,7 +384,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -398,7 +401,7 @@ public:
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
-                  Win_MapReduce(_rich_map_func, _rich_reduce_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+                  Win_MapReduce(_rich_map_func, _rich_reduce_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         rich_map_func = _rich_map_func;
         rich_reduce_func = _rich_reduce_func;
@@ -421,7 +424,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -438,7 +441,7 @@ public:
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
-                  Win_MapReduce(_mapupdate_func, _reduceupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+                  Win_MapReduce(_mapupdate_func, _reduceupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         mapupdate_func = _mapupdate_func;
         reduceupdate_func = _reduceupdate_func;
@@ -461,7 +464,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -478,7 +481,7 @@ public:
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
-                  Win_MapReduce(_rich_mapupdate_func, _reduceupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+                  Win_MapReduce(_rich_mapupdate_func, _reduceupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         rich_mapupdate_func = _rich_mapupdate_func;
         reduceupdate_func = _reduceupdate_func;
@@ -501,7 +504,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -518,7 +521,7 @@ public:
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
-                  Win_MapReduce(_mapupdate_func, _rich_reduceupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+                  Win_MapReduce(_mapupdate_func, _rich_reduceupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         mapupdate_func = _mapupdate_func;
         rich_reduceupdate_func = _rich_reduceupdate_func;
@@ -541,7 +544,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -558,7 +561,7 @@ public:
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
-                  Win_MapReduce(_rich_mapupdate_func, _rich_reduceupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+                  Win_MapReduce(_rich_mapupdate_func, _rich_reduceupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         rich_mapupdate_func = _rich_mapupdate_func;
         rich_reduceupdate_func = _rich_reduceupdate_func;
@@ -581,7 +584,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -598,7 +601,7 @@ public:
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
-                  Win_MapReduce(_map_func, _reduceupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+                  Win_MapReduce(_map_func, _reduceupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         map_func = _map_func;
         reduceupdate_func = _reduceupdate_func;
@@ -621,7 +624,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -638,7 +641,7 @@ public:
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
-                  Win_MapReduce(_rich_map_func, _reduceupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+                  Win_MapReduce(_rich_map_func, _reduceupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         rich_map_func = _rich_map_func;
         reduceupdate_func = _reduceupdate_func;
@@ -661,7 +664,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -678,7 +681,7 @@ public:
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
-                  Win_MapReduce(_map_func, _rich_reduceupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+                  Win_MapReduce(_map_func, _rich_reduceupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         map_func = _map_func;
         rich_reduceupdate_func = _rich_reduceupdate_func;
@@ -701,7 +704,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -718,7 +721,7 @@ public:
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
-                  Win_MapReduce(_rich_map_func, _rich_reduceupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+                  Win_MapReduce(_rich_map_func, _rich_reduceupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         rich_map_func = _rich_map_func;
         rich_reduceupdate_func = _rich_reduceupdate_func;
@@ -741,7 +744,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -758,7 +761,7 @@ public:
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
-                  Win_MapReduce(_mapupdate_func, _reduce_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+                  Win_MapReduce(_mapupdate_func, _reduce_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         mapupdate_func = _mapupdate_func;
         reduce_func = _reduce_func;
@@ -781,7 +784,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -798,7 +801,7 @@ public:
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
-                  Win_MapReduce(_rich_mapupdate_func, _reduce_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+                  Win_MapReduce(_rich_mapupdate_func, _reduce_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         rich_mapupdate_func = _rich_mapupdate_func;
         reduce_func = _reduce_func;
@@ -821,7 +824,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -838,7 +841,7 @@ public:
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
-                  Win_MapReduce(_mapupdate_func, _rich_reduce_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+                  Win_MapReduce(_mapupdate_func, _rich_reduce_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         mapupdate_func = _mapupdate_func;
         rich_reduce_func = _rich_reduce_func;
@@ -861,7 +864,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _map_degree parallelism degree of the MAP stage
      *  \param _reduce_degree parallelism degree of the REDUCE stage
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _ordered true if the results of the same key must be emitted in order, false otherwise
      *  \param _opt_level optimization level used to build the operator
@@ -878,7 +881,7 @@ public:
                   closing_func_t _closing_func,
                   bool _ordered,
                   opt_level_t _opt_level):
-                  Win_MapReduce(_rich_mapupdate_func, _rich_reduce_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+                  Win_MapReduce(_rich_mapupdate_func, _rich_reduce_func, _win_len, _slide_len, _triggering_delay, _winType, _map_degree, _reduce_degree, _name, _closing_func, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         rich_mapupdate_func = _rich_mapupdate_func;
         rich_reduce_func = _rich_reduce_func;
@@ -942,6 +945,20 @@ public:
     bool isUsed4Nesting() const
     {
         return used4Nesting;
+    }
+
+    /** 
+     *  \brief Get the number of dropped tuples by the Win_MapReduce
+     *  \return number of tuples dropped during the processing by the Win_MapReduce
+     */ 
+    size_t getNumDroppedTuples() const
+    {
+        size_t count = 0;
+        for (auto *w: map_workers) {
+            auto *seq = static_cast<Win_Seq<tuple_t, result_t, wrapper_in_t> *>(w);
+            count += seq->getNumDroppedTuples();
+        }
+        return count;
     }
 
     /// deleted constructors/operators

@@ -109,6 +109,7 @@ private:
 	AppNode *root; // pointer to the root of the Application Tree
 	std::vector<MultiPipe *> toBeDeteled; // vector of MultiPipe instances to be deleted
     Mode mode; // processing mode of the PipeGraph
+    bool alreadyRun; // flag stating whether the PipeGraph environment has already been run
     // friendship with the MultiPipe class
     friend class MultiPipe;
 
@@ -146,6 +147,7 @@ public:
 	PipeGraph(std::string _name, Mode _mode=Mode::DEFAULT):
               name(_name),
               mode(_mode),
+              alreadyRun(false),
               root(new AppNode())
     {}
 
@@ -311,16 +313,16 @@ public:
      *  \param _filter Filter operator to be added
      *  \return the modified MultiPipe
      */ 
-    template<typename tuple_t>
-    MultiPipe &add(Filter<tuple_t> &_filter);
+    template<typename tuple_t, typename result_t>
+    MultiPipe &add(Filter<tuple_t, result_t> &_filter);
 
     /** 
      *  \brief Chain a Filter to the MultiPipe (if possible, otherwise add it)
      *  \param _filter Filter operator to be chained
      *  \return the modified MultiPipe
      */ 
-    template<typename tuple_t>
-    MultiPipe &chain(Filter<tuple_t> &_filter);
+    template<typename tuple_t, typename result_t>
+    MultiPipe &chain(Filter<tuple_t, result_t> &_filter);
 
 	/** 
      *  \brief Add a Map to the MultiPipe
@@ -387,12 +389,28 @@ public:
     MultiPipe &add(Key_Farm<tuple_t, result_t> &_kf);
 
     /** 
+     *  \brief Add a Key_FFAT to the MultiPipe
+     *  \param _kff Key_FFAT operator to be added
+     *  \return the modified MultiPipe
+     */ 
+    template<typename tuple_t, typename result_t>
+    MultiPipe &add(Key_FFAT<tuple_t, result_t> &_kff);
+
+    /** 
      *  \brief Add a Key_Farm_GPU to the MultiPipe
      *  \param _kf Key_Farm_GPU operator to be added
      *  \return the modified MultiPipe
      */ 
     template<typename tuple_t, typename result_t, typename F_t>
     MultiPipe &add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf);
+
+    /** 
+     *  \brief Add a Key_FFAT_GPU to the MultiPipe
+     *  \param _kff Key_FFAT_GPU operator to be added
+     *  \return the modified MultiPipe
+     */ 
+    template<typename tuple_t, typename result_t, typename F_t>
+    MultiPipe &add(Key_FFAT_GPU<tuple_t, result_t, F_t> &_kff);
 
 	/** 
      *  \brief Add a Pane_Farm to the MultiPipe
@@ -879,6 +897,15 @@ MultiPipe &PipeGraph::add_source(Source<tuple_t> &_source)
 // implementation of the run method
 inline int PipeGraph::run()
 {
+    // check if the PipeGraph has already been run
+    if (this->alreadyRun) {
+        std::cerr << RED << "WindFlow Error: PipeGraph [" << name << "] has already been run and cannot be restarted" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+        return EXIT_FAILURE; // useless
+    }
+    else {
+        this->alreadyRun = true;
+    }
 	if ((root->children).size() == 0) {
 		std::cerr << RED << "WindFlow Error: PipeGraph [" << name << "] is empty, nothing to run" << DEFAULT_COLOR << std::endl;
 		exit(EXIT_FAILURE);
@@ -1305,8 +1332,8 @@ inline int MultiPipe::run_and_wait_end()
 }
 
 // implementation of the method to add a Filter to the MultiPipe
-template<typename tuple_t>
-MultiPipe &MultiPipe::add(Filter<tuple_t> &_filter)
+template<typename tuple_t, typename result_t>
+MultiPipe &MultiPipe::add(Filter<tuple_t, result_t> &_filter)
 {
     // check whether the operator has already been used in a MultiPipe
     if (_filter.isUsed()) {
@@ -1328,15 +1355,16 @@ MultiPipe &MultiPipe::add(Filter<tuple_t> &_filter)
         add_operator<Standard_Emitter<tuple_t>, Standard_Collector>(&_filter, _filter.isKeyed() ? KEYED : STATELESS);
     }
     // save the new output type from this MultiPipe
-    outputType = opInType;
+    result_t r;
+    outputType = typeid(r).name();
     // the Filter operator is now used
     _filter.used = true;
 	return *this;
 }
 
 // implementation of the method to chain a Filter to the MultiPipe
-template<typename tuple_t>
-MultiPipe &MultiPipe::chain(Filter<tuple_t> &_filter)
+template<typename tuple_t, typename result_t>
+MultiPipe &MultiPipe::chain(Filter<tuple_t, result_t> &_filter)
 {
     // check whether the operator has already been used in a MultiPipe
     if (_filter.isUsed()) {
@@ -1352,14 +1380,15 @@ MultiPipe &MultiPipe::chain(Filter<tuple_t> &_filter)
     }
     // try to chain the operator with the MultiPipe
     if (!_filter.isKeyed()) {
-        bool chained = chain_operator<typename Filter<tuple_t>::Filter_Node>(&_filter);
+        bool chained = chain_operator<typename Filter<tuple_t, result_t>::Filter_Node>(&_filter);
         if (!chained)
             add(_filter);
     }
     else
         add(_filter);
     // save the new output type from this MultiPipe
-    outputType = opInType;
+    result_t r;
+    outputType = typeid(r).name();
     // the Filter operator is now used
     _filter.used = true;
     return *this;
@@ -1906,6 +1935,47 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
     return *this;
 }
 
+// implementation of the method to add a Key_FFAT to the MultiPipe
+template<typename tuple_t, typename result_t>
+MultiPipe &MultiPipe::add(Key_FFAT<tuple_t, result_t> &_kff)
+{
+    // check whether the operator has already been used in a MultiPipe
+    if (_kff.isUsed()) {
+        std::cerr << RED << "WindFlow Error: Key_FFAT operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    // count-based windows are possible only in DETERMINISTIC mode
+    if (_kff.getWinType() == CB && graph->mode != Mode::DETERMINISTIC) {
+        std::cerr << RED << "WindFlow Error: count-based windows require DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    } 
+    // check the type compatibility
+    tuple_t t;
+    std::string opInType = typeid(t).name();
+    if (!outputType.empty() && outputType.compare(opInType) != 0) {
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Key_FFAT operator" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    // call the generic method to add the operator to the MultiPipe
+    if (_kff.getWinType() == TB) {
+        if (graph->mode == Mode::DETERMINISTIC) {
+            add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kff, COMPLEX, TS);
+        }
+        else {
+            add_operator<KF_Emitter<tuple_t>, Standard_Collector>(&_kff, COMPLEX);
+        }
+    }
+    else {
+        add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kff, COMPLEX, TS_RENUMBERING);
+    }
+    // save the new output type from this MultiPipe
+    result_t r;
+    outputType = typeid(r).name();
+    // the Key_FFAT operator is now used
+    _kff.used = true;
+    return *this;
+}
+
 // implementation of the method to add a Key_Farm_GPU to the MultiPipe
 template<typename tuple_t, typename result_t, typename F_t>
 MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
@@ -2040,6 +2110,47 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
     outputType = typeid(r).name();
     // the Key_Farm_GPU operator is now used
     _kf.used = true;
+    return *this;
+}
+
+// implementation of the method to add a Key_FFAT_GPU to the MultiPipe
+template<typename tuple_t, typename result_t, typename F_t>
+MultiPipe &MultiPipe::add(Key_FFAT_GPU<tuple_t, result_t, F_t> &_kff)
+{
+    // check whether the operator has already been used in a MultiPipe
+    if (_kff.isUsed()) {
+        std::cerr << RED << "WindFlow Error: Key_FFAT_GPU operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    // count-based windows are possible only in DETERMINISTIC mode
+    if (_kff.getWinType() == CB && graph->mode != Mode::DETERMINISTIC) {
+        std::cerr << RED << "WindFlow Error: count-based windows require DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    } 
+    // check the type compatibility
+    tuple_t t;
+    std::string opInType = typeid(t).name();
+    if (!outputType.empty() && outputType.compare(opInType) != 0) {
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Key_FFAT_GPU operator" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    // call the generic method to add the operator to the MultiPipe
+    if (_kff.getWinType() == TB) {
+        if (graph->mode == Mode::DETERMINISTIC) {
+            add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kff, COMPLEX, TS);
+        }
+        else {
+            add_operator<KF_Emitter<tuple_t>, Standard_Collector>(&_kff, COMPLEX);
+        }
+    }
+    else {
+        add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kff, COMPLEX, TS_RENUMBERING);
+    }
+    // save the new output type from this MultiPipe
+    result_t r;
+    outputType = typeid(r).name();
+    // the Key_FFAT_GPU operator is now used
+    _kff.used = true;
     return *this;
 }
 

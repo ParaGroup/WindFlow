@@ -19,7 +19,7 @@
  *  @author  Gabriele Mencagli
  *  @date    16/03/2018
  *  
- *  @brief Win_Seq_GPU operator executing a windowed transformation on a CPU+GPU system
+ *  @brief Win_Seq_GPU operator executing a windowed query on a CPU+GPU system
  *  
  *  @section Win_Seq_GPU (Description)
  *  
@@ -44,16 +44,16 @@
 #include <math.h>
 #include <ff/node.hpp>
 #include <window.hpp>
-#include <meta_utils.hpp>
+#include <meta.hpp>
 #include <stream_archive.hpp>
 
 namespace wf {
 
 //@cond DOXY_IGNORE
 
-// CUDA KERNEL: it calls the user-defined function over the windows within a micro-batch
+// CUDA KERNEL: it calls the user-defined function over all the windows within a batch
 template<typename win_F_t>
-__global__ void kernelBatch(void *input_data,
+__global__ void ComputeBatch_Kernel(void *input_data,
                             size_t *start,
                             size_t *end,
                             uint64_t *gwids,
@@ -66,23 +66,15 @@ __global__ void kernelBatch(void *input_data,
     using input_t = decltype(get_tuple_t(F));
     using output_t = decltype(get_result_t(F));
     int id = threadIdx.x + blockIdx.x * blockDim.x;
-    if (id < batch_len) {
-        if (scratchpad_size > 0)
-            F(gwids[id], ((input_t *) input_data) + start[id], &((output_t *) results)[id], end[id] - start[id], &scratchpad_memory[id * scratchpad_size]);
-        else
-            F(gwids[id], ((input_t *) input_data) + start[id], &((output_t *) results)[id], end[id] - start[id], nullptr);
-    }
-}
-
-// assert function on GPU
-inline void gpuAssert(cudaError_t code,
-                      const char *file,
-                      int line,
-                      bool abort=false)
-{
-    if (code != cudaSuccess) {
-        fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
-        if (abort) exit(code);
+    int stride = blockDim.x * gridDim.x;
+    // grid-stride loop over the windows within the batch
+    for (size_t i=id; i<batch_len; i+=stride) {
+        if (scratchpad_size > 0) {
+            F(gwids[i], ((const input_t *) input_data) + start[i], end[i] - start[i], &((output_t *) results)[i], &scratchpad_memory[id * scratchpad_size], scratchpad_size);
+        }
+        else {
+            F(gwids[i], ((const input_t *) input_data) + start[i], end[i] - start[i], &((output_t *) results)[i], nullptr, 0);
+        }
     }
 }
 
@@ -91,7 +83,7 @@ inline void gpuAssert(cudaError_t code,
 /** 
  *  \class Win_Seq_GPU
  *  
- *  \brief Win_Seq_GPU operator executing a windowed transformation on a CPU+GPU system
+ *  \brief Win_Seq_GPU operator executing a windowed query on a CPU+GPU system
  *  
  *  This class implements the Win_Seq_GPU operator executing windowed queries on a heterogeneous
  *  system (CPU+GPU). The operator prepares batches of input tuples on a CPU core sequentially,
@@ -130,11 +122,11 @@ private:
         uint64_t next_lwid; // next window to be opened of this key (lwid)
         int64_t last_lwid; // last window closed of this key (lwid)
         size_t batchedWin; // number of batched windows of the key
-        std::vector<size_t> start, end; // vector of initial/final positions of each window in the current micro-batch
-        std::vector<uint64_t> gwids; // vector of gwid of the windows in the current micro-batch
-        std::vector<uint64_t> tsWin; // vector of the final timestamp of the windows in the current micro-batch
-        std::optional<tuple_t> start_tuple; // optional to the first tuple of the current micro-batch
-        std::optional<tuple_t> end_tuple; // optional to the last tuple of the current micro-batch
+        std::vector<size_t> start, end; // vector of initial/final positions of each window in the current batch
+        std::vector<uint64_t> gwids; // vector of gwid of the windows in the current batch
+        std::vector<uint64_t> tsWin; // vector of the final timestamp of the windows in the current batch
+        std::optional<tuple_t> start_tuple; // optional to the first tuple of the current batch
+        std::optional<tuple_t> end_tuple; // optional to the last tuple of the current batch
 
         // Constructor
         Key_Descriptor(compare_func_t _compare_func,
@@ -170,21 +162,23 @@ private:
     uint64_t triggering_delay; // triggering delay in time units (meaningful for TB windows only)
     win_type_t winType; // window type (CB or TB)
     std::string name; // std::string of the unique name of the operator
-    PatternConfig config; // configuration structure of the Win_Seq_GPU operator
+    OperatorConfig config; // configuration structure of the Win_Seq_GPU operator
     role_t role; // role of the Win_Seq_GPU
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     std::pair<size_t, size_t> map_indexes = std::make_pair(0, 1); // indexes useful is the role is MAP
-    size_t batch_len; // length of the micro-batch in terms of no. of windows (i.e. 1 window mapped onto 1 CUDA thread)
-    size_t n_thread_block; // number of threads per block
+    size_t batch_len; // length of the batch in terms of no. of windows
     size_t tuples_per_batch; // number of tuples per batch (only for CB windows)
     win_F_t win_func; // function to be executed per window
     result_t *host_results = nullptr; // array of results copied back from the GPU
+    bool isRunningKernel = false; // true if the kernel is running on the GPU, false otherwise
+    Key_Descriptor *lastKeyD = nullptr; // pointer to the key descriptor of the running kernel on the GPU
     // GPU variables
+    size_t n_thread_block; // number of threads per block
+    size_t num_blocks; // number of blocks of a GPU kernel
     cudaStream_t cudaStream; // CUDA stream used by this Win_Seq_GPU
-    size_t no_thread_block; // number of CUDA threads per block
-    tuple_t *Bin = nullptr; // array of tuples in the micro-batch (allocated on the GPU)
-    result_t *Bout = nullptr; // array of results of the micro-batch (allocated on the GPU)
-    size_t *gpu_start, *gpu_end = nullptr; // arrays of the starting/ending positions of each window in the micro-batch (allocated on the GPU)
+    tuple_t *Bin = nullptr; // array of tuples in the batch (allocated on the GPU)
+    result_t *Bout = nullptr; // array of results of the batch (allocated on the GPU)
+    size_t *gpu_start, *gpu_end = nullptr; // arrays of the starting/ending positions of each window in the batch (allocated on the GPU)
     uint64_t *gpu_gwids = nullptr; // array of the gwids of the windows in the microbatch (allocated on the GPU)
     size_t scratchpad_size = 0; // size of the scratchpage memory area on the GPU (one per CUDA thread)
     char *scratchpad_memory = nullptr; // scratchpage memory area (allocated on the GPU, one per CUDA thread)
@@ -211,7 +205,7 @@ private:
                 size_t _n_thread_block,
                 std::string _name,
                 size_t _scratchpad_size,
-                PatternConfig _config,
+                OperatorConfig _config,
                 role_t _role):
                 win_func(_win_func),
                 win_len(_win_len),
@@ -260,19 +254,48 @@ private:
         map_indexes.second = _second;
     }
 
+    // function to wait for the completion of the previous kernel (if any) and to flush its results
+    inline void waitAndFlush()
+    {
+        if (isRunningKernel) {
+            assert(lastKeyD != nullptr);
+            gpuErrChk(cudaStreamSynchronize(cudaStream));
+            // transmission of results
+            for (size_t i=0; i<batch_len; i++) {
+                result_t *res = new result_t();
+                *res = host_results[i];
+                // special cases: role is PLQ or MAP
+                if (role == MAP) {
+                    res->setControlFields(std::get<0>(res->getControlFields()), lastKeyD->emit_counter, std::get<2>(res->getControlFields()));
+                    lastKeyD->emit_counter += map_indexes.second;
+                }
+                else if (role == PLQ) {
+                    auto key = std::get<0>(res->getControlFields());
+                    size_t old_hashcode = std::hash<decltype(key)>()(key); // compute the hashcode of the key
+                    uint64_t new_id = ((config.id_inner - (old_hashcode % config.n_inner) + config.n_inner) % config.n_inner) + (lastKeyD->emit_counter * config.n_inner);
+                    res->setControlFields(std::get<0>(res->getControlFields()), new_id, std::get<2>(res->getControlFields()));
+                    lastKeyD->emit_counter++;
+                }
+                this->ff_send_out(res);
+            }
+            isRunningKernel = false;
+            lastKeyD = nullptr;
+        }
+    }
+
 public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _win_func the non-incremental window processing function (CPU/GPU function)
+     *  \param _win_func the non-incremental window processing function (__host__ __device__ function)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _batch_len no. of windows in a batch (i.e. 1 window mapped onto 1 CUDA thread)
-     *  \param _n_thread_block number of threads (i.e. windows) per block
-     *  \param _name std::string with the unique name of the operator
-     *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
+     *  \param _batch_len no. of windows in a batch
+     *  \param _n_thread_block number of threads per block
+     *  \param _name string with the unique name of the operator
+     *  \param _scratchpad_size size in bytes of the scratchpad area local of a CUDA thread (pre-allocated on the global memory of the GPU)
      */ 
     Win_Seq_GPU(win_F_t _win_func,
                 uint64_t _win_len,
@@ -283,7 +306,7 @@ public:
                 size_t _n_thread_block,
                 std::string _name,
                 size_t _scratchpad_size):
-                Win_Seq_GPU(_win_func, _win_len, _slide_len, _triggering_delay, _winType, _batch_len, _n_thread_block, _name, _scratchpad_size, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
+                Win_Seq_GPU(_win_func, _win_len, _slide_len, _triggering_delay, _winType, _batch_len, _n_thread_block, _name, _scratchpad_size, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
     {}
 
 //@cond DOXY_IGNORE
@@ -291,6 +314,19 @@ public:
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
     {
+        int deviceID = 0; // only one GPU device supported
+        int numSMs = 0; // number of SMs in the GPU
+        int max_thread_block = 0; // maximum number of threads per block
+        gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, deviceID));
+        assert(numSMs>0);
+        gpuErrChk(cudaDeviceGetAttribute(&max_thread_block, cudaDevAttrMaxThreadsPerBlock, deviceID));
+        assert(max_thread_block>0);
+        // check the number of threads per block limit
+        if (max_thread_block < n_thread_block) {
+            std::cerr << RED << "WindFlow Error: number of threads per block exceeds the limit of the GPU device (" << max_thread_block << ")" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        num_blocks = std::min((int) ceil((double) batch_len / n_thread_block), 32 * numSMs); // at most 32 blocks per SM
         // initialization with count-based windows
         if (winType == CB) {
             // compute the fixed number of tuples per batch
@@ -307,7 +343,7 @@ public:
             // allocate Bin (with default size) on the GPU
             gpuErrChk(cudaMalloc((tuple_t **) &Bin, tuples_per_batch * sizeof(tuple_t))); // Bin
         }
-        // allocate the other arrays on the GPU
+        // allocate the other arrays on the GPU/HOST
         gpuErrChk(cudaMalloc((size_t **) &gpu_start, batch_len * sizeof(size_t)));             // gpu_start
         gpuErrChk(cudaMalloc((size_t **) &gpu_end, batch_len * sizeof(size_t)));               // gpu_end
         gpuErrChk(cudaMalloc((uint64_t **) &gpu_gwids, batch_len * sizeof(uint64_t)));         // gpu_gwids
@@ -315,27 +351,27 @@ public:
         gpuErrChk(cudaMallocHost((void **) &host_results, batch_len * sizeof(result_t)));      // host_results
         // allocate the scratchpad on the GPU (if required)
         if (scratchpad_size > 0) {
-            gpuErrChk(cudaMalloc((char **) &scratchpad_memory, batch_len * scratchpad_size));  // scratchpad_memory
+            gpuErrChk(cudaMalloc((char **) &scratchpad_memory, (num_blocks * n_thread_block) * scratchpad_size));  // scratchpad_memory
         }
 #if defined(TRACE_WINDFLOW)
-            logfile = new std::ofstream();
-            name += "_" + std::to_string(this->get_my_id()) + "_" + std::to_string(getpid()) + ".log";
+        logfile = new std::ofstream();
+        name += "_" + std::to_string(this->get_my_id()) + "_" + std::to_string(getpid()) + ".log";
 #if defined(LOG_DIR)
-            std::string filename = std::string(STRINGIFY(LOG_DIR)) + "/" + name;
-            std::string log_dir = std::string(STRINGIFY(LOG_DIR));
+        std::string filename = std::string(STRINGIFY(LOG_DIR)) + "/" + name;
+        std::string log_dir = std::string(STRINGIFY(LOG_DIR));
 #else
-            std::string filename = "log/" + name;
-            std::string log_dir = std::string("log");
+        std::string filename = "log/" + name;
+        std::string log_dir = std::string("log");
 #endif
-            // create the log directory
-            if (mkdir(log_dir.c_str(), 0777) != 0) {
-                struct stat st;
-                if((stat(log_dir.c_str(), &st) != 0) || !S_ISDIR(st.st_mode)) {
-                    std::cerr << RED << "WindFlow Error: directory for log files cannot be created" << DEFAULT_COLOR << std::endl;
-                    exit(EXIT_FAILURE);
-                }
+        // create the log directory
+        if (mkdir(log_dir.c_str(), 0777) != 0) {
+            struct stat st;
+            if((stat(log_dir.c_str(), &st) != 0) || !S_ISDIR(st.st_mode)) {
+                std::cerr << RED << "WindFlow Error: directory for log files cannot be created" << DEFAULT_COLOR << std::endl;
+                exit(EXIT_FAILURE);
             }
-            logfile->open(filename);
+        }
+        logfile->open(filename);
 #endif
         return 0;
     }
@@ -443,12 +479,16 @@ public:
                 }
                 // the fired window is put in batched mode
                 win.setBatched();
-                // a new micro-batch is complete
+                // a new batch is complete
                 if (key_d.batchedWin == batch_len) {
 #if defined(TRACE_WINDFLOW)
-                    rcvTuplesTriggering++;
+                    if (!isTriggering) {
+                        rcvTuplesTriggering++;
+                    }
                     isTriggering = true;
 #endif
+                    // emit results of the previously running kernel on the GPU
+                    waitAndFlush();
                     // compute the initial pointer of the batch and its size (in no. of tuples)
                     const tuple_t *dataBatch;
                     size_t size_copy;
@@ -462,8 +502,9 @@ public:
                         size_copy = (key_d.archive).getDistance(*(key_d.start_tuple), *(key_d.end_tuple));
                     }
                     // prepare the host_results
-                    for (size_t i=0; i < batch_len; i++)
+                    for (size_t i=0; i < batch_len; i++) {
                         host_results[i].setControlFields(key, key_d.gwids[i], key_d.tsWin[i]);
+                    }
                     // copy of the arrays on the GPU
                     gpuErrChk(cudaMemcpyAsync(gpu_start, (key_d.start).data(), batch_len * sizeof(size_t), cudaMemcpyHostToDevice, cudaStream));
                     gpuErrChk(cudaMemcpyAsync(gpu_end, (key_d.end).data(), batch_len * sizeof(size_t), cudaMemcpyHostToDevice, cudaStream));
@@ -491,36 +532,26 @@ public:
                         // copy of the array Bin on the GPU
                         gpuErrChk(cudaMemcpyAsync(Bin, dataBatch, size_copy * sizeof(tuple_t), cudaMemcpyHostToDevice, cudaStream));
                     }
-                    // execute the CUDA Kernel on GPU
-                    int num_blocks = ceil((double) batch_len / n_thread_block);
-                    kernelBatch<win_F_t><<<num_blocks, n_thread_block, 0, cudaStream>>>(Bin, gpu_start, gpu_end, gpu_gwids, Bout, win_func, batch_len, scratchpad_memory, scratchpad_size);
+                    // call the kernel on the GPU
+                    cudaError_t err;
+                    ComputeBatch_Kernel<win_F_t><<<num_blocks, n_thread_block, 0, cudaStream>>>(Bin, gpu_start, gpu_end, gpu_gwids, Bout, win_func, batch_len, scratchpad_memory, scratchpad_size);
+                    if (err = cudaGetLastError()) {
+                        std::cerr << RED << "WindFlow Error: invoking the GPU kernel (ComputeBatch_Kernel) causes error -> " << err << DEFAULT_COLOR << std::endl;
+                        exit(EXIT_FAILURE);
+                    }
                     gpuErrChk(cudaMemcpyAsync(host_results, Bout, batch_len * sizeof(result_t), cudaMemcpyDeviceToHost, cudaStream));
-                    gpuErrChk(cudaStreamSynchronize(cudaStream));
                     // purge the archive from tuples that are no longer necessary
                     if (key_d.start_tuple)
                         (key_d.archive).purge(*(key_d.start_tuple));
                     cnt_fired += batch_len;
-                    // transmission of results
-                    for (size_t i=0; i<batch_len; i++) {
-                        result_t *res = new result_t();
-                        *res = host_results[i];
-                        // special cases: role is PLQ or MAP
-                        if (role == MAP) {
-                            res->setControlFields(key, key_d.emit_counter, std::get<2>(res->getControlFields()));
-                            key_d.emit_counter += map_indexes.second;
-                        }
-                        else if (role == PLQ) {
-                            uint64_t new_id = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) + (key_d.emit_counter * config.n_inner);
-                            res->setControlFields(key, new_id, std::get<2>(res->getControlFields()));
-                            key_d.emit_counter++;
-                        }
-                        this->ff_send_out(res);
-                    }
-                    // reset data structures for the next micro-batch
+                    isRunningKernel = true;
+                    lastKeyD = &key_d;
+                    // reset data structures for the next batch
                     key_d.batchedWin = 0;
                     (key_d.start).clear();
                     (key_d.end).clear();
                     (key_d.gwids).clear();
+                    (key_d.tsWin).clear();
                     key_d.start_tuple = std::nullopt;
                     key_d.end_tuple = std::nullopt;
                 }
@@ -550,6 +581,8 @@ public:
     // method to manage the EOS (utilized by the FastFlow runtime)
     void eosnotify(ssize_t id)
     {
+        // emit results of the previously running kernel on the GPU
+        waitAndFlush();
         // allocate on the CPU the scratchpad_memory
         char *scratchpad_memory_cpu = (char *) malloc(sizeof(char) * scratchpad_size);
         // iterate over all the keys
@@ -571,11 +604,11 @@ public:
                     // call the win_func on the CPU
                     decltype(get_tuple_t(win_func)) *my_input_data = (decltype(get_tuple_t(win_func)) *) &(*(its.first));
                     // call win_func
-                    win_func(win.getGWID(), my_input_data, out, distance(its.first, its.second), scratchpad_memory_cpu);
+                    win_func(win.getGWID(), my_input_data, distance(its.first, its.second), out, scratchpad_memory_cpu, scratchpad_size);
                 }
                 else {// empty window
                     // call win_func
-                    win_func(win.getGWID(), nullptr, out, 0, scratchpad_memory_cpu);
+                    win_func(win.getGWID(), nullptr, 0, out, scratchpad_memory_cpu, scratchpad_size);
                 }
                 // special cases: role is PLQ or MAP
                 if (role == MAP) {
@@ -636,6 +669,15 @@ public:
     win_type_t getWinType() const
     {
         return winType;
+    }
+
+    /** 
+     *  \brief Get the number of dropped tuples by the Win_Seq_GPU
+     *  \return number of tuples dropped during the processing by the Win_Seq_GPU
+     */ 
+    size_t getNumDroppedTuples() const
+    {
+        return dropped_tuples;
     }
 
     /// Method to start the operator execution asynchronously

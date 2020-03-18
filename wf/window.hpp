@@ -190,6 +190,8 @@ public:
                 if (!firstTuple) {
                     firstTuple = std::make_optional(_t); // save the first tuple returning IN
                 }
+                // window result has the timestamp of the last tuple raising IN
+                result.setControlFields(std::get<0>(result.getControlFields()), std::get<1>(result.getControlFields()), std::get<2>(_t.getControlFields()));
             }
             else if (event == FIRED) {
                 if (!lastTuple) {

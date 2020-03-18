@@ -19,7 +19,7 @@
  *  @author  Gabriele Mencagli
  *  @date    30/06/2017
  *  
- *  @brief Win_Seq operator executing a windowed transformation on a multi-core CPU
+ *  @brief Win_Seq operator executing a windowed query on a multi-core CPU
  *  
  *  @section Win_Seq (Description)
  *  
@@ -44,7 +44,7 @@
 #include <window.hpp>
 #include <context.hpp>
 #include <iterable.hpp>
-#include <meta_utils.hpp>
+#include <meta.hpp>
 #include <stream_archive.hpp>
 
 namespace wf {
@@ -52,7 +52,7 @@ namespace wf {
 /** 
  *  \class Win_Seq
  *  
- *  \brief Win_Seq operator executing a windowed transformation on a multi-core CPU
+ *  \brief Win_Seq operator executing a windowed query on a multi-core CPU
  *  
  *  This class implements the Win_Seq operator executing windowed queries on a multicore
  *  in a serial fashion.
@@ -139,7 +139,7 @@ private:
     bool isNIC; // this flag is true if the operator is instantiated with a non-incremental query function
     bool isRich; // flag stating whether the function to be used is rich
     RuntimeContext context; // RuntimeContext
-    PatternConfig config; // configuration structure of the Win_Seq operator
+    OperatorConfig config; // configuration structure of the Win_Seq operator
     role_t role; // role of the Win_Seq
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     std::pair<size_t, size_t> map_indexes = std::make_pair(0, 1); // indexes useful is the role is MAP
@@ -192,7 +192,7 @@ public:
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _context RuntimeContext object to be used
      *  \param _config configuration of the operator
@@ -206,7 +206,7 @@ public:
             std::string _name,
             closing_func_t _closing_func,
             RuntimeContext _context,
-            PatternConfig _config,
+            OperatorConfig _config,
             role_t _role):
             win_func(_win_func),
             win_len(_win_len),
@@ -233,7 +233,7 @@ public:
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _context RuntimeContext object to be used
      *  \param _config configuration of the operator
@@ -247,7 +247,7 @@ public:
             std::string _name,
             closing_func_t _closing_func,
             RuntimeContext _context,
-            PatternConfig _config,
+            OperatorConfig _config,
             role_t _role):
             rich_win_func(_rich_win_func),
             win_len(_win_len),
@@ -274,7 +274,7 @@ public:
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _context RuntimeContext object to be used
      *  \param _config configuration of the operator
@@ -288,7 +288,7 @@ public:
             std::string _name,
             closing_func_t _closing_func,
             RuntimeContext _context,
-            PatternConfig _config,
+            OperatorConfig _config,
             role_t _role):
             winupdate_func(_winupdate_func),
             win_len(_win_len),
@@ -315,7 +315,7 @@ public:
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _name std::string with the unique name of the operator
+     *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
      *  \param _context RuntimeContext object to be used
      *  \param _config configuration of the operator
@@ -329,7 +329,7 @@ public:
             std::string _name,
             closing_func_t _closing_func,
             RuntimeContext _context,
-            PatternConfig _config,
+            OperatorConfig _config,
             role_t _role):
             rich_winupdate_func(_rich_winupdate_func),
             win_len(_win_len),
@@ -354,24 +354,24 @@ public:
     int svc_init()
     {
 #if defined(TRACE_WINDFLOW)
-            logfile = new std::ofstream();
-            name += "_" + std::to_string(this->get_my_id()) + "_" + std::to_string(getpid()) + ".log";
+        logfile = new std::ofstream();
+        name += "_" + std::to_string(this->get_my_id()) + "_" + std::to_string(getpid()) + ".log";
 #if defined(LOG_DIR)
-            std::string filename = std::string(STRINGIFY(LOG_DIR)) + "/" + name;
-            std::string log_dir = std::string(STRINGIFY(LOG_DIR));
+        std::string filename = std::string(STRINGIFY(LOG_DIR)) + "/" + name;
+        std::string log_dir = std::string(STRINGIFY(LOG_DIR));
 #else
-            std::string filename = "log/" + name;
-            std::string log_dir = std::string("log");
+        std::string filename = "log/" + name;
+        std::string log_dir = std::string("log");
 #endif
-            // create the log directory
-            if (mkdir(log_dir.c_str(), 0777) != 0) {
-                struct stat st;
-                if((stat(log_dir.c_str(), &st) != 0) || !S_ISDIR(st.st_mode)) {
-                    std::cerr << RED << "WindFlow Error: directory for log files cannot be created" << DEFAULT_COLOR << std::endl;
-                    exit(EXIT_FAILURE);
-                }
+        // create the log directory
+        if (mkdir(log_dir.c_str(), 0777) != 0) {
+            struct stat st;
+            if((stat(log_dir.c_str(), &st) != 0) || !S_ISDIR(st.st_mode)) {
+                std::cerr << RED << "WindFlow Error: directory for log files cannot be created" << DEFAULT_COLOR << std::endl;
+                exit(EXIT_FAILURE);
             }
-            logfile->open(filename);
+        }
+        logfile->open(filename);
 #endif
         return 0;
     }
@@ -469,7 +469,9 @@ public:
                 // non-incremental query -> call win_func
                 if (isNIC) {
 #if defined(TRACE_WINDFLOW)
-                    rcvTuplesTriggering++;
+                    if (!isTriggering) {
+                        rcvTuplesTriggering++;
+                    }
                     isTriggering = true;
 #endif
                     std::pair<input_iterator_t, input_iterator_t> its;
@@ -623,6 +625,15 @@ public:
     win_type_t getWinType() const
     {
         return winType;
+    }
+
+    /** 
+     *  \brief Get the number of dropped tuples by the Win_Seq
+     *  \return number of tuples dropped during the processing by the Win_Seq
+     */ 
+    size_t getNumDroppedTuples() const
+    {
+        return dropped_tuples;
     }
 
     /// Method to start the operator execution asynchronously

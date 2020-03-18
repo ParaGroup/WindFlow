@@ -20,31 +20,28 @@ FF_ROOT	= $(HOME)/fastflow
 FF_REPO	= https://github.com/fastflow/fastflow
 
 all: fastflow
-	$(MAKE) -C src
+	$(MAKE) -C tests
 
 all_cpu: fastflow
-	$(MAKE) all_cpu -C src
+	$(MAKE) all_cpu -C tests
 
 all_gpu: fastflow
-	$(MAKE) all_gpu -C src
+	$(MAKE) all_gpu -C tests
 
-mp_test_cpu: fastflow
-	$(MAKE) mp_test_cpu -C src
+mp_tests_cpu: fastflow
+	$(MAKE) mp_tests_cpu -C tests
 
-mp_test_gpu: fastflow
-	$(MAKE) mp_test_gpu -C src
+mp_tests_gpu: fastflow
+	$(MAKE) mp_tests_gpu -C tests
 
-merge_test: fastflow
-	$(MAKE) merge_test -C src
+merge_tests: fastflow
+	$(MAKE) merge_tests -C tests
 
-split_test: fastflow
-	$(MAKE) split_test -C src
+split_tests: fastflow
+	$(MAKE) split_tests -C tests
 
-graph_test: fastflow
-	$(MAKE) graph_test -C src
-
-yahoo_test_cpu: fastflow
-	$(MAKE) yahoo_test_cpu -C src
+graph_tests: fastflow
+	$(MAKE) graph_tests -C tests
 
 fastflow:
 	@if [ ! -d $(FF_ROOT) ] ;\
@@ -54,7 +51,7 @@ fastflow:
 fi
 
 clean:
-	$(MAKE) clean -C src
+	$(MAKE) clean -C tests
 
 .DEFAULT_GOAL := all
-.PHONY: all all_cpu all_gpu mp_test_cpu mp_test_gpu merge_test split_test graph_test yahoo_test_cpu fastflow clean
+.PHONY: all all_cpu all_gpu mp_tests_cpu mp_tests_gpu merge_tests split_tests graph_tests fastflow clean

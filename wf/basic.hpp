@@ -33,6 +33,7 @@
 /// includes
 #include <deque>
 #include <mutex>
+#include <numeric>
 #include <sstream>
 #include <iostream>
 #include <errno.h>
@@ -68,6 +69,20 @@ inline unsigned long current_time_nsecs()
     clock_gettime(CLOCK_REALTIME, &t);
     return (t.tv_sec)*1000000000L + t.tv_nsec;
 }
+
+#if __CUDACC__
+// assert function on GPU
+inline void gpuAssert(cudaError_t code,
+                      const char *file,
+                      int line,
+                      bool abort=false)
+{
+    if (code != cudaSuccess) {
+        fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+        if (abort) exit(code);
+    }
+}
+#endif
 
 /// utility macros
 #define DEFAULT_VECTOR_CAPACITY 500 //< default capacity of vectors used internally by the library
@@ -122,7 +137,7 @@ enum pattern_t { SEQ_CPU, SEQ_GPU, KF_CPU, KF_GPU, WF_CPU, WF_GPU, PF_CPU, PF_GP
 #define BOLDWHITE       "\033[1m\033[37m"
 
 // struct of the window-based operator's configuration parameters
-struct PatternConfig {
+struct OperatorConfig {
     size_t id_outer; // identifier in the outermost operator
     size_t n_outer; // parallelism degree in the outermost operator
     uint64_t slide_outer; // sliding factor of the outermost operator
@@ -131,7 +146,7 @@ struct PatternConfig {
     uint64_t slide_inner; // sliding factor of the innermost operator
 
     // Constructor I
-    PatternConfig(): id_outer(0),
+    OperatorConfig(): id_outer(0),
                      n_outer(0),
                      slide_outer(0),
                      id_inner(0),
@@ -140,7 +155,7 @@ struct PatternConfig {
     {}
 
     // Constructor II
-    PatternConfig(size_t _id_outer,
+    OperatorConfig(size_t _id_outer,
                   size_t _n_outer,
                   uint64_t _slide_outer,
                   size_t _id_inner,
@@ -166,7 +181,7 @@ template<typename tuple_t, typename result_t>
 class Map;
 
 /// forward declaration of the Filter operator
-template<typename tuple_t>
+template<typename tuple_t, typename result_t=tuple_t>
 class Filter;
 
 /// forward declaration of the FlatMap operator
@@ -181,6 +196,10 @@ class Accumulator;
 template<typename tuple_t, typename result_t, typename input_t=tuple_t>
 class Win_Seq;
 
+/// forward declaration of the Win_SeqFFAT operator
+template<typename tuple_t, typename result_t>
+class Win_SeqFFAT;
+
 /// forward declaration of the Win_Farm operator
 template<typename tuple_t, typename result_t, typename input_t=tuple_t>
 class Win_Farm;
@@ -188,6 +207,10 @@ class Win_Farm;
 /// forward declaration of the Key_Farm operator
 template<typename tuple_t, typename result_t>
 class Key_Farm;
+
+/// forward declaration of the Key_FFAT operator
+template<typename tuple_t, typename result_t>
+class Key_FFAT;
 
 /// forward declaration of the Pane_Farm operator
 template<typename tuple_t, typename result_t, typename input_t=tuple_t>
@@ -201,6 +224,10 @@ class Win_MapReduce;
 template<typename tuple_t, typename result_t, typename fun_t, typename input_t=tuple_t>
 class Win_Seq_GPU;
 
+/// forward declaration of the Win_SeqFFAT_GPU operator
+template<typename tuple_t, typename result_t, typename fun_t>
+class Win_SeqFFAT_GPU;
+
 /// forward declaration of the Win_Farm_GPU operator
 template<typename tuple_t, typename result_t, typename fun_t, typename input_t=tuple_t>
 class Win_Farm_GPU;
@@ -208,6 +235,10 @@ class Win_Farm_GPU;
 /// forward declaration of the Key_Farm_GPU operator
 template<typename tuple_t, typename result_t, typename fun_t>
 class Key_Farm_GPU;
+
+/// forward declaration of the Key_FFAT_GPU operator
+template<typename tuple_t, typename result_t, typename fun_t>
+class Key_FFAT_GPU;
 
 /// forward declaration of the Pane_Farm_GPU operator
 template<typename tuple_t, typename result_t, typename fun_t, typename input_t=tuple_t>

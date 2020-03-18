@@ -99,7 +99,7 @@ private:
 
 public:
         // Constructor I
-        template <typename T=std::string>
+        template<typename T=std::string>
         Map_Node(typename std::enable_if<std::is_same<T,T>::value && std::is_same<tuple_t,result_t>::value, map_func_ip_t>::type _func,
                  T _name,
                  RuntimeContext _context,
@@ -113,7 +113,7 @@ public:
         {}
 
         // Constructor II
-        template <typename T=std::string>
+        template<typename T=std::string>
         Map_Node(typename std::enable_if<std::is_same<T,T>::value && std::is_same<tuple_t,result_t>::value, rich_map_func_ip_t>::type _func,
                  T _name,
                  RuntimeContext _context,
@@ -127,7 +127,7 @@ public:
         {}
 
         // Constructor III
-        template <typename T=std::string>
+        template<typename T=std::string>
         Map_Node(typename std::enable_if<std::is_same<T,T>::value && !std::is_same<tuple_t,result_t>::value, map_func_nip_t>::type _func,
                  T _name,
                  RuntimeContext _context,
@@ -141,7 +141,7 @@ public:
         {}
 
         // Constructor IV
-        template <typename T=std::string>
+        template<typename T=std::string>
         Map_Node(typename std::enable_if<std::is_same<T,T>::value && !std::is_same<tuple_t,result_t>::value,
                  rich_map_func_nip_t>::type _func,
                  T _name,
@@ -247,7 +247,7 @@ public:
      *  \param _name string with the unique name of the Map operator
      *  \param _closing_func closing function
      */ 
-    template <typename T=size_t>
+    template<typename T=size_t>
     Map(typename std::enable_if<std::is_same<T,T>::value && std::is_same<tuple_t,result_t>::value, map_func_ip_t>::type _func,
         T _pardegree,
         std::string _name, 
@@ -284,7 +284,7 @@ public:
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
-    template <typename T=size_t>
+    template<typename T=size_t>
     Map(typename std::enable_if<std::is_same<T,T>::value && std::is_same<tuple_t,result_t>::value, map_func_ip_t>::type _func,
         T _pardegree,
         std::string _name,
@@ -321,7 +321,7 @@ public:
      *  \param _name string with the unique name of the Map operator
      *  \param _closing_func closing function
      */ 
-    template <typename T=size_t>
+    template<typename T=size_t>
     Map(typename std::enable_if<std::is_same<T,T>::value && std::is_same<tuple_t,result_t>::value, rich_map_func_ip_t>::type _func,
         T _pardegree,
         std::string _name,
@@ -358,7 +358,7 @@ public:
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
-    template <typename T=size_t>
+    template<typename T=size_t>
     Map(typename std::enable_if<std::is_same<T,T>::value && std::is_same<tuple_t,result_t>::value, rich_map_func_ip_t>::type _func,
         T _pardegree,
         std::string _name,
@@ -395,7 +395,7 @@ public:
      *  \param _name string with the unique name of the Map operator
      *  \param _closing_func closing function
      */ 
-    template <typename T=size_t>
+    template<typename T=size_t>
     Map(typename std::enable_if<std::is_same<T,T>::value && !std::is_same<tuple_t,result_t>::value, map_func_nip_t>::type _func,
         T _pardegree,
         std::string _name,
@@ -432,7 +432,7 @@ public:
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
-    template <typename T=size_t>
+    template<typename T=size_t>
     Map(typename std::enable_if<std::is_same<T,T>::value && !std::is_same<tuple_t,result_t>::value, map_func_nip_t>::type _func,
         T _pardegree,
         std::string _name,
@@ -469,7 +469,7 @@ public:
      *  \param _name string with the unique name of the Map operator
      *  \param _closing_func closing function
      */ 
-    template <typename T=size_t>
+    template<typename T=size_t>
     Map(typename std::enable_if<std::is_same<T,T>::value && !std::is_same<tuple_t,result_t>::value, rich_map_func_nip_t>::type _func,
         T _pardegree,
         std::string _name,
@@ -506,7 +506,7 @@ public:
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
-    template <typename T=size_t>
+    template<typename T=size_t>
     Map(typename std::enable_if<std::is_same<T,T>::value && !std::is_same<tuple_t,result_t>::value, rich_map_func_nip_t>::type _func,
         T _pardegree,
         std::string _name,

@@ -19,7 +19,7 @@
  *  @author  Gabriele Mencagli
  *  @date    22/05/2018
  *  
- *  @brief Pane_Farm_GPU operator executing a windowed transformation in parallel
+ *  @brief Pane_Farm_GPU operator executing a windowed query in parallel
  *         on a CPU+GPU system
  *  
  *  @section Pane_Farm_GPU (Description)
@@ -49,14 +49,14 @@
 #include <win_farm.hpp>
 #include <win_farm_gpu.hpp>
 #include <basic.hpp>
-#include <meta_utils.hpp>
+#include <meta.hpp>
 
 namespace wf {
 
 /** 
  *  \class Pane_Farm_GPU
  *  
- *  \brief Pane_Farm_GPU operator executing a windowed transformation in parallel
+ *  \brief Pane_Farm_GPU operator executing a windowed query in parallel
  *         on a CPU+GPU system
  *  
  *  This class implements the Pane_Farm_GPU operator executing windowed queries in
@@ -90,15 +90,6 @@ private:
     template<typename T>
     friend class KeyFarmGPU_Builder;
     friend class MultiPipe;
-    // compute the gcd between two numbers
-    std::function<uint64_t(uint64_t, uint64_t)> gcd = [](uint64_t u, uint64_t v) {
-        while (v != 0) {
-            unsigned long r = u % v;
-            u = v;
-            v = r;
-        }
-        return u;
-    };
     // configuration variables of the Pane_Farm_GPU
     F_t gpuFunction;
     plq_func_t plq_func;
@@ -121,9 +112,10 @@ private:
     size_t scratchpad_size;
     bool ordered;
     opt_level_t opt_level;
-    PatternConfig config;
+    OperatorConfig config;
     bool used; // true if the operator has been added/chained in a MultiPipe
     bool used4Nesting; // true if the operator has been used in a nested structure
+    ff_node *plq; // pointer to the PLQ stage
 
     // Private Constructor I
     Pane_Farm_GPU(F_t _gpuFunction,
@@ -140,7 +132,7 @@ private:
                   size_t _scratchpad_size,
                   bool _ordered,
                   opt_level_t _opt_level,
-                  PatternConfig _config):
+                  OperatorConfig _config):
                   gpuFunction(_gpuFunction),
                   wlq_func(_wlq_func),
                   isGPUPLQ(true),
@@ -189,26 +181,28 @@ private:
         // create the first stage PLQ
         if (_plq_degree > 1) {
             // configuration structure of the Win_Farm_GPU (PLQ)
-            PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
+            OperatorConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *plq_wf = new Win_Farm_GPU<tuple_t, result_t, F_t, input_t>(_gpuFunction, _pane_len, _pane_len, _triggering_delay, _winType, _plq_degree, _batch_len, _n_thread_block, _name + "_plq", _scratchpad_size, true, LEVEL0, configWFPLQ, PLQ);
             plq_stage = plq_wf;
+            plq = plq_wf;
         }
         else {
             // configuration structure of the Win_Seq_GPU (PLQ)
-            PatternConfig configSeqPLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _pane_len);
+            OperatorConfig configSeqPLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _pane_len);
             auto *plq_seq = new Win_Seq_GPU<tuple_t, result_t, F_t, input_t>(_gpuFunction, _pane_len, _pane_len, _triggering_delay, _winType, _batch_len, _n_thread_block, _name + "_plq", _scratchpad_size, configSeqPLQ, PLQ);
             plq_stage = plq_seq;
+            plq = plq_seq;
         }
         // create the second stage WLQ
         if (_wlq_degree > 1) {
             // configuration structure of the Win_Farm (WLQ)
-            PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
+            OperatorConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlq_func, (_win_len/_pane_len), (_slide_len/_pane_len), 0, CB, _wlq_degree, _name + "_wlq", closing_func, _ordered, LEVEL0, configWFWLQ, WLQ);
             wlq_stage = wlq_wf;
         }
         else {
             // configuration structure of the Win_Seq (WLQ)
-            PatternConfig configSeqWLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, (_slide_len/_pane_len));
+            OperatorConfig configSeqWLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, (_slide_len/_pane_len));
             auto *wlq_seq = new Win_Seq<result_t, result_t>(_wlq_func, (_win_len/_pane_len), (_slide_len/_pane_len), 0, CB, _name + "_wlq", closing_func, RuntimeContext(1, 0), configSeqWLQ, WLQ);
             wlq_stage = wlq_seq;
         }
@@ -235,7 +229,7 @@ private:
                   size_t _scratchpad_size,
                   bool _ordered,
                   opt_level_t _opt_level,
-                  PatternConfig _config):
+                  OperatorConfig _config):
                   gpuFunction(_gpuFunction),
                   wlqupdate_func(_wlqupdate_func),
                   isGPUPLQ(true),
@@ -284,26 +278,28 @@ private:
         // create the first stage PLQ
         if (_plq_degree > 1) {
             // configuration structure of the Win_Farm_GPU (PLQ)
-            PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
+            OperatorConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *plq_wf = new Win_Farm_GPU<tuple_t, result_t, F_t, input_t>(_gpuFunction, _pane_len, _pane_len, _triggering_delay, _winType, _plq_degree, _batch_len, _n_thread_block, _name + "_plq", _scratchpad_size, true, LEVEL0, configWFPLQ, PLQ);
             plq_stage = plq_wf;
+            plq = plq_wf;
         }
         else {
             // configuration structure of the Win_Seq_GPU (PLQ)
-            PatternConfig configSeqPLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _pane_len);
+            OperatorConfig configSeqPLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _pane_len);
             auto *plq_seq = new Win_Seq_GPU<tuple_t, result_t, F_t, input_t>(_gpuFunction, _pane_len, _pane_len, _triggering_delay, _winType, _batch_len, _n_thread_block, _name + "_plq", _scratchpad_size, configSeqPLQ, PLQ);
             plq_stage = plq_seq;
+            plq = plq_seq;
         }
         // create the second stage WLQ
         if (_wlq_degree > 1) {
             // configuration structure of the Win_Farm (WLQ)
-            PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
+            OperatorConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *wlq_wf = new Win_Farm<result_t, result_t>(_wlqupdate_func, (_win_len/_pane_len), (_slide_len/_pane_len), 0, CB, _wlq_degree, _name + "_wlq", closing_func, _ordered, LEVEL0, configWFWLQ, WLQ);
             wlq_stage = wlq_wf;
         }
         else {
             // configuration structure of the Win_Seq (WLQ)
-            PatternConfig configSeqWLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, (_slide_len/_pane_len));
+            OperatorConfig configSeqWLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, (_slide_len/_pane_len));
             auto *wlq_seq = new Win_Seq<result_t, result_t>(_wlqupdate_func, (_win_len/_pane_len), (_slide_len/_pane_len), 0, CB, _name + "_wlq", closing_func, RuntimeContext(1, 0), configSeqWLQ, WLQ);
             wlq_stage = wlq_seq;
         }
@@ -330,7 +326,7 @@ private:
                   size_t _scratchpad_size,
                   bool _ordered,
                   opt_level_t _opt_level,
-                  PatternConfig _config):
+                  OperatorConfig _config):
                   plq_func(_plq_func),
                   gpuFunction(_gpuFunction),
                   isGPUPLQ(false),
@@ -379,26 +375,28 @@ private:
         // create the first stage PLQ
         if (_plq_degree > 1) {
             // configuration structure of the Win_Farm (PLQ)
-            PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
+            OperatorConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plq_func, _pane_len, _pane_len, _triggering_delay, _winType, _plq_degree, _name + "_plq", closing_func, true, LEVEL0, configWFPLQ, PLQ);
             plq_stage = plq_wf;
+            plq = plq_wf;
         }
         else {
             // configuration structure of the Win_Seq (PLQ)
-            PatternConfig configSeqPLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _pane_len);
+            OperatorConfig configSeqPLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _pane_len);
             auto *plq_seq = new Win_Seq<tuple_t, result_t, input_t>(_plq_func, _pane_len, _pane_len, _triggering_delay, _winType, _name + "_plq", closing_func, RuntimeContext(1, 0), configSeqPLQ, PLQ);
             plq_stage = plq_seq;
+            plq = plq_seq;
         }
         // create the second stage WLQ
         if (_wlq_degree > 1) {
             // configuration structure of the Win_Farm_GPU (WLQ)
-            PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
+            OperatorConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *wlq_wf = new Win_Farm_GPU<result_t, result_t, F_t>(_gpuFunction, (_win_len/_pane_len), (_slide_len/_pane_len), 0, CB, _wlq_degree, _batch_len, _n_thread_block, _name + "_wlq", scratchpad_size, _ordered, LEVEL0, configWFWLQ, WLQ);
             wlq_stage = wlq_wf;
         }
         else {
             // configuration structure of the Win_Seq_GPU (WLQ)
-            PatternConfig configSeqWLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, (_slide_len/_pane_len));
+            OperatorConfig configSeqWLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, (_slide_len/_pane_len));
             auto *wlq_seq = new Win_Seq_GPU<result_t, result_t, F_t>(_gpuFunction, (_win_len/_pane_len), (_slide_len/_pane_len), 0, CB, _batch_len, _n_thread_block, _name + "_wlq", scratchpad_size, configSeqWLQ, WLQ);
             wlq_stage = wlq_seq;
         }
@@ -425,7 +423,7 @@ private:
                   size_t _scratchpad_size,
                   bool _ordered,
                   opt_level_t _opt_level,
-                  PatternConfig _config):
+                  OperatorConfig _config):
                   plqupdate_func(_plqupdate_func),
                   gpuFunction(_gpuFunction),
                   isGPUPLQ(false),
@@ -474,26 +472,28 @@ private:
         // create the first stage PLQ
         if (_plq_degree > 1) {
             // configuration structure of the Win_Farm (PLQ)
-            PatternConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
+            OperatorConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqupdate_func, _pane_len, _pane_len, _triggering_delay, _winType, _plq_degree, _name + "_plq", closing_func, true, LEVEL0, configWFPLQ, PLQ);
             plq_stage = plq_wf;
+            plq = plq_wf;
         }
         else {
             // configuration structure of the Win_Seq (PLQ)
-            PatternConfig configSeqPLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _pane_len);
+            OperatorConfig configSeqPLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _pane_len);
             auto *plq_seq = new Win_Seq<tuple_t, result_t, input_t>(_plqupdate_func, _pane_len, _pane_len, _triggering_delay, _winType, _name + "_plq", closing_func, RuntimeContext(1, 0), configSeqPLQ, PLQ);
             plq_stage = plq_seq;
+            plq = plq_seq;
         }
         // create the second stage WLQ
         if (_wlq_degree > 1) {
             // configuration structure of the Win_Farm_GPU (WLQ)
-            PatternConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
+            OperatorConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *wlq_wf = new Win_Farm_GPU<result_t, result_t, F_t>(_gpuFunction, (_win_len/_pane_len), (_slide_len/_pane_len), 0, CB, _wlq_degree, _batch_len, _n_thread_block, _name + "_wlq", scratchpad_size, _ordered, LEVEL0, configWFWLQ, WLQ);
             wlq_stage = wlq_wf;
         }
         else {
             // configuration structure of the Win_Seq_GPU (WLQ)
-            PatternConfig configSeqWLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, (_slide_len/_pane_len));
+            OperatorConfig configSeqWLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, (_slide_len/_pane_len));
             auto *wlq_seq = new Win_Seq_GPU<result_t, result_t, F_t>(_gpuFunction, (_win_len/_pane_len), (_slide_len/_pane_len), 0, CB, _batch_len, _n_thread_block, _name + "_wlq", scratchpad_size, configSeqWLQ, WLQ);
             wlq_stage = wlq_seq;
         }
@@ -550,22 +550,32 @@ private:
         }
     }
 
+    // function to compute the gcd (std::gcd is available only in C++17)
+    uint64_t gcd(uint64_t u, uint64_t v) {
+        while (v != 0) {
+            unsigned long r = u % v;
+            u = v;
+            v = r;
+        }
+        return u;
+    };
+
 public:
     /** 
      *  \brief Constructor I
      *  
-     *  \param _plq_func the non-incremental pane processing function (CPU/GPU function)
-     *  \param _wlq_func the non-incremental window processing function (CPU function)
+     *  \param _plq_func the non-incremental pane processing function (__host__ __device__ function)
+     *  \param _wlq_func the non-incremental window processing function (__host__ function)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _batch_len no. of panes in a batch (i.e. 1 pane mapped onto 1 CUDA thread)
-     *  \param _n_thread_block number of threads (i.e. panes) per block
-     *  \param _name std::string with the unique name of the operator
-     *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
+     *  \param _batch_len no. of panes in a batch
+     *  \param _n_thread_block number of threads per block
+     *  \param _name string with the unique name of the operator
+     *  \param _scratchpad_size size in bytes of the scratchpad area local of a CUDA thread (pre-allocated on the global memory of the GPU)
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the operator
      */ 
@@ -583,7 +593,7 @@ public:
                   size_t _scratchpad_size,
                   bool _ordered,
                   opt_level_t _opt_level):
-                  Pane_Farm_GPU(_plq_func, _wlq_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+                  Pane_Farm_GPU(_plq_func, _wlq_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         used = false;
         used4Nesting = false;
@@ -592,18 +602,18 @@ public:
     /** 
      *  \brief Constructor II
      *  
-     *  \param _plq_func the non-incremental pane processing function (CPU/GPU function)
-     *  \param _wlqupdate_func the incremental window processing function (CPU function)
+     *  \param _plq_func the non-incremental pane processing function (__host__ __device__ function)
+     *  \param _wlqupdate_func the incremental window processing function (__host__ function)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _batch_len no. of panes in a batch (i.e. 1 pane mapped onto 1 CUDA thread)
-     *  \param _n_thread_block number of threads (i.e. panes) per block
-     *  \param _name std::string with the unique name of the operator
-     *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
+     *  \param _batch_len no. of panes in a batch
+     *  \param _n_thread_block number of threads per block
+     *  \param _name string with the unique name of the operator
+     *  \param _scratchpad_size size in bytes of the scratchpad area local of a CUDA thread (pre-allocated on the global memory of the GPU)
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the operator
      */ 
@@ -621,7 +631,7 @@ public:
                   size_t _scratchpad_size,
                   bool _ordered,
                   opt_level_t _opt_level):
-                  Pane_Farm_GPU(_plq_func, _wlqupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+                  Pane_Farm_GPU(_plq_func, _wlqupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         used = false;
         used4Nesting = false;
@@ -630,18 +640,18 @@ public:
     /** 
      *  \brief Constructor III
      *  
-     *  \param _plq_func the non-incremental pane processing function (CPU function)
-     *  \param _wlq_func the non-incremental window processing function (CPU/GPU function)
+     *  \param _plq_func the non-incremental pane processing function (__host__ function)
+     *  \param _wlq_func the non-incremental window processing function (__host__ __device__ function)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _batch_len no. of panes in a batch (i.e. 1 pane mapped onto 1 CUDA thread)
-     *  \param _n_thread_block number of threads (i.e. panes) per block
-     *  \param _name std::string with the unique name of the operator
-     *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
+     *  \param _batch_len no. of panes in a batch
+     *  \param _n_thread_block number of threads per block
+     *  \param _name string with the unique name of the operator
+     *  \param _scratchpad_size size in bytes of the scratchpad area local of a CUDA thread (pre-allocated on the global memory of the GPU)
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the operator
      */ 
@@ -659,7 +669,7 @@ public:
                   size_t _scratchpad_size,
                   bool _ordered,
                   opt_level_t _opt_level):
-                  Pane_Farm_GPU(_plq_func, _wlq_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+                  Pane_Farm_GPU(_plq_func, _wlq_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         used = false;
         used4Nesting = false;
@@ -668,18 +678,18 @@ public:
     /** 
      *  \brief Constructor IV
      *  
-     *  \param _plqupdate_func the incremental pane processing function (CPU function)
-     *  \param _wlq_func the non-incremental window processing function (CPU/GPU function)
+     *  \param _plqupdate_func the incremental pane processing function (__host__ function)
+     *  \param _wlq_func the non-incremental window processing function (__host__ __device__ function)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _plq_degree parallelism degree of the PLQ stage
      *  \param _wlq_degree parallelism degree of the WLQ stage
-     *  \param _batch_len no. of panes in a batch (i.e. 1 pane mapped onto 1 CUDA thread)
-     *  \param _n_thread_block number of threads (i.e. panes) per block
-     *  \param _name std::string with the unique name of the operator
-     *  \param _scratchpad_size size in bytes of the scratchpad area per CUDA thread (on the GPU)
+     *  \param _batch_len no. of panes in a batch
+     *  \param _n_thread_block number of threads per block
+     *  \param _name string with the unique name of the operator
+     *  \param _scratchpad_size size in bytes of the scratchpad area local of a CUDA thread (pre-allocated on the global memory of the GPU)
      *  \param _ordered true if the results of the same key must be emitted in order (default)
      *  \param _opt_level optimization level used to build the operator
      */ 
@@ -697,7 +707,7 @@ public:
                   size_t _scratchpad_size,
                   bool _ordered,
                   opt_level_t _opt_level):
-                  Pane_Farm_GPU(_plqupdate_func, _wlq_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, PatternConfig(0, 1, _slide_len, 0, 1, _slide_len))
+                  Pane_Farm_GPU(_plqupdate_func, _wlq_func, _win_len, _slide_len, _triggering_delay, _winType, _plq_degree, _wlq_degree, _batch_len, _n_thread_block, _name, _scratchpad_size, _ordered, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len))
     {
         used = false;
         used4Nesting = false;
@@ -755,6 +765,36 @@ public:
     bool isUsed4Nesting() const
     {
         return used4Nesting;
+    }
+
+    /** 
+     *  \brief Get the number of dropped tuples by the Pane_Farm_GPU
+     *  \return number of tuples dropped during the processing by the Pane_Farm_GPU
+     */ 
+    size_t getNumDroppedTuples() const
+    {
+        size_t count = 0;
+        if (plq_degree == 1) {
+            if (!isGPUPLQ) {
+                auto *seq = static_cast<Win_Seq<tuple_t, result_t, input_t> *>(plq);
+                count += seq->getNumDroppedTuples();
+            }
+            else {
+                auto *seq = static_cast<Win_Seq_GPU<tuple_t, result_t, F_t, input_t> *>(plq);
+                count += seq->getNumDroppedTuples();
+            }
+        }
+        else {
+            if (!isGPUPLQ) {
+                auto *wf = static_cast<Win_Farm<tuple_t, result_t, input_t> *>(plq);
+                count += wf->getNumDroppedTuples();
+            }
+            else {
+                auto *wf = static_cast<Win_Farm_GPU<tuple_t, result_t, F_t, input_t> *>(plq);
+                count += wf->getNumDroppedTuples();
+            }
+        }
+        return count;
     }
 
     /// deleted constructors/operators
