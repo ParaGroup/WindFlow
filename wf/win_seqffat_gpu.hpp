@@ -692,7 +692,8 @@ public:
     // svc_end method (utilized by the FastFlow runtime)
     void svc_end()
     {
-        // deallocate data structures allocated on the GPU
+        // destroy the CUDA stream
+        cudaStreamDestroy(cudaStream);
 #if defined (TRACE_WINDFLOW)
         ostringstream stream;
         stream << "************************************LOG************************************\n";

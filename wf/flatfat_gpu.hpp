@@ -177,6 +177,7 @@ public:
                size_t _n_thread_block):
 	           d_tree(nullptr),
                d_results(nullptr),
+               results(nullptr),
                batchSize(_batchSize),
                windowSize(_windowSize),
                slide(_slide),
@@ -206,7 +207,6 @@ public:
 
     // move Constructor
     FlatFAT_GPU(FlatFAT_GPU &&_fatgpu):
-                results(std::move(_fatgpu.results)),
                 initResults(std::move(_fatgpu.initResults)),
                 treeSize(_fatgpu.treeSize),
                 treeMemSize(_fatgpu.treeMemSize),
@@ -226,6 +226,7 @@ public:
                 n_thread_block(_fatgpu.n_thread_block)
     {
         gpuErrChk(cudaMalloc((void **) &d_tree, treeMemSize));
+        gpuErrChk(cudaMallocHost((void **) &results, Nb * sizeof(result_t)));
         gpuErrChk(cudaMalloc((void **) &d_results, Nb * sizeof(result_t)));
         tuples = new result_t[batchSize];
     }
@@ -235,6 +236,7 @@ public:
     {
         gpuErrChk(cudaFree(d_tree));
         gpuErrChk(cudaFree(d_results));
+        gpuErrChk(cudaFreeHost(results));
         delete[] tuples;
     }
 

@@ -632,10 +632,10 @@ public:
     void svc_end()
     {
         // deallocate data structures allocated on the GPU
+        cudaFree(Bin);
         cudaFree(gpu_start);
         cudaFree(gpu_end);
         cudaFree(gpu_gwids);
-        cudaFree(Bin);
         cudaFree(Bout);
         if (scratchpad_size > 0)
             cudaFree(scratchpad_memory);
