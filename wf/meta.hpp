@@ -167,22 +167,22 @@ template<typename Arg1, typename Arg2> // FlatMap
 Arg1 get_tuple_t(void (*)(const Arg1&, Shipper<Arg2>&, RuntimeContext&));
 
 template<typename F_t, typename Arg> // Source single-loop
-Arg get_tuple_t(void (F_t::*)(Shipper<Arg>&) const);
+Arg get_tuple_t(bool (F_t::*)(Shipper<Arg>&) const);
 
 template<typename F_t, typename Arg> // Source single-loop
-Arg get_tuple_t(void (F_t::*)(Shipper<Arg>&));
+Arg get_tuple_t(bool (F_t::*)(Shipper<Arg>&));
 
 template<typename Arg> // Source single-loop
-Arg get_tuple_t(void (*)(Shipper<Arg>&));
+Arg get_tuple_t(bool (*)(Shipper<Arg>&));
 
 template<typename F_t, typename Arg> // Source single-loop
-Arg get_tuple_t(void (F_t::*)(Shipper<Arg>&, RuntimeContext&) const);
+Arg get_tuple_t(bool (F_t::*)(Shipper<Arg>&, RuntimeContext&) const);
 
 template<typename F_t, typename Arg> // Source single-loop
-Arg get_tuple_t(void (F_t::*)(Shipper<Arg>&, RuntimeContext&));
+Arg get_tuple_t(bool (F_t::*)(Shipper<Arg>&, RuntimeContext&));
 
 template<typename Arg> // Source single-loop
-Arg get_tuple_t(void (*)(Shipper<Arg>&, RuntimeContext&));
+Arg get_tuple_t(bool (*)(Shipper<Arg>&, RuntimeContext&));
 
 template<typename F_t, typename Arg> // Sink
 Arg get_tuple_t(void (F_t::*)(std::optional<Arg>&) const);

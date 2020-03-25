@@ -62,9 +62,9 @@ public:
     /// type of the rich generation function (item-by-item version, briefly "itemized")
     using rich_source_item_func_t = std::function<bool(tuple_t &, RuntimeContext &)>;
     /// type of the generation function (single-loop version, briefly "loop")
-    using source_loop_func_t = std::function<void(Shipper<tuple_t> &)>;
+    using source_loop_func_t = std::function<bool(Shipper<tuple_t> &)>;
     /// type of the rich generation function (single-loop version, briefly "loop")
-    using rich_source_loop_func_t = std::function<void(Shipper<tuple_t> &, RuntimeContext &)>;
+    using rich_source_loop_func_t = std::function<bool(Shipper<tuple_t> &, RuntimeContext &)>;
     /// type of the closing function
     using closing_func_t = std::function<void(RuntimeContext &)>;
 
@@ -181,15 +181,18 @@ private:
         {
             // itemized version
             if (isItemized) {
-                if (isEND)
+                if (isEND) {
                     return this->EOS;
+                }
                 else {
                     // allocate the new tuple to be sent
                     tuple_t *t = new tuple_t();
-                    if (!isRich)
-                        isEND = !source_func_item(*t); // call the generation function
-                    else
-                        isEND = !rich_source_func_item(*t, context); // call the generation function
+                    if (!isRich) {
+                        isEND = !source_func_item(*t); // call the generation function filling the tuple
+                    }
+                    else {
+                        isEND = !rich_source_func_item(*t, context); // call the generation function filling the tuple
+                    }
 #if defined(TRACE_WINDFLOW)
                     sentTuples++;
 #endif
@@ -198,15 +201,21 @@ private:
             }
             // single-loop version
             else {
-                if (!isRich)
-                    source_func_loop(*shipper); // call the generation function
-                else
-                    rich_source_func_loop(*shipper, context); // call the generation function
+                if (isEND) {
+                    return this->EOS;
+                }
+                else {
+                    if (!isRich) {
+                        isEND = !source_func_loop(*shipper); // call the generation function sending some tuples through the shipper
+                    }
+                    else {
+                        isEND = !rich_source_func_loop(*shipper, context); // call the generation function sending some tuples through the shipper
+                    }
 #if defined(TRACE_WINDFLOW)
-                sentTuples = shipper->delivered();
+                    sentTuples = shipper->delivered();
 #endif
-                isEND = true; // not necessary!
-                return this->EOS;
+                    return this->GO_ON;
+                }
             }
         }
 
@@ -311,7 +320,6 @@ public:
             std::cerr << RED << "WindFlow Error: Source has parallelism zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        std::cerr << YELLOW << "WindFlow Warning: the use of the single-loop function in the Source is deprecated" << DEFAULT_COLOR << std::endl;
         // vector of Source_Node
         std::vector<ff_node *> first_set;
         for (size_t i=0; i<_pardegree; i++) {
@@ -344,7 +352,6 @@ public:
             std::cerr << RED << "WindFlow Error: Source has parallelism zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        std::cerr << YELLOW << "WindFlow Warning: the use of the single-loop function in the Source is deprecated" << DEFAULT_COLOR << std::endl;
         // vector of Source_Node
         std::vector<ff_node *> first_set;
         for (size_t i=0; i<_pardegree; i++) {
