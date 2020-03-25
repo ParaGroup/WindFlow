@@ -41,6 +41,7 @@
 #include <unordered_map>
 #include <math.h>
 #include <ff/node.hpp>
+#include <ff/multinode.hpp>
 #include <window.hpp>
 #include <context.hpp>
 #include <iterable.hpp>
@@ -58,7 +59,7 @@ namespace wf {
  *  in a serial fashion.
  */ 
 template<typename tuple_t, typename result_t, typename input_t>
-class Win_Seq: public ff::ff_node_t<input_t, result_t>
+class Win_Seq: public ff::ff_minode_t<input_t, result_t>
 {
 public:
     /// type of the non-incremental window processing function
@@ -144,6 +145,7 @@ private:
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     std::pair<size_t, size_t> map_indexes = std::make_pair(0, 1); // indexes useful is the role is MAP
     size_t dropped_tuples; // number of dropped tuples
+    size_t eos_received; // number of received EOS messages
 #if defined(TRACE_WINDFLOW)
     bool isTriggering = false;
     unsigned long rcvTuples = 0;
@@ -220,7 +222,8 @@ public:
             role(_role),
             isNIC(true),
             isRich(false),
-            dropped_tuples(0)
+            dropped_tuples(0),
+            eos_received(0)
     {
         init();
     }
@@ -261,7 +264,8 @@ public:
             role(_role),
             isNIC(true),
             isRich(true),
-            dropped_tuples(0)
+            dropped_tuples(0),
+            eos_received(0)
     {
         init();
     }
@@ -302,7 +306,8 @@ public:
             role(_role),
             isNIC(false),
             isRich(false),
-            dropped_tuples(0)
+            dropped_tuples(0),
+            eos_received(0)
     {
         init();
     }
@@ -343,7 +348,8 @@ public:
             role(_role),
             isNIC(false),
             isRich(true),
-            dropped_tuples(0)
+            dropped_tuples(0),
+            eos_received(0)
     {
         init();
     }
@@ -536,6 +542,11 @@ public:
     // method to manage the EOS (utilized by the FastFlow runtime)
     void eosnotify(ssize_t id)
     {
+        eos_received++;
+        // check the number of received EOS messages
+        if ((eos_received != this->get_num_inchannels()) && (this->get_num_inchannels() != 0)) { // workaround due to FastFlow
+            return;
+        }
         // iterate over all the keys
         for (auto &k: keyMap) {
             auto &wins = (k.second).wins;
@@ -639,13 +650,13 @@ public:
     /// Method to start the operator execution asynchronously
     virtual int run(bool)
     {
-        return ff::ff_node::run();
+        return ff::ff_minode::run();
     }
 
     /// Method to wait the operator termination
     virtual int wait()
     {
-        return ff::ff_node::wait();
+        return ff::ff_minode::wait();
     }
 };
 

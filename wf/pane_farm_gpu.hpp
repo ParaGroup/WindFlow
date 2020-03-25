@@ -115,7 +115,7 @@ private:
     OperatorConfig config;
     bool used; // true if the operator has been added/chained in a MultiPipe
     bool used4Nesting; // true if the operator has been used in a nested structure
-    ff_node *plq; // pointer to the PLQ stage
+    std::vector<ff_node *> plq_workers; // vector of pointers to the Win_Seq or Win_Seq_GPU instances in the PLQ stage
 
     // Private Constructor I
     Pane_Farm_GPU(F_t _gpuFunction,
@@ -184,14 +184,16 @@ private:
             OperatorConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *plq_wf = new Win_Farm_GPU<tuple_t, result_t, F_t, input_t>(_gpuFunction, _pane_len, _pane_len, _triggering_delay, _winType, _plq_degree, _batch_len, _n_thread_block, _name + "_plq", _scratchpad_size, true, LEVEL0, configWFPLQ, PLQ);
             plq_stage = plq_wf;
-            plq = plq_wf;
+            for (auto *w: plq_wf->getWorkers()) {
+                plq_workers.push_back(w);
+            }
         }
         else {
             // configuration structure of the Win_Seq_GPU (PLQ)
             OperatorConfig configSeqPLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _pane_len);
             auto *plq_seq = new Win_Seq_GPU<tuple_t, result_t, F_t, input_t>(_gpuFunction, _pane_len, _pane_len, _triggering_delay, _winType, _batch_len, _n_thread_block, _name + "_plq", _scratchpad_size, configSeqPLQ, PLQ);
             plq_stage = plq_seq;
-            plq = plq_seq;
+            plq_workers.push_back(plq_seq);
         }
         // create the second stage WLQ
         if (_wlq_degree > 1) {
@@ -281,14 +283,16 @@ private:
             OperatorConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *plq_wf = new Win_Farm_GPU<tuple_t, result_t, F_t, input_t>(_gpuFunction, _pane_len, _pane_len, _triggering_delay, _winType, _plq_degree, _batch_len, _n_thread_block, _name + "_plq", _scratchpad_size, true, LEVEL0, configWFPLQ, PLQ);
             plq_stage = plq_wf;
-            plq = plq_wf;
+            for (auto *w: plq_wf->getWorkers()) {
+                plq_workers.push_back(w);
+            }
         }
         else {
             // configuration structure of the Win_Seq_GPU (PLQ)
             OperatorConfig configSeqPLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _pane_len);
             auto *plq_seq = new Win_Seq_GPU<tuple_t, result_t, F_t, input_t>(_gpuFunction, _pane_len, _pane_len, _triggering_delay, _winType, _batch_len, _n_thread_block, _name + "_plq", _scratchpad_size, configSeqPLQ, PLQ);
             plq_stage = plq_seq;
-            plq = plq_seq;
+            plq_workers.push_back(plq_seq);
         }
         // create the second stage WLQ
         if (_wlq_degree > 1) {
@@ -378,14 +382,16 @@ private:
             OperatorConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plq_func, _pane_len, _pane_len, _triggering_delay, _winType, _plq_degree, _name + "_plq", closing_func, true, LEVEL0, configWFPLQ, PLQ);
             plq_stage = plq_wf;
-            plq = plq_wf;
+            for (auto *w: plq_wf->getWorkers()) {
+                plq_workers.push_back(w);
+            }
         }
         else {
             // configuration structure of the Win_Seq (PLQ)
             OperatorConfig configSeqPLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _pane_len);
             auto *plq_seq = new Win_Seq<tuple_t, result_t, input_t>(_plq_func, _pane_len, _pane_len, _triggering_delay, _winType, _name + "_plq", closing_func, RuntimeContext(1, 0), configSeqPLQ, PLQ);
             plq_stage = plq_seq;
-            plq = plq_seq;
+            plq_workers.push_back(plq_seq);
         }
         // create the second stage WLQ
         if (_wlq_degree > 1) {
@@ -475,14 +481,16 @@ private:
             OperatorConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
             auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_plqupdate_func, _pane_len, _pane_len, _triggering_delay, _winType, _plq_degree, _name + "_plq", closing_func, true, LEVEL0, configWFPLQ, PLQ);
             plq_stage = plq_wf;
-            plq = plq_wf;
+            for (auto *w: plq_wf->getWorkers()) {
+                plq_workers.push_back(w);
+            }
         }
         else {
             // configuration structure of the Win_Seq (PLQ)
             OperatorConfig configSeqPLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _pane_len);
             auto *plq_seq = new Win_Seq<tuple_t, result_t, input_t>(_plqupdate_func, _pane_len, _pane_len, _triggering_delay, _winType, _name + "_plq", closing_func, RuntimeContext(1, 0), configSeqPLQ, PLQ);
             plq_stage = plq_seq;
-            plq = plq_seq;
+            plq_workers.push_back(plq_seq);
         }
         // create the second stage WLQ
         if (_wlq_degree > 1) {
@@ -774,24 +782,14 @@ public:
     size_t getNumDroppedTuples() const
     {
         size_t count = 0;
-        if (plq_degree == 1) {
-            if (!isGPUPLQ) {
-                auto *seq = static_cast<Win_Seq<tuple_t, result_t, input_t> *>(plq);
-                count += seq->getNumDroppedTuples();
+        for (auto *w: plq_workers) {
+            if (isGPUPLQ) {
+                auto *seq_gpu = static_cast<Win_Seq_GPU<tuple_t, result_t, F_t, input_t> *>(w);
+                count += seq_gpu->getNumDroppedTuples();
             }
             else {
-                auto *seq = static_cast<Win_Seq_GPU<tuple_t, result_t, F_t, input_t> *>(plq);
+                auto *seq = static_cast<Win_Seq<tuple_t, result_t, input_t> *>(w);
                 count += seq->getNumDroppedTuples();
-            }
-        }
-        else {
-            if (!isGPUPLQ) {
-                auto *wf = static_cast<Win_Farm<tuple_t, result_t, input_t> *>(plq);
-                count += wf->getNumDroppedTuples();
-            }
-            else {
-                auto *wf = static_cast<Win_Farm_GPU<tuple_t, result_t, F_t, input_t> *>(plq);
-                count += wf->getNumDroppedTuples();
             }
         }
         return count;

@@ -124,7 +124,7 @@ private:
     OperatorConfig config;
     bool used; // true if the operator has been added/chained in a MultiPipe
     bool used4Nesting; // true if the operator has been used in a nested structure
-    std::vector<ff_node *> map_workers; // vector of pointers to the workers in the MAP stage
+    std::vector<ff_node *> map_workers; // vector of pointers to the Win_Seq instances in the MAP stage
 
     // Private Constructor
     template <typename F_t, typename G_t>

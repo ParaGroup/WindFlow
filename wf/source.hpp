@@ -42,7 +42,7 @@
 #include <basic.hpp>
 #include <shipper.hpp>
 #include <context.hpp>
-#include <standard_nodes.hpp>
+#include <transformations.hpp>
 
 namespace wf {
 
@@ -62,9 +62,9 @@ public:
     /// type of the rich generation function (item-by-item version, briefly "itemized")
     using rich_source_item_func_t = std::function<bool(tuple_t &, RuntimeContext &)>;
     /// type of the generation function (single-loop version, briefly "loop")
-    using source_loop_func_t = std::function<void(Shipper<tuple_t>&)>;
+    using source_loop_func_t = std::function<void(Shipper<tuple_t> &)>;
     /// type of the rich generation function (single-loop version, briefly "loop")
-    using rich_source_loop_func_t = std::function<void(Shipper<tuple_t>&, RuntimeContext &)>;
+    using rich_source_loop_func_t = std::function<void(Shipper<tuple_t> &, RuntimeContext &)>;
     /// type of the closing function
     using closing_func_t = std::function<void(RuntimeContext &)>;
 
@@ -256,7 +256,7 @@ public:
         // add first set
         ff::ff_a2a::add_firstset(first_set, 0, true);
         std::vector<ff_node *> second_set;
-        second_set.push_back(new Standard_Collector());
+        second_set.push_back(new dummy_mi());
         // add second set
         ff::ff_a2a::add_secondset(second_set, true);
     }
@@ -288,7 +288,7 @@ public:
         // add first set
         ff::ff_a2a::add_firstset(first_set, 0, true);
         std::vector<ff_node *> second_set;
-        second_set.push_back(new Standard_Collector());
+        second_set.push_back(new dummy_mi());
         // add second set
         ff::ff_a2a::add_secondset(second_set, true);
     }
@@ -321,7 +321,7 @@ public:
         // add first set
         ff::ff_a2a::add_firstset(first_set, 0, true);
         std::vector<ff_node *> second_set;
-        second_set.push_back(new Standard_Collector());
+        second_set.push_back(new dummy_mi());
         // add second set
         ff::ff_a2a::add_secondset(second_set, true);
     }
@@ -354,7 +354,7 @@ public:
         // add first set
         ff::ff_a2a::add_firstset(first_set, 0, true);
         std::vector<ff_node *> second_set;
-        second_set.push_back(new Standard_Collector());
+        second_set.push_back(new dummy_mi());
         // add second set
         ff::ff_a2a::add_secondset(second_set, true);
     }

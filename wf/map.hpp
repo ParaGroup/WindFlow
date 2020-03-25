@@ -39,10 +39,11 @@
 #include <string>
 #include <ff/node.hpp>
 #include <ff/pipeline.hpp>
+#include <ff/multinode.hpp>
 #include <ff/farm.hpp>
 #include <basic.hpp>
 #include <context.hpp>
-#include <standard_nodes.hpp>
+#include <standard_emitter.hpp>
 
 namespace wf {
 
@@ -77,7 +78,7 @@ private:
     bool keyed; // flag stating whether the Map is configured with keyBy or not
     bool used; // true if the operator has been added/chained in a MultiPipe
     // class Map_Node
-    class Map_Node: public ff::ff_node_t<tuple_t, result_t>
+    class Map_Node: public ff::ff_minode_t<tuple_t, result_t>
     {
 private:
         map_func_ip_t func_ip; // in-place map function

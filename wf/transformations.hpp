@@ -32,12 +32,15 @@
 
 // includes
 #include <ff/ff.hpp>
+#include <basic.hpp>
 
 namespace wf {
 
 // struct of the dummy multi-input node
 struct dummy_mi: ff::ff_minode
 {
+    dummy_mi(ordering_mode_t _mode=TS) {}
+
     void *svc(void *in)
     {
         return in;

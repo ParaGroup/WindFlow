@@ -94,7 +94,7 @@ private:
     };
     // hash table that maps key identifiers onto key descriptors
     std::unordered_map<key_t, Key_Descriptor> keyMap;
-    size_t eos_rcv; // number of EOS received
+    size_t eos_received; // number of received EOS messages
     ordering_mode_t mode; // ordering mode
     // variables for correcting the bug (temporarily)
     std::priority_queue<input_t *, std::deque<input_t *>, Comparator> globalQueue;
@@ -105,7 +105,7 @@ private:
 public:
 	// Constructor
 	Ordering_Node(ordering_mode_t _mode=ID):
-                  eos_rcv(0),
+                  eos_received(0),
                   mode(_mode),
                   globalQueue(Comparator(_mode)),
                   received(0)
@@ -196,9 +196,11 @@ public:
     // method to manage the EOS (utilized by the FastFlow runtime)
     void eosnotify(ssize_t id)
     {
-        eos_rcv++;
-        if (eos_rcv != this->get_num_inchannels())
+        eos_received++;
+        // check the number of received EOS messages
+        if (eos_received != this->get_num_inchannels()) {
             return;
+        }
         if (mode != ID) {
             while (!globalQueue.empty()) {
                 // extract the next tuple

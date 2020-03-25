@@ -39,10 +39,11 @@
 #include <iostream>
 #include <ff/node.hpp>
 #include <ff/pipeline.hpp>
+#include <ff/multinode.hpp>
 #include <ff/farm.hpp>
 #include <basic.hpp>
 #include <context.hpp>
-#include <standard_nodes.hpp>
+#include <standard_emitter.hpp>
 
 namespace wf {
 
@@ -81,7 +82,7 @@ private:
     bool used; // true if the operator has been added/chained in a MultiPipe
     bool keyed; // flag stating whether the Filter is configured with keyBy or not
     // class Filter_Node
-    class Filter_Node: public ff::ff_node_t<tuple_t, result_t>
+    class Filter_Node: public ff::ff_minode_t<tuple_t, result_t>
     {
 private:
         filter_func_t filter_func; // filter function (with boolean return type)

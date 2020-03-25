@@ -36,18 +36,21 @@
 
 /// includes
 #include <string>
-#if __cplusplus < 201703L //not C++17
+#if __cplusplus < 201703L // not C++17
     #include <experimental/optional>
-    namespace std { using namespace experimental; } // ugly but necessary until CUDA will support C++17!
+    namespace std { using namespace experimental; }
 #else
     #include <optional>
 #endif
+#include <ff/node.hpp>
+#include <ff/combine.hpp>
 #include <ff/pipeline.hpp>
-#include <ff/farm.hpp>
 #include <ff/multinode.hpp>
+#include <ff/farm.hpp>
 #include <basic.hpp>
 #include <context.hpp>
-#include <standard_nodes.hpp>
+#include <transformations.hpp>
+#include <standard_emitter.hpp>
 
 namespace wf {
 
@@ -77,7 +80,7 @@ private:
     bool keyed; // flag stating whether the Sink is configured with keyBy or not
     bool used; // true if the operator has been added/chained in a MultiPipe
     // class Sink_Node
-    class Sink_Node: public ff::ff_monode_t<tuple_t>
+    class Sink_Node: public ff::ff_minode_t<tuple_t>
     {
     private:
         sink_func_t sink_fun; // sink function
@@ -175,21 +178,18 @@ private:
             return this->GO_ON;
         }
 
-        // method to manage the EOS (utilized by the FastFlow runtime)
-        void eosnotify(ssize_t id)
+        // svc_end method (utilized by the FastFlow runtime)
+        void svc_end()
         {
             // create empty optional
             std::optional<tuple_t> opt;
             // call the sink function for the last time (empty optional)
-            if (!isRich)
+            if (!isRich) {
                 sink_fun(opt);
-            else
+            }
+            else {
                 rich_sink_func(opt, context);
-        }
-
-        // svc_end method (utilized by the FastFlow runtime)
-        void svc_end()
-        {
+            }
             // call the closing function
             closing_func(context);
 #if defined(TRACE_WINDFLOW)
@@ -230,7 +230,8 @@ public:
         std::vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new Sink_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
-            w.push_back(seq);
+            auto *seq_comb = new ff::ff_comb(seq, new dummy_mo(), true, true);
+            w.push_back(seq_comb);
         }
         // add emitter
         ff::ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_pardegree));
@@ -265,7 +266,8 @@ public:
         std::vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new Sink_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
-            w.push_back(seq);
+            auto *seq_comb = new ff::ff_comb(seq, new dummy_mo(), true, true);
+            w.push_back(seq_comb);
         }
         // add emitter
         ff::ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func, _pardegree));
@@ -298,7 +300,8 @@ public:
         std::vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new Sink_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
-            w.push_back(seq);
+            auto *seq_comb = new ff::ff_comb(seq, new dummy_mo(), true, true);
+            w.push_back(seq_comb);
         }
         // add emitter
         ff::ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_pardegree));
@@ -333,7 +336,8 @@ public:
         std::vector<ff_node *> w;
         for (size_t i=0; i<_pardegree; i++) {
             auto *seq = new Sink_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
-            w.push_back(seq);
+            auto *seq_comb = new ff::ff_comb(seq, new dummy_mo(), true, true);
+            w.push_back(seq_comb);
         }
         // add emitter
         ff::ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func, _pardegree));

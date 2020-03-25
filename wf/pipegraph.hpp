@@ -24,7 +24,7 @@
  *  @section PipeGraph and MultiPipe (Description)
  *  
  *  This file implements the PipeGraph and the MultiPipe constructs used to build
- *  a parallel streaming application in WindFlow. The MultiPipe construct allows
+ *  parallel streaming applications in WindFlow. The MultiPipe construct allows
  *  building a set of parallel pipelines of operators that might have shuffle
  *  connections jumping from one pipeline to another one. The PipeGraph is the
  *  "streaming environment" to be used for obtaining MultiPipe instances with
@@ -51,7 +51,7 @@
 #include <tree_emitter.hpp>
 #include <basic_emitter.hpp>
 #include <ordering_node.hpp>
-#include <standard_nodes.hpp>
+#include <standard_emitter.hpp>
 #include <transformations.hpp>
 #include <splitting_emitter.hpp>
 #include <broadcast_emitter.hpp>
@@ -194,7 +194,7 @@ class MultiPipe: public ff::ff_pipeline
 {
 private:
     // enumeration of the routing types
-    enum routing_types_t { STATELESS, KEYED, COMPLEX };
+    enum routing_types_t { FORWARD, KEYBY, COMPLEX };
     PipeGraph *graph; // PipeGraph creating this MultiPipe
 	bool has_source; // true if the MultiPipe starts with a Source
 	bool has_sink; // true if the MultiPipe ends with a Sink
@@ -208,7 +208,7 @@ private:
     Basic_Emitter *splittingEmitterRoot = nullptr; // splitting emitter (meaningful if isSplit is true)
     std::vector<Basic_Emitter *> splittingEmitterLeaves; // vector of emitters (meaningful if isSplit is true)
     std::vector<MultiPipe *> splittingChildren; // vector of children MultiPipe instances (meaningful if isSplit is true)
-    bool forceShuffling; // true if the next operator that will be added to the MultiPipe is forced to generate a shuffling
+    bool forceShuffling; // true if the next operator that will be added to the MultiPipe is forced to generate a shuffle connection
     size_t lastParallelism; // parallelism of the last operator added to the MultiPipe (0 if not defined)
     std::string outputType; // string representing the type of the outputs from this MultiPipe (the empty string if not defined yet)
     // friendship with the PipeGraph class
@@ -230,7 +230,7 @@ private:
               outputType("")
     {}
 
-    // Private Constructor II (to create a MultiPipe from the merge of other MultiPipe instances)
+    // Private Constructor II (to create a MultiPipe resulting from the merge of other MultiPipe instances)
     MultiPipe(PipeGraph *_graph,
               std::vector<ff::ff_node *> _normalization):
               graph(_graph),
@@ -240,7 +240,7 @@ private:
               isSplit(false),
               fromSplitting(false),
               splittingBranches(0),
-              forceShuffling(true), // <-- we force a shuffling for the next operator
+              forceShuffling(true), // <-- we force a shuffle connection for the next operator
               lastParallelism(0),
               outputType("")
     {
@@ -262,7 +262,7 @@ private:
     MultiPipe &add_source(Source<tuple_t> &_source);
 
     // method to add an operator to the MultiPipe
-    template<typename emitter_t, typename collector_t>
+    template<typename emitter_t, typename collector_t=dummy_mi>
     void add_operator(ff::ff_farm *_op, routing_types_t _type, ordering_mode_t _ordering=TS);
 
     // method to chain an operator with the previous one in the MultiPipe
@@ -1048,7 +1048,9 @@ void MultiPipe::add_operator(ff::ff_farm *_op, routing_types_t _type, ordering_m
         for (size_t i=0; i<workers.size(); i++) {
             ff::ff_pipeline *stage = new ff::ff_pipeline();
             stage->add_stage(workers[i], false);
-            combine_with_firststage(*stage, new collector_t(_ordering), true);
+            if (graph->mode == Mode::DETERMINISTIC) {
+                combine_with_firststage(*stage, new collector_t(_ordering), true); // add the ordering node
+            }
             first_set.push_back(stage);
         }
         matrioska->add_firstset(first_set, 0, true);
@@ -1070,7 +1072,7 @@ void MultiPipe::add_operator(ff::ff_farm *_op, routing_types_t _type, ordering_m
     size_t n1 = (last->getFirstSet()).size();
     size_t n2 = (_op->getWorkers()).size();
     // Case 2: direct connection
-    if ((n1 == n2) && _type == STATELESS && !forceShuffling) {
+    if ((n1 == n2) && (_type == FORWARD) && (!forceShuffling)) {
         auto first_set = last->getFirstSet();
         auto worker_set = _op->getWorkers();
         // add the operator's workers to the pipelines in the first set of the matrioska
@@ -1081,7 +1083,7 @@ void MultiPipe::add_operator(ff::ff_farm *_op, routing_types_t _type, ordering_m
     }
     // Case 3: shuffle connection
     else {
-        // prepare the nodes of the first_set of the last matrioska for the shuffling
+        // prepare the nodes of the first_set of the last matrioska for the shuffle connection
         auto first_set_m = last->getFirstSet();
         for (size_t i=0; i<n1; i++) {
             ff::ff_pipeline *stage = static_cast<ff::ff_pipeline *>(first_set_m[i]);
@@ -1095,11 +1097,8 @@ void MultiPipe::add_operator(ff::ff_farm *_op, routing_types_t _type, ordering_m
         for (size_t i=0; i<n2; i++) {
             ff::ff_pipeline *stage = new ff::ff_pipeline();
             stage->add_stage(worker_set[i], false);
-            if (lastParallelism != 1 || forceShuffling || _ordering == ID || _ordering == TS_RENUMBERING) {
-                combine_with_firststage(*stage, new collector_t(_ordering), true);
-            }
-            else { // we force the use of the Standard_Collector here
-                combine_with_firststage(*stage, new Standard_Collector(), true);
+            if (graph->mode == Mode::DETERMINISTIC || _ordering == ID) {
+                 combine_with_firststage(*stage, new collector_t(_ordering), true); // add the ordering node
             }
             first_set.push_back(stage);
         }
@@ -1115,8 +1114,9 @@ void MultiPipe::add_operator(ff::ff_farm *_op, routing_types_t _type, ordering_m
         secondToLast = last;
         last = matrioska;
         // reset forceShuffling flag if it was true
-        if (forceShuffling)
+        if (forceShuffling) {
             forceShuffling = false;
+        }
     }
     // save parallelism of the operator
     lastParallelism = n2;
@@ -1146,12 +1146,13 @@ bool MultiPipe::chain_operator(ff::ff_farm *_op)
         std::cerr << RED << "WindFlow Error: MultiPipe has been split, operator cannot be chained" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
-    // corner case -> first operator added to a MultiPipe after splitting (chain cannot work, add instead)
-    if (fromSplitting && last == nullptr)
+    // corner case -> first operator added to a MultiPipe after splitting (chain cannot work, do add instead)
+    if (fromSplitting && last == nullptr) {
         return false;
+    }
     size_t n1 = (last->getFirstSet()).size();
     size_t n2 = (_op->getWorkers()).size();
-    // distribution of _op is for sure STATELESS: check additional conditions for chaining
+    // distribution of _op is for sure FORWARD: check additional conditions for chaining
     if ((n1 == n2) && (!forceShuffling)) {
         auto first_set = (last)->getFirstSet();
         auto worker_set = _op->getWorkers();
@@ -1165,8 +1166,9 @@ bool MultiPipe::chain_operator(ff::ff_farm *_op)
         lastParallelism = n2;
         return true;
     }
-    else
+    else {
         return false;
+    }
 }
 
 // implementation of the method to normalize the MultiPipe (removing the final self-killer nodes)
@@ -1349,10 +1351,10 @@ MultiPipe &MultiPipe::add(Filter<tuple_t, result_t> &_filter)
     }
     // call the generic method to add the operator to the MultiPipe
     if (graph->mode == Mode::DETERMINISTIC) {
-        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_filter, _filter.isKeyed() ? KEYED : STATELESS, TS);
+        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_filter, _filter.isKeyed() ? KEYBY : FORWARD, TS);
     }
     else {
-        add_operator<Standard_Emitter<tuple_t>, Standard_Collector>(&_filter, _filter.isKeyed() ? KEYED : STATELESS);
+        add_operator<Standard_Emitter<tuple_t>>(&_filter, _filter.isKeyed() ? KEYBY : FORWARD);
     }
     // save the new output type from this MultiPipe
     result_t r;
@@ -1381,11 +1383,13 @@ MultiPipe &MultiPipe::chain(Filter<tuple_t, result_t> &_filter)
     // try to chain the operator with the MultiPipe
     if (!_filter.isKeyed()) {
         bool chained = chain_operator<typename Filter<tuple_t, result_t>::Filter_Node>(&_filter);
-        if (!chained)
+        if (!chained) {
             add(_filter);
+        }
     }
-    else
+    else {
         add(_filter);
+    }
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
@@ -1412,10 +1416,10 @@ MultiPipe &MultiPipe::add(Map<tuple_t, result_t> &_map)
     }
     // call the generic method to add the operator to the MultiPipe
     if (graph->mode == Mode::DETERMINISTIC) {
-        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_map, _map.isKeyed() ? KEYED : STATELESS, TS);
+        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_map, _map.isKeyed() ? KEYBY : FORWARD, TS);
     }
     else {
-        add_operator<Standard_Emitter<tuple_t>, Standard_Collector>(&_map, _map.isKeyed() ? KEYED : STATELESS);
+        add_operator<Standard_Emitter<tuple_t>>(&_map, _map.isKeyed() ? KEYBY : FORWARD);
     }
     // save the new output type from this MultiPipe
     result_t r;
@@ -1444,11 +1448,13 @@ MultiPipe &MultiPipe::chain(Map<tuple_t, result_t> &_map)
     // try to chain the operator with the MultiPipe
     if (!_map.isKeyed()) {
         bool chained = chain_operator<typename Map<tuple_t, result_t>::Map_Node>(&_map);
-        if (!chained)
+        if (!chained) {
             add(_map);
+        }
     }
-    else
+    else {
         add(_map);
+    }
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
@@ -1475,10 +1481,10 @@ MultiPipe &MultiPipe::add(FlatMap<tuple_t, result_t> &_flatmap)
     }
     // call the generic method to add the operator
     if (graph->mode == Mode::DETERMINISTIC) {
-        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_flatmap, _flatmap.isKeyed() ? KEYED : STATELESS, TS);
+        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_flatmap, _flatmap.isKeyed() ? KEYBY : FORWARD, TS);
     }
     else {
-        add_operator<Standard_Emitter<tuple_t>, Standard_Collector>(&_flatmap, _flatmap.isKeyed() ? KEYED : STATELESS);    
+        add_operator<Standard_Emitter<tuple_t>>(&_flatmap, _flatmap.isKeyed() ? KEYBY : FORWARD);
     }
     // save the new output type from this MultiPipe
     result_t r;
@@ -1506,11 +1512,13 @@ MultiPipe &MultiPipe::chain(FlatMap<tuple_t, result_t> &_flatmap)
     }
     if (!_flatmap.isKeyed()) {
         bool chained = chain_operator<typename FlatMap<tuple_t, result_t>::FlatMap_Node>(&_flatmap);
-        if (!chained)
+        if (!chained) {
             add(_flatmap);
+        }
     }
-    else
+    else {
         add(_flatmap);
+    }
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
@@ -1537,10 +1545,10 @@ MultiPipe &MultiPipe::add(Accumulator<tuple_t, result_t> &_acc)
     }
     // call the generic method to add the operator to the MultiPipe
     if (graph->mode == Mode::DETERMINISTIC) {
-        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_acc, KEYED, TS);
+        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_acc, KEYBY, TS);
     }
     else {
-        add_operator<Standard_Emitter<tuple_t>, Standard_Collector>(&_acc, KEYED);
+        add_operator<Standard_Emitter<tuple_t>>(&_acc, KEYBY);
     }
     // save the new output type from this MultiPipe
     result_t r;
@@ -1589,7 +1597,7 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
                             add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
                         }
                         else {
-                            add_operator<Tree_Emitter, Standard_Collector>(&_wf, COMPLEX);
+                            add_operator<Tree_Emitter>(&_wf, COMPLEX);
                         }
                     }
                     else {
@@ -1606,7 +1614,7 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
                             add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
                         }
                         else {
-                           add_operator<WF_Emitter<tuple_t>, Standard_Collector>(&_wf, COMPLEX); 
+                           add_operator<WF_Emitter<tuple_t>>(&_wf, COMPLEX);
                         }
                     }
                     else {
@@ -1625,7 +1633,7 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
                         add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
                     }
                     else {
-                        add_operator<Tree_Emitter, Standard_Collector>(&_wf, COMPLEX);
+                        add_operator<Tree_Emitter>(&_wf, COMPLEX);
                     }
                 }
                 else {
@@ -1656,7 +1664,7 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
                 add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
             }
             else {
-                add_operator<WF_Emitter<tuple_t>, Standard_Collector>(&_wf, COMPLEX);
+                add_operator<WF_Emitter<tuple_t>>(&_wf, COMPLEX);
             }
         }
         else {
@@ -1713,7 +1721,7 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
                             add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
                         }
                         else {
-                            add_operator<Tree_Emitter, Standard_Collector>(&_wf, COMPLEX);
+                            add_operator<Tree_Emitter>(&_wf, COMPLEX);
                         }
                     }
                     else {
@@ -1730,7 +1738,7 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
                             add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
                         }
                         else {
-                            add_operator<WF_Emitter<tuple_t>, Standard_Collector>(&_wf, COMPLEX);
+                            add_operator<WF_Emitter<tuple_t>>(&_wf, COMPLEX);
                         }
                     }
                     else {
@@ -1749,7 +1757,7 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
                         add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
                     }
                     else {
-                        add_operator<Tree_Emitter, Standard_Collector>(&_wf, COMPLEX);
+                        add_operator<Tree_Emitter>(&_wf, COMPLEX);
                     }
                 }
                 else {
@@ -1780,7 +1788,7 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
                 add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
             }
             else {
-                add_operator<WF_Emitter<tuple_t>, Standard_Collector>(&_wf, COMPLEX);
+                add_operator<WF_Emitter<tuple_t>>(&_wf, COMPLEX);
             }
         }
         else {
@@ -1837,7 +1845,7 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
                             add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS);
                         }
                         else {
-                            add_operator<Tree_Emitter, Standard_Collector>(&_kf, COMPLEX);
+                            add_operator<Tree_Emitter>(&_kf, COMPLEX);
                         }
                     }
                     else {
@@ -1864,7 +1872,7 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
                             add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, TS);
                         }
                         else {
-                            add_operator<KF_Emitter<tuple_t>, Standard_Collector>(&_kf, COMPLEX);
+                            add_operator<KF_Emitter<tuple_t>>(&_kf, COMPLEX);
                         }
                     }
                     else {
@@ -1880,7 +1888,7 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
                         add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS);
                     }
                     else {
-                        add_operator<Tree_Emitter, Standard_Collector>(&_kf, COMPLEX);
+                        add_operator<Tree_Emitter>(&_kf, COMPLEX);
                     }
                 }
                 else {
@@ -1920,7 +1928,7 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
                 add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, TS);
             }
             else {
-                add_operator<KF_Emitter<tuple_t>, Standard_Collector>(&_kf, COMPLEX);
+                add_operator<KF_Emitter<tuple_t>>(&_kf, COMPLEX);
             }
         }
         else {
@@ -1962,7 +1970,7 @@ MultiPipe &MultiPipe::add(Key_FFAT<tuple_t, result_t> &_kff)
             add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kff, COMPLEX, TS);
         }
         else {
-            add_operator<KF_Emitter<tuple_t>, Standard_Collector>(&_kff, COMPLEX);
+            add_operator<KF_Emitter<tuple_t>>(&_kff, COMPLEX);
         }
     }
     else {
@@ -2015,7 +2023,7 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
                             add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS);
                         }
                         else {
-                            add_operator<Tree_Emitter, Standard_Collector>(&_kf, COMPLEX);
+                            add_operator<Tree_Emitter>(&_kf, COMPLEX);
                         }
                     }
                     else {
@@ -2042,7 +2050,7 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
                             add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, TS);
                         }
                         else {
-                            add_operator<KF_Emitter<tuple_t>, Standard_Collector>(&_kf, COMPLEX);
+                            add_operator<KF_Emitter<tuple_t>>(&_kf, COMPLEX);
                         }
                     }
                     else {
@@ -2058,7 +2066,7 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
                         add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS);
                     }
                     else {
-                        add_operator<Tree_Emitter, Standard_Collector>(&_kf, COMPLEX);
+                        add_operator<Tree_Emitter>(&_kf, COMPLEX);
                     }
                 }
                 else {
@@ -2084,7 +2092,7 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
                         combine_a2a_withFirstNodes(a2a, nodes, true);
                     }
                     // call the generic method to add the operator to the MultiPipe
-                    add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS_RENUMBERING);                
+                    add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS_RENUMBERING);
                 }
             }
             forceShuffling = true;
@@ -2098,7 +2106,7 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
                 add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, TS);
             }
             else {
-                add_operator<KF_Emitter<tuple_t>, Standard_Collector>(&_kf, COMPLEX);
+                add_operator<KF_Emitter<tuple_t>>(&_kf, COMPLEX);
             }
         }
         else {
@@ -2140,7 +2148,7 @@ MultiPipe &MultiPipe::add(Key_FFAT_GPU<tuple_t, result_t, F_t> &_kff)
             add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kff, COMPLEX, TS);
         }
         else {
-            add_operator<KF_Emitter<tuple_t>, Standard_Collector>(&_kff, COMPLEX);
+            add_operator<KF_Emitter<tuple_t>>(&_kff, COMPLEX);
         }
     }
     else {
@@ -2199,7 +2207,7 @@ MultiPipe &MultiPipe::add(Pane_Farm<tuple_t, result_t> &_pf)
                 add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(plq, COMPLEX, TS);
             }
             else {
-                add_operator<Standard_Emitter<tuple_t>, Standard_Collector>(plq, COMPLEX);
+                add_operator<Standard_Emitter<tuple_t>>(plq, COMPLEX);
             }
         }
         else {
@@ -2216,7 +2224,7 @@ MultiPipe &MultiPipe::add(Pane_Farm<tuple_t, result_t> &_pf)
                 add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, COMPLEX, TS);
             }
             else {
-                add_operator<WF_Emitter<tuple_t>, Standard_Collector>(plq, COMPLEX);
+                add_operator<WF_Emitter<tuple_t>>(plq, COMPLEX);
             }
         }
         else {
@@ -2300,7 +2308,7 @@ MultiPipe &MultiPipe::add(Pane_Farm_GPU<tuple_t, result_t, F_t> &_pf)
                 add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(plq, COMPLEX, TS);
             }
             else {
-                add_operator<Standard_Emitter<tuple_t>, Standard_Collector>(plq, COMPLEX);
+                add_operator<Standard_Emitter<tuple_t>>(plq, COMPLEX);
             }
         }
         else {
@@ -2317,7 +2325,7 @@ MultiPipe &MultiPipe::add(Pane_Farm_GPU<tuple_t, result_t, F_t> &_pf)
                 add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, COMPLEX, TS);
             }
             else {
-                add_operator<WF_Emitter<tuple_t>, Standard_Collector>(plq, COMPLEX);
+                add_operator<WF_Emitter<tuple_t>>(plq, COMPLEX);
             }
         }
         else {
@@ -2393,7 +2401,7 @@ MultiPipe &MultiPipe::add(Win_MapReduce<tuple_t, result_t> &_wmr)
             add_operator<WinMap_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(map, COMPLEX, TS);
         }
         else {
-            add_operator<WinMap_Emitter<tuple_t>, Standard_Collector>(map, COMPLEX);
+            add_operator<WinMap_Emitter<tuple_t>>(map, COMPLEX);
         }
     }
     else {
@@ -2481,7 +2489,7 @@ MultiPipe &MultiPipe::add(Win_MapReduce_GPU<tuple_t, result_t, F_t> &_wmr)
             add_operator<WinMap_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(map, COMPLEX, TS);
         }
         else {
-            add_operator<WinMap_Emitter<tuple_t>, Standard_Collector>(map, COMPLEX);
+            add_operator<WinMap_Emitter<tuple_t>>(map, COMPLEX);
         }
     }
     else {
@@ -2550,10 +2558,10 @@ MultiPipe &MultiPipe::add_sink(Sink<tuple_t> &_sink)
     }
     // call the generic method to add the operator to the MultiPipe
     if (graph->mode == Mode::DETERMINISTIC) {
-        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_sink, _sink.isKeyed() ? KEYED : STATELESS, TS);
+        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_sink, _sink.isKeyed() ? KEYBY : FORWARD, TS);
     }
     else {
-        add_operator<Standard_Emitter<tuple_t>, Standard_Collector>(&_sink, _sink.isKeyed() ? KEYED : STATELESS);
+        add_operator<Standard_Emitter<tuple_t>>(&_sink, _sink.isKeyed() ? KEYBY : FORWARD);
     }
 	has_sink = true;
     // save the new output type from this MultiPipe
@@ -2582,11 +2590,13 @@ MultiPipe &MultiPipe::chain_sink(Sink<tuple_t> &_sink)
     // try to chain the Sink with the MultiPipe
     if (!_sink.isKeyed()) {
         bool chained = chain_operator<typename Sink<tuple_t>::Sink_Node>(&_sink);
-        if (!chained)
+        if (!chained) {
             return add_sink(_sink);
+        }
     }
-    else
+    else {
         return add_sink(_sink);
+    }
     has_sink = true;
     // save the new output type from this MultiPipe
     outputType = opInType;

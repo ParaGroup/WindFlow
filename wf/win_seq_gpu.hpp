@@ -43,6 +43,7 @@
 #include <unordered_map>
 #include <math.h>
 #include <ff/node.hpp>
+#include <ff/multinode.hpp>
 #include <window.hpp>
 #include <meta.hpp>
 #include <stream_archive.hpp>
@@ -90,7 +91,7 @@ __global__ void ComputeBatch_Kernel(void *input_data,
  *  and offloads the processing of all the windows within a batch on the GPU.
  */ 
 template<typename tuple_t, typename result_t, typename win_F_t, typename input_t>
-class Win_Seq_GPU: public ff::ff_node_t<input_t, result_t>
+class Win_Seq_GPU: public ff::ff_minode_t<input_t, result_t>
 {
 private:
     // iterator type for accessing tuples
@@ -183,6 +184,7 @@ private:
     size_t scratchpad_size = 0; // size of the scratchpage memory area on the GPU (one per CUDA thread)
     char *scratchpad_memory = nullptr; // scratchpage memory area (allocated on the GPU, one per CUDA thread)
     size_t dropped_tuples; // number of dropped tuples
+    size_t eos_received; // number of received EOS messages
 #if defined(TRACE_WINDFLOW)
     bool isTriggering = false;
     unsigned long rcvTuples = 0;
@@ -218,7 +220,8 @@ private:
                 scratchpad_size(_scratchpad_size),
                 config(_config),
                 role(_role),
-                dropped_tuples(0)
+                dropped_tuples(0),
+                eos_received(0)
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -581,6 +584,11 @@ public:
     // method to manage the EOS (utilized by the FastFlow runtime)
     void eosnotify(ssize_t id)
     {
+        eos_received++;
+        // check the number of received EOS messages
+        if ((eos_received != this->get_num_inchannels()) && (this->get_num_inchannels() != 0)) { // workaround due to FastFlow
+            return;
+        }
         // emit results of the previously running kernel on the GPU
         waitAndFlush();
         // allocate on the CPU the scratchpad_memory
@@ -683,13 +691,13 @@ public:
     /// Method to start the operator execution asynchronously
     virtual int run(bool)
     {
-        return ff::ff_node::run();
+        return ff::ff_minode::run();
     }
 
     /// Method to wait the operator termination
     virtual int wait()
     {
-        return ff::ff_node::wait();
+        return ff::ff_minode::wait();
     }
 };
 

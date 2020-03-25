@@ -43,6 +43,7 @@
 #include <unordered_map>
 #include <math.h>
 #include <ff/node.hpp>
+#include <ff/multinode.hpp>
 #include <flatfat.hpp>
 #include <meta.hpp>
 
@@ -58,13 +59,13 @@ namespace wf {
  *  in a serial fashion using the algorithm in the FlatFAT data structure.
  */ 
 template<typename tuple_t, typename result_t>
-class Win_SeqFFAT: public ff::ff_node_t<tuple_t, result_t>
+class Win_SeqFFAT: public ff::ff_minode_t<tuple_t, result_t>
 {
 public:
     /// type of the lift function
-    using winLift_func_t = std::function<void(const tuple_t&, result_t&)>;
+    using winLift_func_t = std::function<void(const tuple_t &, result_t &)>;
     /// type of the rich lift function
-    using rich_winLift_func_t = std::function<void(const tuple_t&, result_t&, RuntimeContext &)>;
+    using rich_winLift_func_t = std::function<void(const tuple_t &, result_t &, RuntimeContext &)>;
     /// type of the combine function
     using winComb_func_t = std::function<void(const result_t &, const result_t &, result_t &)>;
     /// type of the rich combine function
@@ -150,6 +151,7 @@ private:
     OperatorConfig config; // configuration structure of the Win_SeqFFAT operator
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     size_t dropped_tuples; // number of dropped tuples
+    size_t eos_received; // number of received EOS messages
 #if defined(TRACE_WINDFLOW)
     unsigned long rcvTuples = 0;
     double avg_td_us = 0;
@@ -228,7 +230,8 @@ public:
              context(_context),
              config(_config),
              isRich(false),
-             dropped_tuples(0)
+             dropped_tuples(0),
+             eos_received(0)
    	{
    		init();
    	}
@@ -268,7 +271,8 @@ public:
              context(_context),
              config(_config),
              isRich(true),
-             dropped_tuples(0)
+             dropped_tuples(0),
+             eos_received(0)
     {
         init();
     }
@@ -536,6 +540,11 @@ public:
     // method to manage the EOS (utilized by the FastFlow runtime)
     void eosnotify(ssize_t id)
     {
+        eos_received++;
+        // check the number of received EOS messages
+        if ((eos_received != this->get_num_inchannels()) && (this->get_num_inchannels() != 0)) { // workaround due to FastFlow
+            return;
+        }
         // two separate logics depending on the window type
         if (winType == CB) {
             eosnotifyCBWindows(id);
@@ -652,13 +661,13 @@ public:
     /// Method to start the operator execution asynchronously
     virtual int run(bool)
     {
-        return ff::ff_node::run();
+        return ff::ff_minode::run();
     }
 
     /// Method to wait the operator termination
     virtual int wait()
     {
-        return ff::ff_node::wait();
+        return ff::ff_minode::wait();
     }
 };
 

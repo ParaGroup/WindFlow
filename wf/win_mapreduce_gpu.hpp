@@ -119,7 +119,7 @@ private:
     OperatorConfig config;
     bool used; // true if the operator has been added/chained in a MultiPipe
     bool used4Nesting; // true if the operator has been used in a nested structure
-    std::vector<ff_node *> map_workers; // vector of pointers to the workers in the MAP stage
+    std::vector<ff_node *> map_workers; // vector of pointers to the Win_Seq or Win_Seq_GPU instances in the MAP stage
 
     // Private Constructor I
     Win_MapReduce_GPU(F_t _gpuFunction,
@@ -800,15 +800,13 @@ public:
     size_t getNumDroppedTuples() const
     {
         size_t count = 0;
-        if (!isGPUMAP) {
-            for (auto *w: map_workers) {
-                auto *seq = static_cast<Win_Seq<tuple_t, result_t, wrapper_in_t> *>(w);
-                count += seq->getNumDroppedTuples();
+        for (auto *w: map_workers) {
+            if (isGPUMAP) {
+                auto *seq_gpu = static_cast<Win_Seq_GPU<tuple_t, result_t, F_t, wrapper_in_t> *>(w);
+                count += seq_gpu->getNumDroppedTuples();
             }
-        }
-        else {
-            for (auto *w: map_workers) {
-                auto *seq = static_cast<Win_Seq_GPU<tuple_t, result_t, F_t, wrapper_in_t> *>(w);
+            else {
+                auto *seq = static_cast<Win_Seq<tuple_t, result_t, wrapper_in_t> *>(w);
                 count += seq->getNumDroppedTuples();
             }
         }

@@ -45,6 +45,7 @@
 #include <unordered_map>
 #include <math.h>
 #include <ff/node.hpp>
+#include <ff/multinode.hpp>
 #include <flatfat_gpu.hpp>
 #include <meta.hpp>
 
@@ -60,11 +61,11 @@ namespace wf {
  *  system (CPU+GPU) in a serial fashion using the algorithm in the FlatFAT_GPU data structure.
  */ 
 template<typename tuple_t, typename result_t, typename comb_F_t>
-class Win_SeqFFAT_GPU: public ff::ff_node_t<tuple_t, result_t>
+class Win_SeqFFAT_GPU: public ff::ff_minode_t<tuple_t, result_t>
 {
 private:
     /// type of the lift function
-    using winLift_func_t = std::function<void(const tuple_t&, result_t&)>;
+    using winLift_func_t = std::function<void(const tuple_t &, result_t &)>;
     tuple_t tmp; // never used
     // key data type
     using key_t = typename std::remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
@@ -143,6 +144,7 @@ private:
     size_t n_thread_block; // number of threads per block
     cudaStream_t cudaStream; // CUDA stream used by this Win_SeqFFAT_GPU
     size_t dropped_tuples; // number of dropped tuples
+    size_t eos_received; // number of received EOS messages
 #if defined(LOG_DIR)
     bool isTriggering = false;
     unsigned long rcvTuples = 0;
@@ -188,7 +190,8 @@ private:
                     rebuild(_rebuild),
                     name(_name),
                     config(_config),
-                    dropped_tuples(0)
+                    dropped_tuples(0),
+                    eos_received(0)
     {
         // check the validity of the windowing parameters
         if (win_len == 0 || slide_len == 0) {
@@ -429,7 +432,7 @@ public:
     }
 
     // processing logic with time-based windows
-    void svcTBWindows(tuple_t *t)
+    inline void svcTBWindows(tuple_t *t)
     {
 #if defined (LOG_DIR)
         startTS = current_time_nsecs();
@@ -576,6 +579,11 @@ public:
     // method to manage the EOS (utilized by the FastFlow runtime)
     void eosnotify(ssize_t id)
     {
+        eos_received++;
+        // check the number of received EOS messages
+        if ((eos_received != this->get_num_inchannels()) && (this->get_num_inchannels() != 0)) { // workaround due to FastFlow
+            return;
+        }
         // two separate logics depending on the window type
         if (winType == CB) {
             eosnotifyCBWindows(id);
@@ -733,13 +741,13 @@ public:
     /// Method to start the operator execution asynchronously
     virtual int run(bool)
     {
-        return ff::ff_node::run();
+        return ff::ff_minode::run();
     }
 
     /// Method to wait the operator termination
     virtual int wait()
     {
-        return ff::ff_node::wait();
+        return ff::ff_minode::wait();
     }
 };
 

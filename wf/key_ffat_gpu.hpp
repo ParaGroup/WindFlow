@@ -69,7 +69,7 @@ class Key_FFAT_GPU: public ff::ff_farm
 {
 public:
     /// type of the lift function
-    using winLift_func_t = std::function<void(const tuple_t&, result_t&)>;
+    using winLift_func_t = std::function<void(const tuple_t &, result_t &)>;
     /// function type to map the key hashcode onto an identifier starting from zero to pardegree-1
     using routing_func_t = std::function<size_t(size_t, size_t)>;
 

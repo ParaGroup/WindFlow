@@ -39,11 +39,12 @@
 #include <string>
 #include <ff/node.hpp>
 #include <ff/pipeline.hpp>
+#include <ff/multinode.hpp>
 #include <ff/farm.hpp>
 #include <basic.hpp>
 #include <shipper.hpp>
 #include <context.hpp>
-#include <standard_nodes.hpp>
+#include <standard_emitter.hpp>
 
 namespace wf {
 
@@ -74,7 +75,7 @@ private:
     bool keyed; // flag stating whether the FlatMap is configured with keyBy or not
     bool used; // true if the operator has been added/chained in a MultiPipe
     // class FlatMap_Node
-    class FlatMap_Node: public ff::ff_node_t<tuple_t, result_t>
+    class FlatMap_Node: public ff::ff_minode_t<tuple_t, result_t>
     {
 private:
         flatmap_func_t flatmap_func; // flatmap function

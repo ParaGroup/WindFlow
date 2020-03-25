@@ -54,7 +54,7 @@ private:
     // type of the lift function
     using winLift_func_t = std::function<void(const tuple_t &, result_t &)>;
     /// type of the rich lift function
-    using rich_winLift_func_t = std::function<void(const tuple_t&, result_t&, RuntimeContext &)>;
+    using rich_winLift_func_t = std::function<void(const tuple_t &, result_t &, RuntimeContext &)>;
     // type of the combine function
     using winComb_func_t = std::function<void(const result_t &, const result_t &, result_t &)>;
     /// type of the rich combine function
