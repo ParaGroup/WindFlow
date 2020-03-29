@@ -65,10 +65,14 @@ template<typename tuple_t>
 class Sink: public ff::ff_farm
 {
 public:
-    /// type of the sink function
+    /// type of the sink function (receiving a reference to an optional containing the input)
     using sink_func_t = std::function<void(std::optional<tuple_t> &)>;
-    /// type of the rich sink function
+    /// type of the rich sink function (receiving a reference to an optional containing the input)
     using rich_sink_func_t = std::function<void(std::optional<tuple_t> &, RuntimeContext &)>;
+    /// type of the sink function (receiving an optional containing a reference wrapper to the input)
+    using sink_func_ref_t = std::function<void(std::optional<std::reference_wrapper<tuple_t>>)>;
+    /// type of the rich sink function (receiving an optional containing a reference wrapper to the input)
+    using rich_sink_func_ref_t = std::function<void(std::optional<std::reference_wrapper<tuple_t>>, RuntimeContext &)>;
     /// type of the closing function
     using closing_func_t = std::function<void(RuntimeContext &)>;
     /// type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
@@ -83,11 +87,14 @@ private:
     class Sink_Node: public ff::ff_minode_t<tuple_t>
     {
     private:
-        sink_func_t sink_fun; // sink function
-        rich_sink_func_t rich_sink_func; // rich sink function
+        sink_func_t sink_func; // sink function (receiving a reference to an optional containing the input)
+        rich_sink_func_t rich_sink_func; // rich sink function (receiving a reference to an optional containing the input)
+        sink_func_ref_t sink_func_ref; // sink function (receiving an optional containing a reference wrapper to the input)
+        rich_sink_func_ref_t rich_sink_func_ref; // rich sink function (receiving an optional containing a reference wrapper to the input)
         closing_func_t closing_func; // closing function
         std::string name; // string of the unique name of the operator
         bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
+        bool isRef; // flag stating whether the function to be used receives an optional containing the input (by value) o a reference wrapper to it
         RuntimeContext context; // RuntimeContext
 #if defined(TRACE_WINDFLOW)
         unsigned long rcvTuples = 0;
@@ -99,25 +106,53 @@ private:
 
     public:
         // Constructor I
-        Sink_Node(sink_func_t _sink_fun,
+        Sink_Node(sink_func_t _sink_func,
                   std::string _name,
                   RuntimeContext _context,
                   closing_func_t _closing_func):
-                  sink_fun(_sink_fun),
+                  sink_func(_sink_func),
                   name(_name),
                   isRich(false),
+                  isRef(false),
                   context(_context),
                   closing_func(_closing_func)
         {}
 
         // Constructor II
-        Sink_Node(rich_sink_func_t _rich_sink_fun,
+        Sink_Node(rich_sink_func_t _rich_sink_func,
                   std::string _name,
                   RuntimeContext _context,
                   closing_func_t _closing_func):
-                  rich_sink_func(_rich_sink_fun),
+                  rich_sink_func(_rich_sink_func),
                   name(_name),
                   isRich(true),
+                  isRef(false),
+                  context(_context),
+                  closing_func(_closing_func)
+        {}
+
+        // Constructor III
+        Sink_Node(sink_func_ref_t _sink_func_ref,
+                  std::string _name,
+                  RuntimeContext _context,
+                  closing_func_t _closing_func):
+                  sink_func_ref(_sink_func_ref),
+                  name(_name),
+                  isRich(false),
+                  isRef(true),
+                  context(_context),
+                  closing_func(_closing_func)
+        {}
+
+        // Constructor IV
+        Sink_Node(rich_sink_func_ref_t _rich_sink_func_ref,
+                  std::string _name,
+                  RuntimeContext _context,
+                  closing_func_t _closing_func):
+                  rich_sink_func_ref(_rich_sink_func_ref),
+                  name(_name),
+                  isRich(true),
+                  isRef(true),
                   context(_context),
                   closing_func(_closing_func)
         {}
@@ -157,13 +192,28 @@ private:
                 startTD = current_time_nsecs();
             rcvTuples++;
 #endif
-            // create optional to the input tuple
-            std::optional<tuple_t> opt = std::make_optional(std::move(*t));
-            // call the sink function
-            if (!isRich)
-                sink_fun(opt);
-            else
-                rich_sink_func(opt, context);
+            if (!isRef) { // the optional encapsulates the input by value
+                // create optional containing a copy of the input tuple
+                std::optional<tuple_t> opt = std::make_optional(std::move(*t)); // try to move the input if it is possible
+                // call the sink function
+                if (!isRich) {
+                    sink_func(opt);
+                }
+                else {
+                    rich_sink_func(opt, context);
+                }
+            }
+            else { // the optional encapsulates the input by a reference wrapper
+                // create optional containing a reference wrapper to the input tuple
+                std::optional<std::reference_wrapper<tuple_t>> opt = std::make_optional(std::ref(*t));
+                // call the sink function
+                if (!isRich) {
+                    sink_func_ref(opt);
+                }
+                else {
+                    rich_sink_func_ref(opt, context);
+                }
+            }
             // delete the received item
             delete t;
 #if defined(TRACE_WINDFLOW)
@@ -181,14 +231,27 @@ private:
         // svc_end method (utilized by the FastFlow runtime)
         void svc_end()
         {
-            // create empty optional
-            std::optional<tuple_t> opt;
-            // call the sink function for the last time (empty optional)
-            if (!isRich) {
-                sink_fun(opt);
+            if (!isRef) {
+                // create empty optional
+                std::optional<tuple_t> opt;
+                // call the sink function for the last time (empty optional)
+                if (!isRich) {
+                    sink_func(opt);
+                }
+                else {
+                    rich_sink_func(opt, context);
+                }
             }
             else {
-                rich_sink_func(opt, context);
+                // create empty optional
+                std::optional<std::reference_wrapper<tuple_t>> opt;
+                // call the sink function for the last time (empty optional)
+                if (!isRich) {
+                    sink_func_ref(opt);
+                }
+                else {
+                    rich_sink_func_ref(opt, context);
+                }
             }
             // call the closing function
             closing_func(context);
@@ -210,16 +273,18 @@ public:
     /** 
      *  \brief Constructor I
      *  
-     *  \param _func sink function
+     *  \param _func _func function with signature accepted by the Sink operator
      *  \param _pardegree parallelism degree of the Sink operator
      *  \param _name string with the unique name of the Sink operator
      *  \param _closing_func closing function
      */ 
-    Sink(sink_func_t _func,
+    template<typename F_t>
+    Sink(F_t _func,
          size_t _pardegree,
          std::string _name,
          closing_func_t _closing_func):
-         keyed(false), used(false)
+         keyed(false),
+         used(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -244,88 +309,20 @@ public:
     /** 
      *  \brief Constructor II
      *  
-     *  \param _func sink function
+     *  \param _func _func function with signature accepted by the Sink operator
      *  \param _pardegree parallelism degree of the Sink operator
      *  \param _name string with the unique name of the Sink operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
-    Sink(sink_func_t _func,
+    template<typename F_t>
+    Sink(F_t _func,
          size_t _pardegree,
          std::string _name,
          closing_func_t _closing_func,
          routing_func_t _routing_func):
-         keyed(true), used(false)
-    {
-        // check the validity of the parallelism degree
-        if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: Sink has parallelism zero" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        // std::vector of Sink_Node
-        std::vector<ff_node *> w;
-        for (size_t i=0; i<_pardegree; i++) {
-            auto *seq = new Sink_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
-            auto *seq_comb = new ff::ff_comb(seq, new dummy_mo(), true, true);
-            w.push_back(seq_comb);
-        }
-        // add emitter
-        ff::ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func, _pardegree));
-        // add workers
-        ff::ff_farm::add_workers(w);
-        // when the Sink will be destroyed we need aslo to destroy the emitter and workers
-        ff::ff_farm::cleanup_all();
-    }
-
-    /** 
-     *  \brief Constructor III
-     *  
-     *  \param _func rich sink function
-     *  \param _pardegree parallelism degree of the Sink operator
-     *  \param _name string with the unique name of the Sink operator
-     *  \param _closing_func closing function
-     */ 
-    Sink(rich_sink_func_t _func,
-         size_t _pardegree,
-         std::string _name,
-         closing_func_t _closing_func):
-         keyed(false), used(false)
-    {
-        // check the validity of the parallelism degree
-        if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: Sink has parallelism zero" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        // std::vector of Sink_Node
-        std::vector<ff_node *> w;
-        for (size_t i=0; i<_pardegree; i++) {
-            auto *seq = new Sink_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
-            auto *seq_comb = new ff::ff_comb(seq, new dummy_mo(), true, true);
-            w.push_back(seq_comb);
-        }
-        // add emitter
-        ff::ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_pardegree));
-        // add workers
-        ff::ff_farm::add_workers(w);
-        // when the Sink will be destroyed we need aslo to destroy the emitter and workers
-        ff::ff_farm::cleanup_all();
-    }
-
-    /** 
-     *  \brief Constructor IV
-     *  
-     *  \param _func rich sink function
-     *  \param _pardegree parallelism degree of the Sink operator
-     *  \param _name string with the unique name of the Sink operator
-     *  \param _closing_func closing function
-     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     */ 
-    Sink(rich_sink_func_t _func,
-         size_t _pardegree,
-         std::string _name,
-         closing_func_t _closing_func,
-         routing_func_t _routing_func):
-         keyed(true), used(false)
+         keyed(true),
+         used(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {

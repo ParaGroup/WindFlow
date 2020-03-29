@@ -458,7 +458,7 @@ public:
     size_t getParallelism() const
     {
         return parallelism;
-    }        
+    }       
 
     /** 
      *  \brief Get the parallelism degrees of the inner operators within this Key_Farm_GPU

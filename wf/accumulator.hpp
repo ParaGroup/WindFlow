@@ -221,52 +221,17 @@ public:
 
 public:
     /** 
-     *  \brief Constructor I
+     *  \brief Constructor
      *  
-     *  \param _func reduce/fold function
+     *  \param _func function with signature accepted by the Accumulator operator
      *  \param _init_value initial value to be used by the fold function (for reduce the initial value is the one obtained by the default Constructor of result_t)
      *  \param _pardegree parallelism degree of the Accumulator operator
      *  \param _name string with the unique name of the Accumulator operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
-    Accumulator(acc_func_t _func,
-                result_t _init_value,
-                size_t _pardegree,
-                std::string _name,
-                closing_func_t _closing_func,
-                routing_func_t _routing_func): used(false)
-    {
-        // check the validity of the parallelism degree
-        if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: Accumulator has parallelism zero" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        // vector of Accumulator_Node
-        std::vector<ff_node *> w;
-        for (size_t i=0; i<_pardegree; i++) {
-            auto *seq = new Accumulator_Node(_func, _init_value, _name, RuntimeContext(_pardegree, i), _closing_func);
-            w.push_back(seq);
-        }
-        ff::ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func, _pardegree));
-        ff::ff_farm::add_workers(w);
-        // add default collector
-        ff::ff_farm::add_collector(nullptr);
-        // when the Accumulator will be destroyed we need aslo to destroy the emitter, workers and collector
-        ff::ff_farm::cleanup_all();
-    }
-
-    /** 
-     *  \brief Constructor II
-     *  
-     *  \param _func rich reduce/fold function
-     *  \param _init_value initial value to be used by the fold function (for reduce the initial value is the one obtained by the default Constructor of result_t)
-     *  \param _pardegree parallelism degree of the Accumulator operator
-     *  \param _name string with the unique name of the Accumulator operator
-     *  \param _closing_func closing function
-     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     */ 
-    Accumulator(rich_acc_func_t _func,
+    template<typename F_t>
+    Accumulator(F_t _func,
                 result_t _init_value,
                 size_t _pardegree,
                 std::string _name,

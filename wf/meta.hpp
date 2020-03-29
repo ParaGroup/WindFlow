@@ -202,6 +202,24 @@ Arg get_tuple_t(void (F_t::*)(std::optional<Arg>&, RuntimeContext&));
 template<typename Arg> // Sink
 Arg get_tuple_t(void (*)(std::optional<Arg>&, RuntimeContext&));
 
+template<typename F_t, typename Arg> // Sink
+Arg get_tuple_t(void (F_t::*)(std::optional<std::reference_wrapper<Arg>>) const);
+
+template<typename F_t, typename Arg> // Sink
+Arg get_tuple_t(void (F_t::*)(std::optional<std::reference_wrapper<Arg>>));
+
+template<typename Arg> // Sink
+Arg get_tuple_t(void (*)(std::optional<std::reference_wrapper<Arg>>));
+
+template<typename F_t, typename Arg> // Sink
+Arg get_tuple_t(void (F_t::*)(std::optional<std::reference_wrapper<Arg>>, RuntimeContext&) const);
+
+template<typename F_t, typename Arg> // Sink
+Arg get_tuple_t(void (F_t::*)(std::optional<std::reference_wrapper<Arg>>, RuntimeContext&));
+
+template<typename Arg> // Sink
+Arg get_tuple_t(void (*)(std::optional<std::reference_wrapper<Arg>>, RuntimeContext&));
+
 template<typename F_t, typename Ret, typename Arg1, typename Arg2> // Window-based operators (non-incremental)
 Arg1 get_tuple_t(Ret (F_t::*)(uint64_t, const Iterable<Arg1>&, Arg2&) const);
 
@@ -427,15 +445,15 @@ decltype(get_result_t(&F_t::operator())) get_result_t(F_t);
 
 // metafunction to extract the type of Win_Farm from the inner operator of type Pane_Farm
 template<typename ...Args>
-Win_Farm<Args...>*get_WF_nested_type(Pane_Farm<Args...> const&);
+Win_Farm<Args...> *get_WF_nested_type(Pane_Farm<Args...> const&);
 
 // metafunction to extract the type of Win_Farm from the inner operator of type Win_MapReduce
 template<typename ...Args>
-Win_Farm<Args...>*get_WF_nested_type(Win_MapReduce<Args...> const&);
+Win_Farm<Args...> *get_WF_nested_type(Win_MapReduce<Args...> const&);
 
 // metafunction to extract the type of Win_Farm from a callable type (e.g., function, lambda, functor)
 template<typename F_t>
-auto*get_WF_nested_type(F_t _f)
+auto *get_WF_nested_type(F_t _f)
 {
     Win_Farm<decltype(get_tuple_t(_f)),
                     decltype(get_result_t(_f))>*ptr = nullptr;
@@ -444,15 +462,15 @@ auto*get_WF_nested_type(F_t _f)
 
 // metafunction to extract the type of Win_Farm_GPU from the inner operator of type Pane_Farm_GPU
 template<typename ...Args>
-Win_Farm_GPU<Args...>*get_WF_GPU_nested_type(Pane_Farm_GPU<Args...> const&);
+Win_Farm_GPU<Args...> *get_WF_GPU_nested_type(Pane_Farm_GPU<Args...> const&);
 
 // metafunction to extract the type of Win_Farm_GPU from the inner operator of type Win_MapReduce_GPU
 template<typename ...Args>
-Win_Farm_GPU<Args...>*get_WF_GPU_nested_type(Win_MapReduce_GPU<Args...> const&);
+Win_Farm_GPU<Args...> *get_WF_GPU_nested_type(Win_MapReduce_GPU<Args...> const&);
 
 // metafunction to extract the type of Win_Farm_GPU from a callable type (e.g., function, lambda, functor)
 template<typename F_t>
-auto*get_WF_GPU_nested_type(F_t _f)
+auto *get_WF_GPU_nested_type(F_t _f)
 {
     Win_Farm_GPU<decltype(get_tuple_t(_f)),
                         decltype(get_result_t(_f)),
@@ -462,15 +480,15 @@ auto*get_WF_GPU_nested_type(F_t _f)
 
 // metafunction to extract the type of Key_Farm from the inner operator of type Pane_Farm
 template<typename arg1, typename arg2, typename arg3>
-Key_Farm<arg1, arg2>*get_KF_nested_type(Pane_Farm<arg1, arg2, arg3> const&);
+Key_Farm<arg1, arg2> *get_KF_nested_type(Pane_Farm<arg1, arg2, arg3> const&);
 
 // metafunction to extract the type of Key_Farm from the inner operator of type Win_MapReduce
 template<typename arg1, typename arg2, typename arg3>
-Key_Farm<arg1, arg2>*get_KF_nested_type(Win_MapReduce<arg1, arg2, arg3> const&);
+Key_Farm<arg1, arg2> *get_KF_nested_type(Win_MapReduce<arg1, arg2, arg3> const&);
 
 // metafunction to extract the type of Key_Farm from a callable type (e.g., function, lambda, functor)
 template<typename F_t>
-auto*get_KF_nested_type(F_t _f)
+auto *get_KF_nested_type(F_t _f)
 {
     Key_Farm<decltype(get_tuple_t(_f)),
                     decltype(get_result_t(_f))>*ptr = nullptr;
@@ -479,15 +497,15 @@ auto*get_KF_nested_type(F_t _f)
 
 // metafunction to extract the type of Key_Farm_GPU from the inner operator of type Pane_Farm_GPU
 template<typename arg1, typename arg2, typename arg3, typename arg4>
-Key_Farm_GPU<arg1, arg2, arg3>*get_KF_GPU_nested_type(Pane_Farm_GPU<arg1, arg2, arg3, arg4> const&);
+Key_Farm_GPU<arg1, arg2, arg3> *get_KF_GPU_nested_type(Pane_Farm_GPU<arg1, arg2, arg3, arg4> const&);
 
 // metafunction to extract the type of Key_Farm_GPU from the inner operator of type Win_MapReduce_GPU
 template<typename arg1, typename arg2, typename arg3, typename arg4>
-Key_Farm_GPU<arg1, arg2, arg3>*get_KF_GPU_nested_type(Win_MapReduce_GPU<arg1, arg2, arg3, arg4> const&);
+Key_Farm_GPU<arg1, arg2, arg3> *get_KF_GPU_nested_type(Win_MapReduce_GPU<arg1, arg2, arg3, arg4> const&);
 
 // metafunction to extract the type of Key_Farm_GPU from a callable type (e.g., function, lambda, functor)
 template<typename F_t>
-auto*get_KF_GPU_nested_type(F_t _f)
+auto *get_KF_GPU_nested_type(F_t _f)
 {
     Key_Farm_GPU<decltype(get_tuple_t(_f)),
                         decltype(get_result_t(_f)),
@@ -524,12 +542,12 @@ G_t get_GPU_F(Ret (*)(uint64_t, const Arg1&, Arg2&), Ret(G_t::*)(uint64_t, const
 template<typename tuple_t>
 struct wrapper_tuple_t
 {
-    tuple_t*tuple; // pointer to a tuple
+    tuple_t *tuple; // pointer to a tuple
     std::atomic<size_t> counter; // atomic reference counter
     bool eos; // if true, the tuple is a EOS marker
 
     // Constructor
-    wrapper_tuple_t(tuple_t*_t,
+    wrapper_tuple_t(tuple_t *_t,
                     size_t _counter=1,
                     bool _eos=false):
                     tuple(_t),
@@ -540,23 +558,23 @@ struct wrapper_tuple_t
 
 // function extractTuple: definition valid if T1 != T2
 template <typename T1, typename T2>
-T1*extractTuple(typename std::enable_if<!std::is_same<T1,T2>::value, T2>::type*wt) // T1 is the type of the tuple and T2 is its wrapper type
+T1 *extractTuple(typename std::enable_if<!std::is_same<T1,T2>::value, T2>::type *wt) // T1 is the type of the tuple and T2 is its wrapper type
 {
     return wt->tuple;
 }
 
 // function extractTuple: definition valid if T1 == T2
 template <typename T1, typename T2>
-T1*extractTuple(typename std::enable_if<std::is_same<T1,T2>::value, T2>::type*t) // T1 and T2 are the same type: the tuple's type
+T1 *extractTuple(typename std::enable_if<std::is_same<T1,T2>::value, T2>::type *t) // T1 and T2 are the same type: the tuple's type
 {
     return t;
 }
 
 // function deleteTuple: definition valid if T1 != T2
 template <typename T1, typename T2>
-void deleteTuple(typename std::enable_if<!std::is_same<T1,T2>::value, T2>::type*wt) // T1 is the type of the tuple and T2 is its wrapper type
+void deleteTuple(typename std::enable_if<!std::is_same<T1,T2>::value, T2>::type *wt) // T1 is the type of the tuple and T2 is its wrapper type
 {
-    T1*t = wt->tuple;
+    T1 *t = wt->tuple;
     // check if the tuple and the wrapper must be destroyed/deallocated
     size_t old_cnt = (wt->counter).fetch_sub(1);
     if (old_cnt == 1) {
@@ -567,14 +585,14 @@ void deleteTuple(typename std::enable_if<!std::is_same<T1,T2>::value, T2>::type*
 
 // function deleteTuple: definition valid if T1 == T2
 template <typename T1, typename T2>
-void deleteTuple(typename std::enable_if<std::is_same<T1,T2>::value, T2>::type*t) // T1 and T2 are the same type: the tuple's type
+void deleteTuple(typename std::enable_if<std::is_same<T1,T2>::value, T2>::type *t) // T1 and T2 are the same type: the tuple's type
 {
     delete t;
 }
 
 // function createWrapper: definition valid if T2 != T3
 template<typename T1, typename T2, typename T3>
-T1*createWrapper(typename std::enable_if<!std::is_same<T2,T3>::value, T1>::type*t, size_t val, bool isEOS=false) // T1 is the tuple type, T2 the output type and T3 is the wrapper type
+T1 *createWrapper(typename std::enable_if<!std::is_same<T2,T3>::value, T1>::type *t, size_t val, bool isEOS=false) // T1 is the tuple type, T2 the output type and T3 is the wrapper type
 {
     // only return the tuple
     return t;
@@ -582,7 +600,7 @@ T1*createWrapper(typename std::enable_if<!std::is_same<T2,T3>::value, T1>::type*
 
 // function createWrapper: definition valid if T2 == T3
 template<typename T1, typename T2, typename T3>
-T2*createWrapper(typename std::enable_if<std::is_same<T2,T3>::value, T1>::type*t, size_t val, bool isEOS=false) // T1 is the tuple type, T2 the output type and T3 is the wrapper type
+T2 *createWrapper(typename std::enable_if<std::is_same<T2,T3>::value, T1>::type *t, size_t val, bool isEOS=false) // T1 is the tuple type, T2 the output type and T3 is the wrapper type
 {
     // create and return a wrapper to the tuple
     T2*wt = new T2(t, val, isEOS);
@@ -591,7 +609,7 @@ T2*createWrapper(typename std::enable_if<std::is_same<T2,T3>::value, T1>::type*t
 
 // function prepareWrapper: definition valid if T1 != T2
 template<typename T1, typename T2>
-T2*prepareWrapper(typename std::enable_if<!std::is_same<T1,T2>::value, T1>::type*t, size_t val) // T1 is the type of the tuple and T2 is its wrapper type
+T2 *prepareWrapper(typename std::enable_if<!std::is_same<T1,T2>::value, T1>::type *t, size_t val) // T1 is the type of the tuple and T2 is its wrapper type
 {
     // create wrapper
     return new T2(t, val);
@@ -599,7 +617,7 @@ T2*prepareWrapper(typename std::enable_if<!std::is_same<T1,T2>::value, T1>::type
 
 // function prepareWrapper: definition valid if T1 == T2
 template<typename T1, typename T2>
-T2*prepareWrapper(typename std::enable_if<std::is_same<T1,T2>::value, T1>::type*wt, size_t val) // T1 and T2 are the same type: the wrapper's type
+T2 *prepareWrapper(typename std::enable_if<std::is_same<T1,T2>::value, T1>::type *wt, size_t val) // T1 and T2 are the same type: the wrapper's type
 {
     (wt->counter).fetch_add(val-1);
     return wt;
@@ -607,14 +625,14 @@ T2*prepareWrapper(typename std::enable_if<std::is_same<T1,T2>::value, T1>::type*
 
 // function isEOSMarker: definition valid if T1 != T2
 template<typename T1, typename T2>
-bool isEOSMarker(const typename std::enable_if<!std::is_same<T1,T2>::value, T2>::type&wt) // T1 is the type of the tuple and T2 is its wrapper type
+bool isEOSMarker(const typename std::enable_if<!std::is_same<T1,T2>::value, T2>::type &wt) // T1 is the type of the tuple and T2 is its wrapper type
 {
     return wt.eos;
 }
 
 // function isEOSMarker: definition valid if T1 == T2
 template<typename T1, typename T2>
-bool isEOSMarker(const typename std::enable_if<std::is_same<T1,T2>::value, T1>::type&t) // T1 and T2 are the same type: the wrapper's type
+bool isEOSMarker(const typename std::enable_if<std::is_same<T1,T2>::value, T1>::type &t) // T1 and T2 are the same type: the wrapper's type
 {
     return false;
 }

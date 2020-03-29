@@ -208,7 +208,7 @@ public:
     /** 
      *  \brief Constructor I
      *  
-     *  \param _win_func the non-incremental window processing function
+     *  \param _win_func window processing function with signature accepted by the Key_Farm operator
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
@@ -219,7 +219,8 @@ public:
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      *  \param _opt_level optimization level used to build the operator
      */ 
-    Key_Farm(win_func_t _win_func,
+    template<typename F_t>
+    Key_Farm(F_t _win_func,
              uint64_t _win_len,
              uint64_t _slide_len,
              uint64_t _triggering_delay,
@@ -235,94 +236,7 @@ public:
     }
 
     /** 
-     *  \brief Constructor II
-     *  
-     *  \param _rich_win_func the rich non-incremental window processing function
-     *  \param _win_len window length (in no. of tuples or in time units)
-     *  \param _slide_len slide length (in no. of tuples or in time units)
-     *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
-     *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _pardegree parallelism degree of the Key_Farm operator
-     *  \param _name string with the unique name of the operator
-     *  \param _closing_func closing function
-     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     *  \param _opt_level optimization level used to build the operator
-     */ 
-    Key_Farm(rich_win_func_t _rich_win_func,
-             uint64_t _win_len,
-             uint64_t _slide_len,
-             uint64_t _triggering_delay,
-             win_type_t _winType,
-             size_t _pardegree,
-             std::string _name,
-             closing_func_t _closing_func,
-             routing_func_t _routing_func,
-             opt_level_t _opt_level):
-             Key_Farm(_rich_win_func, _win_len, _slide_len, _triggering_delay, _winType, _pardegree, _name, _closing_func, _routing_func, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
-    {
-        used = false;
-    }
-
-    /** 
-     *  \brief Constructor III
-     *  
-     *  \param _winupdate_func the incremental window processing function
-     *  \param _win_len window length (in no. of tuples or in time units)
-     *  \param _slide_len slide length (in no. of tuples or in time units)
-     *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
-     *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _pardegree parallelism degree of the Key_Farm operator
-     *  \param _name string with the unique name of the operator
-     *  \param _closing_func closing function
-     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     *  \param _opt_level optimization level used to build the operator
-     */ 
-    Key_Farm(winupdate_func_t _winupdate_func,
-             uint64_t _win_len,
-             uint64_t _slide_len,
-             uint64_t _triggering_delay,
-             win_type_t _winType,
-             size_t _pardegree,
-             std::string _name,
-             closing_func_t _closing_func,
-             routing_func_t _routing_func,
-             opt_level_t _opt_level):
-             Key_Farm(_winupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _pardegree, _name, _closing_func, _routing_func, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
-    {
-        used = false;
-    }
-
-    /** 
-     *  \brief Constructor IV
-     *  
-     *  \param _rich_winupdate_func the rich incremental window processing function
-     *  \param _win_len window length (in no. of tuples or in time units)
-     *  \param _slide_len slide length (in no. of tuples or in time units)
-     *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
-     *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _pardegree parallelism degree of the Key_Farm operator
-     *  \param _name string with the unique name of the operator
-     *  \param _closing_func closing function
-     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     *  \param _opt_level optimization level used to build the operator
-     */ 
-    Key_Farm(rich_winupdate_func_t _rich_winupdate_func,
-             uint64_t _win_len,
-             uint64_t _slide_len,
-             uint64_t _triggering_delay,
-             win_type_t _winType,
-             size_t _pardegree,
-             std::string _name,
-             closing_func_t _closing_func,
-             routing_func_t _routing_func,
-             opt_level_t _opt_level):
-             Key_Farm(_rich_winupdate_func, _win_len, _slide_len, _triggering_delay, _winType, _pardegree, _name, _closing_func, _routing_func, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
-    {
-        used = false;
-    }
-
-    /** 
-     *  \brief Constructor V (Nesting with Pane_Farm)
+     *  \brief Constructor II (Nesting with Pane_Farm)
      *  
      *  \param _pf Pane_Farm to be replicated within the Key_Farm operator
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -349,7 +263,8 @@ public:
              outer_opt_level(_opt_level),
              inner_type(PF_CPU),
              parallelism(_pardegree),
-             winType(_winType), used(false)
+             winType(_winType),
+             used(false)
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -431,7 +346,7 @@ public:
     }
 
     /** 
-     *  \brief Constructor VI (Nesting with Win_MapReduce)
+     *  \brief Constructor III (Nesting with Win_MapReduce)
      *  
      *  \param _wm Win_MapReduce to be replicated within the Key_Farm operator
      *  \param _win_len window length (in no. of tuples or in time units)
@@ -458,7 +373,8 @@ public:
              outer_opt_level(_opt_level),
              inner_type(WMR_CPU),
              parallelism(_pardegree),
-             winType(_winType), used(false)
+             winType(_winType),
+             used(false)
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {

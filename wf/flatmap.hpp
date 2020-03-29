@@ -202,12 +202,13 @@ public:
     /** 
      *  \brief Constructor I
      *  
-     *  \param _func flatmap function
+     *  \param _func function with signature accepted by the FlatMap operator
      *  \param _pardegree parallelism degree of the FlatMap operator
      *  \param _name string with the unique name of the FlatMap operator
      *  \param _closing_func closing function
      */ 
-    FlatMap(flatmap_func_t _func,
+    template<typename F_t>
+    FlatMap(F_t _func,
             size_t _pardegree,
             std::string _name,
             closing_func_t _closing_func):
@@ -237,85 +238,14 @@ public:
     /** 
      *  \brief Constructor II
      *  
-     *  \param _func flatmap function
+     *  \param _func function with signature accepted by the FlatMap operator
      *  \param _pardegree parallelism degree of the FlatMap operator
      *  \param _name string with the unique name of the FlatMap operator
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
-    FlatMap(flatmap_func_t _func,
-            size_t _pardegree,
-            std::string _name,
-            closing_func_t _closing_func,
-            routing_func_t _routing_func):
-            keyed(true), used(false)
-    {
-        // check the validity of the parallelism degree
-        if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: FlatMap has parallelism zero" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        // vector of FlatMap_Node
-        std::vector<ff_node *> w;
-        for (size_t i=0; i<_pardegree; i++) {
-            auto *seq = new FlatMap_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
-            w.push_back(seq);
-        }
-        // add emitter
-        ff::ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func, _pardegree));
-        // add workers
-        ff::ff_farm::add_workers(w);
-        // add default collector
-        ff::ff_farm::add_collector(nullptr);
-        // when the FlatMap will be destroyed we need aslo to destroy the emitter, workers and collector
-        ff::ff_farm::cleanup_all();
-    }
-
-    /** 
-     *  \brief Constructor III
-     *  
-     *  \param _func rich flatmap function
-     *  \param _pardegree parallelism degree of the FlatMap operator
-     *  \param _name string with the unique name of the FlatMap operator
-     *  \param _closing_func closing function
-     */ 
-    FlatMap(rich_flatmap_func_t _func,
-            size_t _pardegree,
-            std::string _name,
-            closing_func_t _closing_func):
-            keyed(false), used(false)
-    {
-        // check the validity of the parallelism degree
-        if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: FlatMap has parallelism zero" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        // vector of FlatMap_Node
-        std::vector<ff_node *> w;
-        for (size_t i=0; i<_pardegree; i++) {
-            auto *seq = new FlatMap_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
-            w.push_back(seq);
-        }
-        // add emitter
-        ff::ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_pardegree));
-        // add workers
-        ff::ff_farm::add_workers(w);
-        // add default collector
-        ff::ff_farm::add_collector(nullptr);
-        // when the FlatMap will be destroyed we need aslo to destroy the emitter, workers and collector
-        ff::ff_farm::cleanup_all();
-    }
-
-    /** 
-     *  \brief Constructor IV
-     *  
-     *  \param _func rich flatmap function
-     *  \param _pardegree parallelism degree of the FlatMap operator
-     *  \param _name string with the unique name of the FlatMap operator
-     *  \param _closing_func closing function
-     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     */ 
-    FlatMap(rich_flatmap_func_t _func,
+     template<typename F_t>
+    FlatMap(F_t _func,
             size_t _pardegree,
             std::string _name,
             closing_func_t _closing_func,

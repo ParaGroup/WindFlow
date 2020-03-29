@@ -239,113 +239,19 @@ private:
 
 public:
     /** 
-     *  \brief Constructor I
+     *  \brief Constructor
      *  
-     *  \param _func generation function (item-by-item version)
+     *  \param _func function with signature accepted by the Source operator
      *  \param _pardegree parallelism degree of the Source operator
      *  \param _name string with the unique name of the Source operator
      *  \param _closing_func closing function
      */ 
-    Source(source_item_func_t _func,
+    template<typename F_t>
+    Source(F_t _func,
            size_t _pardegree,
            std::string _name,
-           closing_func_t _closing_func): used(false)
-    {
-        // check the validity of the parallelism degree
-        if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: Source has parallelism zero" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        // vector of Source_Node
-        std::vector<ff_node *> first_set;
-        for (size_t i=0; i<_pardegree; i++) {
-            auto *seq = new Source_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
-            first_set.push_back(seq);
-        }
-        // add first set
-        ff::ff_a2a::add_firstset(first_set, 0, true);
-        std::vector<ff_node *> second_set;
-        second_set.push_back(new dummy_mi());
-        // add second set
-        ff::ff_a2a::add_secondset(second_set, true);
-    }
-
-    /** 
-     *  \brief Constructor II
-     *  
-     *  \param _func rich generation function (item-by-item version)
-     *  \param _pardegree parallelism degree of the Source operator
-     *  \param _name string with the unique name of the Source operator
-     *  \param _closing_func closing function
-     */ 
-    Source(rich_source_item_func_t _func,
-           size_t _pardegree,
-           std::string _name,
-           closing_func_t _closing_func): used(false)
-    {
-        // check the validity of the parallelism degree
-        if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: Source has parallelism zero" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        // vector of Source_Node
-        std::vector<ff_node *> first_set;
-        for (size_t i=0; i<_pardegree; i++) {
-            auto *seq = new Source_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
-            first_set.push_back(seq);
-        }
-        // add first set
-        ff::ff_a2a::add_firstset(first_set, 0, true);
-        std::vector<ff_node *> second_set;
-        second_set.push_back(new dummy_mi());
-        // add second set
-        ff::ff_a2a::add_secondset(second_set, true);
-    }
-
-    /** 
-     *  \brief Constructor III
-     *  
-     *  \param _func generation function (single-loop version)
-     *  \param _pardegree parallelism degree of the Source operator
-     *  \param _name string with the unique name of the Source operator
-     *  \param _closing_func closing function
-     */ 
-    Source(source_loop_func_t _func,
-           size_t _pardegree,
-           std::string _name,
-           closing_func_t _closing_func): used(false)
-    {
-        // check the validity of the parallelism degree
-        if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: Source has parallelism zero" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        // vector of Source_Node
-        std::vector<ff_node *> first_set;
-        for (size_t i=0; i<_pardegree; i++) {
-            auto *seq = new Source_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
-            first_set.push_back(seq);
-        }
-        // add first set
-        ff::ff_a2a::add_firstset(first_set, 0, true);
-        std::vector<ff_node *> second_set;
-        second_set.push_back(new dummy_mi());
-        // add second set
-        ff::ff_a2a::add_secondset(second_set, true);
-    }
-
-    /** 
-     *  \brief Constructor IV
-     *  
-     *  \param _func rich generation function (single-loop version)
-     *  \param _pardegree parallelism degree of the Source operator
-     *  \param _name string with the unique name of the Source operator
-     *  \param _closing_func closing function
-     */ 
-    Source(rich_source_loop_func_t _func,
-           size_t _pardegree,
-           std::string _name,
-           closing_func_t _closing_func): used(false)
+           closing_func_t _closing_func):
+           used(false)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {

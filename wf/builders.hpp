@@ -222,10 +222,12 @@ public:
      */ 
     filter_t build()
     {
-        if (!isKeyed)
+        if (!isKeyed) {
             return filter_t(func, pardegree, name, closing_func); // copy elision in C++17
-        else
+        }
+        else {
             return filter_t(func, pardegree, name, closing_func, routing_func); // copy elision in C++17
+        }
     }
 #endif
 
@@ -236,10 +238,12 @@ public:
      */ 
     filter_t *build_ptr()
     {
-        if (!isKeyed)
+        if (!isKeyed) {
             return new filter_t(func, pardegree, name, closing_func);
-        else
+        }
+        else {
             return new filter_t(func, pardegree, name, closing_func, routing_func);
+        }
     }
 
     /** 
@@ -249,10 +253,12 @@ public:
      */ 
     std::unique_ptr<filter_t> build_unique()
     {
-        if (!isKeyed)
+        if (!isKeyed) {
             return std::make_unique<filter_t>(func, pardegree, name, closing_func);
-        else
+        }
+        else {
             return std::make_unique<filter_t>(func, pardegree, name, closing_func, routing_func);
+        }
     }
 };
 
@@ -344,10 +350,12 @@ public:
      */ 
     map_t build()
     {
-        if (!isKeyed)
+        if (!isKeyed) {
             return map_t(func, pardegree, name, closing_func); // copy elision in C++17
-        else
+        }
+        else {
             return map_t(func, pardegree, name, closing_func, routing_func); // copy elision in C++17
+        }
     }
 #endif
 
@@ -358,10 +366,12 @@ public:
      */ 
     map_t *build_ptr()
     {
-        if (!isKeyed)
+        if (!isKeyed) {
             return new map_t(func, pardegree, name, closing_func);
-        else
+        }
+        else {
             return new map_t(func, pardegree, name, closing_func, routing_func);
+        }
     }
 
     /** 
@@ -371,10 +381,12 @@ public:
      */ 
     std::unique_ptr<map_t> build_unique()
     {
-        if (!isKeyed)
+        if (!isKeyed) {
             return std::make_unique<map_t>(func, pardegree, name, closing_func);
-        else
+        }
+        else {
             return std::make_unique<map_t>(func, pardegree, name, closing_func, routing_func);
+        }
     }
 };
 
@@ -466,10 +478,12 @@ public:
      */ 
     flatmap_t build()
     {
-        if (!isKeyed)
+        if (!isKeyed) {
             return flatmap_t(func, pardegree, name, closing_func); // copy elision in C++17
-        else
+        }
+        else {
             return flatmap_t(func, pardegree, name, closing_func, routing_func); // copy elision in C++17
+        }
     }
 #endif
 
@@ -480,10 +494,12 @@ public:
      */ 
     flatmap_t *build_ptr()
     {
-        if (!isKeyed)
+        if (!isKeyed) {
             return new flatmap_t(func, pardegree, name, closing_func);
-        else
+        }
+        else {
             return new flatmap_t(func, pardegree, name, closing_func, routing_func);
+        }
     }
 
     /** 
@@ -493,10 +509,12 @@ public:
      */ 
     std::unique_ptr<flatmap_t> build_unique()
     {
-        if (!isKeyed)
+        if (!isKeyed) {
             return std::make_unique<flatmap_t>(func, pardegree, name, closing_func);
-        else
+        }
+        else {
             return std::make_unique<flatmap_t>(func, pardegree, name, closing_func, routing_func);
+        }
     }
 };
 
@@ -2881,10 +2899,12 @@ public:
      */ 
     sink_t build()
     {
-        if (!isKeyed)
+        if (!isKeyed) {
             return sink_t(func, pardegree, name, closing_func); // copy elision in C++17
-        else
+        }
+        else {
             return sink_t(func, pardegree, name, closing_func, routing_func); // copy elision in C++17
+        }
     }
 #endif
 
@@ -2895,10 +2915,12 @@ public:
      */ 
     sink_t *build_ptr()
     {
-        if (!isKeyed)
+        if (!isKeyed) {
             return new sink_t(func, pardegree, name, closing_func);
-        else
+        }
+        else {
             return new sink_t(func, pardegree, name, closing_func, routing_func);
+        }
     }
 
     /** 
@@ -2908,10 +2930,12 @@ public:
      */ 
     std::unique_ptr<sink_t> build_unique()
     {
-        if (!isKeyed)
+        if (!isKeyed) {
             return std::make_unique<sink_t>(func, pardegree, name, closing_func);
-        else
+        }
+        else {
             return std::make_unique<sink_t>(func, pardegree, name, closing_func, routing_func);
+        }
     }
 };
 

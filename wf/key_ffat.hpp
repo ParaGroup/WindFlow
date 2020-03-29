@@ -94,10 +94,10 @@ private:
 
 public:
     /** 
-     *  \brief Constructor I
+     *  \brief Constructor
      *  
-     *  \param _winLift_func the lift function to translate a tuple into a result
-     *  \param _winComb_func the combine function to combine two results into a result
+     *  \param _winLift_func the lift function to translate a tuple into a result (with a signature accepted by the Key_FFAT operator)
+     *  \param _winComb_func the combine function to combine two results into a result (with a signature accepted by the Key_FFAT operator)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
@@ -107,8 +107,9 @@ public:
      *  \param _closing_func closing function
      *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
      */ 
-    Key_FFAT(winLift_func_t _winLift_func,
-             winComb_func_t _winComb_func,
+    template<typename lift_F_t, typename comb_F_t>
+    Key_FFAT(lift_F_t _winLift_func,
+             comb_F_t _winComb_func,
              uint64_t _win_len,
              uint64_t _slide_len,
              uint64_t _triggering_delay,
@@ -142,65 +143,6 @@ public:
         for (size_t i = 0; i < _pardegree; i++) {
             OperatorConfig configSeq(0, 1, _slide_len, 0, 1, _slide_len);
             auto *ffat = new win_seqffat_t(_winLift_func, _winComb_func, _win_len, _slide_len, _triggering_delay, _winType, _name + "_kff", _closing_func, RuntimeContext(_pardegree, i), configSeq);
-            w[i] = ffat;
-        }
-        ff::ff_farm::add_workers(w);
-        ff::ff_farm::add_collector(nullptr);
-        // create the Emitter node
-        ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _pardegree));
-        // when the Key_FFAT will be destroyed we need aslo to destroy the emitter, workers and collector
-        ff::ff_farm::cleanup_all();
-    }
-
-    /** 
-     *  \brief Constructor II
-     *  
-     *  \param _rich_winLift_func the rich lift function to translate a tuple into a result
-     *  \param _rich_ winComb_func the rich combine function to combine two results into a result
-     *  \param _win_len window length (in no. of tuples or in time units)
-     *  \param _slide_len slide length (in no. of tuples or in time units)
-     *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
-     *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _pardegree parallelism degree of the Key_Farm operator
-     *  \param _name string with the unique name of the operator
-     *  \param _closing_func closing function
-     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
-     */ 
-    Key_FFAT(rich_winLift_func_t _rich_winLift_func,
-             rich_winComb_func_t _rich_winComb_func,
-             uint64_t _win_len,
-             uint64_t _slide_len,
-             uint64_t _triggering_delay,
-             win_type_t _winType,
-             size_t _pardegree,
-             std::string _name,
-             closing_func_t _closing_func,
-             routing_func_t _routing_func):
-             parallelism(_pardegree),
-             winType(_winType),
-             used(false)         
-    {
-        // check the validity of the windowing parameters
-        if (_win_len == 0 || _slide_len == 0) {
-            std::cerr << RED << "WindFlow Error window length or slide in Key_Farm cannot be zero" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        // check the use of sliding windows
-        if (_slide_len >= _win_len) {
-            std::cerr << RED << "WindFlow Error: FlatFAT can be used with sliding windows only (s<w)" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        // check the validity of the parallelism degree
-        if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: Key_FFAT has parallelism zero" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        // std::vector of Win_SeqFFAT
-        std::vector<ff_node *> w(_pardegree);
-        // create the Win_SeqFFAT
-        for (size_t i = 0; i < _pardegree; i++) {
-            OperatorConfig configSeq(0, 1, _slide_len, 0, 1, _slide_len);
-            auto *ffat = new win_seqffat_t(_rich_winLift_func, _rich_winComb_func, _win_len, _slide_len, _triggering_delay, _winType, _name + "_kff", _closing_func, RuntimeContext(_pardegree, i), configSeq);
             w[i] = ffat;
         }
         ff::ff_farm::add_workers(w);

@@ -154,10 +154,12 @@ public:
            batched(false)
     {
         // initialize the key, gwid and timestamp of the window result
-        if (winType == CB)
+        if (winType == CB) {
             result.setControlFields(_key, _gwid, 0);
-        else
+        }
+        else {
             result.setControlFields(_key, _gwid, _gwid * _slide_len + _win_len - 1);
+        }
     }
 
     // copy Constructor
