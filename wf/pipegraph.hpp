@@ -2654,7 +2654,16 @@ MultiPipe &MultiPipe::split(F_t _splitting_func, size_t _cardinality)
     }
     // prepare the splitting of this
     splittingBranches = _cardinality;
-    splittingEmitterRoot = new Splitting_Emitter<decltype(get_tuple_split_t(_splitting_func))>(_splitting_func, _cardinality);
+    splittingEmitterRoot = new Splitting_Emitter<F_t>(_splitting_func, _cardinality);
+    // extract the tuple type from the signature of the splitting function
+    using tuple_t = decltype(get_tuple_t_Split(_splitting_func));
+    // check the type compatibility
+    tuple_t t;
+    std::string opInType = typeid(t).name();
+    if (!outputType.empty() && outputType.compare(opInType) != 0) {
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the splitting function" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
     // execute the merge through the PipeGraph
     splittingChildren = graph->execute_Split(this);
     return *this;

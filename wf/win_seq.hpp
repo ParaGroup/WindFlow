@@ -42,10 +42,10 @@
 #include <math.h>
 #include <ff/node.hpp>
 #include <ff/multinode.hpp>
+#include <meta.hpp>
 #include <window.hpp>
 #include <context.hpp>
 #include <iterable.hpp>
-#include <meta.hpp>
 #include <stream_archive.hpp>
 
 namespace wf {
@@ -88,7 +88,7 @@ private:
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3>
     friend class Win_Farm;
-    template<typename T1, typename T2>
+    template<typename T1, typename T2, typename T3>
     friend class Key_Farm;
     template<typename T1, typename T2, typename T3>
     friend class Pane_Farm;

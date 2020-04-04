@@ -44,8 +44,9 @@
 #include <math.h>
 #include <ff/node.hpp>
 #include <ff/multinode.hpp>
-#include <window.hpp>
 #include <meta.hpp>
+#include <window.hpp>
+#include <meta_gpu.hpp>
 #include <stream_archive.hpp>
 
 namespace wf {
@@ -64,17 +65,17 @@ __global__ void ComputeBatch_Kernel(void *input_data,
                             char *scratchpad_memory,
                             size_t scratchpad_size)
 {
-    using input_t = decltype(get_tuple_t(F));
-    using output_t = decltype(get_result_t(F));
+    using tuple_t = decltype(get_tuple_t_WinGPU(F));
+    using result_t = decltype(get_result_t_WinGPU(F));
     int id = threadIdx.x + blockIdx.x * blockDim.x;
     int stride = blockDim.x * gridDim.x;
     // grid-stride loop over the windows within the batch
     for (size_t i=id; i<batch_len; i+=stride) {
         if (scratchpad_size > 0) {
-            F(gwids[i], ((const input_t *) input_data) + start[i], end[i] - start[i], &((output_t *) results)[i], &scratchpad_memory[id * scratchpad_size], scratchpad_size);
+            F(gwids[i], ((const tuple_t *) input_data) + start[i], end[i] - start[i], &((result_t *) results)[i], &scratchpad_memory[id * scratchpad_size], scratchpad_size);
         }
         else {
-            F(gwids[i], ((const input_t *) input_data) + start[i], end[i] - start[i], &((output_t *) results)[i], nullptr, 0);
+            F(gwids[i], ((const tuple_t *) input_data) + start[i], end[i] - start[i], &((result_t *) results)[i], nullptr, 0);
         }
     }
 }
@@ -610,7 +611,7 @@ public:
                     else // not-FIRED window
                         its = (key_d.archive).getWinRange(*t_s);
                     // call the win_func on the CPU
-                    decltype(get_tuple_t(win_func)) *my_input_data = (decltype(get_tuple_t(win_func)) *) &(*(its.first));
+                    decltype(get_tuple_t_WinGPU(win_func)) *my_input_data = (decltype(get_tuple_t_WinGPU(win_func)) *) &(*(its.first));
                     // call win_func
                     win_func(win.getGWID(), my_input_data, distance(its.first, its.second), out, scratchpad_memory_cpu, scratchpad_size);
                 }

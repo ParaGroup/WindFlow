@@ -43,9 +43,9 @@
 /// includes
 #include <ff/pipeline.hpp>
 #include <ff/farm.hpp>
-#include <win_farm.hpp>
-#include <basic.hpp>
 #include <meta.hpp>
+#include <basic.hpp>
+#include <win_farm.hpp>
 
 namespace wf {
 
@@ -86,7 +86,7 @@ private:
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3>
     friend class Win_Farm;
-    template<typename T1, typename T2>
+    template<typename T1, typename T2, typename T3>
     friend class Key_Farm;
     template<typename T>
     friend class WinFarm_Builder;

@@ -26,3 +26,23 @@ endif()
 
 # add sub-folder with tests
 add_subdirectory(tests)
+
+# check Doxygen dependency
+find_package(Doxygen)
+
+if (DOXYGEN_FOUND)
+    # set input and output files
+    set(DOXYGEN_IN ./docs/windflow-doxygen.conf)
+    set(DOXYGEN_OUT ./windflow-doxygen)
+    # request to configure the file
+    configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
+    message("Doxygen build started")
+    # add custom target for generating the Doxygen documentation
+    add_custom_target(docs
+        COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+        COMMENT "Generating API documentation with Doxygen"
+        VERBATIM)
+else (DOXYGEN_FOUND)
+	message("Doxygen needs to be installed to generate the doxygen documentation")
+endif (DOXYGEN_FOUND)

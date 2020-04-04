@@ -44,8 +44,9 @@
 #include <math.h>
 #include <ff/node.hpp>
 #include <ff/multinode.hpp>
-#include <flatfat.hpp>
 #include <meta.hpp>
+#include <flatfat.hpp>
+#include <meta_gpu.hpp>
 
 namespace wf {
 
@@ -96,12 +97,11 @@ private:
         uint64_t next_lwid; // next window to be opened of this key (lwid)
 
         // Constructor I
-        Key_Descriptor(winLift_func_t *_winLift_func,
-            		   winComb_func_t *_winComb_func,
+        Key_Descriptor(winComb_func_t *_winComb_func,
                        size_t _win_len,
                        key_t _key,
                        RuntimeContext *_context):
-                       fat(_winLift_func, _winComb_func, false /* not commutative by default */, _win_len, _key, _context),
+                       fat(_winComb_func, false /* not commutative by default */, _win_len, _key, _context),
         			   cb_id(0),
                        last_quantum(0),
                        rcv_counter(0),
@@ -110,12 +110,11 @@ private:
                        next_lwid(0) {}
 
         // Constructor II
-        Key_Descriptor(rich_winLift_func_t *_rich_winLift_func,
-                       rich_winComb_func_t *_rich_winComb_func,
+        Key_Descriptor(rich_winComb_func_t *_rich_winComb_func,
                        size_t _win_len,
                        key_t _key,
                        RuntimeContext *_context):
-                       fat(_rich_winLift_func, _rich_winComb_func, false /* not commutative by default */, _win_len, _key, _context),
+                       fat(_rich_winComb_func, false /* not commutative by default */, _win_len, _key, _context),
                        cb_id(0),
                        last_quantum(0),
                        rcv_counter(0),
@@ -146,7 +145,8 @@ private:
     uint64_t triggering_delay; // triggering delay in time units (meaningful for TB windows only)
     win_type_t winType; // window type (CB or TB)
     std::string name; // string of the unique name of the operator
-    bool isRich; // flag stating whether the functions (lift and combine) to be used are rich
+    bool isRichLift; // flag stating whether the lift function is riched
+    bool isRichCombine; // flag stating whether the combine function is riched
     RuntimeContext context; // RuntimeContext
     OperatorConfig config; // configuration structure of the Win_SeqFFAT operator
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
@@ -210,34 +210,119 @@ public:
      *  \param _config configuration of the operator
      */ 
     Win_SeqFFAT(winLift_func_t _winLift_func,
-             winComb_func_t _winComb_func,
-             uint64_t _win_len,
-             uint64_t _slide_len,
-             uint64_t _triggering_delay,
-             win_type_t _winType,
-             std::string _name,
-             closing_func_t _closing_func,
-             RuntimeContext _context,
-    		 OperatorConfig _config):
-             winLift_func(_winLift_func),
-             winComb_func(_winComb_func),
-             win_len(_win_len),
-             slide_len(_slide_len),
-             triggering_delay(_triggering_delay),
-             winType(_winType),
-             name(_name),
-             closing_func(_closing_func),
-             context(_context),
-             config(_config),
-             isRich(false),
-             dropped_tuples(0),
-             eos_received(0)
+                winComb_func_t _winComb_func,
+                uint64_t _win_len,
+                uint64_t _slide_len,
+                uint64_t _triggering_delay,
+                win_type_t _winType,
+                std::string _name,
+                closing_func_t _closing_func,
+                RuntimeContext _context,
+    		    OperatorConfig _config):
+                winLift_func(_winLift_func),
+                winComb_func(_winComb_func),
+                win_len(_win_len),
+                slide_len(_slide_len),
+                triggering_delay(_triggering_delay),
+                winType(_winType),
+                name(_name),
+                closing_func(_closing_func),
+                context(_context),
+                config(_config),
+                isRichLift(false),
+                isRichCombine(false),
+                dropped_tuples(0),
+                eos_received(0)
    	{
    		init();
    	}
 
     /** 
      *  \brief Constructor II
+     *  
+     *  \param _rich_winLift_func the rich lift function to translate a tuple into a result
+     *  \param _winComb_func the combine function to combine two results into a result
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _name string with the unique name of the operator
+     *  \param _closing_func closing function
+     *  \param _context RuntimeContext object to be used
+     *  \param _config configuration of the operator
+     */ 
+    Win_SeqFFAT(rich_winLift_func_t _rich_winLift_func,
+                winComb_func_t _winComb_func,
+                uint64_t _win_len,
+                uint64_t _slide_len,
+                uint64_t _triggering_delay,
+                win_type_t _winType,
+                std::string _name,
+                closing_func_t _closing_func,
+                RuntimeContext _context,
+                OperatorConfig _config):
+                rich_winLift_func(_rich_winLift_func),
+                winComb_func(_winComb_func),
+                win_len(_win_len),
+                slide_len(_slide_len),
+                triggering_delay(_triggering_delay),
+                winType(_winType),
+                name(_name),
+                closing_func(_closing_func),
+                context(_context),
+                config(_config),
+                isRichLift(true),
+                isRichCombine(false),
+                dropped_tuples(0),
+                eos_received(0)
+    {
+        init();
+    }
+
+    /** 
+     *  \brief Constructor III
+     *  
+     *  \param _winLift_func the lift function to translate a tuple into a result
+     *  \param _rich_winComb_func the rich combine function to combine two results into a result
+     *  \param _win_len window length (in no. of tuples or in time units)
+     *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
+     *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _name string with the unique name of the operator
+     *  \param _closing_func closing function
+     *  \param _context RuntimeContext object to be used
+     *  \param _config configuration of the operator
+     */ 
+    Win_SeqFFAT(winLift_func_t _winLift_func,
+                rich_winComb_func_t _rich_winComb_func,
+                uint64_t _win_len,
+                uint64_t _slide_len,
+                uint64_t _triggering_delay,
+                win_type_t _winType,
+                std::string _name,
+                closing_func_t _closing_func,
+                RuntimeContext _context,
+                OperatorConfig _config):
+                winLift_func(_winLift_func),
+                rich_winComb_func(_rich_winComb_func),
+                win_len(_win_len),
+                slide_len(_slide_len),
+                triggering_delay(_triggering_delay),
+                winType(_winType),
+                name(_name),
+                closing_func(_closing_func),
+                context(_context),
+                config(_config),
+                isRichLift(false),
+                isRichCombine(true),
+                dropped_tuples(0),
+                eos_received(0)
+    {
+        init();
+    }
+
+    /** 
+     *  \brief Constructor IV
      *  
      *  \param _rich_winLift_func the rich lift function to translate a tuple into a result
      *  \param _rich_winComb_func the rich combine function to combine two results into a result
@@ -251,28 +336,29 @@ public:
      *  \param _config configuration of the operator
      */ 
     Win_SeqFFAT(rich_winLift_func_t _rich_winLift_func,
-             rich_winComb_func_t _rich_winComb_func,
-             uint64_t _win_len,
-             uint64_t _slide_len,
-             uint64_t _triggering_delay,
-             win_type_t _winType,
-             std::string _name,
-             closing_func_t _closing_func,
-             RuntimeContext _context,
-             OperatorConfig _config):
-             rich_winLift_func(_rich_winLift_func),
-             rich_winComb_func(_rich_winComb_func),
-             win_len(_win_len),
-             slide_len(_slide_len),
-             triggering_delay(_triggering_delay),
-             winType(_winType),
-             name(_name),
-             closing_func(_closing_func),
-             context(_context),
-             config(_config),
-             isRich(true),
-             dropped_tuples(0),
-             eos_received(0)
+                rich_winComb_func_t _rich_winComb_func,
+                uint64_t _win_len,
+                uint64_t _slide_len,
+                uint64_t _triggering_delay,
+                win_type_t _winType,
+                std::string _name,
+                closing_func_t _closing_func,
+                RuntimeContext _context,
+                OperatorConfig _config):
+                rich_winLift_func(_rich_winLift_func),
+                rich_winComb_func(_rich_winComb_func),
+                win_len(_win_len),
+                slide_len(_slide_len),
+                triggering_delay(_triggering_delay),
+                winType(_winType),
+                name(_name),
+                closing_func(_closing_func),
+                context(_context),
+                config(_config),
+                isRichLift(true),
+                isRichCombine(true),
+                dropped_tuples(0),
+                eos_received(0)
     {
         init();
     }
@@ -334,11 +420,11 @@ public:
         // access the descriptor of the input key
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
-            if (!isRich) {
-                keyMap.insert(std::make_pair(key, Key_Descriptor(&winLift_func, &winComb_func, win_len, key, &context)));
+            if (!isRichCombine) {
+                keyMap.insert(std::make_pair(key, Key_Descriptor(&winComb_func, win_len, key, &context)));
             }
             else {
-                keyMap.insert(std::make_pair(key, Key_Descriptor(&rich_winLift_func, &rich_winComb_func, win_len, key, &context)));
+                keyMap.insert(std::make_pair(key, Key_Descriptor(&rich_winComb_func, win_len, key, &context)));
             }
             it = keyMap.find(key);
         }
@@ -350,7 +436,7 @@ public:
         // convert the input tuple to a result with the lift function
         result_t res;
         res.setControlFields(key, 0, std::get<2>(t->getControlFields()));
-        if (!isRich) {
+        if (!isRichLift) {
             winLift_func(*t, res);
         }
         else {
@@ -417,11 +503,11 @@ public:
         // access the descriptor of the input key
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
-            if (!isRich) {
-                keyMap.insert(std::make_pair(key, Key_Descriptor(&winLift_func, &winComb_func, win_len, key, &context)));
+            if (!isRichCombine) {
+                keyMap.insert(std::make_pair(key, Key_Descriptor(&winComb_func, win_len, key, &context)));
             }
             else {
-                keyMap.insert(std::make_pair(key, Key_Descriptor(&rich_winLift_func, &rich_winComb_func, win_len, key, &context)));
+                keyMap.insert(std::make_pair(key, Key_Descriptor(&rich_winComb_func, win_len, key, &context)));
             }
             it = keyMap.find(key);
         }
@@ -447,7 +533,7 @@ public:
         // add the input tuple to the correct quantum
         result_t tmp;
         tmp.setControlFields(key, 0, ts);
-        if (!isRich) {
+        if (!isRichLift) {
             winLift_func(*t, tmp);
         }
         else {
@@ -457,7 +543,7 @@ public:
         size_t id = quantum_id - key_d.last_quantum;
         result_t tmp2;
         tmp2.setControlFields(key, 0, std::max(std::get<2>((acc_results[id]).getControlFields()), std::get<2>((tmp).getControlFields())));
-        if (!isRich) {
+        if (!isRichCombine) {
             winComb_func(acc_results[id], tmp, tmp2);
         }
         else {

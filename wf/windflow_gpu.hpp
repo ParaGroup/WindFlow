@@ -19,12 +19,12 @@
  *  @author  Gabriele Mencagli
  *  @date    28/01/2019
  *  
- *  @brief General header file of the WindFlow library (GPU operators)
+ *  @brief General Header File of GPU Operators
  *  
- *  @section General Header File (GPU operators)
+ *  @section Second General Header File of the WindFlow Library
  *  
- *  General header file to be included in any WindFlow program for using the
- *  GPU version of the operators.
+ *  General header file to be included in any WindFlow program to use
+ *  operators working on GPU.
  */ 
 
 #ifndef WINDFLOW_GPU_H
@@ -33,6 +33,7 @@
 /// includes
 #include <ff/ff.hpp>
 #include <win_seq_gpu.hpp>
+#include <builders_gpu.hpp>
 #include <win_seqffat_gpu.hpp>
 #include <win_farm_gpu.hpp>
 #include <key_farm_gpu.hpp>

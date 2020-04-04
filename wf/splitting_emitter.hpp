@@ -23,7 +23,7 @@
  *  
  *  @section Splitting_Emitter (Description)
  *  
- *  This file implements the splitting emitter in charge of doing the splitting of MultiPipe.
+ *  This file implements the splitting emitter in charge of doing the splitting of a MultiPipe.
  */ 
 
 #ifndef SPLITTING_H
@@ -37,44 +37,57 @@
 namespace wf {
 
 // class Splitting_Emitter
-template<typename tuple_t>
+template<typename F_t>
 class Splitting_Emitter: public Basic_Emitter
 {
 private:
-    // function to get the destination from an input (unicast)
-    using unicast_func_t = std::function<size_t(const tuple_t &)>;
-    // function to get the destinations from an input (multicast or broadcast)
-    using multicast_func_t = std::function<std::vector<size_t>(const tuple_t &)>;
-    unicast_func_t unicast_func; // unicast function
-    multicast_func_t multicast_func; // multicast or broadcast function
-    bool isUnicast; // true if the unicast function must be used (false otherwise)
+    F_t splitting_func;
+    // extract the tuple type from the signature of the splitting logic
+    using tuple_t = decltype(get_tuple_t_Split(splitting_func));
+    // extract the result type from the signature of the splitting logic
+    using result_t = decltype(get_result_t_Split(splitting_func));
+    // static assert to check the signature
+    static_assert(!(std::is_same<tuple_t, std::false_type>::value || std::is_same<result_t, std::false_type>::value),
+        "WindFlow Compilation Error - unknown signature used in a MultiPipe splitting:\n"
+        "  Candidate 1 : size_t(const tuple_t &)\n"
+        "  Candidate 2 : std::vector<size_t>(const tuple_t &)\n"
+        "  Candidate 3 : size_t(tuple_t &)\n"
+        "  Candidate 4 : std::vector<size_t>(tuple_t &)\n"
+        "  You can replace size_t in the signatures above with any C++ integral type\n");
     size_t n_dest; // number of destinations
     bool isCombined; // true if this node is used within a Tree_Emitter node
     std::vector<std::pair<void *, int>> output_queue; // used in case of Tree_Emitter mode
 
-public:
-    // Constructor I
-    Splitting_Emitter(unicast_func_t _splitting_func,
-                     size_t _n_dest):
-                     unicast_func(_splitting_func),
-                     isUnicast(true),
-                     n_dest(_n_dest),
-                     isCombined(false)
-    {}
+    // method for calling the splitting function (used if it returns a single identifier)
+    template<typename split_func_t=F_t>
+    std::vector<size_t> callSplittingFunction(typename std::enable_if<std::is_same<split_func_t, split_func_t>::value && std::is_integral<result_t>::value, F_t>::type &func, tuple_t &t)
+    {
+        std::vector<size_t> dests;
+        auto dest = func(t);
+        dests.push_back(dest); // integral type will be converted into size_t
+        return dests;
+    }
 
-    // Constructor II
-    Splitting_Emitter(multicast_func_t _splitting_func,
-                     size_t _n_dest):
-                     multicast_func(_splitting_func),
-                     isUnicast(false),
-                     n_dest(_n_dest),
-                     isCombined(false)
+    // method for calling the splitting function (used if it returns a vector of identifiers)
+    template<typename split_func_t=F_t>
+    auto callSplittingFunction(typename std::enable_if<std::is_same<split_func_t, split_func_t>::value && !std::is_integral<result_t>::value, F_t>::type &func, tuple_t &t)
+    {
+        return func(t);
+    }
+
+public:
+    // Constructor
+    Splitting_Emitter(F_t _splitting_func,
+                      size_t _n_dest):
+                      splitting_func(_splitting_func),
+                      n_dest(_n_dest),
+                      isCombined(false)
     {}
 
     // clone method
     Basic_Emitter *clone() const
     {
-        Splitting_Emitter<tuple_t> *copy = new Splitting_Emitter<tuple_t>(*this);
+        Splitting_Emitter<F_t> *copy = new Splitting_Emitter<F_t>(*this);
         return copy;
     }
 
@@ -88,33 +101,29 @@ public:
     void *svc(void *in)
     {
         tuple_t *t = reinterpret_cast<tuple_t *>(in);
-        if (isUnicast) { // unicast
-            size_t dest_w = unicast_func(*t);
-            assert(dest_w < n_dest);
+        auto dests_w = callSplittingFunction(splitting_func, *t);
+        assert(dests_w.size() <= n_dest);
+        // the input must be dropped (like in a filter)
+        if (dests_w.size() == 0) {
+            delete t;
+            return this->GO_ON;
+        }
+        size_t idx = 0;
+        while (idx < dests_w.size()) {
+            assert(dests_w[idx] < n_dest);
             // send tuple
-            if (!isCombined)
-                this->ff_send_out_to(t, dest_w);
-            else
-                output_queue.push_back(std::make_pair(t, dest_w));
-            return this->GO_ON;
-        }
-        else { // multicast or broadcast
-            auto dests_w = multicast_func(*t);
-            assert(dests_w.size() > 0 && dests_w.size() <= n_dest);
-            size_t idx = 0;
-            while (idx < dests_w.size()) {
-                assert(dests_w[idx] < n_dest);
-                // send tuple
-                if (!isCombined)
-                    this->ff_send_out_to(t, dests_w[idx]);
-                else
-                    output_queue.push_back(std::make_pair(t, dests_w[idx]));
-                idx++;
-                if (idx < dests_w.size())
-                    t = new tuple_t(*t); // copy of the input tuple
+            if (!isCombined) {
+                this->ff_send_out_to(t, dests_w[idx]);
             }
-            return this->GO_ON;
+            else {
+                output_queue.push_back(std::make_pair(t, dests_w[idx]));
+            }
+            idx++;
+            if (idx < dests_w.size()) {
+                t = new tuple_t(*t); // copy of the input tuple
+            }
         }
+        return this->GO_ON;
     }
 
     // svc_end method (FastFlow runtime)

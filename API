@@ -1,6 +1,8 @@
 This file lists all the possible signatures of functions/functors/lambdas that can be used to
 create WindFlow operators. In the signatures below, tuple_t is the type of the inputs arriving
-at an operator, while result_t is the type of the results.
+at the operator, while result_t is the type of the results. In case you provide a wrong signature
+during the creation of an operator (through its builder), you receive a specific error message
+during the compilation phase (through some static asserts).
 
 SOURCE
 ------
@@ -44,7 +46,7 @@ void(uint64_t, const tuple_t &, result_t &, RuntimeContext &)
 
 KEY_FFAT
 --------
-This operator needs two functions (lift and combine) with the following accepted signatures
+The corresponding builder needs two parameters (lift and combine) with the following accepted signatures
 
 Lift
 	void(const tuple_t &, result_t &)
@@ -63,7 +65,7 @@ void(uint64_t, const tuple_t &, result_t &, RuntimeContext &)
 
 PANE_FARM
 ---------
-This operator needs two functions (PLQ and WLQ) with the following accepted signatures
+The corresponding builder needs two parameters (PLQ and WLQ) with the following accepted signatures
 
 PLQ
 	void(uint64_t, const Iterable<tuple_t> &, result_t &)
@@ -79,7 +81,7 @@ WLQ
 
 WIN_MAPREDUCE
 -------------
-This operator needs two functions (MAP and REDUCE) with the following accepted signatures
+The corresponding builder needs two parameters (MAP and REDUCE) with the following accepted signatures
 
 MAP
 	void(uint64_t, const Iterable<tuple_t> &, result_t &)
@@ -99,7 +101,7 @@ __host__ __device__ (uint64_t, const tuple_t *, size_t, result_t *, char *, size
 
 KEY_FFAT_GPU
 ------------
-This operator needs two functions (lift and combine) with the following accepted signatures. Only the combine function must be __host__ __device__
+The corresponding builder needs two parameters (lift and combine) with the following accepted signatures
 
 Lift
 	void(const tuple_t &, result_t &)
@@ -113,7 +115,7 @@ __host__ __device__ (uint64_t, const tuple_t *, size_t, result_t *, char *, size
 
 PANE_FARM_GPU
 -------------
-This operator needs two functions (PLQ and WLQ) with the following accepted signatures
+The corresponding builder needs two parameters (PLQ and WLQ) with the following accepted signatures
 
 PLQ
 	void(uint64_t, const Iterable<tuple_t> &, result_t &) --> PLQ on Host
@@ -125,11 +127,12 @@ WLQ
 	void(uint64_t, const Iterable<result_t> &, result_t &, RuntimeContext &) --> WLQ on Host
 	__host__ __device__ (uint64_t, const result_t *, size_t, result_t *, char *, size_t) --> WLQ on Device
 
-Important -> either the PLQ or the WLQ must be __host__ __device__ functions, not both!
+Important: either the PLQ or the WLQ must be __host__ __device__, not both! Furthermore, only for this operator
+the two parameters of the builder must be functor objects or lambdas (not plain functions!).
 
 WIN_MAPREDUCE_GPU
 -----------------
-This operator needs two functions (MAP and REDUCE) with the following accepted signatures
+The corresponding builder needs two parameters (MAP and REDUCE) with the following accepted signatures
 
 MAP
 	void(uint64_t, const Iterable<tuple_t> &, result_t &) --> MAP on Host
@@ -141,7 +144,8 @@ REDUCE
 	void(uint64_t, const Iterable<result_t> &, result_t &, RuntimeContext &) --> REDUCE on Host
 	__host__ __device__ (uint64_t, const result_t *, size_t, result_t *, char *, size_t) --> REDUCE on Device
 
-Important -> either the MAP or the REDUCE must be __host__ __device__ functions, not both!
+Important: either the MAP or the REDUCE must be __host__ __device__, not both! Furthermore, only for this operator
+the two parameters of the builder must be functor objects or lambdas (not plain functions!).
 
 SINK
 ----
@@ -150,7 +154,15 @@ void(std::optional<tuple_t> &, RuntimeContext &)
 void(std::optional<std::reference_wrapper<tuple_t>>)
 void(std::optional<std::reference_wrapper<tuple_t>>, RuntimeContext &)
 
+CLOSING
+-------
+void(RuntimeContext &)
+
 SPLITTING OF MULTIPIPES
 -----------------------
-size_t(const tuple_t &) --> each input delivered to one MultiPipe only (unicast)
-std::vector<size_t>(const tuple_t &) --> each input delivered to one/many/all destination MultiPipes (multicast/broadcast)
+integral_t(const tuple_t &)
+std::vector<integral_t>(const tuple_t &)
+integral_t(tuple_t &)
+std::vector<integral_t>(tuple_t &)
+
+Where integral_t is any C++ integral type (e.g., short, int, long, and so forth).

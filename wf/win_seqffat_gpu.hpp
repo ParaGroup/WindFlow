@@ -46,8 +46,9 @@
 #include <math.h>
 #include <ff/node.hpp>
 #include <ff/multinode.hpp>
-#include <flatfat_gpu.hpp>
 #include <meta.hpp>
+#include <meta_gpu.hpp>
+#include <flatfat_gpu.hpp>
 
 namespace wf {
 

@@ -31,9 +31,10 @@ WindFlow is a header-only template library. To build your applications you have 
 	cd <WINDFLOW_ROOT>
 	mkdir ./build
 	cmake ../
-	make -j<#cores> # compile all the tests
+	make -j<#cores> # compile all the tests (not the doxygen documentation)
 	make all_cpu -j<#cores> # compile only CPU tests
 	make all_gpu -j<#cores> # compile only GPU tests
+	make docs # generate the doxygen documentation
 ```
 All the examples compile with <tt>gcc</tt> at least version <tt>7.2</tt> (with full support to C++17). The examples for GPU need <tt>CUDA</tt> at least version <tt>9.0</tt> with support for C++14 (C++17 is not currently supported by CUDA).
 

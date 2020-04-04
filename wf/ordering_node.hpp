@@ -37,8 +37,8 @@
 #include <queue>
 #include <unordered_map>
 #include <ff/multinode.hpp>
-#include <basic.hpp>
 #include <meta.hpp>
+#include <basic.hpp>
 
 namespace wf {
 

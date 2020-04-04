@@ -19,9 +19,9 @@
  *  @author  Gabriele Mencagli
  *  @date    28/01/2019
  *  
- *  @brief General header file of the WindFlow library
+ *  @brief General Header File
  *  
- *  @section General Header File
+ *  @section First General Header File of the WindFlow Library
  *  
  *  General header file to be included in any WindFlow program.
  */ 

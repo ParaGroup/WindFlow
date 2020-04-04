@@ -51,10 +51,6 @@ namespace wf {
 template<typename tuple_t, typename result_t>
 class FlatFAT {
 private:
-    // type of the lift function
-    using winLift_func_t = std::function<void(const tuple_t &, result_t &)>;
-    /// type of the rich lift function
-    using rich_winLift_func_t = std::function<void(const tuple_t &, result_t &, RuntimeContext &)>;
     // type of the combine function
     using winComb_func_t = std::function<void(const result_t &, const result_t &, result_t &)>;
     /// type of the rich combine function
@@ -62,9 +58,7 @@ private:
     tuple_t tmp; // never used
     // key data type
     using key_t = typename std::remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
-    winLift_func_t *winLift_func; // pointer to the lift function
     winComb_func_t *winComb_func; // pointer to the combine function
-    rich_winLift_func_t *rich_winLift_func; // pointer to the rich lift function
     rich_winComb_func_t *rich_winComb_func; // pointer to the rich combine function
     std::vector<result_t> tree; // vector representing the tree as a flat array
     bool isCommutative; // flat stating whether the combine function is commutative or not
@@ -74,7 +68,7 @@ private:
     size_t back; // index of the next element to be removed
     size_t root; // position of the root in the flat array
     bool isEmpty; // flag stating whether the tree is empty or not
-    bool isRich; // flag stating whether the functions (lift and combine) to be used are rich
+    bool isRichCombine; // flag stating whether the combine function is riched
     RuntimeContext *context; // pointer to the RuntimeContext
     // support methods for traversing the FlatFAT
     size_t left_child(size_t pos) const { return pos << 1; }
@@ -97,7 +91,7 @@ private:
                 acc = result_t(); // re-initialize the result
                 uint64_t ts = std::max(std::get<2>(tree[left_child(p)].getControlFields()), std::get<2>(tmp.getControlFields()));
                 acc.setControlFields(key, 0, ts);
-                if (!isRich) {
+                if (!isRichCombine) {
                     (*winComb_func)(tree[left_child(p)], tmp, acc);
                 }
                 else {
@@ -124,7 +118,7 @@ private:
                 acc = result_t(); // re-initialize the result
                 uint64_t ts = std::max(std::get<2>(tree[right_child(p)].getControlFields()), std::get<2>(tmp.getControlFields()));
                 acc.setControlFields(key, 0, ts);
-                if (!isRich) {
+                if (!isRichCombine) {
                     (*winComb_func)(tmp, tree[right_child(p)], acc);
                 }
                 else {
@@ -148,7 +142,7 @@ private:
             tree[nextNode] = result_t(); // re-initialize the result
             uint64_t ts = std::max(std::get<2>(tree[lc].getControlFields()), std::get<2>(tree[rc].getControlFields()));
             tree[nextNode].setControlFields(key, 0, ts);
-            if (!isRich) {
+            if (!isRichCombine) {
                 (*winComb_func)(tree[lc], tree[rc], tree[nextNode]);
             }
             else {
@@ -160,19 +154,17 @@ private:
 
 public:
     // Constructor I
-    FlatFAT(winLift_func_t *_winLift_func,
-            winComb_func_t *_winComb_func,
+    FlatFAT(winComb_func_t *_winComb_func,
             bool _isCommutative,
             size_t _n,
             key_t _key,
             RuntimeContext *_context):
-            winLift_func(_winLift_func),
             winComb_func(_winComb_func),
             isCommutative(_isCommutative),
             key(_key),
             root(1),
             isEmpty(true),
-            isRich(false),
+            isRichCombine(false),
             context(_context)
     {
         // a complete binary tree so n must be rounded to the next power of two
@@ -188,19 +180,17 @@ public:
     }
 
     // Constructor II
-    FlatFAT(rich_winLift_func_t *_rich_winLift_func,
-            rich_winComb_func_t *_rich_winComb_func,
+    FlatFAT(rich_winComb_func_t *_rich_winComb_func,
             bool _isCommutative,
             size_t _n,
             key_t _key,
             RuntimeContext *_context):
-            rich_winLift_func(_rich_winLift_func),
             rich_winComb_func(_rich_winComb_func),
             isCommutative(_isCommutative),
             key(_key),
             root(1),
             isEmpty(true),
-            isRich(true),
+            isRichCombine(true),
             context(_context)
     {
         // a complete binary tree so n must be rounded to the next power of two
@@ -289,7 +279,7 @@ public:
             tree[nextNode] = result_t(); // re-initialize the result
             uint64_t ts = std::max(std::get<2>(tree[lc].getControlFields()), std::get<2>(tree[rc].getControlFields()));
             tree[nextNode].setControlFields(key, 0, ts);
-            if (!isRich) {
+            if (!isRichCombine) {
                 (*winComb_func)(tree[lc], tree[rc], tree[nextNode]);
             }
             else {
@@ -356,7 +346,7 @@ public:
             tree[nextNode] = result_t(); // re-initialize the result
             uint64_t ts = std::max(std::get<2>(tree[lc].getControlFields()), std::get<2>(tree[rc].getControlFields()));
             tree[nextNode].setControlFields(key, 0, ts);
-            if (!isRich) {
+            if (!isRichCombine) {
                 (*winComb_func)(tree[lc], tree[rc], tree[nextNode]);
             }
             else {
@@ -388,7 +378,7 @@ public:
             result_t suffixRes = suffix(front);
             uint64_t ts = std::max(std::get<2>(suffixRes.getControlFields()), std::get<2>(prefixRes.getControlFields()));
             res->setControlFields(key, 0, ts);
-            if (!isRich) {
+            if (!isRichCombine) {
                 (*winComb_func)(suffixRes, prefixRes, *res);
             }
             else {

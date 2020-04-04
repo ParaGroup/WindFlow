@@ -63,7 +63,7 @@ namespace wf {
  *  a multicore. In the operator, only windows belonging to different sub-streams can be
  *  executed in parallel.
  */ 
-template<typename tuple_t, typename result_t>
+template<typename tuple_t, typename result_t, typename input_t>
 class Key_Farm: public ff::ff_farm
 {
 public:

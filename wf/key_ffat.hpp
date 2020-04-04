@@ -96,8 +96,8 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _winLift_func the lift function to translate a tuple into a result (with a signature accepted by the Key_FFAT operator)
-     *  \param _winComb_func the combine function to combine two results into a result (with a signature accepted by the Key_FFAT operator)
+     *  \param _winLift_func the (riched or not) lift function to translate a tuple into a result (with a signature accepted by the Key_FFAT operator)
+     *  \param _winComb_func the (riched or not) combine function to combine two results into a result (with a signature accepted by the Key_FFAT operator)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)

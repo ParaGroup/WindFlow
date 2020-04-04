@@ -84,22 +84,28 @@ inline void gpuAssert(cudaError_t code,
 }
 #endif
 
-/// utility macros
-#define DEFAULT_VECTOR_CAPACITY 500 //< default capacity of vectors used internally by the library
-#define DEFAULT_BATCH_SIZE_TB 1000 //< inital batch size (in no. of tuples) used by GPU operators with time-based windows
-#define DEFAULT_CUDA_NUM_THREAD_BLOCK 256 //< default number of threads per block used by GPU operators
+/// default capacity of vectors used internally by the library
+#define DEFAULT_VECTOR_CAPACITY 500
+
+/// inital batch size (in no. of tuples) used by GPU operators with time-based windows
+#define DEFAULT_BATCH_SIZE_TB 1000
+
+/// default number of threads per block used by GPU operators
+#define DEFAULT_CUDA_NUM_THREAD_BLOCK 256
+
+/// gpuAssert
 #define gpuErrChk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 
-// supported processing modes of the PipeGraph
+/// supported processing modes of the PipeGraph
 enum class Mode { DEFAULT, DETERMINISTIC };
+
+//@cond DOXY_IGNORE
 
 // supported window types
 enum win_type_t { CB, TB };
 
 // supported optimization levels
 enum opt_level_t { LEVEL0, LEVEL1, LEVEL2 };
-
-//@cond DOXY_IGNORE
 
 // defines
 #define STRINGIFY(x) XSTRINGIFY(x)
@@ -205,7 +211,7 @@ template<typename tuple_t, typename result_t, typename input_t=tuple_t>
 class Win_Farm;
 
 /// forward declaration of the Key_Farm operator
-template<typename tuple_t, typename result_t>
+template<typename tuple_t, typename result_t, typename input_t=tuple_t>
 class Key_Farm;
 
 /// forward declaration of the Key_FFAT operator

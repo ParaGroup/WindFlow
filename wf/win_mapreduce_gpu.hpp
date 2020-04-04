@@ -47,8 +47,9 @@
 #include <ff/farm.hpp>
 #include <win_farm.hpp>
 #include <win_farm_gpu.hpp>
-#include <basic.hpp>
 #include <meta.hpp>
+#include <basic.hpp>
+#include <meta_gpu.hpp>
 
 namespace wf {
 
