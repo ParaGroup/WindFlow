@@ -62,6 +62,7 @@
           <h1>Operators</h1>
           <p class="lead"><code>WindFlow</code> provides a quite rich set of operators, as in traditional streaming frameworks. The figure below shows the list of operators and a brief description of each of them.</p>
           <p class="lead"><div class="oversizedImage"><img src="imgs/operators.jpg" width="160%" align="middle"/></div></p>
+          <br>
           <h2>Operator Parallelism</h2>
           <p class="lead"> Sources, the other basic operators and sinks have an immediately clear semantics for programmers a bit expert in open-source stream processing frameworks. During their instantiation, the programmer can specify a <b>parallelism level</b> (number of replicas, each executed by a dedicated thread). Each replica receives a fraction of the input stream in order to process inputs in parallel and improve throughput. If not specified, the inputs are evenly distributed to the internal replicas of the operator. The Map, Filter, FlatMap and Sink operators can be alternatively configured to work in a <b>keyby</b> basis, i.e. all the inputs with the same key attribute are delivered to the same replica. The Accumulator operator always works in a keyby basis.</p>
           <p class="lead"> In addition, the library provides a set of windowed operators that offer a unique set of programming abstractions [1,2] to express different kinds of parallelism addressing window-based streaming analytics tasks:</p>
