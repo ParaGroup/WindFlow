@@ -142,6 +142,18 @@ int main(int argc, char *argv[]) {
 }
           </code></pre>
           <p class="lead">The source is created with two replicas and with a string corresponding to its name in the application.</p>
+          <p class="lead">In case of support for <code>C++14</code> only, the source code must be modified by expliciting providing the template arguments to the operator builder, since they cannot be automatically deduced. The source code becomes:</p>
+          <pre><code class="language-cpp">
+// main
+int main(int argc, char *argv[]) {
+    ...
+    Source_F source_func(1000000);
+    // creation of the Source operator
+    auto *source = Source_Builder&lt;decltype(source_func)&gt;(source_func).withName("mysource")
+                                               .withParallelism(2)
+                                               .build_ptr();
+}
+          </code></pre>
           <p class="lead">The filter operator is created in an analogous manner. First, a functor class is defined with the operator business logic, as shown below:</p>
           <pre><code class="language-cpp">
 // filter functor
@@ -157,7 +169,7 @@ public:
     }
 };
           </code></pre>
-          <p class="lead">All the input ticks with symbol not equal to <code>"FOO-COMPANY"</code> are dropped (return value is <code>false</code>). The operator is created by leveraging its builder class and, in this example, with the same parallelism of the source:</p>
+          <p class="lead">All the input ticks with symbol not equal to <code>"FOO-COMPANY"</code> are dropped (return value is <code>false</code>). The operator is created by leveraging its builder class and, in this example, with the same parallelism of the source (we assume <code>C++17</code> in the rest of this example):</p>
           <pre><code class="language-cpp">
 Filter_F filter_func;
 // creation of the Filter operator
