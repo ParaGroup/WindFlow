@@ -33,12 +33,12 @@
 #define ORDERINGNODE_H
 
 // includes
-#include <deque>
-#include <queue>
-#include <unordered_map>
-#include <ff/multinode.hpp>
-#include <meta.hpp>
-#include <basic.hpp>
+#include<deque>
+#include<queue>
+#include<unordered_map>
+#include<ff/multinode.hpp>
+#include<meta.hpp>
+#include<basic.hpp>
 
 namespace wf {
 

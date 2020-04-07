@@ -31,11 +31,11 @@
 #define WF_NODES_H
 
 // includes
-#include <cmath>
-#include <vector>
-#include <ff/multinode.hpp>
-#include <meta.hpp>
-#include <basic_emitter.hpp>
+#include<cmath>
+#include<vector>
+#include<ff/multinode.hpp>
+#include<meta.hpp>
+#include<basic_emitter.hpp>
 
 namespace wf {
 

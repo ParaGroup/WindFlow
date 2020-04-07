@@ -35,15 +35,15 @@
 #define FILTER_H
 
 /// includes
-#include <string>
-#include <iostream>
-#include <ff/node.hpp>
-#include <ff/pipeline.hpp>
-#include <ff/multinode.hpp>
-#include <ff/farm.hpp>
-#include <basic.hpp>
-#include <context.hpp>
-#include <standard_emitter.hpp>
+#include<string>
+#include<iostream>
+#include<ff/node.hpp>
+#include<ff/pipeline.hpp>
+#include<ff/multinode.hpp>
+#include<ff/farm.hpp>
+#include<basic.hpp>
+#include<context.hpp>
+#include<standard_emitter.hpp>
 
 namespace wf {
 

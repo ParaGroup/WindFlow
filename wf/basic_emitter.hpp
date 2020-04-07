@@ -31,8 +31,8 @@
 #define BASIC_EMITTER_H
 
 // includes
-#include <vector>
-#include <ff/multinode.hpp>
+#include<vector>
+#include<ff/multinode.hpp>
 
 namespace wf {
 

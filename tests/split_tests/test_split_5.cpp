@@ -38,11 +38,11 @@
  */ 
 
 // include
-#include <random>
-#include <iostream>
-#include <ff/ff.hpp>
-#include <windflow.hpp>
-#include "split_common.hpp"
+#include<random>
+#include<iostream>
+#include<ff/ff.hpp>
+#include<windflow.hpp>
+#include"split_common.hpp"
 
 using namespace std;
 using namespace wf;

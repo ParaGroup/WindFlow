@@ -37,16 +37,16 @@
 #define WIN_SEQFFAT_H
 
 /// includes
-#include <deque>
-#include <vector>
-#include <string>
-#include <unordered_map>
-#include <math.h>
-#include <ff/node.hpp>
-#include <ff/multinode.hpp>
-#include <meta.hpp>
-#include <flatfat.hpp>
-#include <meta_gpu.hpp>
+#include<deque>
+#include<vector>
+#include<string>
+#include<unordered_map>
+#include<math.h>
+#include<ff/node.hpp>
+#include<ff/multinode.hpp>
+#include<meta.hpp>
+#include<flatfat.hpp>
+#include<meta_gpu.hpp>
 
 namespace wf {
 

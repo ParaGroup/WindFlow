@@ -39,18 +39,18 @@
 #define WIN_FARM_GPU_H
 
 /// includes
-#include <ff/pipeline.hpp>
-#include <ff/all2all.hpp>
-#include <ff/farm.hpp>
-#include <ff/optimize.hpp>
-#include <basic.hpp>
-#include <win_seq_gpu.hpp>
-#include <wf_nodes.hpp>
-#include <wm_nodes.hpp>
-#include <ordering_node.hpp>
-#include <tree_emitter.hpp>
-#include <basic_emitter.hpp>
-#include <transformations.hpp>
+#include<ff/pipeline.hpp>
+#include<ff/all2all.hpp>
+#include<ff/farm.hpp>
+#include<ff/optimize.hpp>
+#include<basic.hpp>
+#include<win_seq_gpu.hpp>
+#include<wf_nodes.hpp>
+#include<wm_nodes.hpp>
+#include<ordering_node.hpp>
+#include<tree_emitter.hpp>
+#include<basic_emitter.hpp>
+#include<transformations.hpp>
 
 namespace wf {
 

@@ -39,13 +39,13 @@
 #define KEY_FFAT_H
 
 /// includes
-#include <ff/pipeline.hpp>
-#include <ff/all2all.hpp>
-#include <ff/farm.hpp>
-#include <ff/optimize.hpp>
-#include <basic.hpp>
-#include <win_seqffat.hpp>
-#include <kf_nodes.hpp>
+#include<ff/pipeline.hpp>
+#include<ff/all2all.hpp>
+#include<ff/farm.hpp>
+#include<ff/optimize.hpp>
+#include<basic.hpp>
+#include<win_seqffat.hpp>
+#include<kf_nodes.hpp>
 
 namespace wf {
 

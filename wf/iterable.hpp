@@ -36,8 +36,8 @@
 #define ITERABLE_H
 
 /// includes
-#include <deque>
-#include <stdexcept>
+#include<deque>
+#include<stdexcept>
 
 namespace wf {
 

@@ -30,9 +30,9 @@
 #define SPLITTING_H
 
 // includes
-#include <vector>
-#include <ff/multinode.hpp>
-#include <basic_emitter.hpp>
+#include<vector>
+#include<ff/multinode.hpp>
+#include<basic_emitter.hpp>
 
 namespace wf {
 

@@ -36,12 +36,12 @@
 #define FLATFAT_GPU_H
 
 // includes
-#include <cmath>
-#include <vector>
-#include <utility>
-#include <algorithm>
-#include <functional>
-#include <basic.hpp>
+#include<cmath>
+#include<vector>
+#include<utility>
+#include<algorithm>
+#include<functional>
+#include<basic.hpp>
 
 namespace wf {
 

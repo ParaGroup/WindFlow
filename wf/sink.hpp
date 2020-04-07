@@ -35,22 +35,22 @@
 #define SINK_H
 
 /// includes
-#include <string>
+#include<string>
 #if __cplusplus < 201703L // not C++17
-    #include <experimental/optional>
+    #include<experimental/optional>
     namespace std { using namespace experimental; }
 #else
-    #include <optional>
+    #include<optional>
 #endif
-#include <ff/node.hpp>
-#include <ff/combine.hpp>
-#include <ff/pipeline.hpp>
-#include <ff/multinode.hpp>
-#include <ff/farm.hpp>
-#include <basic.hpp>
-#include <context.hpp>
-#include <transformations.hpp>
-#include <standard_emitter.hpp>
+#include<ff/node.hpp>
+#include<ff/combine.hpp>
+#include<ff/pipeline.hpp>
+#include<ff/multinode.hpp>
+#include<ff/farm.hpp>
+#include<basic.hpp>
+#include<context.hpp>
+#include<transformations.hpp>
+#include<standard_emitter.hpp>
 
 namespace wf {
 

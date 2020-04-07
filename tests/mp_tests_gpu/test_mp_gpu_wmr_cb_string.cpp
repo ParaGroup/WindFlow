@@ -24,14 +24,14 @@
  */ 
 
 // includes
-#include <string>
-#include <iostream>
-#include <random>
-#include <math.h>
-#include <ff/ff.hpp>
-#include <windflow.hpp>
-#include <windflow_gpu.hpp>
-#include "mp_common_string.hpp"
+#include<string>
+#include<iostream>
+#include<random>
+#include<math.h>
+#include<ff/ff.hpp>
+#include<windflow.hpp>
+#include<windflow_gpu.hpp>
+#include"mp_common_string.hpp"
 
 using namespace std;
 using namespace chrono;

@@ -35,7 +35,7 @@
 #define SHIPPER_H
 
 /// includes
-#include <ff/node.hpp>
+#include<ff/node.hpp>
 
 namespace wf {
 

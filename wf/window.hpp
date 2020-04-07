@@ -33,14 +33,14 @@
 
 // includes
 #include<tuple>
-#include <functional>
+#include<functional>
 #if __cplusplus < 201703L //not C++17
-    #include <experimental/optional>
+    #include<experimental/optional>
     namespace std { using namespace experimental; } // ugly but necessary until CUDA will support C++17!
 #else
-    #include <optional>
+    #include<optional>
 #endif
-#include <basic.hpp>
+#include<basic.hpp>
 
 namespace wf {
 

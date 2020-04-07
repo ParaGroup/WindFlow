@@ -31,11 +31,11 @@
 #define ARCHIVE_H
 
 // includes
-#include <deque>
-#include <utility>
-#include <algorithm>
-#include <functional>
-#include <assert.h>
+#include<deque>
+#include<utility>
+#include<algorithm>
+#include<functional>
+#include<assert.h>
 
 namespace wf {
 

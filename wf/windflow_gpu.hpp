@@ -31,14 +31,14 @@
 #define WINDFLOW_GPU_H
 
 /// includes
-#include <ff/ff.hpp>
-#include <win_seq_gpu.hpp>
-#include <builders_gpu.hpp>
-#include <win_seqffat_gpu.hpp>
-#include <win_farm_gpu.hpp>
-#include <key_farm_gpu.hpp>
-#include <key_ffat_gpu.hpp>
-#include <pane_farm_gpu.hpp>
-#include <win_mapreduce_gpu.hpp>
+#include<ff/ff.hpp>
+#include<win_seq_gpu.hpp>
+#include<builders_gpu.hpp>
+#include<win_seqffat_gpu.hpp>
+#include<win_farm_gpu.hpp>
+#include<key_farm_gpu.hpp>
+#include<key_ffat_gpu.hpp>
+#include<pane_farm_gpu.hpp>
+#include<win_mapreduce_gpu.hpp>
 
 #endif

@@ -30,15 +30,15 @@
 #define META_GPU_H
 
 // includes
-#include <atomic>
+#include<atomic>
 #if __cplusplus < 201703L // not C++17
-    #include <experimental/optional>
+    #include<experimental/optional>
     namespace std { using namespace experimental; } // ugly but necessary until CUDA will support C++17!
 #else
-    #include <optional>
+    #include<optional>
 #endif
-#include <basic.hpp>
-#include <context.hpp>
+#include<basic.hpp>
+#include<context.hpp>
 
 namespace wf {
 

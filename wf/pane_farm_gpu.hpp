@@ -44,13 +44,13 @@
 #define PANE_FARM_GPU_H
 
 /// includes
-#include <ff/pipeline.hpp>
-#include <ff/farm.hpp>
-#include <meta.hpp>
-#include <basic.hpp>
-#include <meta_gpu.hpp>
-#include <win_farm.hpp>
-#include <win_farm_gpu.hpp>
+#include<ff/pipeline.hpp>
+#include<ff/farm.hpp>
+#include<meta.hpp>
+#include<basic.hpp>
+#include<meta_gpu.hpp>
+#include<win_farm.hpp>
+#include<win_farm_gpu.hpp>
 
 namespace wf {
 

@@ -39,11 +39,11 @@
 #define WIN_MAPREDUCE_H
 
 /// includes
-#include <ff/pipeline.hpp>
-#include <ff/farm.hpp>
-#include <meta.hpp>
-#include <basic.hpp>
-#include <win_farm.hpp>
+#include<ff/pipeline.hpp>
+#include<ff/farm.hpp>
+#include<meta.hpp>
+#include<basic.hpp>
+#include<win_farm.hpp>
 
 namespace wf {
 

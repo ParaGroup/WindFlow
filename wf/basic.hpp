@@ -31,14 +31,14 @@
 #define BASIC_H
 
 /// includes
-#include <deque>
-#include <mutex>
-#include <numeric>
-#include <sstream>
-#include <iostream>
-#include <errno.h>
-#include <sys/time.h>
-#include <sys/stat.h>
+#include<deque>
+#include<mutex>
+#include<numeric>
+#include<sstream>
+#include<iostream>
+#include<errno.h>
+#include<sys/time.h>
+#include<sys/stat.h>
 
 namespace wf {
 
