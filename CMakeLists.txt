@@ -1,7 +1,16 @@
 cmake_minimum_required(VERSION 3.10.2)
 
 # project name
-project(WindFlow-Tests VERSION 2.8.0)
+project(WindFlow-Tests CXX)
+
+# check compiler (GCC)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "7.5.0")
+        message(FATAL_ERROR "Insufficient gcc version (>= 7.5.0 required)")
+    endif()
+else()
+    message(FATAL_ERROR "Compiler is not GCC")
+endif()
 
 # check build type
 if(NOT CMAKE_BUILD_TYPE)
