@@ -36,7 +36,7 @@ WindFlow is a header-only template library. To build your applications you have 
 	make all_gpu -j<#cores> # compile only GPU tests
 	make docs # generate the doxygen documentation
 ```
-All the examples compile with <tt>gcc</tt> at least version <tt>7.2</tt> (with full support to C++17). The examples for GPU need <tt>CUDA</tt> at least version <tt>9.0</tt> with support for C++14 (C++17 is not currently supported by CUDA).
+All the examples compile with <tt>gcc</tt> at least version <tt>7.5.0</tt> (with full support to C++17). The examples for GPU need <tt>CUDA</tt> at least version <tt>9.0</tt> with support for C++14 (C++17 is not currently supported by CUDA).
 
 # Contributors
 The main developer and maintainer of WindFlow is [Gabriele Mencagli](mailto:mencagli@di.unipi.it) (Department of Computer Science, University of Pisa, Italy).
