@@ -21,7 +21,7 @@ When downloaded FastFlow, it is important to properly configure it for your mult
 WindFlow and its underlying level FastFlow come with some important macros that can be used during compilation to enable specific behaviors:
 * <strong>-DTRACE_WINDFLOW</strong> -> enables tracing (logging) at the WindFlow level (operator replicas)
 * <strong>-DTRACE_FASTFLOW</strong> -> enables tracing (logging) at the FastFlow level (raw threads and FastFlow nodes)
-* <strong>-DFF_BOUNDED_BUFFER</strong> -> enables the use of bounded lock-free queues for pointer passing between threads. Otherwise, queues are unbounded (no backpressure mechanism)
+* <strong>-DFF_BOUNDED_BUFFER</strong> -> enables the use of bounded lock-free queues for pointer passing between threads (the default size of the queues is 2048). Otherwise, queues are unbounded (no backpressure mechanism)
 * <strong>-DDEFAULT_BUFFER_CAPACITY=VALUE</strong> -> set the size of the lock-free queues capacity in terms of pointers to objects
 * <strong>-DNO_DEFAULT_MAPPING</strong> -> if set, FastFlow threads are not pinned onto the CPU cores but they are scheduled by the standard OS scheduling policy.
 
