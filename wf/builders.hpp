@@ -63,7 +63,7 @@ private:
     // type of the closing function
     using closing_func_t = std::function<void(RuntimeContext&)>;
     uint64_t pardegree = 1;
-    std::string name = "anonymous_source";
+    std::string name = "source";
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
 
 public:
@@ -187,7 +187,7 @@ private:
     // type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
     using routing_func_t = std::function<size_t(size_t, size_t)>;
     uint64_t pardegree = 1;
-    std::string name = "anonymous_filter";
+    std::string name = "filter";
     bool isKeyed = false;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
     routing_func_t routing_func = [](size_t k, size_t n) { return k%n; };
@@ -349,7 +349,7 @@ private:
     // type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
     using routing_func_t = std::function<size_t(size_t, size_t)>;
     uint64_t pardegree = 1;
-    std::string name = "anonymous_map";
+    std::string name = "map";
     bool isKeyed = false;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
     routing_func_t routing_func = [](size_t k, size_t n) { return k%n; };
@@ -509,7 +509,7 @@ private:
     // type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
     using routing_func_t = std::function<size_t(size_t, size_t)>;
     uint64_t pardegree = 1;
-    std::string name = "anonymous_flatmap";
+    std::string name = "flatmap";
     bool isKeyed = false;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
     routing_func_t routing_func = [](size_t k, size_t n) { return k%n; };
@@ -669,7 +669,7 @@ private:
     // type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
     using routing_func_t = std::function<size_t(size_t, size_t)>;
     uint64_t pardegree = 1;
-    std::string name = "anonymous_accumulator";
+    std::string name = "accumulator";
     result_t init_value;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
     routing_func_t routing_func = [](size_t k, size_t n) { return k%n; };
@@ -695,8 +695,8 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the initial value for fold functions
-     *         (for reduce the initial value is the one obtained by the
+     *  \brief Method to specify the initial value for the fold logic
+     *         (for the reduce the initial value is the one obtained by the
      *          default Constructor of result_t)
      *  
      *  \param _init_value initial value
@@ -814,7 +814,7 @@ private:
     uint64_t slide_len = 1;
     uint64_t triggering_delay = 0;
     win_type_t winType = CB;
-    std::string name = "anonymous_seq";
+    std::string name = "seq";
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
 
 public:
@@ -981,7 +981,7 @@ private:
     uint64_t slide_len = 1;
     uint64_t triggering_delay = 0;
     win_type_t winType = CB;
-    std::string name = "anonymous_seqffat";
+    std::string name = "seqffat";
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
 
 public:
@@ -1146,7 +1146,7 @@ private:
     uint64_t triggering_delay = 0;
     win_type_t winType = CB;
     size_t pardegree = 1;
-    std::string name = "anonymous_wf";
+    std::string name = "wf";
     opt_level_t opt_level = LEVEL2;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
 
@@ -1371,7 +1371,7 @@ private:
     uint64_t triggering_delay = 0;
     win_type_t winType = CB;
     size_t pardegree = 1;
-    std::string name = "anonymous_kf";
+    std::string name = "kf";
     routing_func_t routing_func = [](size_t k, size_t n) { return k%n; };
     opt_level_t opt_level = LEVEL2;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
@@ -1603,7 +1603,7 @@ private:
     uint64_t triggering_delay = 0;
     win_type_t winType = CB;
     size_t pardegree = 1;
-    std::string name = "anonymous_kff";
+    std::string name = "kff";
     routing_func_t routing_func = [](size_t k, size_t n) { return k%n; };
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
 
@@ -1792,7 +1792,7 @@ private:
     win_type_t winType = CB;
     size_t plq_degree = 1;
     size_t wlq_degree = 1;
-    std::string name = "anonymous_pf";
+    std::string name = "pf";
     opt_level_t opt_level = LEVEL0;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
 
@@ -2012,7 +2012,7 @@ private:
     win_type_t winType = CB;
     size_t map_degree = 2;
     size_t reduce_degree = 1;
-    std::string name = "anonymous_wmr";
+    std::string name = "wmr";
     opt_level_t opt_level = LEVEL0;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
 
@@ -2218,7 +2218,7 @@ private:
     // type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
     using routing_func_t = std::function<size_t(size_t, size_t)>;
     uint64_t pardegree = 1;
-    std::string name = "anonymous_sink";
+    std::string name = "sink";
     bool isKeyed = false;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
     routing_func_t routing_func = [](size_t k, size_t n) { return k%n; };

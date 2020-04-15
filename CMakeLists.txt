@@ -23,6 +23,9 @@ endif()
 # check Git dependency
 find_package(Git REQUIRED)
 
+# check pthreads dependency
+find_package(Threads REQUIRED)
+
 # check FastFlow dependency
 if(DEFINED ENV{FF_ROOT})
     set(ff_root_dir $ENV{FF_ROOT})
@@ -33,12 +36,15 @@ else()
 	set(ff_root_dir $ENV{HOME}/fastflow)
 endif()
 
+# check graphviz dependency
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake.modules)
+include(${PROJECT_SOURCE_DIR}/cmake.modules/FindGraphviz.cmake)
+
 # add sub-folder with tests
 add_subdirectory(tests)
 
 # check Doxygen dependency
-find_package(Doxygen)
-
+find_package(Doxygen OPTIONAL_COMPONENTS dot)
 if (DOXYGEN_FOUND)
     # set input and output files
     set(DOXYGEN_IN ./docs/windflow-doxygen.conf)

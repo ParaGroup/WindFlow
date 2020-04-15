@@ -19,12 +19,13 @@
  *  @author  Gabriele Mencagli
  *  @date    02/10/2018
  *  
- *  @brief Emitter and collecto of the Key_Farm and Key_Farm_GPU operators
+ *  @brief Emitter and collector nodes of the Key_Farm, Key_Farm_GPU, Key_FFAT and
+ *         Key_FFAT_GPU operators
  *  
- *  @section Key_Farm and Key_Farm_GPU Emitter and Collector (Description)
+ *  @section Emitter and collector nodes of the Keyed_* operators (Description)
  *  
- *  This file implements the emitter and the collector used in the Key_Farm
- *  and Key_Farm_GPU operators in the library.
+ *  This file implements the emitter and the collector nodes used by the Key_Farm,
+ *  Key_Farm_GPU, Key_FFAT and Key_FFAT_GPU operators.
  */ 
 
 #ifndef KF_NODES_H

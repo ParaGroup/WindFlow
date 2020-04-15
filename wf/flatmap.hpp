@@ -24,8 +24,7 @@
  *  @section FlatMap (Description)
  *  
  *  This file implements the FlatMap operator able to execute a one-to-any transformation
- *  on each tuple of the input data stream. The transformation should be stateless and
- *  must produce zero, one or more than one output result for each input tuple consumed.
+ *  on each tuple of the input data stream.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with
  *  a copy constructor and copy assignment operator, and they must provide and implement
@@ -74,6 +73,7 @@ private:
     friend class MultiPipe;
     bool keyed; // flag stating whether the FlatMap is configured with keyBy or not
     bool used; // true if the operator has been added/chained in a MultiPipe
+    std::string name; // name of the operator
     // class FlatMap_Node
     class FlatMap_Node: public ff::ff_minode_t<tuple_t, result_t>
     {
@@ -212,7 +212,9 @@ public:
             size_t _pardegree,
             std::string _name,
             closing_func_t _closing_func):
-            keyed(false), used(false)
+            keyed(false),
+            used(false),
+            name(_name)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -250,7 +252,9 @@ public:
             std::string _name,
             closing_func_t _closing_func,
             routing_func_t _routing_func):
-            keyed(true), used(false)
+            keyed(true),
+            used(false),
+            name(_name)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -289,6 +293,15 @@ public:
     bool isUsed() const
     {
         return used;
+    }
+
+    /** 
+     *  \brief Get the name of the operator
+     *  \return string representing the name of the operator
+     */
+    std::string getName() const
+    {
+        return name;
     }
 
     /// deleted constructors/operators

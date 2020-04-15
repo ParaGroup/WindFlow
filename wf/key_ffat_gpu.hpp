@@ -88,6 +88,7 @@ private:
     win_type_t winType;
     bool used; // true if the operator has been added/chained in a MultiPipe
     std::vector<ff_node *> kf_workers; // vector of pointers to the Key_FFAT_GPU workers
+    std::string name; // name of the operator
 
 public:
     /** 
@@ -120,7 +121,8 @@ public:
                  routing_func_t _routing_func):
                  parallelism(_pardegree),
                  winType(_winType),
-                 used(false)
+                 used(false),
+                 name(_name)
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -197,6 +199,15 @@ public:
             count += seq->getNumDroppedTuples();
         }
         return count;
+    }
+
+    /** 
+     *  \brief Get the name of the operator
+     *  \return string representing the name of the operator
+     */
+    std::string getName() const
+    {
+        return name;
     }
 
     /// deleted constructors/operators

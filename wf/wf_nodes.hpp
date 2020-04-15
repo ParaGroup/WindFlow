@@ -19,12 +19,13 @@
  *  @author  Gabriele Mencagli
  *  @date    01/10/2018
  *  
- *  @brief Emitter and collector of the Win_Farm and Win_Farm_GPU operators
+ *  @brief Emitter and collector nodes of the Win_Farm and Win_Farm_GPU operators
  *  
- *  @section Win_Farm and Win_Farm_GPU Emitter and Collector (Description)
+ *  @section Emitter and collector nodes of the Win_Farm and Win_Farm_GPU
+ *           operators (Description)
  *  
- *  This file implements the emitter and the collector used in the Win_Farm
- *  and Win_Farm_GPU operators in the library.
+ *  This file implements the emitter and the collector nodes used by the Win_Farm
+ *  and Win_Farm_GPU operators.
  */ 
 
 #ifndef WF_NODES_H

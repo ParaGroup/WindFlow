@@ -24,13 +24,16 @@
  *  
  *  @section Pane_Farm (Description)
  *  
- *  This file implements the Pane_Farm operator able to execute windowed queries
- *  on a multicore. The operator processes (possibly in parallel) panes of the
- *  windows in the so-called PLQ stage (Pane-Level Sub-Query) and computes
- *  (possibly in parallel) results of the windows from the pane results in the
- *  so-called WLQ stage (Window-Level Sub-Query). Panes shared by more than one window
- *  are not recomputed by saving processing time. The operator supports both a
- *  non-incremental and an incremental query definition in the two stages.
+ *  This file implements the Pane_Farm operator able to execute windowed queries on a multicore.
+ *  The operator processes (possibly in parallel) panes of the windows in the so-called PLQ stage
+ *  (Pane-Level Sub-Query) and computes (possibly in parallel) results of the windows from the
+ *  pane results in the so-called WLQ stage (Window-Level Sub-Query). Panes shared by more than
+ *  one window are not recomputed by saving processing time. The operator supports both a non
+ *  incremental and an incremental query definition in the two stages. The approach is based on [1].
+ *  
+ *  [1] Jin Li, David Maier, Kristin Tufte, Vassilis Papadimos, and Peter A. Tucker. 2005.
+ *  No pane, no gain: efficient evaluation of sliding-window aggregates over data streams.
+ *  SIGMOD Rec. 34, 1 (March 2005), 39–44. DOI:https://doi.org/10.1145/1058150.1058158
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with a copy
  *  constructor and copy assignment operator, and they must provide and implement the
@@ -968,6 +971,15 @@ public:
             count += seq->getNumDroppedTuples();
         }
         return count;
+    }
+
+    /** 
+     *  \brief Get the name of the operator
+     *  \return string representing the name of the operator
+     */
+    std::string getName() const
+    {
+        return name;
     }
 
     /// deleted constructors/operators

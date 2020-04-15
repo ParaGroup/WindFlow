@@ -24,8 +24,7 @@
  *  @section Map (Description)
  *  
  *  This file implements the Map operator able to execute a one-to-one transformation
- *  on each tuple of the input data stream. The transformation should be stateless and
- *  must produce one output result for each input tuple consumed.
+ *  on each tuple of the input data stream.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with a
  *  copy Constructor and copy assignment operator, and they must provide and implement
@@ -52,7 +51,7 @@ namespace wf {
  *  
  *  \brief Map operator executing a one-to-one transformation on the input stream
  *  
- *  This class implements the Map operator executing a one-to-one stateless transformation
+ *  This class implements the Map operator executing a one-to-one transformation
  *  on each tuple of the input stream.
  */ 
 template<typename tuple_t, typename result_t>
@@ -77,6 +76,7 @@ private:
     friend class MultiPipe;
     bool keyed; // flag stating whether the Map is configured with keyBy or not
     bool used; // true if the operator has been added/chained in a MultiPipe
+    std::string name; // name of the operator
     // class Map_Node
     class Map_Node: public ff::ff_minode_t<tuple_t, result_t>
     {
@@ -253,7 +253,8 @@ public:
         std::string _name, 
         closing_func_t _closing_func):
         keyed(false),
-        used(false)
+        used(false),
+        name(_name)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -292,7 +293,8 @@ public:
         closing_func_t _closing_func, 
         routing_func_t _routing_func):
         keyed(true),
-        used(false)
+        used(false),
+        name(_name)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -331,6 +333,15 @@ public:
     bool isUsed() const
     {
         return used;
+    }
+
+    /** 
+     *  \brief Get the name of the operator
+     *  \return string representing the name of the operator
+     */
+    std::string getName() const
+    {
+        return name;
     }
 
     /// deleted constructors/operators

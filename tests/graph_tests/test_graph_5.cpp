@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Test of general graphs of MultiPipe instances:
+ *  Test 5 of general graphs of MultiPipe instances:
  *  
  *  +---------------------+                         +-----------+
  *  |  +-----+   +-----+  |                         |  +-----+  |
@@ -138,14 +138,14 @@ int main(int argc, char *argv[])
         // source 1
         Source_Positive_Functor source_functor_positive(stream_len, n_keys);
         Source source1 = Source_Builder(source_functor_positive)
-                            .withName("pipe1_source")
+                            .withName("source1")
                             .withParallelism(source1_degree)
                             .build();
         MultiPipe &pipe1 = graph.add_source(source1);
         // map 1
         Map_Functor map_functor1;
         Map map1 = Map_Builder(map_functor1)
-                        .withName("pipe1_map")
+                        .withName("map1")
                         .withParallelism(map1_degree)
                         .build();
         pipe1.chain(map1);
@@ -153,14 +153,14 @@ int main(int argc, char *argv[])
         // source 2
         Source_Negative_Functor source_functor_negative(stream_len, n_keys);
         Source source2 = Source_Builder(source_functor_negative)
-                            .withName("pipe2_source")
+                            .withName("source2")
                             .withParallelism(source2_degree)
                             .build();
         MultiPipe &pipe2 = graph.add_source(source2);
         // map 2
         Map_Functor map_functor2;
         Map map2 = Map_Builder(map_functor2)
-                        .withName("pipe2_map")
+                        .withName("map2")
                         .withParallelism(map2_degree)
                         .build();
         pipe2.chain(map2);
@@ -169,7 +169,7 @@ int main(int argc, char *argv[])
         // filter
         Filter_Functor filter_functor;
         Filter filter = Filter_Builder(filter_functor)
-                        .withName("pipe3_filter")
+                        .withName("filter")
                         .withParallelism(filter_degree)
                         .build();
         pipe3.chain(filter);
@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
         // sink
         Sink_Functor sink_functor1(n_keys);
         Sink sink1 = Sink_Builder(sink_functor1)
-                        .withName("pipe4_sink")
+                        .withName("sink1")
                         .withParallelism(1)
                         .build();
         pipe4.chain_sink(sink1);
@@ -194,7 +194,7 @@ int main(int argc, char *argv[])
         // sink
         Sink_Functor sink_functor2(n_keys);
         Sink sink2 = Sink_Builder(sink_functor2)
-                        .withName("pipe5_sink")
+                        .withName("sink2")
                         .withParallelism(1)
                         .build();
         pipe5.chain_sink(sink2);
@@ -202,21 +202,21 @@ int main(int argc, char *argv[])
         // source 3
         Source_Positive_Functor source_functor_positive2(stream_len, n_keys);
         Source source3 = Source_Builder(source_functor_positive2)
-                            .withName("pipe6_source")
+                            .withName("source3")
                             .withParallelism(source3_degree)
                             .build();
         MultiPipe &pipe6 = graph.add_source(source3);  
         // map 3
         Map_Functor map_functor3;
         Map map3 = Map_Builder(map_functor3)
-                        .withName("pipe6_map")
+                        .withName("map3")
                         .withParallelism(map3_degree)
                         .build();
         pipe6.chain(map3);
         // sink
         Sink_Functor sink_functor3(n_keys);
         Sink sink3 = Sink_Builder(sink_functor3)
-                        .withName("pipe6_sink")
+                        .withName("sink3")
                         .withParallelism(1)
                         .build();
         pipe6.chain_sink(sink3);

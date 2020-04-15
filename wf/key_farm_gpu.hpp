@@ -66,7 +66,7 @@ namespace wf {
  *  by computing in parallel all the windows within a batch on the CUDA cores of the GPU. Batches
  *  with tuples of same sub-stream are prepared/offloaded sequentially on the CPU.
  */ 
-template<typename tuple_t, typename result_t, typename win_F_t>
+template<typename tuple_t, typename result_t, typename win_F_t, typename input_t>
 class Key_Farm_GPU: public ff::ff_farm
 {
 public:
@@ -107,6 +107,7 @@ private:
     win_type_t winType;
     bool used; // true if the operator has been added/chained in a MultiPipe
     std::vector<ff_node *> kf_workers; // vector of pointers to the Key_Farm_GPU workers
+    std::string name; // name of the operator
 
     // method to optimize the structure of the Key_Farm_GPU operator
     void optimize_KeyFarmGPU(opt_level_t opt)
@@ -179,7 +180,8 @@ public:
                  inner_parallelism_1(1),
                  inner_parallelism_2(0),
                  winType(_winType),
-                 used(false)
+                 used(false),
+                 name(_name)
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -250,7 +252,8 @@ public:
                  inner_type(PF_GPU),
                  parallelism(_pardegree),
                  winType(_winType),
-                 used(false)
+                 used(false),
+                 name(_name)
     {      
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -349,7 +352,8 @@ public:
                  inner_type(WMR_GPU),
                  parallelism(_pardegree),
                  winType(_winType),
-                 used(false)
+                 used(false),
+                 name(_name)
     {      
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -516,6 +520,15 @@ public:
             abort();
         }
         return count;
+    }
+
+    /** 
+     *  \brief Get the name of the operator
+     *  \return string representing the name of the operator
+     */
+    std::string getName() const
+    {
+        return name;
     }
 
     /// deleted constructors/operators

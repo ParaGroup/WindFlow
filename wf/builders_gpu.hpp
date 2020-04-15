@@ -23,7 +23,7 @@
  *  
  *  @section Builders-2 (Description)
  *  
- *  Set of builders that must be used to create WindFlow working on GPU.
+ *  Set of builders used to create WindFlow operators on GPU.
  */ 
 
 #ifndef BUILDERS_GPU_H
@@ -65,7 +65,7 @@ private:
     win_type_t winType = CB;
     size_t batch_len = 1;
     size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
-    std::string name = "anonymous_seq_gpu";
+    std::string name = "seq_gpu";
     size_t scratchpad_size = 0;
 
 public:
@@ -220,7 +220,7 @@ private:
     size_t batch_len = 1;
     size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
     bool rebuild = false;
-    std::string name = "anonymous_seqffat_gpu";
+    std::string name = "seqffat_gpu";
 
 public:
     /** 
@@ -369,7 +369,7 @@ private:
     size_t pardegree = 1;
     size_t batch_len = 1;
     size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
-    std::string name = "anonymous_wf_gpu";
+    std::string name = "wf_gpu";
     size_t scratchpad_size = 0;
     opt_level_t opt_level = LEVEL2;
 
@@ -588,7 +588,7 @@ private:
     size_t pardegree = 1;
     size_t batch_len = 1;
     size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
-    std::string name = "anonymous_wf_gpu";
+    std::string name = "wf_gpu";
     size_t scratchpad_size = 0;
     routing_func_t routing_func = [](size_t k, size_t n) { return k%n; };
     opt_level_t opt_level = LEVEL2;
@@ -817,7 +817,7 @@ private:
     size_t batch_len = 1;
     size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
     bool rebuild = false;
-    std::string name = "anonymous_kff_gpu";
+    std::string name = "kff_gpu";
     routing_func_t routing_func = [](size_t k, size_t n) { return k%n; };
 
 public:
@@ -1008,7 +1008,7 @@ private:
     size_t wlq_degree = 1;
     size_t batch_len = 1;
     size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
-    std::string name = "anonymous_pf_gpu";
+    std::string name = "pf_gpu";
     size_t scratchpad_size = 0;
     opt_level_t opt_level = LEVEL0;
 
@@ -1232,7 +1232,7 @@ private:
     size_t reduce_degree = 1;
     size_t batch_len = 1;
     size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
-    std::string name = "anonymous_wmw_gpu";
+    std::string name = "wmw_gpu";
     size_t scratchpad_size = 0;
     opt_level_t opt_level = LEVEL0;
 

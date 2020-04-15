@@ -98,34 +98,34 @@ int main(int argc, char *argv[])
 	    // source
 	    Source_Functor source_functor(stream_len, n_keys);
 	    Source source = Source_Builder(source_functor)
-	    					.withName("test_wf_tb_source")
+	    					.withName("source")
 	    					.withParallelism(source_degree)
 	    					.build();
 	    MultiPipe &mp = graph.add_source(source);
 	    // filter
 	    Filter_Functor filter_functor;
 	    Filter filter = Filter_Builder(filter_functor)
-	    					.withName("test_wf_tb_filter")
+	    					.withName("filter")
 	    					.withParallelism(filter_degree)
 	    					.build();
 	    mp.chain(filter);
 	    // flatmap
 	    FlatMap_Functor flatmap_functor;
 	    FlatMap flatmap = FlatMap_Builder(flatmap_functor)
-	    						.withName("test_wf_tb_flatmap")
+	    						.withName("flatmap")
 	    						.withParallelism(flatmap_degree)
 	    						.build();
 	    mp.chain(flatmap);
 	    // map
 	    Map_Functor map_functor;
 	    Map map = Map_Builder(map_functor)
-	    				.withName("test_wf_tb_map")
+	    				.withName("map")
 	    				.withParallelism(map_degree)
 	    				.build();
 	    mp.chain(map);
 	    // wf
 	    Win_Farm wf = WinFarm_Builder(wf_function)
-	    					.withName("test_wf_tb_wf")
+	    					.withName("wf")
 	    					.withParallelism(wf_degree)
 	    					.withTBWindows(microseconds(win_len), microseconds(win_slide))
 	    					.build();
@@ -133,7 +133,7 @@ int main(int argc, char *argv[])
 	    // sink
 	    Sink_Functor sink_functor(n_keys);
 	    Sink sink = Sink_Builder(sink_functor)
-	    				.withName("test_wf_tb_sink")
+	    				.withName("sink")
 	    				.withParallelism(1)
 	    				.build();
 	    mp.chain_sink(sink);

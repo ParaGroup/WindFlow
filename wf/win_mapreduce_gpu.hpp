@@ -88,7 +88,7 @@ private:
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3, typename T4>
     friend class Win_Farm_GPU;
-    template<typename T1, typename T2, typename T3>
+    template<typename T1, typename T2, typename T3, typename T4>
     friend class Key_Farm_GPU;
     template<typename T>
     friend class WinFarmGPU_Builder;
@@ -812,6 +812,15 @@ public:
             }
         }
         return count;
+    }
+
+    /** 
+     *  \brief Get the name of the operator
+     *  \return string representing the name of the operator
+     */
+    std::string getName() const
+    {
+        return name;
     }
 
     /// deleted constructors/operators

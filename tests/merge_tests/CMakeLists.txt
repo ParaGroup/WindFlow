@@ -4,17 +4,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -finline-functions")
 
-# check pthreads dependency
-find_package(Threads REQUIRED)
-
 # macros to be provided to the compiler
 add_definitions(-DFF_BOUNDED_BUFFER)
 
-# linking to the pthread library (needed by FastFlow)
-SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pthread")
-
 # header files of WindFlow and of FastFlow
 include_directories(../../wf ${ff_root_dir})
+
+# linking to pthread
+link_libraries(pthread)
 
 # set output directory
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ../../bin/merge_tests)

@@ -1,9 +1,6 @@
 # enable CUDA
 enable_language(CUDA)
 
-# check pthreads dependency
-find_package(Threads REQUIRED)
-
 # compiler and flags
 set(CMAKE_CUDA_STANDARD 14)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
@@ -15,6 +12,9 @@ add_definitions(-DFF_BOUNDED_BUFFER)
 
 # header files of WindFlow and of FastFlow
 include_directories(../../wf ${ff_root_dir})
+
+# linking to pthread
+link_libraries(pthread)
 
 # set output directory
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ../../bin/mp_tests_gpu)

@@ -23,7 +23,7 @@
  *  
  *  @section Splitting_Emitter (Description)
  *  
- *  This file implements the splitting emitter in charge of doing the splitting of a MultiPipe.
+ *  This file implements the splitting emitter in charge of splitting of a MultiPipe.
  */ 
 
 #ifndef SPLITTING_H

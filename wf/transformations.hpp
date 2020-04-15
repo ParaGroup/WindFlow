@@ -24,7 +24,7 @@
  *  @section Transformations (Description)
  *  
  *  This file implements a set of transformations useful to optimize
- *  the structure of the WindFlow operators.
+ *  the structure of some windowed operators.
  */ 
 
 #ifndef TRANSF_H

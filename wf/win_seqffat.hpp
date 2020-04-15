@@ -19,13 +19,13 @@
  *  @author  Elia Ruggeri and Gabriele Mencagli
  *  @date    10/03/2020
  *  
- *  @brief Win_SeqFFAT operator executing a windowed query on a multi-core CPU
+ *  @brief Win_SeqFFAT node executing a windowed query on a multi-core CPU
  *         with the algorithm in the FlatFAT data structure
  *  
  *  @section Win_SeqFFAT (Description)
  *  
- *  This file implements the Win_SeqFFAT operator able to execute windowed queries on a
- *  multicore. The operator executes streaming windows in a serial fashion on a CPU
+ *  This file implements the Win_SeqFFAT node able to execute windowed queries on a
+ *  multicore. The node executes streaming windows in a serial fashion on a CPU
  *  core. The algorithm is the one implemented by the FlatFAT data structure.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with
@@ -53,10 +53,10 @@ namespace wf {
 /** 
  *  \class Win_SeqFFAT
  *  
- *  \brief Win_SeqFFAT operator executing a windowed query on a multi-core CPU
+ *  \brief Win_SeqFFAT node executing a windowed query on a multi-core CPU
  *         using the algorithm in the FlatFAT data structure
  *  
- *  This class implements the Win_SeqFFAT operator executing windowed queries on a multicore
+ *  This class implements the Win_SeqFFAT node executing windowed queries on a multicore
  *  in a serial fashion using the algorithm in the FlatFAT data structure.
  */ 
 template<typename tuple_t, typename result_t>
@@ -144,11 +144,11 @@ private:
     uint64_t slide_len; // slide length (no. of tuples or in time units)
     uint64_t triggering_delay; // triggering delay in time units (meaningful for TB windows only)
     win_type_t winType; // window type (CB or TB)
-    std::string name; // string of the unique name of the operator
+    std::string name; // string of the unique name of the node
     bool isRichLift; // flag stating whether the lift function is riched
     bool isRichCombine; // flag stating whether the combine function is riched
     RuntimeContext context; // RuntimeContext
-    OperatorConfig config; // configuration structure of the Win_SeqFFAT operator
+    OperatorConfig config; // configuration structure of the Win_SeqFFAT node
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     size_t dropped_tuples; // number of dropped tuples
     size_t eos_received; // number of received EOS messages
@@ -204,10 +204,10 @@ public:
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _name string with the unique name of the operator
+     *  \param _name string with the unique name of the node
      *  \param _closing_func closing function
      *  \param _context RuntimeContext object to be used
-     *  \param _config configuration of the operator
+     *  \param _config configuration of the node
      */ 
     Win_SeqFFAT(winLift_func_t _winLift_func,
                 winComb_func_t _winComb_func,
@@ -246,10 +246,10 @@ public:
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _name string with the unique name of the operator
+     *  \param _name string with the unique name of the node
      *  \param _closing_func closing function
      *  \param _context RuntimeContext object to be used
-     *  \param _config configuration of the operator
+     *  \param _config configuration of the node
      */ 
     Win_SeqFFAT(rich_winLift_func_t _rich_winLift_func,
                 winComb_func_t _winComb_func,
@@ -288,10 +288,10 @@ public:
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _name string with the unique name of the operator
+     *  \param _name string with the unique name of the node
      *  \param _closing_func closing function
      *  \param _context RuntimeContext object to be used
-     *  \param _config configuration of the operator
+     *  \param _config configuration of the node
      */ 
     Win_SeqFFAT(winLift_func_t _winLift_func,
                 rich_winComb_func_t _rich_winComb_func,
@@ -330,10 +330,10 @@ public:
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _name string with the unique name of the operator
+     *  \param _name string with the unique name of the node
      *  \param _closing_func closing function
      *  \param _context RuntimeContext object to be used
-     *  \param _config configuration of the operator
+     *  \param _config configuration of the node
      */ 
     Win_SeqFFAT(rich_winLift_func_t _rich_winLift_func,
                 rich_winComb_func_t _rich_winComb_func,
@@ -362,8 +362,6 @@ public:
     {
         init();
     }
-
-//@cond DOXY_IGNORE
 
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
@@ -724,10 +722,8 @@ public:
 #endif
     }
 
-//@endcond
-
     /** 
-     *  \brief Get the window type (CB or TB) utilized by the operator
+     *  \brief Get the window type (CB or TB) utilized by the node
      *  \return adopted windowing semantics (count- or time-based)
      */ 
     win_type_t getWinType() const
@@ -744,13 +740,22 @@ public:
         return dropped_tuples;
     }
 
-    /// Method to start the operator execution asynchronously
+    /** 
+     *  \brief Get the name of the node
+     *  \return string representing the name of the node
+     */
+    std::string getName() const
+    {
+        return name;
+    }
+
+    /// Method to start the node execution asynchronously
     virtual int run(bool)
     {
         return ff::ff_minode::run();
     }
 
-    /// Method to wait the operator termination
+    /// Method to wait the node termination
     virtual int wait()
     {
         return ff::ff_minode::wait();

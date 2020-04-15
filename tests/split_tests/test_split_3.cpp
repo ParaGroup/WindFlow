@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Test of the split of MultiPipe instances:
+ *  Test 3 of the split of MultiPipe instances:
  *  
  *                                                  +---------------------+
  *                                                  |  +-----+   +-----+  |
@@ -130,7 +130,7 @@ int main(int argc, char *argv[])
         // source
         Source_Functor source_functor(stream_len, n_keys);
         Source source = Source_Builder(source_functor)
-                                .withName("pipe1_source")
+                                .withName("source")
                                 .withParallelism(source_degree)
                                 .build();
         MultiPipe &pipe1 = graph.add_source(source);
@@ -146,14 +146,14 @@ int main(int argc, char *argv[])
         // map 1
         Map_Functor1 map_functor1;
         Map map1 = Map_Builder(map_functor1)
-                            .withName("pipe2_map")
+                            .withName("map1")
                             .withParallelism(map1_degree)
                             .build();
         pipe2.chain(map1);
         // filter
         Filter_Functor filter_functor;
         Filter filter = Filter_Builder(filter_functor)
-                                .withName("pipe2_filter")
+                                .withName("filter")
                                 .withParallelism(filter_degree)
                                 .build();
         pipe2.chain(filter);
@@ -169,23 +169,23 @@ int main(int argc, char *argv[])
         // map 2
         Map_Functor2 map_functor2;
         Map map2 = Map_Builder(map_functor2)
-                            .withName("pipe3_map")
+                            .withName("map2")
                             .withParallelism(map2_degree)
                             .build();
         pipe3.chain(map2);
         // sink
-        Sink_Functor sink_functor(n_keys);
-        Sink sink = Sink_Builder(sink_functor)
-                            .withName("pipe3_sink")
+        Sink_Functor sink_functor1(n_keys);
+        Sink sink1 = Sink_Builder(sink_functor1)
+                            .withName("sink1")
                             .withParallelism(1)
                             .build();
-        pipe3.chain_sink(sink);
+        pipe3.chain_sink(sink1);
         // prepare the fourth MultiPipe
         MultiPipe &pipe4 = pipe2.select(1);
         // sink
         Sink_Functor sink_functor2(n_keys);
         Sink sink2 = Sink_Builder(sink_functor2)
-                            .withName("pipe4_sink")
+                            .withName("sink2")
                             .withParallelism(1)
                             .build();
         pipe4.chain_sink(sink2);
@@ -194,14 +194,14 @@ int main(int argc, char *argv[])
         // flatmap
         FlatMap_Functor flatmap_functor;
         FlatMap flatmap = FlatMap_Builder(flatmap_functor)
-                                .withName("pipe5_flatmap")
+                                .withName("flatmap")
                                 .withParallelism(flatmap_degree)
                                 .build();
         pipe5.chain(flatmap);
         // sink
         Sink_Functor sink_functor3(n_keys);
         Sink sink3 = Sink_Builder(sink_functor3)
-                            .withName("pipe5_sink")
+                            .withName("sink3")
                             .withParallelism(1)
                             .build();
         pipe5.chain_sink(sink3);

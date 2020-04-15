@@ -76,6 +76,7 @@ private:
     // friendships with other classes in the library
     friend class MultiPipe;
     bool used; // true if the operator has been added/chained in a MultiPipe
+    std::string name; // name of the operator
     // class Accumulator_Node
     class Accumulator_Node: public ff::ff_minode_t<tuple_t, result_t>
     {
@@ -236,7 +237,9 @@ public:
                 size_t _pardegree,
                 std::string _name,
                 closing_func_t _closing_func,
-                routing_func_t _routing_func): used(false)
+                routing_func_t _routing_func):
+                used(false),
+                name(_name)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -264,6 +267,15 @@ public:
     bool isUsed() const
     {
         return used;
+    }
+
+    /** 
+     *  \brief Get the name of the operator
+     *  \return string representing the name of the operator
+     */
+    std::string getName() const
+    {
+        return name;
     }
 
     /// deleted constructors/operators

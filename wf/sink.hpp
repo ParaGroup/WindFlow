@@ -83,6 +83,7 @@ private:
     friend class MultiPipe;
     bool keyed; // flag stating whether the Sink is configured with keyBy or not
     bool used; // true if the operator has been added/chained in a MultiPipe
+    std::string name; // name of the operator
     // class Sink_Node
     class Sink_Node: public ff::ff_minode_t<tuple_t>
     {
@@ -284,7 +285,8 @@ public:
          std::string _name,
          closing_func_t _closing_func):
          keyed(false),
-         used(false)
+         used(false),
+         name(_name)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -322,7 +324,8 @@ public:
          closing_func_t _closing_func,
          routing_func_t _routing_func):
          keyed(true),
-         used(false)
+         used(false),
+         name(_name)
     {
         // check the validity of the parallelism degree
         if (_pardegree == 0) {
@@ -360,6 +363,15 @@ public:
     bool isUsed() const
     {
         return used;
+    }
+
+    /** 
+     *  \brief Get the name of the operator
+     *  \return string representing the name of the operator
+     */
+    std::string getName() const
+    {
+        return name;
     }
 
     /// deleted constructors/operators

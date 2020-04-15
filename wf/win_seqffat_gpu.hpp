@@ -19,13 +19,13 @@
  *  @author  Elia Ruggeri and Gabriele Mencagli
  *  @date    16/03/2020
  *  
- *  @brief Win_SeqFFAT_GPU operator executing a windowed query on a a CPU+GPU system
+ *  @brief Win_SeqFFAT_GPU node executing a windowed query on a a CPU+GPU system
  *         with the algorithm in the FlatFAT_GPU data structure
  *  
  *  @section Win_SeqFFAT_GPU (Description)
  *  
- *  This file implements the Win_SeqFFAT_GPU operator able to execute windowed queries
- *  on a heterogeneous system (CPU+GPU). The operator prepares batches of input tuples
+ *  This file implements the Win_SeqFFAT_GPU node able to execute windowed queries
+ *  on a heterogeneous system (CPU+GPU). The node prepares batches of input tuples
  *  sequentially on a CPU core and offloads on the GPU the parallel processing of the
  *  windows within each batch. The algorithm is the one implemented by the FlatFAT_GPU
  *  data structure.
@@ -55,10 +55,10 @@ namespace wf {
 /** 
  *  \class Win_SeqFFAT_GPU
  *  
- *  \brief Win_SeqFFAT_GPU operator executing a windowed query on a on a CPU+GPU system
+ *  \brief Win_SeqFFAT_GPU node executing a windowed query on a on a CPU+GPU system
  *         using the algorithm in the FlatFAT_GPU data structure
  *  
- *  This class implements the Win_SeqFFAT_GPU operator executing windowed queries on a heterogeneous
+ *  This class implements the Win_SeqFFAT_GPU node executing windowed queries on a heterogeneous
  *  system (CPU+GPU) in a serial fashion using the algorithm in the FlatFAT_GPU data structure.
  */ 
 template<typename tuple_t, typename result_t, typename comb_F_t>
@@ -134,8 +134,8 @@ private:
     uint64_t slide_len; // slide length (no. of tuples or in time units)
     uint64_t triggering_delay; // triggering delay in time units (meaningful for TB windows only)
     win_type_t winType; // window type (CB or TB)
-    std::string name; // string of the unique name of the operator
-    OperatorConfig config; // configuration structure of the Win_SeqFFAT_GPU operator
+    std::string name; // string of the unique name of the node
+    OperatorConfig config; // configuration structure of the Win_SeqFFAT_GPU node
     std::unordered_map<size_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     size_t batch_len; // length of the micro-batch in terms of no. of windows
     size_t tuples_per_batch; // number of tuples per batch (only for CB windows)
@@ -275,7 +275,7 @@ public:
      *  \param _batch_len no. of windows in a batch
      *  \param _n_thread_block number of threads per block
      *  \param _rebuild flag stating whether the FlatFAT_GPU must be rebuilt from scratch for each new batch
-     *  \param _name string with the unique name of the operator
+     *  \param _name string with the unique name of the node
      */ 
     Win_SeqFFAT_GPU(winLift_func_t _winLift_func,
                     comb_F_t _winComb_func,
@@ -289,8 +289,6 @@ public:
                     std::string _name):
                     Win_SeqFFAT_GPU(_winLift_func, _winComb_func, _win_len, _slide_len, _triggering_delay, _winType, _batch_len, _n_thread_block, _rebuild, _name, OperatorConfig( 0, 1, _slide_len, 0, 1, _slide_len ))
     {}
-
-//@cond DOXY_IGNORE
 
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
@@ -719,10 +717,8 @@ public:
 #endif
     }
 
-//@endcond
-
     /** 
-     *  \brief Get the window type (CB or TB) utilized by the operator
+     *  \brief Get the window type (CB or TB) utilized by the node
      *  \return adopted windowing semantics (count- or time-based)
      */ 
     win_type_t getWinType() const
@@ -739,13 +735,22 @@ public:
         return dropped_tuples;
     }
 
-    /// Method to start the operator execution asynchronously
+    /** 
+     *  \brief Get the name of the node
+     *  \return string representing the name of the node
+     */
+    std::string getName() const
+    {
+        return name;
+    }
+
+    /// Method to start the node execution asynchronously
     virtual int run(bool)
     {
         return ff::ff_minode::run();
     }
 
-    /// Method to wait the operator termination
+    /// Method to wait the node termination
     virtual int wait()
     {
         return ff::ff_minode::wait();

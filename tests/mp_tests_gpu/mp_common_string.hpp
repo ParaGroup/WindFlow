@@ -16,6 +16,7 @@
 
 /*  
  *  Data types and operator functors for running the MultiPipe tests on GPU
+ *  (key attribute implemented by a std::string)
  */ 
 
 // includes

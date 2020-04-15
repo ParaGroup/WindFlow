@@ -123,48 +123,48 @@ int main(int argc, char *argv[])
 	    // source
 	    Source_Functor source_functor(stream_len, n_keys);
 	    Source source = Source_Builder(source_functor)
-	    						.withName("test_kf+wmr_cb_source")
+	    						.withName("source")
 	    						.withParallelism(source_degree)
 	    						.build();
 	    MultiPipe &mp = graph.add_source(source);
 	    // filter
 	    Filter_Functor filter_functor;
 	    Filter filter = Filter_Builder(filter_functor)
-	    					.withName("test_kf+wmr_cb_filter")
+	    					.withName("filter")
 	    					.withParallelism(filter_degree)
 	    					.build();
 	    mp.chain(filter);
 	    // flatmap
 	    FlatMap_Functor flatmap_functor;
 	    FlatMap flatmap = FlatMap_Builder(flatmap_functor)
-	    						.withName("test_kf+wmr_cb_flatmap")
+	    						.withName("flatmap")
 	    						.withParallelism(flatmap_degree)
 	    						.build();
 	    mp.chain(flatmap);
 	    // map
 	    Map_Functor map_functor;
 	    Map map = Map_Builder(map_functor)
-	    				.withName("test_kf+wmr_cb_map")
+	    				.withName("map")
 	    				.withParallelism(map_degree)
 	    				.build();
 	    mp.chain(map);
 	    // wmr
 	    Win_MapReduce wmr = WinMapReduce_Builder(wmap_function, reduce_function)
-	    						.withName("test_wmr_cb_wmr")
+	    						.withName("wmr")
 	    						.withParallelism(wmap_degree, reduce_degree)
 	    						.withCBWindows(win_len, win_slide)
 	    						.prepare4Nesting()
 	    						.build();
 	    // kf
 	   	Key_Farm kf = KeyFarm_Builder(wmr)
-	   						.withName("test_kf+wmr_tb_kf")
+	   						.withName("kf")
 	   						.withParallelism(kf_degree)
 	   						.build();
 	    mp.add(kf);
 	    // sink
 	    Sink_Functor sink_functor(n_keys);
 	    Sink sink = Sink_Builder(sink_functor)
-	    				.withName("test_kf+wmr_cb_sink")
+	    				.withName("sink")
 	    				.withParallelism(1)
 	    				.build();
 	    mp.chain_sink(sink);

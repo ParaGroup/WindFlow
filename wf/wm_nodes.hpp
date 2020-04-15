@@ -19,12 +19,14 @@
  *  @author  Gabriele Mencagli
  *  @date    02/10/2018
  *  
- *  @brief Emitter, dropper and collector used by the Win_MapReduce and Win_MapReduce_GPU operators
+ *  @brief Emitter, dropper and collector nodes of the Win_MapReduce
+ *         and Win_MapReduce_GPU operators
  *  
- *  @section Win_MapReduce and Win_MapReduce_GPU Emitter, Dropper and Collector (Description)
+ *  @section Emitter, dropper and collector nodes of the Win_MapReduce
+ *           and Win_MapReduce_GPU operators (Description)
  *  
- *  This file implements the utility nodes (emitter, dropper and collector) of the
- *  MAP stage of the Win_MapReduce and Win_MapReduce_GPU operators in the library.
+ *  This file implements the emitter, dropper and collector nodes used by the
+ *  MAP stage of the Win_MapReduce and Win_MapReduce_GPU operators.
  */ 
 
 #ifndef WM_NODES_H

@@ -102,28 +102,28 @@ int main(int argc, char *argv[])
 	    // source
 	    Source_Functor source_functor(stream_len, n_keys);
 	    auto *source = Source_Builder<decltype(source_functor)>(source_functor)
-	    						.withName("test_wf_tb_gpu_source")
+	    						.withName("source")
 	    						.withParallelism(source_degree)
 	    						.build_ptr();
 	    MultiPipe &mp = graph.add_source(*source);
 	    // filter
 	    Filter_Functor filter_functor;
 	    auto *filter = Filter_Builder<decltype(filter_functor)>(filter_functor)
-	    							.withName("test_wf_tb_gpu_filter")
+	    							.withName("filter")
 	    							.withParallelism(filter_degree)
 	    							.build_ptr();
 	    mp.chain(*filter);
 	    // flatmap
 	    FlatMap_Functor flatmap_functor;
 	    auto *flatmap = FlatMap_Builder<decltype(flatmap_functor)>(flatmap_functor)
-	    						.withName("test_wf_tb_gpu_flatmap")
+	    						.withName("flatmap")
 	    						.withParallelism(flatmap_degree)
 	    						.build_ptr();
 	    mp.chain(*flatmap);
 	    // map
 	    Map_Functor map_functor;
 	    auto *map = Map_Builder<decltype(map_functor)>(map_functor)
-	    					.withName("test_wf_tb_gpu_map")
+	    					.withName("map")
 	    					.withParallelism(map_degree)
 	    					.build_ptr();
 	    mp.chain(*map);
@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
 			res->value = sum;
 		};
 	    auto *wf = WinFarmGPU_Builder<decltype(wf_function_gpu)>(wf_function_gpu)
-	    						.withName("test_wf_tb_gpu_wf")
+	    						.withName("wf")
 	    						.withParallelism(wf_degree)
 	    						.withTBWindows(microseconds(win_len), microseconds(win_slide))
 	    						.withBatch(batch_len)
@@ -146,7 +146,7 @@ int main(int argc, char *argv[])
 	    // sink
 	    Sink_Functor sink_functor(n_keys);
 	    auto *sink = Sink_Builder<decltype(sink_functor)>(sink_functor)
-	    					.withName("test_wf_tb_gpu_sink")
+	    					.withName("sink")
 	    					.withParallelism(1)
 	    					.build_ptr();
 	    mp.chain_sink(*sink);

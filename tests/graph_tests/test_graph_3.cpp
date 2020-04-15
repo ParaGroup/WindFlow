@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Test of general graphs of MultiPipe instances:
+ *  Test 3 of general graphs of MultiPipe instances:
  *                                                          +---------------------+
  *                                                          |  +-----+   +-----+  |
  *                                                          |  |  S  |   |  F  |  |
@@ -146,14 +146,14 @@ int main(int argc, char *argv[])
         // source
         Source_Positive_Functor source_functor_positive(stream_len, n_keys);
         Source source1 = Source_Builder(source_functor_positive)
-                            .withName("pipe1_source")
+                            .withName("source1")
                             .withParallelism(source1_degree)
                             .build();
         MultiPipe &pipe1 = graph.add_source(source1);
         // map 1
         Map_Functor map_functor1;
         Map map1 = Map_Builder(map_functor1)
-                        .withName("pipe1_map")
+                        .withName("map1")
                         .withParallelism(map1_degree)
                         .build();
         pipe1.chain(map1);
@@ -169,14 +169,14 @@ int main(int argc, char *argv[])
         // filter
         Filter_Functor filter_functor1;
         Filter filter1 = Filter_Builder(filter_functor1)
-                                .withName("pipe2_filter")
+                                .withName("filter1")
                                 .withParallelism(filter1_degree)
                                 .build();
         pipe2.chain(filter1);
         // map 2
         Map_Functor map_functor2;
         Map map2 = Map_Builder(map_functor2)
-                        .withName("pipe2_map")
+                        .withName("map2")
                         .withParallelism(map2_degree)
                         .build();
         pipe2.chain(map2);
@@ -185,7 +185,7 @@ int main(int argc, char *argv[])
         // filter
         Filter_Functor filter_functor2;
         Filter filter2 = Filter_Builder(filter_functor2)
-                                .withName("pipe3_filter")
+                                .withName("filter2")
                                 .withParallelism(filter2_degree)
                                 .build();
         pipe3.chain(filter2);
@@ -195,14 +195,14 @@ int main(int argc, char *argv[])
         // map 3
         Map_Functor map_functor3;
         Map map3 = Map_Builder(map_functor3)
-                        .withName("pipe4_map")
+                        .withName("map3")
                         .withParallelism(map3_degree)
                         .build();
         pipe4.chain(map3);
         // filter
         Filter_Functor filter_functor3;
         Filter filter3 = Filter_Builder(filter_functor3)
-                                .withName("pipe4_filter")
+                                .withName("filter3")
                                 .withParallelism(filter3_degree)
                                 .build();
         pipe4.chain(filter3);
@@ -210,14 +210,14 @@ int main(int argc, char *argv[])
         // source
         Source_Negative_Functor source_functor_negative(stream_len, n_keys);
         Source source2 = Source_Builder(source_functor_negative)
-                            .withName("pipe5_source")
+                            .withName("source2")
                             .withParallelism(source2_degree)
                             .build();
         MultiPipe &pipe5 = graph.add_source(source2); 
         // filter
         Filter_Functor filter_functor4;
         Filter filter4 = Filter_Builder(filter_functor4)
-                                .withName("pipe5_filter")
+                                .withName("filter4")
                                 .withParallelism(filter4_degree)
                                 .build();
         pipe5.chain(filter4);
@@ -227,7 +227,7 @@ int main(int argc, char *argv[])
         // sink
         Sink_Functor sink_functor(n_keys);
         Sink sink = Sink_Builder(sink_functor)
-                        .withName("pipe6_sink")
+                        .withName("sink")
                         .withParallelism(1)
                         .build();
         pipe6.chain_sink(sink);

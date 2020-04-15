@@ -27,7 +27,7 @@
  *  to be processed. This is used by queries instantiated with the non-incremental
  *  interface for operators implemented on the CPU.
  *  
- *  The template parameter of the data items that can be used with the Iterable must be default
+ *  The template parameter of the data items used with the Iterable must be default
  *  constructible, with a copy constructor and copy assignment operator, and they
  *  must provide and implement the setControlFields() and getControlFields() methods.
  */ 
@@ -133,8 +133,10 @@ public:
      */ 
     tuple_t &operator[](size_t i)
     {
-    	if (i >= n_size)
-    		throw std::out_of_range ("Invalid index of the Iterable");
+    	if (i >= n_size) {
+            std::cerr << RED << "WindFlow Error: invalid index of the Iterable" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
     	return *(first+i);
     }
 
@@ -147,8 +149,10 @@ public:
      */ 
     const tuple_t &operator[](size_t i) const
     {
-        if (i >= n_size)
-            throw std::out_of_range ("Invalid index of the Iterable");
+        if (i >= n_size) {
+            std::cerr << RED << "WindFlow Error: invalid index of the Iterable" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
         return *(first+i);
     }
 
@@ -161,8 +165,10 @@ public:
      */ 
     tuple_t &at(size_t i)
     {
-    	if (i >= n_size)
-    		throw std::out_of_range ("Invalid index of the Iterable");
+    	if (i >= n_size) {
+            std::cerr << RED << "WindFlow Error: invalid index of the Iterable" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
     	return *(first+i);
     }
 
@@ -175,8 +181,10 @@ public:
      */ 
     const tuple_t &at(size_t i) const
     {
-        if (i >= n_size)
-            throw std::out_of_range ("Invalid index of the Iterable");
+        if (i >= n_size) {
+            std::cerr << RED << "WindFlow Error: invalid index of the Iterable" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
         return *(first+i);
     }
 
@@ -188,8 +196,10 @@ public:
      */ 
     tuple_t &front()
     {
-    	if (n_size == 0)
-    		throw std::out_of_range ("Invalid index of the Iterable");
+    	if (n_size == 0) {
+            std::cerr << RED << "WindFlow Error: invalid index of the Iterable" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
     	return *(first);
     }
 
@@ -201,8 +211,10 @@ public:
      */ 
     const tuple_t &front() const
     {
-        if (n_size == 0)
-            throw std::out_of_range ("Invalid index of the Iterable");
+        if (n_size == 0) {
+            std::cerr << RED << "WindFlow Error: invalid index of the Iterable" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
         return *(first);
     }
 
@@ -214,8 +226,10 @@ public:
      */ 
     tuple_t &back()
     {
-    	if (n_size == 0)
-    		throw std::out_of_range ("Invalid index of the Iterable");
+    	if (n_size == 0) {
+            std::cerr << RED << "WindFlow Error: invalid index of the Iterable" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
     	return *(last-1);
     }
 
@@ -227,8 +241,10 @@ public:
      */ 
     const tuple_t &back() const
     {
-        if (n_size == 0)
-            throw std::out_of_range ("Invalid index of the Iterable");
+        if (n_size == 0) {
+            std::cerr << RED << "WindFlow Error: invalid index of the Iterable" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
         return *(last-1);
     }
 };

@@ -27,9 +27,8 @@
  *  parallel streaming applications in WindFlow. The MultiPipe construct allows
  *  building a set of parallel pipelines of operators that might have shuffle
  *  connections jumping from one pipeline to another one. The PipeGraph is the
- *  "streaming environment" to be used for obtaining MultiPipe instances with
- *  different sources. To run the application the users have to run the PipeGraph
- *  object.
+ *  "streaming environment" to be used to create MultiPipe instances with different
+ *  sources. To run the application the users have to run the PipeGraph object.
  */ 
 
 #ifndef PIPEGRAPH_H
@@ -105,13 +104,17 @@ class selfkiller_node: public ff::ff_minode
 class PipeGraph
 {
 private:
+    // friendship with the MultiPipe class
+    friend class MultiPipe;
 	std::string name; // name of the PipeGraph
 	AppNode *root; // pointer to the root of the Application Tree
 	std::vector<MultiPipe *> toBeDeteled; // vector of MultiPipe instances to be deleted
     Mode mode; // processing mode of the PipeGraph
     bool alreadyRun; // flag stating whether the PipeGraph environment has already been run
-    // friendship with the MultiPipe class
-    friend class MultiPipe;
+#ifdef GRAPHVIZ_WINDFLOW
+    GVC_t *gvc; // pointer to the GVC environment
+    Agraph_t *gv_graph; // pointer to the graphviz representation of the PipeGraph
+#endif
 
 	// method to find the AppNode containing the MultiPipe _mp in the tree rooted at _node
 	AppNode *find_AppNode(AppNode *_node, MultiPipe *_mp);
@@ -149,7 +152,25 @@ public:
               mode(_mode),
               alreadyRun(false),
               root(new AppNode())
-    {}
+    {
+#ifdef GRAPHVIZ_WINDFLOW
+        gvc = gvContext(); // set up a graphviz context
+        gv_graph = agopen(const_cast<char *>(name.c_str()), Agdirected, 0); // create the graphviz representation
+        agattr(gv_graph, AGRAPH, const_cast<char *>("rankdir"), const_cast<char *>("LR")); // direction left to right
+        agattr(gv_graph, AGNODE, const_cast<char *>("label"), const_cast<char *>("none")); // default vertex labels
+        agattr(gv_graph, AGNODE, const_cast<char *>("penwidth"), const_cast<char *>("2")); // size of the vertex borders
+        agattr(gv_graph, AGNODE, const_cast<char *>("shape"), const_cast<char *>("box")); // shape of the vertices
+        agattr(gv_graph, AGNODE, const_cast<char *>("style"), const_cast<char *>("filled")); // vertices are filled with color
+        agattr(gv_graph, AGNODE, const_cast<char *>("fontname"), const_cast<char *>("helvetica bold")); // font of the vertex labels
+        agattr(gv_graph, AGNODE, const_cast<char *>("fontsize"), const_cast<char *>("12")); // font size of the vertex labels
+        agattr(gv_graph, AGNODE, const_cast<char *>("fontcolor"), const_cast<char *>("white")); // font color of vertex labels
+        agattr(gv_graph, AGNODE, const_cast<char *>("color"), const_cast<char *>("white")); // default color of vertex boders
+        agattr(gv_graph, AGNODE, const_cast<char *>("fillcolor"), const_cast<char *>("black")); // default color of vertex area
+        agattr(gv_graph, AGEDGE, const_cast<char *>("label"), const_cast<char *>("")); // default edge labels
+        agattr(gv_graph, AGEDGE, const_cast<char *>("fontname"), const_cast<char *>("helvetica bold")); // font of the edge labels
+        agattr(gv_graph, AGEDGE, const_cast<char *>("fontsize"), const_cast<char *>("10")); // font size of the edge labels
+#endif
+    }
 
 	/// Destructor
 	~PipeGraph();
@@ -174,6 +195,20 @@ public:
      */ 
     size_t getNumThreads() const;
 
+#ifdef GRAPHVIZ_WINDFLOW
+    /** 
+     *  \brief Generate the .dot and .pdf files representing the PipeGraph (graphviz)
+     */ 
+    void generateGraphvizDiagram()
+    {
+        gvLayout(this->gvc, this->gv_graph, const_cast<char *>("dot")); // set the layout to dot
+        std::string name_dot = name + ".dot";
+        std::string name_pdf = name + ".pdf";
+        gvRenderFilename(this->gvc, this->gv_graph, const_cast<char *>("dot"), const_cast<char *>(name_dot.c_str())); // generate the dot representation
+        gvRenderFilename(this->gvc, this->gv_graph, const_cast<char *>("pdf"), const_cast<char *>(name_pdf.c_str())); // generate the pdf representation
+    }
+#endif
+
     /// deleted constructors/operators
     PipeGraph(const PipeGraph &) = delete; // copy constructor
     PipeGraph(PipeGraph &&) = delete; // move constructor
@@ -193,12 +228,14 @@ public:
 class MultiPipe: public ff::ff_pipeline
 {
 private:
+    // friendship with the PipeGraph class
+    friend class PipeGraph;
     // enumeration of the routing types
-    enum routing_types_t { FORWARD, KEYBY, COMPLEX };
+    enum routing_types_t { NONE, FORWARD, KEYBY, COMPLEX };
     PipeGraph *graph; // PipeGraph creating this MultiPipe
-	bool has_source; // true if the MultiPipe starts with a Source
-	bool has_sink; // true if the MultiPipe ends with a Sink
-	ff::ff_a2a *last; // pointer to the last matrioska
+	  bool has_source; // true if the MultiPipe starts with a Source
+	  bool has_sink; // true if the MultiPipe ends with a Sink
+	  ff::ff_a2a *last; // pointer to the last matrioska
     ff::ff_a2a *secondToLast; // pointer to the second-to-last matrioska
     bool isMerged; // true if the MultiPipe has been merged with other MultiPipe instances
     bool isSplit; // true if the MultiPipe has been split into other MultiPipe instances
@@ -211,8 +248,11 @@ private:
     bool forceShuffling; // true if the next operator that will be added to the MultiPipe is forced to generate a shuffle connection
     size_t lastParallelism; // parallelism of the last operator added to the MultiPipe (0 if not defined)
     std::string outputType; // string representing the type of the outputs from this MultiPipe (the empty string if not defined yet)
-    // friendship with the PipeGraph class
-    friend class PipeGraph;
+#ifdef GRAPHVIZ_WINDFLOW
+    std::vector<std::string> gv_last_typeOPs; // list of the last chained operator types
+    std::vector<std::string> gv_last_nameOPs; // list of the last chained operator names
+    std::vector<Agnode_t *> gv_last_vertices; // list of the last graphviz vertices
+#endif
 
     // Private Constructor I (to create an empty MultiPipe)
     MultiPipe(PipeGraph *_graph):
@@ -232,7 +272,7 @@ private:
 
     // Private Constructor II (to create a MultiPipe resulting from the merge of other MultiPipe instances)
     MultiPipe(PipeGraph *_graph,
-              std::vector<ff::ff_node *> _normalization):
+              std::vector<MultiPipe *> _mps):
               graph(_graph),
               has_source(true),
               has_sink(false),
@@ -246,7 +286,14 @@ private:
     {
         // create the initial matrioska
         ff::ff_a2a *matrioska = new ff::ff_a2a();
-        matrioska->add_firstset(_normalization, 0, false); // this will share the nodes of the MultiPipe instances to be merged!
+        // normalize all the MultiPipe instances to be merged in this
+        std::vector<ff::ff_node *> normalization;
+        for (auto *mp: _mps) {
+            auto v = mp->normalize();
+            mp->isMerged = true;
+            normalization.insert(normalization.end(), v.begin(), v.end());
+        }
+        matrioska->add_firstset(normalization, 0, false); // this will share the nodes of the MultiPipe instances to be merged!
         std::vector<ff::ff_node *> second_set;
         ff::ff_pipeline *stage = new ff::ff_pipeline();
         stage->add_stage(new selfkiller_node(), true);
@@ -285,6 +332,14 @@ private:
 
     // prepareSplittingEmitters method
     void prepareSplittingEmitters(Basic_Emitter *_e);
+
+#ifdef GRAPHVIZ_WINDFLOW
+    // method to add of a new operator to the graphviz representation
+    void gv_add_vertex(std::string typeOP, std::string nameOP, bool isCPU_OP, bool isNested, routing_types_t routing_type);
+
+    // method to chain of a new operator in the graphviz representation
+    void gv_chain_vertex(std::string label, std::string nameOP);
+#endif
 
     // run method
     int run();
@@ -389,20 +444,20 @@ public:
     MultiPipe &add(Key_Farm<tuple_t, result_t> &_kf);
 
     /** 
-     *  \brief Add a Key_FFAT to the MultiPipe
-     *  \param _kff Key_FFAT operator to be added
-     *  \return the modified MultiPipe
-     */ 
-    template<typename tuple_t, typename result_t>
-    MultiPipe &add(Key_FFAT<tuple_t, result_t> &_kff);
-
-    /** 
      *  \brief Add a Key_Farm_GPU to the MultiPipe
      *  \param _kf Key_Farm_GPU operator to be added
      *  \return the modified MultiPipe
      */ 
     template<typename tuple_t, typename result_t, typename F_t>
     MultiPipe &add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf);
+
+    /** 
+     *  \brief Add a Key_FFAT to the MultiPipe
+     *  \param _kff Key_FFAT operator to be added
+     *  \return the modified MultiPipe
+     */ 
+    template<typename tuple_t, typename result_t>
+    MultiPipe &add(Key_FFAT<tuple_t, result_t> &_kff);
 
     /** 
      *  \brief Add a Key_FFAT_GPU to the MultiPipe
@@ -470,7 +525,7 @@ public:
 
     /** 
      *  \brief Split of this into a set of MultiPipe instances
-     *  \param _splitting_func splitting function
+     *  \param _splitting_func splitting logic
      *  \param _cardinality number of splitting MultiPipe instances to generate from this
      *  \return the MultiPipe this after the splitting
      */ 
@@ -503,6 +558,10 @@ inline PipeGraph::~PipeGraph()
         delete mp;
     // delete the Application Tree
     delete_AppNodes(root);
+#ifdef GRAPHVIZ_WINDFLOW
+    gvFreeLayout(this->gvc, this->gv_graph); // free the layout
+    agclose(this->gv_graph); // free the graph structures
+#endif
 }
 
 // implementation of the method to find the AppNode containing the MultiPipe _mp in the tree rooted at _node
@@ -720,9 +779,9 @@ inline MultiPipe *PipeGraph::execute_Merge(std::vector<MultiPipe *> _toBeMerged)
             assert(rightList[0] != root); // redundant check
             MultiPipe *mp = rightList[0]->mp;
             // create the new MultiPipe, the result of the self-merge
-            auto normalization = mp->normalize();
-            mp->isMerged = true;
-            MultiPipe *mergedMP = new MultiPipe(this, normalization);
+            std::vector<MultiPipe *> mp_v;
+            mp_v.push_back(mp);
+            MultiPipe *mergedMP = new MultiPipe(this, mp_v);
             mergedMP->outputType = _toBeMerged[0]->outputType;
             toBeDeteled.push_back(mergedMP);
             // adjust the parent MultiPipe if it exists
@@ -770,13 +829,7 @@ inline MultiPipe *PipeGraph::execute_Merge(std::vector<MultiPipe *> _toBeMerged)
                 rightMergedMPs.push_back(an->mp);
             }
             // create the new MultiPipe, the result of the merge
-            std::vector<ff::ff_node *> normalization;
-            for (auto *mp: rightMergedMPs) {
-                auto v = mp->normalize();
-                mp->isMerged = true;
-                normalization.insert(normalization.end(), v.begin(), v.end());
-            }
-            MultiPipe *mergedMP = new MultiPipe(this, normalization);
+            MultiPipe *mergedMP = new MultiPipe(this, rightMergedMPs);
             mergedMP->outputType = _toBeMerged[0]->outputType;
             toBeDeteled.push_back(mergedMP);
             // adjust the Application Tree
@@ -820,13 +873,7 @@ inline MultiPipe *PipeGraph::execute_Merge(std::vector<MultiPipe *> _toBeMerged)
                 rightMergedMPs.push_back((parent_node->children)[idx]->mp);
             }
             // if we reach this point the merge is possible -> we create the new MultiPipe
-            std::vector<ff::ff_node *> normalization;
-            for (auto *mp: rightMergedMPs) {
-                auto v = mp->normalize();
-                mp->isMerged = true;
-                normalization.insert(normalization.end(), v.begin(), v.end());
-            }
-            MultiPipe *mergedMP = new MultiPipe(this, normalization);
+            MultiPipe *mergedMP = new MultiPipe(this, rightMergedMPs);
             mergedMP->outputType = _toBeMerged[0]->outputType;
             toBeDeteled.push_back(mergedMP);
             // adjust the parent MultiPipe
@@ -1012,6 +1059,10 @@ MultiPipe &MultiPipe::add_source(Source<tuple_t> &_source)
     outputType = typeid(t).name();
     // the Source operator is now used
     _source.used = true;
+#ifdef GRAPHVIZ_WINDFLOW
+    // update the graphviz representation
+    gv_add_vertex("Source(" + std::to_string(_source.getFirstSet().size()) + ")", _source.getName(), true, false, NONE);
+#endif
     return *this;
 }
 
@@ -1297,6 +1348,79 @@ inline void MultiPipe::prepareSplittingEmitters(Basic_Emitter *_e)
     }
 }
 
+#ifdef GRAPHVIZ_WINDFLOW
+// implementation of the method to add of a new operator to the graphviz representation
+void MultiPipe::gv_add_vertex(std::string typeOP, std::string nameOP, bool isCPU_OP, bool isNested, routing_types_t routing_type)
+{
+    auto *gv_graph = (this->graph)->gv_graph;
+    // creating the new vertex
+    Agnode_t *node = agnode(gv_graph, NULL, 1);
+    // prepare the label for this vertex
+    std::string label = typeOP + "<BR/><FONT POINT-SIZE=\"8\">" + nameOP + "</FONT>";
+    agset(node, const_cast<char *>("label"), agstrdup_html(gv_graph, const_cast<char *>(label.c_str()))); // change the label of the operator
+    if ((typeOP.compare(0, 6, "Source") == 0) || (typeOP.compare(0, 4, "Sink") == 0)) {
+        agset(node, const_cast<char *>("color"), const_cast<char *>("#B8B7B8")); // style for Source and Sink operators
+    }
+    // representation of a CPU operator
+    else if (isCPU_OP) // style of CPU operators
+    {
+        agset(node, const_cast<char *>("color"), const_cast<char *>("#941100"));
+        agset(node, const_cast<char *>("fillcolor"), const_cast<char *>("#ff9400"));
+    }
+    else { // style of GPU operators
+        agset(node, const_cast<char *>("color"), const_cast<char *>("#20548E"));
+        agset(node, const_cast<char *>("fillcolor"), const_cast<char *>("#469EA2"));
+    }
+    // change shape of the node to represent a nested operator
+    if (isNested) {
+        agset(node, const_cast<char *>("shape"), const_cast<char *>("doubleoctagon"));
+    }
+    // connect the new vertex to the previous one(s)
+    for (auto *vertex: this->gv_last_vertices) {
+        Agedge_t *e = agedge(gv_graph, vertex, node, 0, 1);
+        // set the label of the edge
+        if (routing_type == FORWARD) {
+            agset(e, const_cast<char *>("label"), const_cast<char *>("FW"));
+        }
+        else if (routing_type == KEYBY) {
+            agset(e, const_cast<char *>("label"), const_cast<char *>("KB"));
+        }
+        else if (routing_type == COMPLEX) {
+            agset(e, const_cast<char *>("label"), const_cast<char *>("CMX"));
+        }
+    }
+    // adjust gv_last_* vectors
+    (this->gv_last_vertices).clear();
+    (this->gv_last_typeOPs).clear();
+    (this->gv_last_nameOPs).clear();
+    (this->gv_last_vertices).push_back(node);
+    (this->gv_last_typeOPs).push_back(typeOP);
+    (this->gv_last_nameOPs).push_back(nameOP);
+}
+
+// implementation of the method to chain a new operator in the graphviz representation
+void MultiPipe::gv_chain_vertex(std::string typeOP, std::string nameOP)
+{
+    auto *gv_graph = (this->graph)->gv_graph;
+    assert((this->gv_last_vertices).size() == 1);
+    assert((this->gv_last_typeOPs).size() == 1);
+    assert((this->gv_last_nameOPs).size() == 1);
+    // prepare the new label of the last existing node
+    auto *node = (this->gv_last_vertices)[0];
+    auto &lastTypeOPs = (this->gv_last_typeOPs)[0];
+    auto &lastNameOPs = (this->gv_last_nameOPs)[0];
+    lastTypeOPs = lastTypeOPs + "->" + typeOP;
+    lastNameOPs = lastNameOPs + ", " + nameOP;
+    std::string label = lastTypeOPs + "<BR/><FONT POINT-SIZE=\"8\">" + lastNameOPs + "</FONT>";
+    // change the label to the last vertex already present
+    agset(node, const_cast<char *>("label"), agstrdup_html(gv_graph, const_cast<char *>(label.c_str())));
+    if (typeOP.compare(0, 4, "Sink") == 0) { // style for Sink operator
+        agset(node, const_cast<char *>("color"), const_cast<char *>("#B8B7B8"));
+        agset(node, const_cast<char *>("fillcolor"), const_cast<char *>("black"));
+    }
+}
+#endif
+
 // implementation of the run method
 inline int MultiPipe::run()
 {
@@ -1361,6 +1485,10 @@ MultiPipe &MultiPipe::add(Filter<tuple_t, result_t> &_filter)
     outputType = typeid(r).name();
     // the Filter operator is now used
     _filter.used = true;
+#ifdef GRAPHVIZ_WINDFLOW
+    // update the graphviz representation
+    gv_add_vertex("Filter(" + std::to_string(_filter.getNWorkers()) + ")", _filter.getName(), true, false, _filter.isKeyed() ? KEYBY : FORWARD);
+#endif
 	return *this;
 }
 
@@ -1386,6 +1514,12 @@ MultiPipe &MultiPipe::chain(Filter<tuple_t, result_t> &_filter)
         if (!chained) {
             add(_filter);
         }
+#ifdef GRAPHVIZ_WINDFLOW
+        else {
+            // update the graphviz representation
+            gv_chain_vertex("Filter(" + std::to_string(_filter.getNWorkers()) + ")", _filter.getName());
+        }
+#endif
     }
     else {
         add(_filter);
@@ -1426,6 +1560,10 @@ MultiPipe &MultiPipe::add(Map<tuple_t, result_t> &_map)
     outputType = typeid(r).name();
     // the Map operator is now used
     _map.used = true;
+#ifdef GRAPHVIZ_WINDFLOW
+    // update the graphviz representation
+    gv_add_vertex("Map(" + std::to_string(_map.getNWorkers()) + ")", _map.getName(), true, false, _map.isKeyed() ? KEYBY : FORWARD);
+#endif
 	return *this;
 }
 
@@ -1451,6 +1589,12 @@ MultiPipe &MultiPipe::chain(Map<tuple_t, result_t> &_map)
         if (!chained) {
             add(_map);
         }
+#ifdef GRAPHVIZ_WINDFLOW
+        else {
+            // update the graphviz representation
+            gv_chain_vertex("Map(" + std::to_string(_map.getNWorkers()) + ")", _map.getName());
+        }
+#endif
     }
     else {
         add(_map);
@@ -1491,6 +1635,10 @@ MultiPipe &MultiPipe::add(FlatMap<tuple_t, result_t> &_flatmap)
     outputType = typeid(r).name();
     // the FlatMap operator is now used
     _flatmap.used = true;
+#ifdef GRAPHVIZ_WINDFLOW
+    // update the graphviz representation
+    gv_add_vertex("FlatMap(" + std::to_string(_flatmap.getNWorkers()) + ")", _flatmap.getName(), true, false, _flatmap.isKeyed() ? KEYBY : FORWARD);
+#endif
 	return *this;
 }
 
@@ -1515,6 +1663,12 @@ MultiPipe &MultiPipe::chain(FlatMap<tuple_t, result_t> &_flatmap)
         if (!chained) {
             add(_flatmap);
         }
+#ifdef GRAPHVIZ_WINDFLOW
+        else {
+            // update the graphviz representation
+            gv_chain_vertex("FlatMap(" + std::to_string(_flatmap.getNWorkers()) + ")", _flatmap.getName());
+        }
+#endif
     }
     else {
         add(_flatmap);
@@ -1555,6 +1709,10 @@ MultiPipe &MultiPipe::add(Accumulator<tuple_t, result_t> &_acc)
     outputType = typeid(r).name();
     // the Accumulator operator is now used
     _acc.used = true;
+#ifdef GRAPHVIZ_WINDFLOW
+    // update the graphviz representation
+    gv_add_vertex("Accum(" + std::to_string(_acc.getNWorkers()) + ")", _acc.getName(), true, false, KEYBY);
+#endif
     return *this;
 }
 
@@ -1624,6 +1782,10 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
                         add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
                     }
                 }
+#ifdef GRAPHVIZ_WINDFLOW
+                // update the graphviz representation
+                gv_add_vertex("WF(PF(" + std::to_string(_wf.getInnerParallelism().first) + "," + std::to_string(_wf.getInnerParallelism().second) + "), " + _wf.getParallelism() + ")", _wf.getName(), true, true, COMPLEX);
+#endif
             }
             // inner replica is a Win_MapReduce
             else if(_wf.getInnerType() == WMR_CPU) {
@@ -1652,6 +1814,10 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
                     // call the generic method to add the operator to the MultiPipe
                     add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
                 }
+#ifdef GRAPHVIZ_WINDFLOW
+                // update the graphviz representation
+                gv_add_vertex("WF(WMR(" + std::to_string(_wf.getInnerParallelism().first) + "," + std::to_string(_wf.getInnerParallelism().second) + "), " + std::to_string(_wf.getParallelism()) + ")", _wf.getName(), true, true, COMPLEX); 
+#endif
             }
             forceShuffling = true;
         }
@@ -1673,6 +1839,10 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
             // call the generic method to add the operator to the MultiPipe
             add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
         }
+#ifdef GRAPHVIZ_WINDFLOW
+        // update the graphviz representation
+        gv_add_vertex("WF(" + std::to_string(_wf.getParallelism()) + ")", _wf.getName(), true, false, COMPLEX);
+#endif
     }
     // save the new output type from this MultiPipe
     result_t r;
@@ -1748,6 +1918,10 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
                         add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
                     }
                 }
+#ifdef GRAPHVIZ_WINDFLOW
+                // update the graphviz representation
+                gv_add_vertex("WF_GPU(PF_GPU(" + std::to_string(_wf.getInnerParallelism().first) + "," + std::to_string(_wf.getInnerParallelism().second) + "), " + _wf.getParallelism() + ")", _wf.getName(), false, true, COMPLEX);
+#endif
             }
             // inner replica is a Win_MapReduce_GPU
             else if(_wf.getInnerType() == WMR_GPU) {
@@ -1776,6 +1950,10 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
                     // call the generic method to add the operator to the MultiPipe
                     add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
                 }
+#ifdef GRAPHVIZ_WINDFLOW
+                // update the graphviz representation
+                gv_add_vertex("WF_GPU(WMR_GPU(" + std::to_string(_wf.getInnerParallelism().first) + "," + std::to_string(_wf.getInnerParallelism().second) + "), " + _wf.getParallelism() + ")", _wf.getName(), false, true, COMPLEX);
+#endif
             }
             forceShuffling = true;
         }
@@ -1797,6 +1975,10 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
             // call the generic method to add the operator to the MultiPipe
             add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
         }
+#ifdef GRAPHVIZ_WINDFLOW
+        // update the graphviz representation
+        gv_add_vertex("WF_GPU(" + std::to_string(_wf.getParallelism()) + ")", _wf.getName(), false, false, COMPLEX);
+#endif
     }
     // save the new output type from this MultiPipe
     result_t r;
@@ -1879,6 +2061,10 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
                         add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, TS_RENUMBERING);
                     }
                 }
+#ifdef GRAPHVIZ_WINDFLOW
+                // update the graphviz representation
+                gv_add_vertex("KF(PF(" + std::to_string(_kf.getInnerParallelism().first) + "," + std::to_string(_kf.getInnerParallelism().second) + "), " + std::to_string(_kf.getParallelism()) + ")", _kf.getName(), true, true, KEYBY);
+#endif
             }
             // inner replica is a Win_MapReduce
             else if(_kf.getInnerType() == WMR_CPU) {
@@ -1916,6 +2102,10 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
                     // call the generic method to add the operator to the MultiPipe
                     add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS_RENUMBERING);
                 }
+#ifdef GRAPHVIZ_WINDFLOW
+                // update the graphviz representation
+                gv_add_vertex("KF(WMR(" + std::to_string(_kf.getInnerParallelism().first) + "," + std::to_string(_kf.getInnerParallelism().second) + "), " + std::to_string(_kf.getParallelism()) + ")", _kf.getName(), true, true, KEYBY);
+#endif
             }
             forceShuffling = true;
         }
@@ -1934,53 +2124,16 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
         else {
             add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, TS_RENUMBERING);
         }
+#ifdef GRAPHVIZ_WINDFLOW
+        // update the graphviz representation
+        gv_add_vertex("KF(" + std::to_string(_kf.getParallelism()) + ")", _kf.getName(), true, false, KEYBY);
+#endif
     }
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
     // the Key_Farm operator is now used
     _kf.used = true;
-    return *this;
-}
-
-// implementation of the method to add a Key_FFAT to the MultiPipe
-template<typename tuple_t, typename result_t>
-MultiPipe &MultiPipe::add(Key_FFAT<tuple_t, result_t> &_kff)
-{
-    // check whether the operator has already been used in a MultiPipe
-    if (_kff.isUsed()) {
-        std::cerr << RED << "WindFlow Error: Key_FFAT operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
-        exit(EXIT_FAILURE);
-    }
-    // count-based windows are possible only in DETERMINISTIC mode
-    if (_kff.getWinType() == CB && graph->mode != Mode::DETERMINISTIC) {
-        std::cerr << RED << "WindFlow Error: count-based windows require DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
-        exit(EXIT_FAILURE);
-    } 
-    // check the type compatibility
-    tuple_t t;
-    std::string opInType = typeid(t).name();
-    if (!outputType.empty() && outputType.compare(opInType) != 0) {
-        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Key_FFAT operator" << DEFAULT_COLOR << std::endl;
-        exit(EXIT_FAILURE);
-    }
-    // call the generic method to add the operator to the MultiPipe
-    if (_kff.getWinType() == TB) {
-        if (graph->mode == Mode::DETERMINISTIC) {
-            add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kff, COMPLEX, TS);
-        }
-        else {
-            add_operator<KF_Emitter<tuple_t>>(&_kff, COMPLEX);
-        }
-    }
-    else {
-        add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kff, COMPLEX, TS_RENUMBERING);
-    }
-    // save the new output type from this MultiPipe
-    result_t r;
-    outputType = typeid(r).name();
-    // the Key_FFAT operator is now used
-    _kff.used = true;
     return *this;
 }
 
@@ -2057,6 +2210,10 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
                         add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, TS_RENUMBERING);
                     }
                 }
+#ifdef GRAPHVIZ_WINDFLOW
+                // update the graphviz representation
+                gv_add_vertex("KF_GPU(PF_GPU(" + std::to_string(_kf.getInnerParallelism().first) + "," + std::to_string(_kf.getInnerParallelism().second) + "), " + std::to_string(_kf.getParallelism()) + ")", _kf.getName(), false, true, KEYBY);
+#endif
             }
             // inner replica is a Win_MapReduce_GPU
             else if(_kf.getInnerType() == WMR_GPU) {
@@ -2094,6 +2251,10 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
                     // call the generic method to add the operator to the MultiPipe
                     add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS_RENUMBERING);
                 }
+#ifdef GRAPHVIZ_WINDFLOW
+                // update the graphviz representation
+                gv_add_vertex("KF_GPU(WMR_GPU(" + std::to_string(_kf.getInnerParallelism().first) + "," + std::to_string(_kf.getInnerParallelism().second) + "), " + std::to_string(_kf.getParallelism()) + ")", _kf.getName(), false, true, KEYBY);
+#endif
             }
             forceShuffling = true;
         }
@@ -2112,12 +2273,61 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
         else {
             add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, TS_RENUMBERING);
         }
+#ifdef GRAPHVIZ_WINDFLOW
+        // update the graphviz representation
+        gv_add_vertex("KF_GPU(" + std::to_string(_kf.getParallelism()) + ")", _kf.getName(), false, false, KEYBY);
+#endif
     }
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
     // the Key_Farm_GPU operator is now used
     _kf.used = true;
+    return *this;
+}
+
+// implementation of the method to add a Key_FFAT to the MultiPipe
+template<typename tuple_t, typename result_t>
+MultiPipe &MultiPipe::add(Key_FFAT<tuple_t, result_t> &_kff)
+{
+    // check whether the operator has already been used in a MultiPipe
+    if (_kff.isUsed()) {
+        std::cerr << RED << "WindFlow Error: Key_FFAT operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    // count-based windows are possible only in DETERMINISTIC mode
+    if (_kff.getWinType() == CB && graph->mode != Mode::DETERMINISTIC) {
+        std::cerr << RED << "WindFlow Error: count-based windows require DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    } 
+    // check the type compatibility
+    tuple_t t;
+    std::string opInType = typeid(t).name();
+    if (!outputType.empty() && outputType.compare(opInType) != 0) {
+        std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Key_FFAT operator" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    // call the generic method to add the operator to the MultiPipe
+    if (_kff.getWinType() == TB) {
+        if (graph->mode == Mode::DETERMINISTIC) {
+            add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kff, COMPLEX, TS);
+        }
+        else {
+            add_operator<KF_Emitter<tuple_t>>(&_kff, COMPLEX);
+        }
+    }
+    else {
+        add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kff, COMPLEX, TS_RENUMBERING);
+    }
+    // save the new output type from this MultiPipe
+    result_t r;
+    outputType = typeid(r).name();
+    // the Key_FFAT operator is now used
+    _kff.used = true;
+#ifdef GRAPHVIZ_WINDFLOW
+    // update the graphviz representation
+    gv_add_vertex("KFF(" + std::to_string(_kff.getNWorkers()) + ")", _kff.getName(), true, false, KEYBY);
+#endif
     return *this;
 }
 
@@ -2159,6 +2369,10 @@ MultiPipe &MultiPipe::add(Key_FFAT_GPU<tuple_t, result_t, F_t> &_kff)
     outputType = typeid(r).name();
     // the Key_FFAT_GPU operator is now used
     _kff.used = true;
+#ifdef GRAPHVIZ_WINDFLOW
+    // update the graphviz representation
+    gv_add_vertex("KFF_GPU(" + std::to_string(_kff.getNWorkers()) + ")", _kff.getName(), false, false, KEYBY);
+#endif
     return *this;
 }
 
@@ -2260,6 +2474,10 @@ MultiPipe &MultiPipe::add(Pane_Farm<tuple_t, result_t> &_pf)
     outputType = typeid(r).name();
     // the Pane_Farm operator is now used
     _pf.used = true;
+#ifdef GRAPHVIZ_WINDFLOW
+    // update the graphviz representation
+    gv_add_vertex("PF(" + std::to_string(_pf.getPLQParallelism()) + "," + std::to_string(_pf.getWLQParallelism() + ")"), _pf.getName(), true, false, COMPLEX);
+#endif
     return *this;
 }
 
@@ -2361,6 +2579,10 @@ MultiPipe &MultiPipe::add(Pane_Farm_GPU<tuple_t, result_t, F_t> &_pf)
     outputType = typeid(r).name();
     // the Pane_Farm operator is now used
     _pf.used = true;
+#ifdef GRAPHVIZ_WINDFLOW
+    // update the graphviz representation
+    gv_add_vertex("PF_GPU(" + std::to_string(_pf.getPLQParallelism()) + "," + std::to_string(_pf.getWLQParallelism() + ")"), _pf.getName(), false, false, COMPLEX);
+#endif
     return *this;
 }
 
@@ -2449,6 +2671,10 @@ MultiPipe &MultiPipe::add(Win_MapReduce<tuple_t, result_t> &_wmr)
     outputType = typeid(r).name();
     // the Win_MapReduce operator is now used
     _wmr.used = true;
+#ifdef GRAPHVIZ_WINDFLOW
+    // update the graphviz representation
+    gv_add_vertex("WMR(" + std::to_string(_wmr.getMAPParallelism()) + "," + std::to_string(_wmr.getREDUCEParallelism() + ")"), _wmr.getName(), true, false, COMPLEX);
+#endif
     return *this;
 }
 
@@ -2537,6 +2763,10 @@ MultiPipe &MultiPipe::add(Win_MapReduce_GPU<tuple_t, result_t, F_t> &_wmr)
     outputType = typeid(r).name();
     // the Win_MapReduce_GPU operator is now used
     _wmr.used = true;
+#ifdef GRAPHVIZ_WINDFLOW
+    // update the graphviz representation
+    gv_add_vertex("WMR_GPU(" + std::to_string(_wmr.getMAPParallelism()) + "," + std::to_string(_wmr.getREDUCEParallelism() + ")"), _wmr.getName(), false, false, COMPLEX);
+#endif
     return *this;
 }
 
@@ -2568,6 +2798,10 @@ MultiPipe &MultiPipe::add_sink(Sink<tuple_t> &_sink)
     outputType = opInType;
     // the Sink operator is now used
     _sink.used = true;
+#ifdef GRAPHVIZ_WINDFLOW
+    // update the graphviz representation
+    gv_add_vertex("Sink(" + std::to_string(_sink.getNWorkers()) + ")", _sink.getName(), true, false, _sink.isKeyed() ? KEYBY : FORWARD);
+#endif
 	return *this;
 }
 
@@ -2593,6 +2827,12 @@ MultiPipe &MultiPipe::chain_sink(Sink<tuple_t> &_sink)
         if (!chained) {
             return add_sink(_sink);
         }
+#ifdef GRAPHVIZ_WINDFLOW
+        else {
+            // update the graphviz representation
+            gv_chain_vertex("Sink(" + std::to_string(_sink.getNWorkers()) + ")", _sink.getName());
+        }
+#endif
     }
     else {
         return add_sink(_sink);
@@ -2635,6 +2875,11 @@ MultiPipe &MultiPipe::merge(MULTIPIPES&... _pipes)
     }
     // execute the merge through the PipeGraph
     MultiPipe *mergedMP = graph->execute_Merge(mergeSet);
+#ifdef GRAPHVIZ_WINDFLOW
+    for (auto *mp: mergeSet) {
+        (mergedMP->gv_last_vertices).insert((mergedMP->gv_last_vertices).end(), (mp->gv_last_vertices).begin(), (mp->gv_last_vertices).end());
+    }
+#endif
     return *mergedMP;
 }
 
@@ -2655,7 +2900,7 @@ MultiPipe &MultiPipe::split(F_t _splitting_func, size_t _cardinality)
     // prepare the splitting of this
     splittingBranches = _cardinality;
     splittingEmitterRoot = new Splitting_Emitter<F_t>(_splitting_func, _cardinality);
-    // extract the tuple type from the signature of the splitting function
+    // extract the tuple type from the signature of the splitting logic
     using tuple_t = decltype(get_tuple_t_Split(_splitting_func));
     // check the type compatibility
     tuple_t t;
@@ -2666,6 +2911,11 @@ MultiPipe &MultiPipe::split(F_t _splitting_func, size_t _cardinality)
     }
     // execute the merge through the PipeGraph
     splittingChildren = graph->execute_Split(this);
+#ifdef GRAPHVIZ_WINDFLOW
+    for (auto *mp: this->splittingChildren) {
+        mp->gv_last_vertices = this->gv_last_vertices;
+    }
+#endif
     return *this;
 }
 

@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Test of general graphs of MultiPipe instances:
+ *  Test 7 of general graphs of MultiPipe instances:
  *  
  *                               +---------------------+
  *                               |  +-----+   +-----+  |
@@ -34,14 +34,14 @@
  * +---------------------+  |    +---------------------+                                 |   +-----------+
  * |  +-----+   +-----+  |  |    |  +-----+   +-----+  |                                 |   |  +-----+  |
  * |  |  S  |   |  M  |  |  |    |  |  F  |   |  M  |  +--+                              |   |  |  S  |  |
- * |  | (*) +-->+ (*) |  +------>+  | (*) +-->+ (*) |  |  |                              +-->+  | (1) |  |
+ * |  | (*) +-->+ (*) |  +--+--->+  | (*) +-->+ (*) |  |  |                              +-->+  | (1) |  |
  * |  +-----+   +-----+  |  |    |  +-----+   +-----+  |  |                              |   |  +-----+  |
  * +---------------------+  |    +---------------------+  |                              |   +-----------+
  *                          |                             |                              |
  *                          |    +---------------------+  |    +---------------------+   |
  *                          |    |  +-----+   +-----+  |  |    |  +-----+   +-----+  |   |
  *                          |    |  |  F  |   |  M  |  |  |    |  |  M  |   |  M  |  |   |
- *                          +--->+  | (*) +-->+ (*) |  +------>+  | (*) +-->+ (*) |  +---+
+ *                          +--->+  | (*) +-->+ (*) |  +--+--->+  | (*) +-->+ (*) |  +---+
  *                          |    |  +-----+   +-----+  |  |    |  +-----+   +-----+  |
  *                          |    +---------------------+  |    +---------------------+
  *                          |                             |
@@ -139,14 +139,14 @@ int main(int argc, char *argv[])
         cout << "+---------------------+  |    +---------------------+                                 |   +-----------+" << endl;
         cout << "|  +-----+   +-----+  |  |    |  +-----+   +-----+  |                                 |   |  +-----+  |" << endl;
         cout << "|  |  S  |   |  M  |  |  |    |  |  F  |   |  M  |  +--+                              |   |  |  S  |  |" << endl;
-        cout << "|  | (" << source_degree << ") +-->+ (" << map1_degree << ") |  +------>+  | (" << filter3_degree << ") +-->+ (" << map4_degree << ") |  |  |                              +-->+  | (1) |  |" << endl;
+        cout << "|  | (" << source_degree << ") +-->+ (" << map1_degree << ") |  +--+--->+  | (" << filter3_degree << ") +-->+ (" << map4_degree << ") |  |  |                              +-->+  | (1) |  |" << endl;
         cout << "|  +-----+   +-----+  |  |    |  +-----+   +-----+  |  |                              |   |  +-----+  |" << endl;
         cout << "+---------------------+  |    +---------------------+  |                              |   +-----------+" << endl;
         cout << "                         |                             |                              |" << endl;
         cout << "                         |    +---------------------+  |    +---------------------+   |" << endl;
         cout << "                         |    |  +-----+   +-----+  |  |    |  +-----+   +-----+  |   |" << endl;
         cout << "                         |    |  |  F  |   |  M  |  |  |    |  |  M  |   |  M  |  |   |" << endl;
-        cout << "                         +--->+  | (" << filter4_degree << ") +-->+ (" << map5_degree << ") |  +------>+  | (" << map9_degree << ") +-->+ (" << map10_degree << ") |  +---+" << endl;
+        cout << "                         +--->+  | (" << filter4_degree << ") +-->+ (" << map5_degree << ") |  +--+--->+  | (" << map9_degree << ") +-->+ (" << map10_degree << ") |  +---+" << endl;
         cout << "                         |    |  +-----+   +-----+  |  |    |  +-----+   +-----+  |" << endl;
         cout << "                         |    +---------------------+  |    +---------------------+" << endl;
         cout << "                         |                             |" << endl;
@@ -180,14 +180,14 @@ int main(int argc, char *argv[])
         // source
         Source_Positive_Functor source_functor_positive(stream_len, n_keys);
         Source source = Source_Builder(source_functor_positive)
-                            .withName("pipe1_source")
+                            .withName("source")
                             .withParallelism(source_degree)
                             .build();
         MultiPipe &pipe1 = graph.add_source(source);
         // map 1
         Map_Functor map_functor1;
         Map map1 = Map_Builder(map_functor1)
-                        .withName("pipe1_map")
+                        .withName("map1")
                         .withParallelism(map1_degree)
                         .enable_KeyBy()
                         .build();
@@ -214,7 +214,7 @@ int main(int argc, char *argv[])
         // filter 1
         Filter_Functor filter_functor1;
         Filter filter1 = Filter_Builder(filter_functor1)
-                        .withName("pipe2_filter")
+                        .withName("filter1")
                         .withParallelism(filter1_degree)
                         .enable_KeyBy()
                         .build();
@@ -222,7 +222,7 @@ int main(int argc, char *argv[])
         // map 2
         Map_Functor map_functor2;
         Map map2 = Map_Builder(map_functor2)
-                        .withName("pipe2_map")
+                        .withName("map2")
                         .withParallelism(map2_degree)
                         .enable_KeyBy()
                         .build();
@@ -232,7 +232,7 @@ int main(int argc, char *argv[])
         // filter 2
         Filter_Functor filter_functor2;
         Filter filter2 = Filter_Builder(filter_functor2)
-                        .withName("pipe3_filter")
+                        .withName("filter2")
                         .withParallelism(filter2_degree)
                         .enable_KeyBy()
                         .build();
@@ -240,7 +240,7 @@ int main(int argc, char *argv[])
         // map 3
         Map_Functor map_functor3;
         Map map3 = Map_Builder(map_functor3)
-                        .withName("pipe3_map")
+                        .withName("map3")
                         .withParallelism(map3_degree)
                         .enable_KeyBy()
                         .build();
@@ -250,7 +250,7 @@ int main(int argc, char *argv[])
         // filter 3
         Filter_Functor filter_functor3;
         Filter filter3 = Filter_Builder(filter_functor3)
-                        .withName("pipe4_filter")
+                        .withName("filter3")
                         .withParallelism(filter3_degree)
                         .enable_KeyBy()
                         .build();
@@ -258,7 +258,7 @@ int main(int argc, char *argv[])
         // map 4
         Map_Functor map_functor4;
         Map map4 = Map_Builder(map_functor4)
-                        .withName("pipe4_map")
+                        .withName("map4")
                         .withParallelism(map4_degree)
                         .enable_KeyBy()
                         .build();
@@ -268,7 +268,7 @@ int main(int argc, char *argv[])
         // filter 4
         Filter_Functor filter_functor4;
         Filter filter4 = Filter_Builder(filter_functor4)
-                        .withName("pipe5_filter")
+                        .withName("filter4")
                         .withParallelism(filter4_degree)
                         .enable_KeyBy()
                         .build();
@@ -276,7 +276,7 @@ int main(int argc, char *argv[])
         // map 5
         Map_Functor map_functor5;
         Map map5 = Map_Builder(map_functor5)
-                        .withName("pipe5_map")
+                        .withName("map5")
                         .withParallelism(map5_degree)
                         .enable_KeyBy()
                         .build();
@@ -286,7 +286,7 @@ int main(int argc, char *argv[])
         // filter 5
         Filter_Functor filter_functor5;
         Filter filter5 = Filter_Builder(filter_functor5)
-                        .withName("pipe6_filter")
+                        .withName("filter5")
                         .withParallelism(filter5_degree)
                         .enable_KeyBy()
                         .build();
@@ -294,7 +294,7 @@ int main(int argc, char *argv[])
         // map 6
         Map_Functor map_functor6;
         Map map6 = Map_Builder(map_functor6)
-                        .withName("pipe6_map")
+                        .withName("map6")
                         .withParallelism(map6_degree)
                         .enable_KeyBy()
                         .build();
@@ -304,7 +304,7 @@ int main(int argc, char *argv[])
         // map 7
         Map_Functor map_functor7;
         Map map7 = Map_Builder(map_functor7)
-                        .withName("pipe5_map")
+                        .withName("map7")
                         .withParallelism(map7_degree)
                         .enable_KeyBy()
                         .build();
@@ -312,7 +312,7 @@ int main(int argc, char *argv[])
         // map 8
         Map_Functor map_functor8;
         Map map8 = Map_Builder(map_functor8)
-                        .withName("pipe7_map")
+                        .withName("map8")
                         .withParallelism(map8_degree)
                         .enable_KeyBy()
                         .build();
@@ -322,7 +322,7 @@ int main(int argc, char *argv[])
         // map 9
         Map_Functor map_functor9;
         Map map9 = Map_Builder(map_functor9)
-                        .withName("pipe8_map")
+                        .withName("map9")
                         .withParallelism(map9_degree)
                         .enable_KeyBy()
                         .build();
@@ -330,7 +330,7 @@ int main(int argc, char *argv[])
         // map 10
         Map_Functor map_functor10;
         Map map10 = Map_Builder(map_functor10)
-                        .withName("pipe8_map")
+                        .withName("map10")
                         .withParallelism(map10_degree)
                         .enable_KeyBy()
                         .build();
@@ -338,13 +338,13 @@ int main(int argc, char *argv[])
         // prepare the ninth MultiPipe
         MultiPipe &pipe9 = pipe7.merge(pipe8);
         // sink
-        Sink_Functor sink_functor1(n_keys);
-        Sink sink1 = Sink_Builder(sink_functor1)
-                        .withName("pipe9_sink")
+        Sink_Functor sink_functor(n_keys);
+        Sink sink = Sink_Builder(sink_functor)
+                        .withName("sink")
                         .withParallelism(1)
                         .enable_KeyBy()
                         .build();
-        pipe9.chain_sink(sink1);
+        pipe9.chain_sink(sink);
         assert(graph.getNumThreads() == check_degree);
         // run the application
         graph.run();

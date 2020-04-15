@@ -19,12 +19,12 @@
  *  @author  Gabriele Mencagli
  *  @date    16/03/2018
  *  
- *  @brief Win_Seq_GPU operator executing a windowed query on a CPU+GPU system
+ *  @brief Win_Seq_GPU node executing a windowed query on a CPU+GPU system
  *  
  *  @section Win_Seq_GPU (Description)
  *  
- *  This file implements the Win_Seq_GPU operator able to execute windowed queries on
- *  a heterogeneous system (CPU+GPU). The operator prepares batches of input tuples
+ *  This file implements the Win_Seq_GPU node able to execute windowed queries on
+ *  a heterogeneous system (CPU+GPU). The node prepares batches of input tuples
  *  sequentially on a CPU core and offloads on the GPU the parallel processing of the
  *  windows within each batch.
  *  
@@ -50,8 +50,6 @@
 #include<stream_archive.hpp>
 
 namespace wf {
-
-//@cond DOXY_IGNORE
 
 // CUDA KERNEL: it calls the user-defined function over all the windows within a batch
 template<typename win_F_t>
@@ -80,15 +78,13 @@ __global__ void ComputeBatch_Kernel(void *input_data,
     }
 }
 
-//@endcond
-
 /** 
  *  \class Win_Seq_GPU
  *  
- *  \brief Win_Seq_GPU operator executing a windowed query on a CPU+GPU system
+ *  \brief Win_Seq_GPU node executing a windowed query on a CPU+GPU system
  *  
- *  This class implements the Win_Seq_GPU operator executing windowed queries on a heterogeneous
- *  system (CPU+GPU). The operator prepares batches of input tuples on a CPU core sequentially,
+ *  This class implements the Win_Seq_GPU node executing windowed queries on a heterogeneous
+ *  system (CPU+GPU). The node prepares batches of input tuples on a CPU core sequentially,
  *  and offloads the processing of all the windows within a batch on the GPU.
  */ 
 template<typename tuple_t, typename result_t, typename win_F_t, typename input_t>
@@ -97,9 +93,9 @@ class Win_Seq_GPU: public ff::ff_minode_t<input_t, result_t>
 private:
     // iterator type for accessing tuples
     using input_iterator_t = typename std::vector<tuple_t>::iterator;
-    // type of the stream archive used by the Win_Seq_GPU operator
+    // type of the stream archive used by the Win_Seq_GPU node
     using archive_t = StreamArchive<tuple_t, std::vector<tuple_t>>;
-    // window type used by the Win_Seq_GPU operator
+    // window type used by the Win_Seq_GPU node
     using win_t = Window<tuple_t, result_t>;
     // function type to compare two tuples
     using compare_func_t = std::function<bool(const tuple_t &, const tuple_t &)>;
@@ -109,7 +105,7 @@ private:
     // friendships with other classes in the library
     template<typename T1, typename T2, typename T3, typename T4>
     friend class Win_Farm_GPU;
-    template<typename T1, typename T2, typename T3>
+    template<typename T1, typename T2, typename T3, typename T4>
     friend class Key_Farm_GPU;
     template<typename T1, typename T2, typename T3, typename T4>
     friend class Pane_Farm_GPU;
@@ -163,8 +159,8 @@ private:
     uint64_t slide_len; // slide length (no. of tuples or in time units)
     uint64_t triggering_delay; // triggering delay in time units (meaningful for TB windows only)
     win_type_t winType; // window type (CB or TB)
-    std::string name; // std::string of the unique name of the operator
-    OperatorConfig config; // configuration structure of the Win_Seq_GPU operator
+    std::string name; // std::string of the unique name of the node
+    OperatorConfig config; // configuration structure of the Win_Seq_GPU node
     role_t role; // role of the Win_Seq_GPU
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     std::pair<size_t, size_t> map_indexes = std::make_pair(0, 1); // indexes useful is the role is MAP
@@ -298,7 +294,7 @@ public:
      *  \param _winType window type (count-based CB or time-based TB)
      *  \param _batch_len no. of windows in a batch
      *  \param _n_thread_block number of threads per block
-     *  \param _name string with the unique name of the operator
+     *  \param _name string with the unique name of the node
      *  \param _scratchpad_size size in bytes of the scratchpad area local of a CUDA thread (pre-allocated on the global memory of the GPU)
      */ 
     Win_Seq_GPU(win_F_t _win_func,
@@ -312,8 +308,6 @@ public:
                 size_t _scratchpad_size):
                 Win_Seq_GPU(_win_func, _win_len, _slide_len, _triggering_delay, _winType, _batch_len, _n_thread_block, _name, _scratchpad_size, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
     {}
-
-//@cond DOXY_IGNORE
 
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
@@ -669,10 +663,8 @@ public:
 #endif
     }
 
-//@endcond
-
     /** 
-     *  \brief Get the window type (CB or TB) utilized by the operator
+     *  \brief Get the window type (CB or TB) utilized by the node
      *  \return adopted windowing semantics (count- or time-based)
      */
     win_type_t getWinType() const
@@ -689,13 +681,22 @@ public:
         return dropped_tuples;
     }
 
-    /// Method to start the operator execution asynchronously
+    /** 
+     *  \brief Get the name of the node
+     *  \return string representing the name of the node
+     */
+    std::string getName() const
+    {
+        return name;
+    }
+
+    /// Method to start the node execution asynchronously
     virtual int run(bool)
     {
         return ff::ff_minode::run();
     }
 
-    /// Method to wait the operator termination
+    /// Method to wait the node termination
     virtual int wait()
     {
         return ff::ff_minode::wait();

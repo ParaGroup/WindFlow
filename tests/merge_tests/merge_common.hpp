@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Data types and operator functors for running the Merge of MultiPipe instances on CPU
+ *  Data types and operator functors for running the Merge tests
  */ 
 
 // includes

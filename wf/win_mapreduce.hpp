@@ -961,6 +961,15 @@ public:
         return count;
     }
 
+    /** 
+     *  \brief Get the name of the operator
+     *  \return string representing the name of the operator
+     */
+    std::string getName() const
+    {
+        return name;
+    }
+
     /// deleted constructors/operators
     Win_MapReduce(const Win_MapReduce &) = delete; // copy constructor
     Win_MapReduce(Win_MapReduce &&) = delete; // move constructor

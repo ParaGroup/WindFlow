@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Test of the split of MultiPipe instances:
+ *  Test 1 of the split of MultiPipe instances:
  *  
  *                                 +-------------------------------+
  *                                 |  +-----+   +-----+   +-----+  |
@@ -91,22 +91,22 @@ int main(int argc, char *argv[])
         map2_degree = dist6(rng);
         filter_degree = dist6(rng);
         cout << "Run " << i << endl;
-        cout << "                             +-------------------------------+" << endl;
-        cout << "                             |  +-----+   +-----+   +-----+  |" << endl;
-        cout << "                        +--->+  |  F  |   |  M  |   |  S  |  |" << endl;
-        cout << "                        |    |  | (" << filter_degree << ") +-->+ (" << map2_degree << ") +-->+ (1) |  |" << endl;
-        cout << "                        |    |  +-----+   +-----+   +-----+  |" << endl;
-        cout << "+---------------------+ |    +-------------------------------+" << endl;
-        cout << "|  +-----+   +-----+  | |" << endl;
-        cout << "|  |  S  |   |  M  |  | |" << endl;
+        cout << "                               +-------------------------------+" << endl;
+        cout << "                               |  +-----+   +-----+   +-----+  |" << endl;
+        cout << "                          +--->+  |  F  |   |  M  |   |  S  |  |" << endl;
+        cout << "                          |    |  | (" << filter_degree << ") +-->+ (" << map2_degree << ") +-->+ (1) |  |" << endl;
+        cout << "                          |    |  +-----+   +-----+   +-----+  |" << endl;
+        cout << "+---------------------+   |    +-------------------------------+" << endl;
+        cout << "|  +-----+   +-----+  |   |" << endl;
+        cout << "|  |  S  |   |  M  |  |   |" << endl;
         cout << "|  | (" << source_degree << ") +-->+ (" << map1_degree << ") |  +---+" << endl;
-        cout << "|  +-----+   +-----+  | |" << endl;
-        cout << "+---------------------+ |    +-----------+" << endl;
-        cout << "                        |    |  +-----+  |" << endl;
-        cout << "                        |    |  |  S  |  |" << endl;
-        cout << "                        +--->+  | (1) |  |" << endl;
-        cout << "                             |  +-----+  |" << endl;
-        cout << "                             +-----------+" << endl;
+        cout << "|  +-----+   +-----+  |   |" << endl;
+        cout << "+---------------------+   |    +-----------+" << endl;
+        cout << "                          |    |  +-----+  |" << endl;
+        cout << "                          |    |  |  S  |  |" << endl;
+        cout << "                          +--->+  | (1) |  |" << endl;
+        cout << "                              |  +-----+  |" << endl;
+        cout << "                              +-----------+" << endl;
         // compute the total parallelism degree of the PipeGraph
         size_t check_degree = source_degree;
         if (source_degree != map1_degree)
@@ -123,14 +123,14 @@ int main(int argc, char *argv[])
         // source
         Source_Functor source_functor(stream_len, n_keys);
         Source source = Source_Builder(source_functor)
-                                .withName("pipe1_source")
+                                .withName("source")
                                 .withParallelism(source_degree)
                                 .build();
         MultiPipe &pipe1 = graph.add_source(source);
         // map 1
         Map_Functor1 map_functor1;
         Map map1 = Map_Builder(map_functor1)
-                            .withName("pipe1_map")
+                            .withName("map1")
                             .withParallelism(map1_degree)
                             .build();
         pipe1.chain(map1);
@@ -146,21 +146,21 @@ int main(int argc, char *argv[])
         // filter
         Filter_Functor filter_functor;
         Filter filter = Filter_Builder(filter_functor)
-                                .withName("pipe2_filter")
+                                .withName("filter")
                                 .withParallelism(filter_degree)
                                 .build();
         pipe2.chain(filter);
         // map 2
         Map_Functor2 map_functor2;
         Map map2 = Map_Builder(map_functor2)
-                            .withName("pipe2_map")
+                            .withName("map2")
                             .withParallelism(map2_degree)
                             .build();
         pipe2.chain(map2);
         // sink
         Sink_Functor sink_functor(n_keys);
         Sink sink = Sink_Builder(sink_functor)
-                            .withName("pipe2_sink")
+                            .withName("sink1")
                             .withParallelism(1)
                             .build();
         pipe2.chain_sink(sink);
@@ -169,7 +169,7 @@ int main(int argc, char *argv[])
         // sink
         Sink_Functor sink_functor2(n_keys);
         Sink sink2 = Sink_Builder(sink_functor2)
-                            .withName("pipe3_sink")
+                            .withName("sink2")
                             .withParallelism(1)
                             .build();
         pipe3.chain_sink(sink2);

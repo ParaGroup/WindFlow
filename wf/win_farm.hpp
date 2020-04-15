@@ -121,8 +121,9 @@ private:
     win_type_t winType;
     bool used; // true if the operator has been added/chained in a MultiPipe
     std::vector<ff_node *> wf_workers; // vector of pointers to the Win_Farm workers
+    std::string name; // name of the operator
 
-    // Private Constructor I
+    // Private Constructor
     template<typename F_t>
     Win_Farm(F_t _func,
              uint64_t _win_len,
@@ -143,7 +144,8 @@ private:
              parallelism(_pardegree),
              inner_parallelism_1(1),
              inner_parallelism_2(0),
-             winType(_winType)
+             winType(_winType),
+             name(_name)
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -276,7 +278,9 @@ public:
              outer_opt_level(_opt_level),
              inner_type(PF_CPU),
              parallelism(_pardegree),
-             winType(_winType), used(false)
+             winType(_winType),
+             used(false),
+             name(_name)
     {
 
         // check the validity of the windowing parameters
@@ -389,7 +393,9 @@ public:
              outer_opt_level(_opt_level),
              inner_type(WMR_CPU),
              parallelism(_pardegree),
-             winType(_winType), used(false)
+             winType(_winType),
+             used(false),
+             name(_name)
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -574,6 +580,15 @@ public:
             abort();
         }
         return count;
+    }
+
+    /** 
+     *  \brief Get the name of the operator
+     *  \return string representing the name of the operator
+     */
+    std::string getName() const
+    {
+        return name;
     }
 
     /// deleted constructors/operators

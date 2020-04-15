@@ -19,13 +19,13 @@
  *  @author  Gabriele Mencagli
  *  @date    31/05/2019
  *  
- *  @brief LocalStorage class to maintain a local storage per operator replica
- *         to be used by several user-defined functions of the same operator.
+ *  @brief Class implementing a local storage per operator replica.
  *  
  *  @section LocalStorage (Description)
  *  
- *  This file implements the LocalStorage class used to access some data fields that the user
- *  would like to made available by different functions of the same operator.
+ *  This file implements the LocalStorage class. It is a private repository per replica,
+ *  which can be used both in the processing logic (if it is based on a riched variant)
+ *  and on the closing function of the operator (if it has been provided).
  */ 
 
 #ifndef LOCALSTORAGE_H
@@ -40,12 +40,11 @@ namespace wf {
 /** 
  *  \class LocalStorage
  *  
- *  \brief LocalStorage class used to maintain a local storage per operator replica
- *         to be used by several user-defined functions of the same operator.
+ *  \brief LocalStorage class used to maintain a local storage per operator replica.
  *  
- *  This file implements the LocalStorage class used to access some data fields that should
- *  be made available by different functions of the same operator (i.e. the user-defined
- *  business logic code and the closing function, if any).
+ *  This file implements the LocalStorage class. It is a private repository per replica,
+ *  which can be used both in the processing logic (if it is based on a riched variant)
+ *  and on the closing function of the operator (if it has been provided).
  */ 
 class LocalStorage
 {

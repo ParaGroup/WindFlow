@@ -1,3 +1,7 @@
+#################################################################################################
+#                      WINDFLOW ACCEPTED SIGNATURES FOR CREATING OPERATORS                      #
+#################################################################################################
+
 This file lists all the possible signatures of functions/functors/lambdas that can be used to
 create WindFlow operators. In the signatures below, tuple_t is the type of the inputs arriving
 at the operator, while result_t is the type of the results. In case you provide a wrong signature

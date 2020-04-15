@@ -39,6 +39,9 @@
 #include<errno.h>
 #include<sys/time.h>
 #include<sys/stat.h>
+#ifdef GRAPHVIZ_WINDFLOW
+  #include<graphviz/gvc.h>
+#endif
 
 namespace wf {
 
@@ -182,13 +185,13 @@ struct OperatorConfig {
 template<typename tuple_t>
 class Source;
 
+/// forward declaration of the Filter operator
+template<typename tuple_t, typename result_t>
+class Filter;
+
 /// forward declaration of the Map operator
 template<typename tuple_t, typename result_t>
 class Map;
-
-/// forward declaration of the Filter operator
-template<typename tuple_t, typename result_t=tuple_t>
-class Filter;
 
 /// forward declaration of the FlatMap operator
 template<typename tuple_t, typename result_t>
@@ -239,7 +242,7 @@ template<typename tuple_t, typename result_t, typename fun_t, typename input_t=t
 class Win_Farm_GPU;
 
 /// forward declaration of the Key_Farm_GPU operator
-template<typename tuple_t, typename result_t, typename fun_t>
+template<typename tuple_t, typename result_t, typename fun_t, typename input_t=tuple_t>
 class Key_Farm_GPU;
 
 /// forward declaration of the Key_FFAT_GPU operator

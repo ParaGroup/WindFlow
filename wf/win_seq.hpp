@@ -19,12 +19,12 @@
  *  @author  Gabriele Mencagli
  *  @date    30/06/2017
  *  
- *  @brief Win_Seq operator executing a windowed query on a multi-core CPU
+ *  @brief Win_Seq node executing a windowed query on a multi-core CPU
  *  
  *  @section Win_Seq (Description)
  *  
- *  This file implements the Win_Seq operator able to execute windowed queries on a
- *  multicore. The operator executes streaming windows in a serial fashion on a CPU
+ *  This file implements the Win_Seq node able to execute windowed queries on a
+ *  multicore. The node executes streaming windows in a serial fashion on a CPU
  *  core and supports both a non-incremental and an incremental query definition.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with
@@ -53,9 +53,9 @@ namespace wf {
 /** 
  *  \class Win_Seq
  *  
- *  \brief Win_Seq operator executing a windowed query on a multi-core CPU
+ *  \brief Win_Seq node executing a windowed query on a multi-core CPU
  *  
- *  This class implements the Win_Seq operator executing windowed queries on a multicore
+ *  This class implements the Win_Seq node executing windowed queries on a multicore
  *  in a serial fashion.
  */ 
 template<typename tuple_t, typename result_t, typename input_t>
@@ -76,9 +76,9 @@ public:
 private:
     // iterator type for accessing tuples
     using input_iterator_t = typename std::deque<tuple_t>::iterator;
-    // type of the stream archive used by the Win_Seq operator
+    // type of the stream archive used by the Win_Seq node
     using archive_t = StreamArchive<tuple_t, std::deque<tuple_t>>;
-    // window type used by the Win_Seq operator
+    // window type used by the Win_Seq node
     using win_t = Window<tuple_t, result_t>;
     // function type to compare two tuples
     using compare_func_t = std::function<bool(const tuple_t &, const tuple_t &)>;
@@ -136,11 +136,11 @@ private:
     uint64_t slide_len; // slide length (no. of tuples or in time units)
     uint64_t triggering_delay; // triggering delay in time units (meaningful for TB windows only)
     win_type_t winType; // window type (CB or TB)
-    std::string name; // std::string of the unique name of the operator
-    bool isNIC; // this flag is true if the operator is instantiated with a non-incremental query function
+    std::string name; // std::string of the unique name of the node
+    bool isNIC; // this flag is true if the node is instantiated with a non-incremental query function
     bool isRich; // flag stating whether the function to be used is rich
     RuntimeContext context; // RuntimeContext
-    OperatorConfig config; // configuration structure of the Win_Seq operator
+    OperatorConfig config; // configuration structure of the Win_Seq node
     role_t role; // role of the Win_Seq
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     std::pair<size_t, size_t> map_indexes = std::make_pair(0, 1); // indexes useful is the role is MAP
@@ -194,11 +194,11 @@ public:
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _name string with the unique name of the operator
+     *  \param _name string with the unique name of the node
      *  \param _closing_func closing function
      *  \param _context RuntimeContext object to be used
-     *  \param _config configuration of the operator
-     *  \param _role role of the operator
+     *  \param _config configuration of the node
+     *  \param _role role of the node
      */ 
     Win_Seq(win_func_t _win_func,
             uint64_t _win_len,
@@ -236,11 +236,11 @@ public:
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _name string with the unique name of the operator
+     *  \param _name string with the unique name of the node
      *  \param _closing_func closing function
      *  \param _context RuntimeContext object to be used
-     *  \param _config configuration of the operator
-     *  \param _role role of the operator
+     *  \param _config configuration of the node
+     *  \param _role role of the node
      */ 
     Win_Seq(rich_win_func_t _rich_win_func,
             uint64_t _win_len,
@@ -278,11 +278,11 @@ public:
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _name string with the unique name of the operator
+     *  \param _name string with the unique name of the node
      *  \param _closing_func closing function
      *  \param _context RuntimeContext object to be used
-     *  \param _config configuration of the operator
-     *  \param _role role of the operator
+     *  \param _config configuration of the node
+     *  \param _role role of the node
      */ 
     Win_Seq(winupdate_func_t _winupdate_func,
             uint64_t _win_len,
@@ -320,11 +320,11 @@ public:
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _name string with the unique name of the operator
+     *  \param _name string with the unique name of the node
      *  \param _closing_func closing function
      *  \param _context RuntimeContext object to be used
-     *  \param _config configuration of the operator
-     *  \param _role role of the operator
+     *  \param _config configuration of the node
+     *  \param _role role of the node
      */ 
     Win_Seq(rich_winupdate_func_t _rich_winupdate_func,
             uint64_t _win_len,
@@ -353,8 +353,6 @@ public:
     {
         init();
     }
-
-//@cond DOXY_IGNORE
 
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init()
@@ -627,10 +625,8 @@ public:
 #endif
     }
 
-//@endcond
-
     /** 
-     *  \brief Get the window type (CB or TB) utilized by the operator
+     *  \brief Get the window type (CB or TB) utilized by the node
      *  \return adopted windowing semantics (count- or time-based)
      */
     win_type_t getWinType() const
@@ -647,13 +643,22 @@ public:
         return dropped_tuples;
     }
 
-    /// Method to start the operator execution asynchronously
+    /** 
+     *  \brief Get the name of the node
+     *  \return string representing the name of the node
+     */
+    std::string getName() const
+    {
+        return name;
+    }
+
+    /// Method to start the node execution asynchronously
     virtual int run(bool)
     {
         return ff::ff_minode::run();
     }
 
-    /// Method to wait the operator termination
+    /// Method to wait the node termination
     virtual int wait()
     {
         return ff::ff_minode::wait();

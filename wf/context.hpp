@@ -25,7 +25,7 @@
  *  @section RuntimeContext (Description)
  *  
  *  This file implements the RuntimeContext class used to access the run-time system
- *  information used by the functional logic of a operator (static information such
+ *  information used by the functional logic of an operator (static information such
  *  as the parallelism degree of the operator and which is the current replica invoking
  *  the operator's functional logic).
  */ 

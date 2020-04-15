@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Test of the merge of MultiPipe instances:
+ *  Test 3 of the merge of MultiPipe instances:
  *  
  *  +---------------------+
  *  |  +-----+   +-----+  |
@@ -140,14 +140,14 @@ int main(int argc, char *argv[])
         // source 1
         Source_Even_Functor source_functor1(stream_len, n_keys);
         Source source1 = Source_Builder(source_functor1)
-                                .withName("pipe1_source")
+                                .withName("source1")
                                 .withParallelism(source1_degree)
                                 .build();
         MultiPipe &pipe1 = graph.add_source(source1);
         // map 1
         Map_Functor1 map_functor1;
         Map map1 = Map_Builder(map_functor1)
-                        .withName("pipe1_map")
+                        .withName("map1")
                         .withParallelism(map1_degree)
                         .build();
         pipe1.chain(map1);
@@ -155,14 +155,14 @@ int main(int argc, char *argv[])
         // source 2
         Source_Odd_Functor source_functor2(stream_len, n_keys);
         Source source2 = Source_Builder(source_functor2)
-                                .withName("pipe2_source")
+                                .withName("source2")
                                 .withParallelism(source2_degree)
                                 .build();
         MultiPipe &pipe2 = graph.add_source(source2);
         // map 2
         Map_Functor2 map_functor2;
         Map map2 = Map_Builder(map_functor2)
-                        .withName("pipe2_map")
+                        .withName("map2")
                         .withParallelism(map2_degree)
                         .build();
         pipe2.chain(map2);
@@ -172,21 +172,21 @@ int main(int argc, char *argv[])
         // source 3
         Source_Negative_Functor source_functor3(stream_len, n_keys);
         Source source3 = Source_Builder(source_functor3)
-                                .withName("pipe4_source")
+                                .withName("source3")
                                 .withParallelism(source3_degree)
                                 .build();
         MultiPipe &pipe4 = graph.add_source(source3);
         // filter
         Filter_Functor filter_functor;
         Filter filter = Filter_Builder(filter_functor)
-                                .withName("pipe4_filter")
+                                .withName("filter")
                                 .withParallelism(filter_degree)
                                 .build();
         pipe4.chain(filter);
         // map 3
         Map_Functor3 map_functor3;
         Map map3 = Map_Builder(map_functor3)
-                                .withName("pipe4_map")
+                                .withName("map3")
                                 .withParallelism(map3_degree)
                                 .build();
         pipe4.chain(map3);
@@ -195,14 +195,14 @@ int main(int argc, char *argv[])
         // map 4
         Map_Functor4 map_functor4;
         Map map4 = Map_Builder(map_functor4)
-                                .withName("pipe5_map")
+                                .withName("map4")
                                 .withParallelism(map4_degree)
                                 .build();
         pipe5.chain(map4);
         // sink
         Sink_Functor sink_functor(n_keys);
         Sink sink = Sink_Builder(sink_functor)
-                                .withName("pipe5_sink")
+                                .withName("sink")
                                 .withParallelism(1)
                                 .build();
         pipe5.chain_sink(sink);
