@@ -244,7 +244,8 @@ env.run(); // &lt;- run the app
             <li><b>DETERMINISTIC</b>: this modes guarantees that every replica of each operator in the application always receives inputs ordered by timestamp.</li>
           </ul>
           <p class="lead">The application has the following structure:</p>
-          <p style="text-align:center;"><img src="imgs/multipipe_1.jpg" width="70%" align="middle"/></p>
+          <p style="text-align:center;"><img src="imgs/multipipe_1.jpg" width="90%" align="middle"/></p>
+          <p class="lead">The <i>logical view</i> (using the Flink's jargon) shows how operators are connected together. It is possible to generate a DOT representation of the logical view of a <code>PipeGraph</code> by invoking the <tt>generateGraphvizDiagram()</tt> method (the code needs to be compiled with the <code>GRAPHVIZ_WINDFLOW</code> macro, and properly linked to the <tt>cgraph</tt> and <tt>gvc</tt> libraries.)</p>
           <p class="lead">According to the <code>FastFlow</code> programming model, each replica is implemented by a dedicated thread in the run-time system pinned on a specific core (actually a thread context) of the architecture. The automatic pinning can be disabled by compiling with the <code>FF_NO_DEFAULT_MAPPING</code> macro. In the figure, eight threads are used by the application. To reduce the amount of threads, <code>WindFlow</code> provides a <code>chaining</code> support to fuse operators' replicas into single threads (not always possible). In the example, we can apply chaining between the source operator and the filter one (same number of replicas without keyby distribution in the middle). The benefit is not only in the thread reduction, but also because the data exchange among operators mapped onto the same thread is more efficient (it is based on function calls instead of using the lock-free <code>FastFlow</code> queues). The code change is very minimal:</p>
           <pre><code class="language-cpp">
 ...
@@ -252,7 +253,7 @@ pipe.chain(filter);
 ...
           </code></pre>
           <p class="lead">The corresponding application structure has now six threads as in the figure:</p>
-          <p style="text-align:center;"><img src="imgs/multipipe_2.jpg" width="70%" align="middle"/></p>
+          <p style="text-align:center;"><img src="imgs/multipipe_2.jpg" width="90%" align="middle"/></p>
           <p class="lead">This example, although useful to understand the philosophy of the library, does not cover all the provided features. Notably, the library supports the <code>merge</code> and the <code>split</code> of <code>MultiPipe</code> instances to create application graphs with more general structures, useful to model more complex applications. Further details can be easily understood by reading the <code>doxygen</code> documentation alongside the source code available in <code>GitHub</code> with the provided examples in the <tt>windflow/tests</tt> folder.</p>
         </div>
       </div>
