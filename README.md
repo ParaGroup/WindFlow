@@ -35,7 +35,7 @@ WindFlow is a header-only template library. To build your applications you have 
 ```
 	cd <WINDFLOW_ROOT>
 	mkdir ./build
-	cmake ../
+	cd build; cmake ../
 	make -j<#cores> # compile all the tests (not the doxygen documentation)
 	make all_cpu -j<#cores> # compile only CPU tests
 	make all_gpu -j<#cores> # compile only GPU tests
