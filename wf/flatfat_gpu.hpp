@@ -129,7 +129,7 @@ __global__ void ComputeResults_Kernel(comb_F_t winComb_func,
 template<typename tuple_t, typename result_t, typename comb_F_t>
 class FlatFAT_GPU {
 private:
-	/* 
+    /* 
      * Rappresentazione:
      * 0 radice
      * [0,batchSize-2] nodi interni
@@ -137,8 +137,8 @@ private:
      * nodo << 1 + 1 figlio sinistro
      * nodo << 1 * 2 figlio destro
      */
-	// type of the lift function
-	using winLift_func_t = std::function<void(const tuple_t &, result_t &)>;
+    // type of the lift function
+    using winLift_func_t = std::function<void(const tuple_t &, result_t &)>;
     tuple_t tmp; // never used
     // key data type
     using key_t = typename std::remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
@@ -165,17 +165,17 @@ private:
     size_t n_thread_block; // number of threads per block
 
 public:
-	// Constructor
-	FlatFAT_GPU(winLift_func_t _winLift_func,
-        	   comb_F_t _winComb_func,
-        	   size_t _batchSize,
+    // Constructor
+    FlatFAT_GPU(winLift_func_t _winLift_func,
+               comb_F_t _winComb_func,
+               size_t _batchSize,
                size_t _numWindows,
                size_t _windowSize,
                size_t _slide,
                key_t _key,
                cudaStream_t *_cudaStream,
                size_t _n_thread_block):
-	           d_tree(nullptr),
+               d_tree(nullptr),
                d_results(nullptr),
                results(nullptr),
                batchSize(_batchSize),
@@ -183,8 +183,8 @@ public:
                slide(_slide),
                key(_key),
                Nb(_numWindows),
-			   offset(0),
-			   winLift_func(_winLift_func),
+               offset(0),
+               winLift_func(_winLift_func),
                winComb_func(_winComb_func),
                cudaStream(_cudaStream),
                n_thread_block(_n_thread_block)
@@ -244,9 +244,9 @@ public:
     void build(const std::vector<result_t> &inputs,
                int b_id)
     {
-    	// check the size of the input vector
+        // check the size of the input vector
         if (inputs.size() != batchSize)
-        	return;
+            return;
         // copy the input vector in the tree vector
         std::vector<result_t> tree(inputs.begin(), inputs.end());
         // fill the remaining entries in the tree with zeros
@@ -267,7 +267,7 @@ public:
             InitTreeLevel_Kernel<result_t, comb_F_t><<<noBlocks, n_thread_block, 0, *cudaStream>>>(winComb_func, d_levelA, d_levelB, i);
             if (err = cudaGetLastError()) {
                 std::cerr << RED << "WindFlow Error: invoking the GPU kernel (InitTreeLevel_Kernel) causes error -> " << err << DEFAULT_COLOR << std::endl;
-            	exit(EXIT_FAILURE);
+                exit(EXIT_FAILURE);
             }
             // switch the levels
             d_levelA = d_levelB;
@@ -285,16 +285,16 @@ public:
             ComputeResults_Kernel<result_t, comb_F_t><<<noBlocks, n_thread_block, 0, *cudaStream>>>(winComb_func, d_tree, d_results, offset, noLeaves, batchSize, windowSize, b_id, Nb, slide);
             if (err = cudaGetLastError()) {
                 std::cerr << RED << "WindFlow Error: invoking the GPU kernel (ComputeResults_Kernel) causes error -> " << err << DEFAULT_COLOR << std::endl;
-            	exit(EXIT_FAILURE);
+                exit(EXIT_FAILURE);
             }
         }
         else {
-        	// call the kernel
+            // call the kernel
             cudaError_t err;
             ComputeResults_Kernel<result_t, comb_F_t><<<1, Nb>>>(winComb_func, d_tree, d_results, offset, noLeaves, batchSize, windowSize, b_id, Nb, slide);
             if (err = cudaGetLastError()) {
                 std::cerr << RED << "WindFlow Error: invoking the GPU kernel (ComputeResults_Kernel) causes error -> " << err << DEFAULT_COLOR << std::endl;
-            	exit(EXIT_FAILURE);
+                exit(EXIT_FAILURE);
             }
         }
     }
@@ -303,7 +303,7 @@ public:
     void update(const std::vector<result_t> &inputs,
                 int b_id)
     {
-    	// compute the remaining space at the end of the tree
+        // compute the remaining space at the end of the tree
         size_t spaceLeft = batchSize - offset;
         if (inputs.size() <= spaceLeft) {
             // add all the input elements to the tree

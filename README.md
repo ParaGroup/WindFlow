@@ -24,7 +24,7 @@ When downloaded FastFlow, it is important to properly configure it for your mult
 # Macros
 WindFlow and its underlying level FastFlow come with some important macros that can be used during compilation to enable specific behaviors:
 * <strong>-DTRACE_WINDFLOW</strong> -> enables tracing (logging) at the WindFlow level (operator replicas)
-* <strong>-DGRAPHVIZ_WINDFLOW</strong> -> if set, it allows the generation of a DOT representation of the PipeGraph (a .dot and a .pdf files are generated with the <tt>generateGraphvizDiagram()</tt> method)
+* <strong>-DGRAPHVIZ_WINDFLOW</strong> -> if set, it allows the generation of a DOT representation of the PipeGraph (.gv and .pdf files are generated with the <tt>dump_DOTGraph()</tt> method)
 * <strong>-DTRACE_FASTFLOW</strong> -> enables tracing (logging) at the FastFlow level (raw threads and FastFlow nodes)
 * <strong>-DFF_BOUNDED_BUFFER</strong> -> enables the use of bounded lock-free queues for pointer passing between threads (the default size of the queues is 2048). Otherwise, queues are unbounded (no backpressure mechanism)
 * <strong>-DDEFAULT_BUFFER_CAPACITY=VALUE</strong> -> set the size of the lock-free queues capacity in terms of pointers to objects
@@ -33,13 +33,13 @@ WindFlow and its underlying level FastFlow come with some important macros that 
 # Build the Examples
 WindFlow is a header-only template library. To build your applications you have to include the main header of the library (<tt>windflow.hpp</tt>). For using the GPU operators, you further have to include the <tt>windflow_gpu.hpp</tt> header file. The source code in this repository includes several examples that can be used to understand the use of the API and the advanced features of the library. The examples can be found in the <tt>tests</tt> folder. To compile them:
 ```
-	cd <WINDFLOW_ROOT>
-	mkdir ./build
-	cd build; cmake ../
-	make -j<#cores> # compile all the tests (not the doxygen documentation)
-	make all_cpu -j<#cores> # compile only CPU tests
-	make all_gpu -j<#cores> # compile only GPU tests
-	make docs # generate the doxygen documentation
+    cd <WINDFLOW_ROOT>
+    mkdir ./build
+    cd build; cmake ../
+    make -j<#cores> # compile all the tests (not the doxygen documentation)
+    make all_cpu -j<#cores> # compile only CPU tests
+    make all_gpu -j<#cores> # compile only GPU tests
+    make docs # generate the doxygen documentation
 ```
 All the examples compile with <tt>gcc</tt> at least version <tt>7.5.0</tt> (with full support to C++17). The examples for GPU need <tt>CUDA</tt> at least version <tt>9.0</tt> with support for C++14 (C++17 is not currently supported by CUDA).
 

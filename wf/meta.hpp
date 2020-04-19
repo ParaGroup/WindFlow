@@ -822,8 +822,8 @@ void deleteTuple(typename std::enable_if<std::is_same<T1,T2>::value, T2>::type *
 // function createWrapper: definition valid if T2 != T3
 template<typename T1, typename T2, typename T3>
 T1 *createWrapper(typename std::enable_if<!std::is_same<T2,T3>::value, T1>::type *t,
-				  size_t val,
-				  bool isEOS=false)
+                  size_t val,
+                  bool isEOS=false)
 {
     // only return the tuple
     return t;
@@ -832,8 +832,8 @@ T1 *createWrapper(typename std::enable_if<!std::is_same<T2,T3>::value, T1>::type
 // function createWrapper: definition valid if T2 == T3
 template<typename T1, typename T2, typename T3>
 T2 *createWrapper(typename std::enable_if<std::is_same<T2,T3>::value, T1>::type *t,
-				  size_t val,
-				  bool isEOS=false)
+                  size_t val,
+                  bool isEOS=false)
 {
     // create and return a wrapper to the tuple
     T2 *wt = new T2(t, val, isEOS);
@@ -843,7 +843,7 @@ T2 *createWrapper(typename std::enable_if<std::is_same<T2,T3>::value, T1>::type 
 // function prepareWrapper: definition valid if T1 != T2
 template<typename T1, typename T2>
 T2 *prepareWrapper(typename std::enable_if<!std::is_same<T1,T2>::value, T1>::type *t,
-				   size_t val)
+                   size_t val)
 {
     // create wrapper
     return new T2(t, val);
@@ -852,7 +852,7 @@ T2 *prepareWrapper(typename std::enable_if<!std::is_same<T1,T2>::value, T1>::typ
 // function prepareWrapper: definition valid if T1 == T2
 template<typename T1, typename T2>
 T2 *prepareWrapper(typename std::enable_if<std::is_same<T1,T2>::value, T1>::type *wt,
-			       size_t val)
+                   size_t val)
 {
     (wt->counter).fetch_add(val-1);
     return wt;

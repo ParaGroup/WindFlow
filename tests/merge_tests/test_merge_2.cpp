@@ -55,7 +55,7 @@ extern long global_sum;
 // main
 int main(int argc, char *argv[])
 {
-	int option = 0;
+    int option = 0;
     size_t runs = 1;
     size_t stream_len = 0;
     size_t n_keys = 1;
@@ -220,5 +220,5 @@ int main(int argc, char *argv[])
             }
         }
     }
-	return 0;
+    return 0;
 }

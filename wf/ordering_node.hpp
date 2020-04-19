@@ -78,10 +78,10 @@ private:
     struct Key_Descriptor
     {
         uint64_t emit_counter; // progressive counter (used if mode is TS_RENUMBERING)
-    	std::vector<uint64_t> maxs; // maxs[i] contains the greatest identifier/timestamp received from the i-th input stream
+        std::vector<uint64_t> maxs; // maxs[i] contains the greatest identifier/timestamp received from the i-th input stream
         input_t *eos_marker; // pointer to the most recent EOS marker of this key
-    	// ordered queue of tuples of the given key received by the node
-    	std::priority_queue<input_t *, std::deque<input_t *>, Comparator> queue;
+        // ordered queue of tuples of the given key received by the node
+        std::priority_queue<input_t *, std::deque<input_t *>, Comparator> queue;
 
         // Constructor
         Key_Descriptor(size_t _n,
@@ -103,8 +103,8 @@ private:
     long received;
 
 public:
-	// Constructor
-	Ordering_Node(ordering_mode_t _mode=ID):
+    // Constructor
+    Ordering_Node(ordering_mode_t _mode=ID):
                   eos_received(0),
                   mode(_mode),
                   globalQueue(Comparator(_mode)),
@@ -116,12 +116,12 @@ public:
     {
         for (size_t i=0; i<this->get_num_inchannels(); i++)
             globalMaxs.push_back(0);
-    	return 0;
+        return 0;
     }
 
     // svc method (utilized by the FastFlow runtime)
     input_t *svc(input_t *wr)
-   	{
+    {
         // extract the key and id/ts from the input tuple
         tuple_t *r = extractTuple<tuple_t, input_t>(wr);
         auto key = std::get<0>(r->getControlFields()); // key
@@ -166,16 +166,16 @@ public:
         queue.push(wr);
         // check if buffered tuples can be emitted in order
         while (!queue.empty()) {
-        	// emit all the buffered tuples with identifier/timestamp lower or equal than min_i
+            // emit all the buffered tuples with identifier/timestamp lower or equal than min_i
             input_t *wnext = queue.top();
             tuple_t *next = extractTuple<tuple_t, input_t>(wnext);
-        	uint64_t id = (mode == ID) ? std::get<1>(next->getControlFields()) : std::get<2>(next->getControlFields());
-        	if (id > min_id)
-        		break;
-        	else {
-        		// deque the tuple
-        		queue.pop();
-        		// emit the tuple
+            uint64_t id = (mode == ID) ? std::get<1>(next->getControlFields()) : std::get<2>(next->getControlFields());
+            if (id > min_id)
+                break;
+            else {
+                // deque the tuple
+                queue.pop();
+                // emit the tuple
                 if (mode == TS_RENUMBERING) { // check if renumbering is required
                     tuple_t *copy = new tuple_t(*next); // copy of the tuple
                     deleteTuple<tuple_t, input_t>(wnext);
@@ -188,10 +188,10 @@ public:
                 }
                 else
                     this->ff_send_out(wnext);
-        	}
+            }
         }
         return this->GO_ON;
-   	}
+    }
 
     // method to manage the EOS (utilized by the FastFlow runtime)
     void eosnotify(ssize_t id)

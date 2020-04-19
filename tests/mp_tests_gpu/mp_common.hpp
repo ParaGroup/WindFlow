@@ -35,10 +35,10 @@ long global_received;
 // generation of pareto-distributed pseudo-random numbers
 double pareto(double alpha, double kappa)
 {
-	double u;
-	long seed = random();
-	u = (seed) * RATIO;
-	return (kappa / pow(u, (1. / alpha)));
+    double u;
+    long seed = random();
+    u = (seed) * RATIO;
+    return (kappa / pow(u, (1. / alpha)));
 }
 
 // struct of the input tuple
@@ -86,10 +86,10 @@ struct tuple_t
 // struct of the output data type
 struct output_t
 {
-	size_t key;
-	uint64_t id;
-	uint64_t ts;
-	int64_t value;
+    size_t key;
+    uint64_t id;
+    uint64_t ts;
+    int64_t value;
 
     // constructor
     output_t(size_t _key,
@@ -102,27 +102,27 @@ struct output_t
              value(_value)
     {}
 
-	// default constructor
-	output_t():
-	         key(0),
-	         id(0),
-	         ts(0),
-	         value(0)
-	{}
+    // default constructor
+    output_t():
+             key(0),
+             id(0),
+             ts(0),
+             value(0)
+    {}
 
-	// getControlFields method
-	tuple<size_t, uint64_t, uint64_t> getControlFields() const
-	{
-		return tuple<size_t, uint64_t, uint64_t>(key, id, ts);
-	}
+    // getControlFields method
+    tuple<size_t, uint64_t, uint64_t> getControlFields() const
+    {
+        return tuple<size_t, uint64_t, uint64_t>(key, id, ts);
+    }
 
-	// setControlFields method
-	void setControlFields(size_t _key, uint64_t _id, uint64_t _ts)
-	{
-		key = _key;
-		id = _id;
-		ts = _ts;
-	}
+    // setControlFields method
+    void setControlFields(size_t _key, uint64_t _id, uint64_t _ts)
+    {
+        key = _key;
+        id = _id;
+        ts = _ts;
+    }
 };
 
 // source functor for generating numbers
@@ -169,81 +169,81 @@ public:
 class Filter_Functor
 {
 public:
-	// operator()
-	bool operator()(tuple_t &t)
-	{
-		// drop odd numbers
-		if (t.value % 2 == 0)
-			return true;
-		else
-			return false;
-	}
+    // operator()
+    bool operator()(tuple_t &t)
+    {
+        // drop odd numbers
+        if (t.value % 2 == 0)
+            return true;
+        else
+            return false;
+    }
 };
 
 // flatmap functor
 class FlatMap_Functor
 {
 public:
-	// operator()
-	void operator()(const tuple_t &t, Shipper<tuple_t> &shipper)
-	{
-		// generate three items per input
-		for (size_t i=0; i<3; i++) {
-			tuple_t t2 = t;
-			t2.value = t.value + i;
-			t2.ts = t.ts+i; // important to have deterministic results
-			shipper.push(t2);
-		}
-	}
+    // operator()
+    void operator()(const tuple_t &t, Shipper<tuple_t> &shipper)
+    {
+        // generate three items per input
+        for (size_t i=0; i<3; i++) {
+            tuple_t t2 = t;
+            t2.value = t.value + i;
+            t2.ts = t.ts+i; // important to have deterministic results
+            shipper.push(t2);
+        }
+    }
 };
 
 // map functor
 class Map_Functor
 {
 public:
-	// operator()
-	void operator()(tuple_t &t)
-	{
-		// double the value
-		t.value = t.value * 2;
-	}
+    // operator()
+    void operator()(tuple_t &t)
+    {
+        // double the value
+        t.value = t.value * 2;
+    }
 };
 
 // sink functor
 class Sink_Functor
 {
 private:
-	size_t received; // counter of received results
-	long totalsum;
-	size_t keys;
-	vector<size_t> check_counters;
+    size_t received; // counter of received results
+    long totalsum;
+    size_t keys;
+    vector<size_t> check_counters;
 
 public:
-	// constructor
-	Sink_Functor(size_t _keys):
-				 received(0),
-				 totalsum(0),
-				 keys(_keys),
-				 check_counters(_keys, 0)
-	{}
+    // constructor
+    Sink_Functor(size_t _keys):
+                 received(0),
+                 totalsum(0),
+                 keys(_keys),
+                 check_counters(_keys, 0)
+    {}
 
-	// operator()
-	void operator()(optional<output_t> &out)
-	{
-		if (out) {
-			received++;
-			totalsum += (*out).value;
-			// check the ordering of results
-			//if (check_counters[(*out).key] != (*out).id)
-				//cout << "Results received out-of-order!" << endl;
-			//else cout << "Received result window " << *out->id << " of key " << out->key << " with value " << (*out).value << endl;
-			//cout << "Received result window " << (*out).id << " of key " << (*out).key << " with value " << (*out).value << endl;
-			check_counters[(*out).key]++;
-		}
-		else {
+    // operator()
+    void operator()(optional<output_t> &out)
+    {
+        if (out) {
+            received++;
+            totalsum += (*out).value;
+            // check the ordering of results
+            //if (check_counters[(*out).key] != (*out).id)
+                //cout << "Results received out-of-order!" << endl;
+            //else cout << "Received result window " << *out->id << " of key " << out->key << " with value " << (*out).value << endl;
+            //cout << "Received result window " << (*out).id << " of key " << (*out).key << " with value " << (*out).value << endl;
+            check_counters[(*out).key]++;
+        }
+        else {
             cout << "Received " << received << " results, total sum " << totalsum << endl;
-			global_sum = totalsum;
-			global_received = received;
-		}
-	}
+            global_sum = totalsum;
+            global_received = received;
+        }
+    }
 };

@@ -87,21 +87,21 @@ public:
     void *svc(void *in)
     {
         tuple_t *t = reinterpret_cast<tuple_t *>(in);
-    	if (isKeyed) { // keyed-based distribution enabled
-	        // extract the key from the input tuple
-	        auto key = std::get<0>(t->getControlFields()); // key
+        if (isKeyed) { // keyed-based distribution enabled
+            // extract the key from the input tuple
+            auto key = std::get<0>(t->getControlFields()); // key
             size_t hashcode = std::hash<decltype(key)>()(key); // compute the hashcode of the key
-	        // evaluate the routing function
-	        dest_w = routing_func(hashcode, n_dest);
-	        // send the tuple
+            // evaluate the routing function
+            dest_w = routing_func(hashcode, n_dest);
+            // send the tuple
             if (!isCombined)
-	           this->ff_send_out_to(t, dest_w);
+               this->ff_send_out_to(t, dest_w);
             else
                 output_queue.push_back(std::make_pair(t, dest_w));
-	        return this->GO_ON;
-    	}
-    	else { // default distribution
-    		if (!isCombined)
+            return this->GO_ON;
+        }
+        else { // default distribution
+            if (!isCombined)
                 return t;
             else {
                output_queue.push_back(std::make_pair(t, dest_w));

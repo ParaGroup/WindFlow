@@ -244,7 +244,7 @@ private:
     }
 
     // function to wait for the completion of the previous kernel (if any) and to flush its results
-    inline void waitAndFlush()
+    void waitAndFlush()
     {
         if (isRunningKernel) {
             assert(lastKeyD != nullptr);
@@ -332,7 +332,7 @@ public:
     }
 
     // processing logic with count-based windows
-    inline void svcCBWindows(tuple_t *t)
+    void svcCBWindows(tuple_t *t)
     {
 #if defined (LOG_DIR)
         startTS = current_time_nsecs();
@@ -431,7 +431,7 @@ public:
     }
 
     // processing logic with time-based windows
-    inline void svcTBWindows(tuple_t *t)
+    void svcTBWindows(tuple_t *t)
     {
 #if defined (LOG_DIR)
         startTS = current_time_nsecs();
@@ -511,7 +511,7 @@ public:
     }
 
     // process a window (for time-based logic)
-    inline void processWindows(Key_Descriptor &key_d, result_t &r)
+    void processWindows(Key_Descriptor &key_d, result_t &r)
     {
         auto key = std::get<0>(r.getControlFields()); // key
         uint64_t id = std::get<1>(r.getControlFields()); // identifier
@@ -593,7 +593,7 @@ public:
     }
 
     // eosnotify with count-based windows
-    inline void eosnotifyCBWindows(ssize_t id)
+    void eosnotifyCBWindows(ssize_t id)
     {
         // emit results of the previously running kernel on the GPU
         waitAndFlush();
@@ -641,7 +641,7 @@ public:
     }
 
     // eosnotify with time-based windows
-    inline void eosnotifyTBWindows(ssize_t id)
+    void eosnotifyTBWindows(ssize_t id)
     {
         // emit results of the previously running kernel on the GPU
         waitAndFlush();

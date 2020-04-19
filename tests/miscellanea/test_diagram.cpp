@@ -247,6 +247,7 @@ int main(int argc, char *argv[])
     // run the application
     graph.run();
     cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT_COLOR << endl;
-    graph.generateGraphvizDiagram();
+    // generate the DOT graph of the application
+    graph.dump_DOTGraph();
     return 0;
 }

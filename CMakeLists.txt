@@ -14,10 +14,10 @@ endif()
 
 # check build type
 if(NOT CMAKE_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE "Release")
-	message(STATUS "Setting build type to '${CMAKE_BUILD_TYPE}' as none was specified")
+    set(CMAKE_BUILD_TYPE "Release")
+    message(STATUS "Setting build type to '${CMAKE_BUILD_TYPE}' as none was specified")
 else()
-	message(STATUS "Build type is '${CMAKE_BUILD_TYPE}'")
+    message(STATUS "Build type is '${CMAKE_BUILD_TYPE}'")
 endif()
 
 # check Git dependency
@@ -30,10 +30,10 @@ find_package(Threads REQUIRED)
 if(DEFINED ENV{FF_ROOT})
     set(ff_root_dir $ENV{FF_ROOT})
 else()
-	if(NOT EXISTS $ENV{HOME}/fastflow)
-		execute_process(COMMAND ${GIT_EXECUTABLE} clone https://github.com/fastflow/fastflow.git fastflow WORKING_DIRECTORY $ENV{HOME})
-	endif()
-	set(ff_root_dir $ENV{HOME}/fastflow)
+    if(NOT EXISTS $ENV{HOME}/fastflow)
+        execute_process(COMMAND ${GIT_EXECUTABLE} clone https://github.com/fastflow/fastflow.git fastflow WORKING_DIRECTORY $ENV{HOME})
+    endif()
+    set(ff_root_dir $ENV{HOME}/fastflow)
 endif()
 
 # check graphviz dependency
@@ -59,5 +59,5 @@ if (DOXYGEN_FOUND)
         COMMENT "Generating API documentation with Doxygen"
         VERBATIM)
 else (DOXYGEN_FOUND)
-	message("Doxygen needs to be installed to generate the doxygen documentation")
+    message("Doxygen needs to be installed to generate the doxygen documentation")
 endif (DOXYGEN_FOUND)

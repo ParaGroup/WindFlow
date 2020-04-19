@@ -102,7 +102,7 @@ private:
                        key_t _key,
                        RuntimeContext *_context):
                        fat(_winComb_func, false /* not commutative by default */, _win_len, _key, _context),
-        			   cb_id(0),
+                       cb_id(0),
                        last_quantum(0),
                        rcv_counter(0),
                        slide_counter(0),
@@ -185,12 +185,12 @@ private:
         }
         // set the quantum value (for time-based windows only)
         if (winType == TB) {
-        	quantum = gcd(win_len, slide_len);
+            quantum = gcd(win_len, slide_len);
             win_len = win_len / quantum;
             slide_len = slide_len / quantum;
         }
         else {
-        	quantum = 0; // zero, quantum is never used
+            quantum = 0; // zero, quantum is never used
         }
     }
 
@@ -218,7 +218,7 @@ public:
                 std::string _name,
                 closing_func_t _closing_func,
                 RuntimeContext _context,
-    		    OperatorConfig _config):
+                OperatorConfig _config):
                 winLift_func(_winLift_func),
                 winComb_func(_winComb_func),
                 win_len(_win_len),
@@ -233,9 +233,9 @@ public:
                 isRichCombine(false),
                 dropped_tuples(0),
                 eos_received(0)
-   	{
-   		init();
-   	}
+    {
+        init();
+    }
 
     /** 
      *  \brief Constructor II
@@ -403,7 +403,7 @@ public:
     }
 
     // processing logic with count-based windows
-    inline void svcCBWindows(tuple_t *t)
+    void svcCBWindows(tuple_t *t)
     {
 #if defined (TRACE_WINDFLOW)
         startTS = current_time_nsecs();
@@ -487,7 +487,7 @@ public:
     }
 
     // processing logic with time-based windows
-    inline void svcTBWindows(tuple_t *t)
+    void svcTBWindows(tuple_t *t)
     {
 #if defined (TRACE_WINDFLOW)
         startTS = current_time_nsecs();
@@ -577,7 +577,7 @@ public:
     }
 
     // process a window (for time-based logic)
-    inline void processWindows(Key_Descriptor &key_d, result_t &r)
+    void processWindows(Key_Descriptor &key_d, result_t &r)
     {
         auto key = std::get<0>(r.getControlFields()); // key
         uint64_t id = std::get<1>(r.getControlFields()); // identifier
@@ -639,7 +639,7 @@ public:
     }
 
     // eosnotify with count-based windows
-    inline void eosnotifyCBWindows(ssize_t id)
+    void eosnotifyCBWindows(ssize_t id)
     {
         // iterate over all the keys
         for (auto &k: keyMap) {
@@ -669,7 +669,7 @@ public:
     }
 
     // eosnotify with time-based windows
-    inline void eosnotifyTBWindows(ssize_t id)
+    void eosnotifyTBWindows(ssize_t id)
     {
         // iterate over all the keys
         for (auto &k: keyMap) {

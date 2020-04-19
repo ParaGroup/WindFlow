@@ -255,7 +255,7 @@ private:
     }
 
     // function to wait for the completion of the previous kernel (if any) and to flush its results
-    inline void waitAndFlush()
+    void waitAndFlush()
     {
         if (isRunningKernel) {
             assert(lastKeyD != nullptr);

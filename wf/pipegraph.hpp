@@ -62,12 +62,12 @@ namespace wf {
 // AppNode struct (node of the Application Tree)
 struct AppNode
 {
-	MultiPipe *mp;
+    MultiPipe *mp;
     AppNode *parent;
-	std::vector<AppNode *> children;
+    std::vector<AppNode *> children;
 
-	// Constructor
-	AppNode(MultiPipe *_mp=nullptr,
+    // Constructor
+    AppNode(MultiPipe *_mp=nullptr,
             AppNode *_parent=nullptr):
             mp(_mp),
             parent(_parent)
@@ -106,18 +106,19 @@ class PipeGraph
 private:
     // friendship with the MultiPipe class
     friend class MultiPipe;
-	std::string name; // name of the PipeGraph
-	AppNode *root; // pointer to the root of the Application Tree
-	std::vector<MultiPipe *> toBeDeteled; // vector of MultiPipe instances to be deleted
+    std::string name; // name of the PipeGraph
+    AppNode *root; // pointer to the root of the Application Tree
+    std::vector<MultiPipe *> toBeDeteled; // vector of MultiPipe instances to be deleted
     Mode mode; // processing mode of the PipeGraph
-    bool alreadyRun; // flag stating whether the PipeGraph environment has already been run
+    bool isStarted; // flag stating whether the PipeGraph has already been started
+    bool isEnded; // flag stating whether the PipeGraph has completed its processing
 #ifdef GRAPHVIZ_WINDFLOW
     GVC_t *gvc; // pointer to the GVC environment
     Agraph_t *gv_graph; // pointer to the graphviz representation of the PipeGraph
 #endif
 
-	// method to find the AppNode containing the MultiPipe _mp in the tree rooted at _node
-	AppNode *find_AppNode(AppNode *_node, MultiPipe *_mp);
+    // method to find the AppNode containing the MultiPipe _mp in the tree rooted at _node
+    AppNode *find_AppNode(AppNode *_node, MultiPipe *_mp);
 
     // method to find the list of AppNode instances that are leaves of the tree rooted at _node
     std::vector<AppNode *> get_LeavesList(AppNode *_node);
@@ -125,8 +126,8 @@ private:
     // method to find the LCA of a set of _leaves starting from _node
     AppNode *get_LCA(AppNode *_node, std::vector<AppNode *> _leaves);
 
-	// method to delete all the AppNode instances in the tree rooted at _node
-	void delete_AppNodes(AppNode *_node);
+    // method to delete all the AppNode instances in the tree rooted at _node
+    void delete_AppNodes(AppNode *_node);
 
     // method to prepare the right list of AppNode instances to be merged (case merge-ind and merge-full)
     bool get_MergedNodes1(std::vector<MultiPipe *> _toBeMerged, std::vector<AppNode *> &_rightList);
@@ -134,11 +135,11 @@ private:
     // method to prepare the right list of AppNode instances to be merged (case merge-partial)
     AppNode *get_MergedNodes2(std::vector<MultiPipe *> _toBeMerged, std::vector<AppNode *> &_rightList);
 
-	// method to execute the split of the MultiPipe _mp
-	std::vector<MultiPipe *> execute_Split(MultiPipe *_mp);
+    // method to execute the split of the MultiPipe _mp
+    std::vector<MultiPipe *> execute_Split(MultiPipe *_mp);
 
-	// method to execute the merge of a set of MultiPipe instances _toBeMerged
-	MultiPipe *execute_Merge(std::vector<MultiPipe *> _toBeMerged);
+    // method to execute the merge of a set of MultiPipe instances _toBeMerged
+    MultiPipe *execute_Merge(std::vector<MultiPipe *> _toBeMerged);
 
 public:
     /** 
@@ -147,10 +148,11 @@ public:
      *  \param _name name of the PipeGraph
      *  \param _mode processing mode of the PipeGraph
      */ 
-	PipeGraph(std::string _name, Mode _mode=Mode::DEFAULT):
+    PipeGraph(std::string _name, Mode _mode=Mode::DEFAULT):
               name(_name),
               mode(_mode),
-              alreadyRun(false),
+              isStarted(false),
+              isEnded(false),
               root(new AppNode())
     {
 #ifdef GRAPHVIZ_WINDFLOW
@@ -172,10 +174,10 @@ public:
 #endif
     }
 
-	/// Destructor
-	~PipeGraph();
+    /// Destructor
+    ~PipeGraph();
 
-	/** 
+    /** 
      *  \brief Add a Source to the PipeGraph
      *  \param _source Source operator to be added
      *  \return reference to a MultiPipe object to be filled with operators fed by this Source
@@ -183,11 +185,23 @@ public:
     template<typename tuple_t>
     MultiPipe &add_source(Source<tuple_t> &_source);
 
-	/** 
-     *  \brief Run the PipeGraph
+    /** 
+     *  \brief Run the PipeGraph and wait for the completion of the processing
      *  \return zero in case of success, non-zero otherwise
      */ 
     int run();
+
+    /** 
+     *  \brief Start the PipeGraph (without waiting from the completion of the processing)
+     *  \return zero in case of success, non-zero otherwise
+     */ 
+    int start();
+
+    /** 
+     *  \brief Wait the end of the processing of the PipeGraph, launched before with start()
+     *  \return zero in case of success, non-zero otherwise
+     */ 
+    int wait_end();
 
     /** 
      *  \brief Return the number of threads used to run this PipeGraph
@@ -195,19 +209,22 @@ public:
      */ 
     size_t getNumThreads() const;
 
-#ifdef GRAPHVIZ_WINDFLOW
     /** 
-     *  \brief Generate the .dot and .pdf files representing the PipeGraph (graphviz)
+     *  \brief Dump the .gv and .pdf files representing the PipeGraph using the
+     *         Graph Description Language (DOT)
      */ 
-    void generateGraphvizDiagram()
+    void dump_DOTGraph()
     {
+#ifdef GRAPHVIZ_WINDFLOW
         gvLayout(this->gvc, this->gv_graph, const_cast<char *>("dot")); // set the layout to dot
-        std::string name_dot = name + ".dot";
+        std::string name_dot = name + ".gv";
         std::string name_pdf = name + ".pdf";
-        gvRenderFilename(this->gvc, this->gv_graph, const_cast<char *>("dot"), const_cast<char *>(name_dot.c_str())); // generate the dot representation
-        gvRenderFilename(this->gvc, this->gv_graph, const_cast<char *>("pdf"), const_cast<char *>(name_pdf.c_str())); // generate the pdf representation
-    }
+        gvRenderFilename(this->gvc, this->gv_graph, const_cast<char *>("dot"), const_cast<char *>(name_dot.c_str())); // generate the dot file
+        gvRenderFilename(this->gvc, this->gv_graph, const_cast<char *>("pdf"), const_cast<char *>(name_pdf.c_str())); // generate the pdf file
+#else
+        std::cerr << YELLOW << "WindFlow Warning: dumping DOT graph is not enabled, compile with -DGRAPHVIZ_WINDFLOW" << DEFAULT_COLOR << std::endl;
 #endif
+    }
 
     /// deleted constructors/operators
     PipeGraph(const PipeGraph &) = delete; // copy constructor
@@ -222,8 +239,8 @@ public:
  *  \brief MultiPipe construct
  *  
  *  This class implements the MultiPipe construct used to build a set of pipelines
- *  of operators that might have shuffle connections jumping from a pipeline
- *  to another one.
+ *  of operators that might have shuffle connections jumping from a pipeline to
+ *  another one.
  */ 
 class MultiPipe: public ff::ff_pipeline
 {
@@ -233,9 +250,9 @@ private:
     // enumeration of the routing types
     enum routing_types_t { NONE, FORWARD, KEYBY, COMPLEX };
     PipeGraph *graph; // PipeGraph creating this MultiPipe
-	  bool has_source; // true if the MultiPipe starts with a Source
-	  bool has_sink; // true if the MultiPipe ends with a Sink
-	  ff::ff_a2a *last; // pointer to the last matrioska
+    bool has_source; // true if the MultiPipe starts with a Source
+    bool has_sink; // true if the MultiPipe ends with a Sink
+    ff::ff_a2a *last; // pointer to the last matrioska
     ff::ff_a2a *secondToLast; // pointer to the second-to-last matrioska
     bool isMerged; // true if the MultiPipe has been merged with other MultiPipe instances
     bool isSplit; // true if the MultiPipe has been split into other MultiPipe instances
@@ -363,7 +380,7 @@ private:
     size_t getNumThreads() const;
 
 public:
-	/** 
+    /** 
      *  \brief Add a Filter to the MultiPipe
      *  \param _filter Filter operator to be added
      *  \return the modified MultiPipe
@@ -379,7 +396,7 @@ public:
     template<typename tuple_t, typename result_t>
     MultiPipe &chain(Filter<tuple_t, result_t> &_filter);
 
-	/** 
+    /** 
      *  \brief Add a Map to the MultiPipe
      *  \param _map Map operator to be added
      *  \return the modified MultiPipe
@@ -395,7 +412,7 @@ public:
     template<typename tuple_t, typename result_t>
     MultiPipe &chain(Map<tuple_t, result_t> &_map);
 
-	/** 
+    /** 
      *  \brief Add a FlatMap to the MultiPipe
      *  \param _flatmap FlatMap operator to be added
      *  \return the modified MultiPipe
@@ -419,7 +436,7 @@ public:
     template<typename tuple_t, typename result_t>
     MultiPipe &add(Accumulator<tuple_t, result_t> &_acc);
 
-	/** 
+    /** 
      *  \brief Add a Win_Farm to the MultiPipe
      *  \param _wf Win_Farm operator to be added
      *  \return the modified MultiPipe
@@ -435,7 +452,7 @@ public:
     template<typename tuple_t, typename result_t, typename F_t>
     MultiPipe &add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf);
 
-	/** 
+    /** 
      *  \brief Add a Key_Farm to the MultiPipe
      *  \param _kf Key_Farm operator to be added
      *  \return the modified MultiPipe
@@ -467,7 +484,7 @@ public:
     template<typename tuple_t, typename result_t, typename F_t>
     MultiPipe &add(Key_FFAT_GPU<tuple_t, result_t, F_t> &_kff);
 
-	/** 
+    /** 
      *  \brief Add a Pane_Farm to the MultiPipe
      *  \param _pf Pane_Farm operator to be added
      *  \return the modified MultiPipe
@@ -483,7 +500,7 @@ public:
     template<typename tuple_t, typename result_t, typename F_t>
     MultiPipe &add(Pane_Farm_GPU<tuple_t, result_t, F_t> &_pf);
 
-	/** 
+    /** 
      *  \brief Add a Win_MapReduce to the MultiPipe
      *  \param _wmr Win_MapReduce operator to be added
      *  \return the modified MultiPipe
@@ -499,7 +516,7 @@ public:
     template<typename tuple_t, typename result_t, typename F_t>
     MultiPipe &add(Win_MapReduce_GPU<tuple_t, result_t, F_t> &_wmr);
 
-	/** 
+    /** 
      *  \brief Add a Sink to the MultiPipe
      *  \param _sink Sink operator to be added
      *  \return the modified MultiPipe
@@ -554,8 +571,9 @@ public:
 inline PipeGraph::~PipeGraph()
 {
     // delete all the MultiPipe instances in toBeDeteled
-    for (auto *mp: toBeDeteled)
+    for (auto *mp: toBeDeteled) {
         delete mp;
+    }
     // delete the Application Tree
     delete_AppNodes(root);
 #ifdef GRAPHVIZ_WINDFLOW
@@ -568,18 +586,20 @@ inline PipeGraph::~PipeGraph()
 inline AppNode *PipeGraph::find_AppNode(AppNode *_node, MultiPipe *_mp)
 {
     // base case
-	if (_node->mp == _mp)
-		return _node;
+    if (_node->mp == _mp) {
+        return _node;
+    }
     // recursive case
-	else {
-		AppNode *found = nullptr;
-		for (auto *child: _node->children) {
-			found = find_AppNode(child, _mp);
-			if (found != nullptr)
-				return found;
-		}
-		return nullptr;
-	}
+    else {
+        AppNode *found = nullptr;
+        for (auto *child: _node->children) {
+            found = find_AppNode(child, _mp);
+            if (found != nullptr) {
+                return found;
+            }
+        }
+        return nullptr;
+    }
 }
 
 // implementation of the method to find the list of AppNode instances that are leaves of the tree rooted at _node
@@ -613,8 +633,9 @@ inline AppNode *PipeGraph::get_LCA(AppNode *_node, std::vector<AppNode *> _leave
                 foundAll = false;
             }
         }
-        if (foundAll)
+        if (foundAll) {
             return get_LCA(child, _leaves);
+        }
     }
     return _node;
 }
@@ -623,14 +644,16 @@ inline AppNode *PipeGraph::get_LCA(AppNode *_node, std::vector<AppNode *> _leave
 inline void PipeGraph::delete_AppNodes(AppNode *_node)
 {
     // base case
-	if ((_node->children).size() == 0)
-		delete _node;
+    if ((_node->children).size() == 0) {
+        delete _node;
+    }
     // recursive case
-	else {
-		for (auto *child: _node->children)
-			delete_AppNodes(child);
-		delete _node;
-	}
+    else {
+        for (auto *child: _node->children) {
+            delete_AppNodes(child);
+        }
+        delete _node;
+    }
 }
 
 // implementation of the method to prepare the right list of AppNode instances to be merged (case merge-ind and merge-full)
@@ -713,21 +736,26 @@ inline AppNode *PipeGraph::get_MergedNodes2(std::vector<MultiPipe *> _toBeMerged
             bool foundAll = true;
             size_t count = 0;
             for (auto *leaf: child_leaves) {
-                if (std::find(inputNodes.begin(), inputNodes.end(), leaf) == inputNodes.end())
+                if (std::find(inputNodes.begin(), inputNodes.end(), leaf) == inputNodes.end()) {
                     foundAll = false;
-                else
+                }
+                else {
                     count++;
+                }
             }
-            if (foundAll)
+            if (foundAll) {
                 _rightList.push_back(child);
-            else if (!foundAll && count > 0)
+            }
+            else if (!foundAll && count > 0) {
                 return nullptr;
+            }
         }
         assert(_rightList.size() > 1);
         return parent_node;
     }
-    else
+    else {
         return nullptr;
+    }
 }
 
 // implementation of the method to execute the split of the MultiPipe _mp
@@ -797,10 +825,12 @@ inline MultiPipe *PipeGraph::execute_Merge(std::vector<MultiPipe *> _toBeMerged)
                 std::vector<ff::ff_node *> new_second_set;
                 for (size_t i=0; i<second_set.size(); i++) {
                     MultiPipe *mp2 = static_cast<MultiPipe *>(second_set[i]);
-                    if (mp2 == mp)
+                    if (mp2 == mp) {
                         new_second_set.push_back(mergedMP);
-                    else
+                    }
+                    else {
                         new_second_set.push_back(second_set[i]);
+                    }
                 }
                 (parentMP->last)->change_secondset(new_second_set, false);
                 mergedMP->fromSplitting = true;
@@ -809,10 +839,12 @@ inline MultiPipe *PipeGraph::execute_Merge(std::vector<MultiPipe *> _toBeMerged)
             // adjust the Application Tree
             std::vector<AppNode *> children_new;
             for (auto *brother: (rightList[0]->parent)->children) {
-                if (brother != rightList[0]) // I am not my brother :)
+                if (brother != rightList[0]) { // I am not my brother :)
                     children_new.push_back(brother);
-                else
+                }
+                else {
                     children_new.push_back(new AppNode(mergedMP, rightList[0]->parent));
+                }
             }
             (rightList[0]->parent)->children = children_new;
             delete_AppNodes(rightList[0]);
@@ -836,14 +868,16 @@ inline MultiPipe *PipeGraph::execute_Merge(std::vector<MultiPipe *> _toBeMerged)
             std::vector<AppNode *> children_new;
             // maintaining the previous ordering of the children is not important in this case
             for (auto *brother: root->children) {
-                if (std::find(rightList.begin(), rightList.end(), brother) == rightList.end())
+                if (std::find(rightList.begin(), rightList.end(), brother) == rightList.end()) {
                     children_new.push_back(brother);
+                }
             }
             children_new.push_back(new AppNode(mergedMP, root));
             root->children = children_new;
             // delete the nodes
-            for (auto *an: rightList)
+            for (auto *an: rightList) {
                 delete_AppNodes(an);
+            }
             return mergedMP;
         }
     }
@@ -908,8 +942,9 @@ inline MultiPipe *PipeGraph::execute_Merge(std::vector<MultiPipe *> _toBeMerged)
             std::vector<AppNode *> children_new;
             bool done = false;
             for (auto *brother: parent_node->children) {
-                if (std::find(rightList.begin(), rightList.end(), brother) == rightList.end())
+                if (std::find(rightList.begin(), rightList.end(), brother) == rightList.end()) {
                     children_new.push_back(brother);
+                }
                 else if (!done) {
                    children_new.push_back(new AppNode(mergedMP, parent_node));
                    done = true;
@@ -932,81 +967,132 @@ inline MultiPipe *PipeGraph::execute_Merge(std::vector<MultiPipe *> _toBeMerged)
 template<typename tuple_t>
 MultiPipe &PipeGraph::add_source(Source<tuple_t> &_source)
 {
-	MultiPipe *mp = new MultiPipe(this);
-	mp->add_source<tuple_t>(_source);
-	// update the Application Tree
-	(root->children).push_back(new AppNode(mp, root));
-	// this MultiPipe must be deleted at the end
-	toBeDeteled.push_back(mp);
-	return *mp;
+    MultiPipe *mp = new MultiPipe(this);
+    mp->add_source<tuple_t>(_source);
+    // update the Application Tree
+    (root->children).push_back(new AppNode(mp, root));
+    // this MultiPipe must be deleted at the end
+    toBeDeteled.push_back(mp);
+    return *mp;
 }
 
 // implementation of the run method
 inline int PipeGraph::run()
 {
-    // check if the PipeGraph has already been run
-    if (this->alreadyRun) {
-        std::cerr << RED << "WindFlow Error: PipeGraph [" << name << "] has already been run and cannot be restarted" << DEFAULT_COLOR << std::endl;
+    // start the PipeGraph
+    int status = this->start();
+    if (status == 0) {
+        // wait the termination of the processing
+        status = this->wait_end();
+    }
+    return status;
+}
+
+// implementation of the start method
+inline int PipeGraph::start()
+{
+    // check if the PipeGraph has already been started
+    if (this->isStarted) {
+        std::cerr << RED << "WindFlow Error: PipeGraph [" << name << "] has already been started and cannot be run again" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
-        return EXIT_FAILURE; // useless
     }
     else {
-        this->alreadyRun = true;
+        this->isStarted = true;
     }
-	if ((root->children).size() == 0) {
-		std::cerr << RED << "WindFlow Error: PipeGraph [" << name << "] is empty, nothing to run" << DEFAULT_COLOR << std::endl;
-		exit(EXIT_FAILURE);
-        return EXIT_FAILURE; // useless
-	}
-	else {
-		// count number of threads
-		size_t count_threads = this->getNumThreads();
-		std::cout << GREEN << "WindFlow Status Message: PipeGraph [" << name << "] is running with " << count_threads << " threads" << DEFAULT_COLOR << std::endl;
-        if (mode == Mode::DEFAULT)
-            std::cout << "--> DEFAULT mode " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
-        else
-            std::cout << "--> DETERMINISTIC mode " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
+    // check if there is something to run
+    if ((root->children).size() == 0) {
+        std::cerr << RED << "WindFlow Error: PipeGraph [" << name << "] is empty, nothing to run" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    // run all the topmost MultiPipe instances
+    for (auto *an: root->children) {
+        int status = (an->mp)->run();
+        if (status == -1) {
+            return status;
+        }
+    }
+    // get the number of threads
+    size_t count_threads = this->getNumThreads();
+    std::cout << GREEN << "WindFlow Status Message: PipeGraph [" << name << "] is running with " << count_threads << " threads" << DEFAULT_COLOR << std::endl;
+    // useful prints of the PipeGraph configuration
+    if (mode == Mode::DEFAULT) {
+        std::cout << "--> DEFAULT (out-of-order) mode " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
+    }
+    else {
+        std::cout << "--> DETERMINISTIC (in-order) mode " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
+    }
+#if defined(FF_BOUNDED_BUFFER)
+    std::cout << "--> Backpressure " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
+#else
+    std::cout << "--> Backpressure " << RED << "disabled" << DEFAULT_COLOR << std::endl;
+#endif
+#if defined(BLOCKING_MODE)
+    std::cout << "--> Non-blocking queues " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
+#else
+    std::cout << "--> Blocking queues " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
+#endif
+#if !defined(NO_DEFAULT_MAPPING)
+    std::cout << "--> Pinning of threads " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
+#else
+    std::cout << "--> Pinning of threads " << RED << "disabled" << DEFAULT_COLOR << std::endl;
+#endif
 #if defined(TRACE_WINDFLOW)
-        std::cout << "--> WindFlow tracing " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
+    std::cout << "--> WindFlow tracing " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
 #endif
 #if defined(TRACE_FASTFLOW)
-        std::cout << "--> FastFlow tracing " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
+    std::cout << "--> FastFlow tracing " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
 #endif
-		int status = 0;
-		// running phase
-		for (auto *an: root->children)
-			status |= (an->mp)->run();
-		// waiting phase
- 		for (auto *an: root->children)
-			status |= (an->mp)->wait();
-		if (status == 0)
-			std::cout << GREEN << "WindFlow Status Message: PipeGraph [" << name << "] executed successfully" << DEFAULT_COLOR << std::endl;
-		//else
-			//std::cerr << RED << "WindFlow Error: PipeGraph [" << name << "] execution problems found" << DEFAULT_COLOR << std::endl;
+    return 0;
+}
+
+// implementation of the wait_end method
+inline int PipeGraph::wait_end()
+{
+    // check if the PipeGraph has already been started
+    if (!this->isStarted) {
+        std::cerr << RED << "WindFlow Error: PipeGraph [" << name << "] is not started yet" << DEFAULT_COLOR << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    // check if the PipeGraph processing is over
+    if (this->isEnded) {
+        std::cerr << RED << "WindFlow Error: PipeGraph [" << name << "] processing already complete" << DEFAULT_COLOR << std::endl;
+        return 0;
+    }
+    // waiting the completion of all the topmost MultiPipe instances
+    int status = 0;
+    for (auto *an: root->children) {
+        status = (an->mp)->wait();
+        if (status == -1) {
+            return status;
+        }
+    }
+    std::cout << GREEN << "WindFlow Status Message: PipeGraph [" << name << "] executed successfully" << DEFAULT_COLOR << std::endl;
+    // handling fastflow statistics (if enabled)
 #if defined(TRACE_FASTFLOW)
 #if defined(LOG_DIR)
-        std::string ff_trace_file = std::string(STRINGIFY(LOG_DIR)) + "/ff_trace_" + this->name + "_" + std::to_string(getpid()) + ".log";
-        std::string ff_trace_dir = std::string(STRINGIFY(LOG_DIR));
+    std::string ff_trace_file = std::string(STRINGIFY(LOG_DIR)) + "/ff_trace_" + this->name + "_" + std::to_string(getpid()) + ".log";
+    std::string ff_trace_dir = std::string(STRINGIFY(LOG_DIR));
 #else
-        std::string ff_trace_file = "log/ff_trace_" + this->name + "_" + std::to_string(getpid()) + ".log";
-        std::string ff_trace_dir = "log";
+    std::string ff_trace_file = "log/ff_trace_" + this->name + "_" + std::to_string(getpid()) + ".log";
+    std::string ff_trace_dir = "log";
 #endif
-        // create the log directory
-        if (mkdir(ff_trace_dir.c_str(), 0777) != 0) {
-            struct stat st;
-            if((stat(ff_trace_dir.c_str(), &st) != 0) || !S_ISDIR(st.st_mode)) {
-                std::cerr << RED << "WindFlow Error: directory for log files cannot be created" << DEFAULT_COLOR << std::endl;
-                exit(EXIT_FAILURE);
-            }
+    // create the log directory
+    if (mkdir(ff_trace_dir.c_str(), 0777) != 0) {
+        struct stat st;
+        if((stat(ff_trace_dir.c_str(), &st) != 0) || !S_ISDIR(st.st_mode)) {
+            std::cerr << RED << "WindFlow Error: directory for dumping FastFlow's log files cannot be created" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
         }
-        std::ofstream tracefile;
-        tracefile.open(ff_trace_file);
-        for (auto *an: root->children)
-            (an->mp)->ffStats(tracefile);
-        tracefile.close();
+    }
+    std::ofstream tracefile;
+    tracefile.open(ff_trace_file);
+    for (auto *an: root->children) {
+        (an->mp)->ffStats(tracefile);
+    }
+    tracefile.close();
 #endif
-        return 0;
-	}
+    this->isEnded = true;
+    return 0;
 }
 
 // implementation of the method to return the number of threads used to run this PipeGraph
@@ -1246,16 +1332,18 @@ inline std::vector<ff::ff_node *> MultiPipe::normalize()
         // Case 1.1 (only one Matrioska)
         if (secondToLast == nullptr) {
             auto first_set = last->getFirstSet();
-            for (size_t i=0; i<first_set.size(); i++)
+            for (size_t i=0; i<first_set.size(); i++) {
                 result.push_back(first_set[i]);
+            }
         }
         // Case 1.2 (at least two nested Matrioska)
         else {
             last->cleanup_firstset(false);
             auto first_set_last = last->getFirstSet();
             std::vector<ff::ff_node *> second_set_secondToLast;
-            for (size_t i=0; i<first_set_last.size(); i++)
+            for (size_t i=0; i<first_set_last.size(); i++) {
                 second_set_secondToLast.push_back(first_set_last[i]);
+            }
             secondToLast->change_secondset(second_set_secondToLast, true);
             delete last;
             last = secondToLast;
@@ -1350,7 +1438,7 @@ inline void MultiPipe::prepareSplittingEmitters(Basic_Emitter *_e)
 
 #ifdef GRAPHVIZ_WINDFLOW
 // implementation of the method to add of a new operator to the graphviz representation
-void MultiPipe::gv_add_vertex(std::string typeOP, std::string nameOP, bool isCPU_OP, bool isNested, routing_types_t routing_type)
+inline void MultiPipe::gv_add_vertex(std::string typeOP, std::string nameOP, bool isCPU_OP, bool isNested, routing_types_t routing_type)
 {
     auto *gv_graph = (this->graph)->gv_graph;
     // creating the new vertex
@@ -1399,7 +1487,7 @@ void MultiPipe::gv_add_vertex(std::string typeOP, std::string nameOP, bool isCPU
 }
 
 // implementation of the method to chain a new operator in the graphviz representation
-void MultiPipe::gv_chain_vertex(std::string typeOP, std::string nameOP)
+inline void MultiPipe::gv_chain_vertex(std::string typeOP, std::string nameOP)
 {
     auto *gv_graph = (this->graph)->gv_graph;
     assert((this->gv_last_vertices).size() == 1);
@@ -1424,37 +1512,43 @@ void MultiPipe::gv_chain_vertex(std::string typeOP, std::string nameOP)
 // implementation of the run method
 inline int MultiPipe::run()
 {
+    int status = 0;
     if (!isRunnable()) {
-        std::cerr << RED << "WindFlow Error: MultiPipe is not runnable" << DEFAULT_COLOR << std::endl;
-        exit(EXIT_FAILURE);
-        return EXIT_FAILURE; // useless
+        std::cerr << RED << "WindFlow Error: some MultiPipe is not runnable, check Sources and Sinks presence" << DEFAULT_COLOR << std::endl;
+        status = -1;
     }
-    else
-        return ff::ff_pipeline::run();
+    else {
+        status = ff::ff_pipeline::run();
+    }
+    return status;
 }
 
 // implementation of the wait method
 inline int MultiPipe::wait()
 {
+    int status = 0;
     if (!isRunnable()) {
-        std::cerr << RED << "WindFlow Error: MultiPipe is not runnable" << DEFAULT_COLOR << std::endl;
-        exit(EXIT_FAILURE);
-        return EXIT_FAILURE; // useless
+        std::cerr << RED << "WindFlow Error: some MultiPipe is not runnable, check Sources and Sinks presence" << DEFAULT_COLOR << std::endl;
+        status = -1;
     }
-    else
-        return ff::ff_pipeline::wait();
+    else {
+        status =ff::ff_pipeline::wait();
+    }
+    return status;
 }
 
 // implementation of the run_and_wait_end method
 inline int MultiPipe::run_and_wait_end()
 {
+    int status = 0;
     if (!isRunnable()) {
-        std::cerr << RED << "WindFlow Error: MultiPipe is not runnable" << DEFAULT_COLOR << std::endl;
-        exit(EXIT_FAILURE);
-        return EXIT_FAILURE; // useless
+        std::cerr << RED << "WindFlow Error: some MultiPipe is not runnable, check Sources and Sinks presence" << DEFAULT_COLOR << std::endl;
+        status = -1;
     }
-    else
-        return ff::ff_pipeline::run_and_wait_end();
+    else {
+        status = ff::ff_pipeline::run_and_wait_end();
+    }
+    return status;
 }
 
 // implementation of the method to add a Filter to the MultiPipe
@@ -1489,7 +1583,7 @@ MultiPipe &MultiPipe::add(Filter<tuple_t, result_t> &_filter)
     // update the graphviz representation
     gv_add_vertex("Filter(" + std::to_string(_filter.getNWorkers()) + ")", _filter.getName(), true, false, _filter.isKeyed() ? KEYBY : FORWARD);
 #endif
-	return *this;
+    return *this;
 }
 
 // implementation of the method to chain a Filter to the MultiPipe
@@ -1564,7 +1658,7 @@ MultiPipe &MultiPipe::add(Map<tuple_t, result_t> &_map)
     // update the graphviz representation
     gv_add_vertex("Map(" + std::to_string(_map.getNWorkers()) + ")", _map.getName(), true, false, _map.isKeyed() ? KEYBY : FORWARD);
 #endif
-	return *this;
+    return *this;
 }
 
 // implementation of the method to chain a Map to the MultiPipe
@@ -1639,7 +1733,7 @@ MultiPipe &MultiPipe::add(FlatMap<tuple_t, result_t> &_flatmap)
     // update the graphviz representation
     gv_add_vertex("FlatMap(" + std::to_string(_flatmap.getNWorkers()) + ")", _flatmap.getName(), true, false, _flatmap.isKeyed() ? KEYBY : FORWARD);
 #endif
-	return *this;
+    return *this;
 }
 
 // implementation of the method to chain a FlatMap to the MultiPipe
@@ -1816,7 +1910,7 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
                 }
 #ifdef GRAPHVIZ_WINDFLOW
                 // update the graphviz representation
-                gv_add_vertex("WF(WMR(" + std::to_string(_wf.getInnerParallelism().first) + "," + std::to_string(_wf.getInnerParallelism().second) + "), " + std::to_string(_wf.getParallelism()) + ")", _wf.getName(), true, true, COMPLEX); 
+                gv_add_vertex("WF(WMR(" + std::to_string(_wf.getInnerParallelism().first) + "," + std::to_string(_wf.getInnerParallelism().second) + "), " + std::to_string(_wf.getParallelism()) + ")", _wf.getName(), true, true, COMPLEX);
 #endif
             }
             forceShuffling = true;
@@ -2793,7 +2887,7 @@ MultiPipe &MultiPipe::add_sink(Sink<tuple_t> &_sink)
     else {
         add_operator<Standard_Emitter<tuple_t>>(&_sink, _sink.isKeyed() ? KEYBY : FORWARD);
     }
-	has_sink = true;
+    has_sink = true;
     // save the new output type from this MultiPipe
     outputType = opInType;
     // the Sink operator is now used
@@ -2802,7 +2896,7 @@ MultiPipe &MultiPipe::add_sink(Sink<tuple_t> &_sink)
     // update the graphviz representation
     gv_add_vertex("Sink(" + std::to_string(_sink.getNWorkers()) + ")", _sink.getName(), true, false, _sink.isKeyed() ? KEYBY : FORWARD);
 #endif
-	return *this;
+    return *this;
 }
 
 // implementation of the method to chain a Sink to the MultiPipe
@@ -2941,26 +3035,27 @@ inline MultiPipe &MultiPipe::select(size_t _idx) const
 // implementation of the method to check whether a MultiPipe is runnable
 inline bool MultiPipe::isRunnable() const
 {
-	return (has_source && has_sink) || (isMerged) || (isSplit);
+    return (has_source && has_sink) || (isMerged) || (isSplit);
 }
 
 // implementation of the method to check whether a MultiPipe has a Source
 inline bool MultiPipe::hasSource() const
 {
-	return has_source;
+    return has_source;
 }
 
 // implementation of the method to check whether a MultiPipe has a Sink
 inline bool MultiPipe::hasSink() const
 {
-	return has_sink;
+    return has_sink;
 }
 
 // implementation of the method to return the number of threads used to run this MultiPipe
 inline size_t MultiPipe::getNumThreads() const
 {
-    if (!isSplit)
+    if (!isSplit) {
         return this->cardinality()-1;
+    }
     else {
         size_t n = 0;
         auto first_set = last->getFirstSet();

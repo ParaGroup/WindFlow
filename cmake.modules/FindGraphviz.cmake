@@ -38,7 +38,7 @@ endif()
 
 find_library(GRAPHVIZ_GVC_LIBRARY NAMES gvc libgvc
   PATHS
-	${GRAPHVIZ_POSSIBLE_LIBRARY_PATHS}
+    ${GRAPHVIZ_POSSIBLE_LIBRARY_PATHS}
     /usr/lib
     /usr/local/lib
   HINTS

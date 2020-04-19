@@ -73,6 +73,20 @@ inline unsigned long current_time_nsecs()
     return (t.tv_sec)*1000000000L + t.tv_nsec;
 }
 
+/// default capacity of vectors used internally by the library
+#define DEFAULT_VECTOR_CAPACITY 500
+
+/// inital batch size (in no. of tuples) used by GPU operators with time-based windows
+#define DEFAULT_BATCH_SIZE_TB 1000
+
+/// default number of threads per block used by GPU operators
+#define DEFAULT_CUDA_NUM_THREAD_BLOCK 256
+
+/// supported processing modes of the PipeGraph
+enum class Mode { DEFAULT, DETERMINISTIC };
+
+//@cond DOXY_IGNORE
+
 #if __CUDACC__
 // assert function on GPU
 inline void gpuAssert(cudaError_t code,
@@ -85,24 +99,10 @@ inline void gpuAssert(cudaError_t code,
         if (abort) exit(code);
     }
 }
-#endif
 
-/// default capacity of vectors used internally by the library
-#define DEFAULT_VECTOR_CAPACITY 500
-
-/// inital batch size (in no. of tuples) used by GPU operators with time-based windows
-#define DEFAULT_BATCH_SIZE_TB 1000
-
-/// default number of threads per block used by GPU operators
-#define DEFAULT_CUDA_NUM_THREAD_BLOCK 256
-
-/// gpuAssert
+// gpuErrChk macro
 #define gpuErrChk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-
-/// supported processing modes of the PipeGraph
-enum class Mode { DEFAULT, DETERMINISTIC };
-
-//@cond DOXY_IGNORE
+#endif
 
 // supported window types
 enum win_type_t { CB, TB };
@@ -110,7 +110,7 @@ enum win_type_t { CB, TB };
 // supported optimization levels
 enum opt_level_t { LEVEL0, LEVEL1, LEVEL2 };
 
-// defines
+// defines useful for strings
 #define STRINGIFY(x) XSTRINGIFY(x)
 #define XSTRINGIFY(x) #x
 
@@ -127,15 +127,15 @@ enum role_t { SEQ, PLQ, WLQ, MAP, REDUCE };
 enum pattern_t { SEQ_CPU, SEQ_GPU, KF_CPU, KF_GPU, WF_CPU, WF_GPU, PF_CPU, PF_GPU, WMR_CPU, WMR_GPU };
 
 // macros for the linux terminal colors
-#define DEFAULT_COLOR 	"\033[0m"
-#define BLACK 		      "\033[30m"
-#define RED   		      "\033[31m"
-#define GREEN   	      "\033[32m"
-#define YELLOW  	      "\033[33m"
-#define BLUE    	      "\033[34m"
-#define MAGENTA 	      "\033[35m"
-#define CYAN    	      "\033[36m"
-#define WHITE   	      "\033[37m"
+#define DEFAULT_COLOR   "\033[0m"
+#define BLACK             "\033[30m"
+#define RED               "\033[31m"
+#define GREEN             "\033[32m"
+#define YELLOW            "\033[33m"
+#define BLUE              "\033[34m"
+#define MAGENTA           "\033[35m"
+#define CYAN              "\033[36m"
+#define WHITE             "\033[37m"
 #define BOLDBLACK       "\033[1m\033[30m"
 #define BOLDRED         "\033[1m\033[31m"
 #define BOLDGREEN       "\033[1m\033[32m"

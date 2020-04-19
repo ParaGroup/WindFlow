@@ -53,7 +53,7 @@ template<typename tuple_t>
 class Iterable
 {
 private:
-	// iterator types
+    // iterator types
     using iterator_t = typename std::deque<tuple_t>::iterator;
     using const_iterator_t = typename std::deque<tuple_t>::const_iterator;
     iterator_t first; // iterator to the first tuple
@@ -81,7 +81,7 @@ public:
      */ 
     iterator_t begin()
     {
-    	return first;
+        return first;
     }
 
     /** 
@@ -101,7 +101,7 @@ public:
      */ 
     iterator_t end()
     {
-    	return last;
+        return last;
     }
 
     /** 
@@ -121,7 +121,7 @@ public:
      */ 
     size_t size() const
     {
-    	return n_size;
+        return n_size;
     }
 
     /** 
@@ -133,11 +133,11 @@ public:
      */ 
     tuple_t &operator[](size_t i)
     {
-    	if (i >= n_size) {
+        if (i >= n_size) {
             std::cerr << RED << "WindFlow Error: invalid index of the Iterable" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-    	return *(first+i);
+        return *(first+i);
     }
 
     /** 
@@ -165,11 +165,11 @@ public:
      */ 
     tuple_t &at(size_t i)
     {
-    	if (i >= n_size) {
+        if (i >= n_size) {
             std::cerr << RED << "WindFlow Error: invalid index of the Iterable" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-    	return *(first+i);
+        return *(first+i);
     }
 
     /** 
@@ -196,11 +196,11 @@ public:
      */ 
     tuple_t &front()
     {
-    	if (n_size == 0) {
+        if (n_size == 0) {
             std::cerr << RED << "WindFlow Error: invalid index of the Iterable" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-    	return *(first);
+        return *(first);
     }
 
     /** 
@@ -226,11 +226,11 @@ public:
      */ 
     tuple_t &back()
     {
-    	if (n_size == 0) {
+        if (n_size == 0) {
             std::cerr << RED << "WindFlow Error: invalid index of the Iterable" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-    	return *(last-1);
+        return *(last-1);
     }
 
     /** 

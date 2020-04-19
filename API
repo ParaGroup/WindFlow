@@ -53,7 +53,7 @@ KEY_FFAT
 The corresponding builder needs two parameters (lift and combine) with the following accepted signatures
 
 Lift
-	void(const tuple_t &, result_t &)
+    void(const tuple_t &, result_t &)
     void(const tuple_t &, result_t &, RuntimeContext &)
 
 Combine
@@ -72,32 +72,32 @@ PANE_FARM
 The corresponding builder needs two parameters (PLQ and WLQ) with the following accepted signatures
 
 PLQ
-	void(uint64_t, const Iterable<tuple_t> &, result_t &)
-	void(uint64_t, const Iterable<tuple_t> &, result_t &, RuntimeContext &)
-	void(uint64_t, const tuple_t &, result_t &)
-	void(uint64_t, const tuple_t &, result_t &, RuntimeContext &)
+    void(uint64_t, const Iterable<tuple_t> &, result_t &)
+    void(uint64_t, const Iterable<tuple_t> &, result_t &, RuntimeContext &)
+    void(uint64_t, const tuple_t &, result_t &)
+    void(uint64_t, const tuple_t &, result_t &, RuntimeContext &)
 
 WLQ
-	void(uint64_t, const Iterable<result_t> &, result_t &)
-	void(uint64_t, const Iterable<result_t> &, result_t &, RuntimeContext &)
-	void(uint64_t, const result_t &, result_t &)
-	void(uint64_t, const result_t &, result_t &, RuntimeContext &)
+    void(uint64_t, const Iterable<result_t> &, result_t &)
+    void(uint64_t, const Iterable<result_t> &, result_t &, RuntimeContext &)
+    void(uint64_t, const result_t &, result_t &)
+    void(uint64_t, const result_t &, result_t &, RuntimeContext &)
 
 WIN_MAPREDUCE
 -------------
 The corresponding builder needs two parameters (MAP and REDUCE) with the following accepted signatures
 
 MAP
-	void(uint64_t, const Iterable<tuple_t> &, result_t &)
-	void(uint64_t, const Iterable<tuple_t> &, result_t &, RuntimeContext &)
-	void(uint64_t, const tuple_t &, result_t &)
-	void(uint64_t, const tuple_t &, result_t &, RuntimeContext &)
+    void(uint64_t, const Iterable<tuple_t> &, result_t &)
+    void(uint64_t, const Iterable<tuple_t> &, result_t &, RuntimeContext &)
+    void(uint64_t, const tuple_t &, result_t &)
+    void(uint64_t, const tuple_t &, result_t &, RuntimeContext &)
 
 REDUCE
-	void(uint64_t, const Iterable<result_t> &, result_t &)
-	void(uint64_t, const Iterable<result_t> &, result_t &, RuntimeContext &)
-	void(uint64_t, const result_t &, result_t &)
-	void(uint64_t, const result_t &, result_t &, RuntimeContext &)
+    void(uint64_t, const Iterable<result_t> &, result_t &)
+    void(uint64_t, const Iterable<result_t> &, result_t &, RuntimeContext &)
+    void(uint64_t, const result_t &, result_t &)
+    void(uint64_t, const result_t &, result_t &, RuntimeContext &)
 
 KEY_FARM_GPU
 ------------
@@ -108,10 +108,10 @@ KEY_FFAT_GPU
 The corresponding builder needs two parameters (lift and combine) with the following accepted signatures
 
 Lift
-	void(const tuple_t &, result_t &)
+    void(const tuple_t &, result_t &)
 
 Combine
-	__host__ __device__ (const result_t &, const result_t &, result_t &)
+    __host__ __device__ (const result_t &, const result_t &, result_t &)
 
 WIN_FARM_GPU
 ------------
@@ -122,14 +122,14 @@ PANE_FARM_GPU
 The corresponding builder needs two parameters (PLQ and WLQ) with the following accepted signatures
 
 PLQ
-	void(uint64_t, const Iterable<tuple_t> &, result_t &) --> PLQ on Host
-	void(uint64_t, const tuple_t &, result_t &) --> PLQ on Host
-	__host__ __device__ (uint64_t, const tuple_t *, size_t, result_t *, char *, size_t) --> PLQ on Device
+    void(uint64_t, const Iterable<tuple_t> &, result_t &) --> PLQ on Host
+    void(uint64_t, const tuple_t &, result_t &) --> PLQ on Host
+    __host__ __device__ (uint64_t, const tuple_t *, size_t, result_t *, char *, size_t) --> PLQ on Device
 
 WLQ
-	void(uint64_t, const Iterable<result_t> &, result_t &) --> WLQ on Host
-	void(uint64_t, const Iterable<result_t> &, result_t &, RuntimeContext &) --> WLQ on Host
-	__host__ __device__ (uint64_t, const result_t *, size_t, result_t *, char *, size_t) --> WLQ on Device
+    void(uint64_t, const Iterable<result_t> &, result_t &) --> WLQ on Host
+    void(uint64_t, const Iterable<result_t> &, result_t &, RuntimeContext &) --> WLQ on Host
+    __host__ __device__ (uint64_t, const result_t *, size_t, result_t *, char *, size_t) --> WLQ on Device
 
 Important: either the PLQ or the WLQ must be __host__ __device__, not both! Furthermore, only for this operator
 the two parameters of the builder must be functor objects or lambdas (not plain functions!).
@@ -139,14 +139,14 @@ WIN_MAPREDUCE_GPU
 The corresponding builder needs two parameters (MAP and REDUCE) with the following accepted signatures
 
 MAP
-	void(uint64_t, const Iterable<tuple_t> &, result_t &) --> MAP on Host
-	void(uint64_t, const tuple_t &, result_t &) --> MAP on Host
-	__host__ __device__ (uint64_t, const tuple_t *, size_t, result_t *, char *, size_t) --> MAP on Device
+    void(uint64_t, const Iterable<tuple_t> &, result_t &) --> MAP on Host
+    void(uint64_t, const tuple_t &, result_t &) --> MAP on Host
+    __host__ __device__ (uint64_t, const tuple_t *, size_t, result_t *, char *, size_t) --> MAP on Device
 
 REDUCE
-	void(uint64_t, const Iterable<result_t> &, result_t &) --> REDUCE on Host
-	void(uint64_t, const Iterable<result_t> &, result_t &, RuntimeContext &) --> REDUCE on Host
-	__host__ __device__ (uint64_t, const result_t *, size_t, result_t *, char *, size_t) --> REDUCE on Device
+    void(uint64_t, const Iterable<result_t> &, result_t &) --> REDUCE on Host
+    void(uint64_t, const Iterable<result_t> &, result_t &, RuntimeContext &) --> REDUCE on Host
+    __host__ __device__ (uint64_t, const result_t *, size_t, result_t *, char *, size_t) --> REDUCE on Device
 
 Important: either the MAP or the REDUCE must be __host__ __device__, not both! Furthermore, only for this operator
 the two parameters of the builder must be functor objects or lambdas (not plain functions!).
