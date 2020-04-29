@@ -19,7 +19,7 @@
  *  @author  Gabriele Mencagli
  *  @date    31/05/2019
  *  
- *  @brief Class implementing a local storage per operator replica.
+ *  @brief Class implementing a local storage per operator replica
  *  
  *  @section LocalStorage (Description)
  *  
@@ -40,7 +40,7 @@ namespace wf {
 /** 
  *  \class LocalStorage
  *  
- *  \brief LocalStorage class used to maintain a local storage per operator replica.
+ *  \brief LocalStorage class used to maintain a local storage per operator replica
  *  
  *  This file implements the LocalStorage class. It is a private repository per replica,
  *  which can be used both in the processing logic (if it is based on a riched variant)

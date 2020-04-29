@@ -20,13 +20,12 @@
  *  @date    23/02/2019
  *  
  *  @brief RuntimeContext class to access the run-time system information
- *         used by a operator's functional logic
  *  
  *  @section RuntimeContext (Description)
  *  
  *  This file implements the RuntimeContext class used to access the run-time system
  *  information used by the functional logic of an operator (static information such
- *  as the parallelism degree of the operator and which is the current replica invoking
+ *  as the parallelism of the operator and which is the current replica invoking
  *  the operator's functional logic).
  */ 
 
@@ -42,7 +41,6 @@ namespace wf {
  *  \class RuntimeContext
  *  
  *  \brief RuntimeContext class used to access to run-time system information
- *         used by a operator's functional logic
  *  
  *  This class implements the RuntimeContext object used to access the run-time system
  *  information used by the operator's functiona logic (access to static information like
@@ -51,15 +49,15 @@ namespace wf {
 class RuntimeContext
 {
 private:
-    size_t parallelism; // parallelism degree of the operator
+    size_t parallelism; // parallelism of the operator
     size_t index; // index of the replica
     LocalStorage storage; // local storage
 
 public:
     /// Constructor I
-    RuntimeContext(): parallelism(0),
-                      index(0)
-    {}
+    RuntimeContext():
+                  parallelism(0),
+                  index(0) {}
 
     /** 
      *  \brief Constructor II
@@ -70,13 +68,12 @@ public:
     RuntimeContext(size_t _parallelism,
                    size_t _index):
                    parallelism(_parallelism),
-                   index(_index)
-    {}
+                   index(_index) {}
 
     /** 
-     *  \brief Return the parallelism of the operator in which the RuntimeContext is used
+     *  \brief Return the parallelism of the operator
      *  
-     *  \return parallelism degree (number of operator's replicas)
+     *  \return parallelism (number of operator's replicas)
      */  
     size_t getParallelism() const
     {
@@ -84,7 +81,7 @@ public:
     }
 
     /** 
-     *  \brief Return the index of the replica where the RuntimeContext is used
+     *  \brief Return the index of the replica
      *  
      *  \return index of the replica (starting from zero)
      */ 
@@ -94,7 +91,7 @@ public:
     }
 
     /** 
-     *  \brief Return a reference to the local storage used by the operator replica
+     *  \brief Return a reference to the local storage (private per replica)
      *  
      *  \return reference to the local storage
      */ 

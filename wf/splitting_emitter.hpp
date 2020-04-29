@@ -81,24 +81,23 @@ public:
                       size_t _n_dest):
                       splitting_func(_splitting_func),
                       n_dest(_n_dest),
-                      isCombined(false)
-    {}
+                      isCombined(false) {}
 
     // clone method
-    Basic_Emitter *clone() const
+    Basic_Emitter *clone() const override
     {
         Splitting_Emitter<F_t> *copy = new Splitting_Emitter<F_t>(*this);
         return copy;
     }
 
     // svc_init method (utilized by the FastFlow runtime)
-    int svc_init()
+    int svc_init() override
     {
         return 0;
     }
 
     // svc method (utilized by the FastFlow runtime)
-    void *svc(void *in)
+    void *svc(void *in) override
     {
         tuple_t *t = reinterpret_cast<tuple_t *>(in);
         auto dests_w = callSplittingFunction(splitting_func, *t);
@@ -127,22 +126,22 @@ public:
     }
 
     // svc_end method (FastFlow runtime)
-    void svc_end() {}
+    void svc_end() override {}
 
     // get the number of destinations
-    size_t getNDestinations() const
+    size_t getNDestinations() const override
     {
         return n_dest;
     }
 
     // set/unset the Tree_Emitter mode
-    void setTree_EmitterMode(bool _val)
+    void setTree_EmitterMode(bool _val) override
     {
         isCombined = _val;
     }
 
     // method to get a reference to the internal output queue (used in Tree_Emitter mode)
-    std::vector<std::pair<void *, int>> &getOutputQueue()
+    std::vector<std::pair<void *, int>> &getOutputQueue() override
     {
         return output_queue;
     }

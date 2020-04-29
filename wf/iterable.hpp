@@ -28,7 +28,7 @@
  *  interface for operators implemented on the CPU.
  *  
  *  The template parameter of the data items used with the Iterable must be default
- *  constructible, with a copy constructor and copy assignment operator, and they
+ *  constructible, with a copy constructor and a copy assignment operator, and they
  *  must provide and implement the setControlFields() and getControlFields() methods.
  */ 
 
@@ -37,7 +37,6 @@
 
 /// includes
 #include<deque>
-#include<stdexcept>
 
 namespace wf {
 
@@ -71,7 +70,7 @@ public:
              iterator_t _last):
              first(_first),
              last(_last),
-             n_size(distance(_first, _last))
+             n_size(std::distance(_first, _last))
     {}
 
     /** 
@@ -128,8 +127,7 @@ public:
      *  \brief Return a reference to the tuple at a given position
      *  
      *  \param i index of the tuple to be accessed
-     *  \return reference to the tuple at position i. Calling this method with
-     *          an invalid argument i causes an out_of_range exception to be thrown.
+     *  \return reference to the tuple at position i
      */ 
     tuple_t &operator[](size_t i)
     {
@@ -144,8 +142,7 @@ public:
      *  \brief Return a const reference to the tuple at a given position
      *  
      *  \param i index of the tuple to be accessed
-     *  \return const reference to the tuple at position i. Calling this method with
-     *          an invalid argument i causes an out_of_range exception to be thrown.
+     *  \return const reference to the tuple at position i
      */ 
     const tuple_t &operator[](size_t i) const
     {
@@ -160,8 +157,7 @@ public:
      *  \brief Return a reference to the tuple at a given position
      *  
      *  \param i index of the tuple to be accessed
-     *  \return reference to the tuple at position i. Calling this method with
-     *          an invalid argument i causes an out_of_range exception to be thrown.
+     *  \return reference to the tuple at position i
      */ 
     tuple_t &at(size_t i)
     {
@@ -176,8 +172,7 @@ public:
      *  \brief Return a const reference to the tuple at a given position
      *  
      *  \param i index of the tuple to be accessed
-     *  \return const reference to the tuple at position i. Calling this method with
-     *          an invalid argument i causes an out_of_range exception to be thrown.
+     *  \return const reference to the tuple at position i
      */ 
     const tuple_t &at(size_t i) const
     {
@@ -191,8 +186,7 @@ public:
     /** 
      *  \brief Return a reference to the first tuple of the iterable object
      *  
-     *  \return reference to the first tuple. Calling this method on an empty iterable
-     *          object causes an out_of_range exception to be thrown.
+     *  \return reference to the first tuple
      */ 
     tuple_t &front()
     {
@@ -206,8 +200,7 @@ public:
     /** 
      *  \brief Return a const reference to the first tuple of the iterable object
      *  
-     *  \return const reference to the first tuple. Calling this method on an empty iterable
-     *          object causes an out_of_range exception to be thrown.
+     *  \return const reference to the first tuple
      */ 
     const tuple_t &front() const
     {
@@ -221,8 +214,7 @@ public:
     /** 
      *  \brief Return a reference to the last tuple of the iterable object
      *  
-     *  \return reference to the last tuple. Calling this method on an empty iterable
-     *          object causes an out_of_range exception to be thrown.
+     *  \return reference to the last tuple
      */ 
     tuple_t &back()
     {
@@ -236,8 +228,7 @@ public:
     /** 
      *  \brief Return a const reference to the last tuple of the iterable object
      *  
-     *  \return const reference to the last tuple. Calling this method on an empty iterable
-     *          object causes an out_of_range exception to be thrown.
+     *  \return const reference to the last tuple
      */ 
     const tuple_t &back() const
     {

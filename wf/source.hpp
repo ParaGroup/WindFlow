@@ -27,7 +27,7 @@
  *  a data stream.
  *  
  *  The template parameter tuple_t must be default constructible, with a copy
- *  Constructor and copy assignment operator, and it must provide and implement
+ *  Constructor and a copy assignment operator, and it must provide and implement
  *  the setControlFields() and getControlFields() methods.
  */ 
 
@@ -42,6 +42,8 @@
 #include<basic.hpp>
 #include<shipper.hpp>
 #include<context.hpp>
+#include<stats_record.hpp>
+#include<basic_operator.hpp>
 #include<transformations.hpp>
 
 namespace wf {
@@ -54,7 +56,7 @@ namespace wf {
  *  This class implements the Source operator generating a data stream of items.
  */ 
 template<typename tuple_t>
-class Source: public ff::ff_a2a
+class Source: public ff::ff_a2a, public Basic_Operator
 {
 public:
     /// type of the generation function (item-by-item version, briefly "itemized")
@@ -71,8 +73,9 @@ public:
 private:
     // friendships with other classes in the library
     friend class MultiPipe;
-    bool used; // true if the operator has been added/chained in a MultiPipe
-    std::string name; // name of the operator
+    std::string name; // name of the Source
+    size_t parallelism; // internal parallelism of the Source
+    bool used; // true if the Source has been added/chained in a MultiPipe
     // class Source_Node
     class Source_Node: public ff::ff_node_t<tuple_t>
     {
@@ -89,8 +92,12 @@ private:
         Shipper<tuple_t> *shipper = nullptr; // shipper object used for the delivery of results (single-loop version)
         RuntimeContext context; // RuntimeContext
 #if defined(TRACE_WINDFLOW)
-        unsigned long sentTuples = 0;
-        std::ofstream *logfile = nullptr;
+        Stats_Record stats_record;
+        double avg_td_us = 0;
+        double avg_ts_us = 0;
+        uint64_t source_func_calls = 0;
+        uint64_t last_delivered_count = 0;
+        volatile uint64_t startTD, startTS, endTD, endTS;
 #endif
 
     public:
@@ -105,8 +112,7 @@ private:
                     isRich(false),
                     isEND(false),
                     context(_context),
-                    closing_func(_closing_func)
-        {}
+                    closing_func(_closing_func) {}
 
         // Constructor II
         Source_Node(rich_source_item_func_t _rich_source_func_item,
@@ -119,8 +125,7 @@ private:
                     isRich(true),
                     isEND(false), 
                     context(_context),
-                    closing_func(_closing_func)
-        {}
+                    closing_func(_closing_func) {}
 
         // Constructor III
         Source_Node(source_loop_func_t _source_func_loop,
@@ -133,8 +138,7 @@ private:
                     isRich(false),
                     isEND(false),
                     context(_context),
-                    closing_func(_closing_func)
-        {}
+                    closing_func(_closing_func) {}
 
         // Constructor IV
         Source_Node(rich_source_loop_func_t _rich_source_func_loop,
@@ -147,39 +151,29 @@ private:
                     isRich(true),
                     isEND(false),
                     context(_context),
-                    closing_func(_closing_func)
-        {}
+                    closing_func(_closing_func) {}
 
         // svc_init method (utilized by the FastFlow runtime)
-        int svc_init()
+        int svc_init() override
         {
+            // create the shipper object used by this replica
             shipper = new Shipper<tuple_t>(*this);
 #if defined(TRACE_WINDFLOW)
-            logfile = new std::ofstream();
-            name += "_" + std::to_string(this->get_my_id()) + "_" + std::to_string(getpid()) + ".log";
-#if defined(LOG_DIR)
-            std::string filename = std::string(STRINGIFY(LOG_DIR)) + "/" + name;
-            std::string log_dir = std::string(STRINGIFY(LOG_DIR));
-#else
-            std::string filename = "log/" + name;
-            std::string log_dir = std::string("log");
-#endif
-            // create the log directory
-            if (mkdir(log_dir.c_str(), 0777) != 0) {
-                struct stat st;
-                if((stat(log_dir.c_str(), &st) != 0) || !S_ISDIR(st.st_mode)) {
-                    std::cerr << RED << "WindFlow Error: directory for log files cannot be created" << DEFAULT_COLOR << std::endl;
-                    exit(EXIT_FAILURE);
-                }
-            }
-            logfile->open(filename);
+            stats_record = Stats_Record(name, "replica_" + std::to_string(this->get_my_id()), false);
 #endif
             return 0;
         }
 
         // svc method (utilized by the FastFlow runtime)
-        tuple_t *svc(tuple_t *)
+        tuple_t *svc(tuple_t *) override
         {
+#if defined(TRACE_WINDFLOW)
+            startTS = current_time_nsecs();
+            if (stats_record.outputs_sent == 0) {
+                startTD = current_time_nsecs();
+            }
+            source_func_calls++;
+#endif
             // itemized version
             if (isItemized) {
                 if (isEND) {
@@ -195,7 +189,17 @@ private:
                         isEND = !rich_source_func_item(*t, context); // call the generation function filling the tuple
                     }
 #if defined(TRACE_WINDFLOW)
-                    sentTuples++;
+                    endTS = current_time_nsecs();
+                    endTD = current_time_nsecs();
+                    double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
+                    avg_ts_us += (1.0 / source_func_calls) * (elapsedTS_us - avg_ts_us);
+                    double elapsedTD_us = ((double) (endTD - startTD)) / 1000;
+                    avg_td_us += (1.0 / source_func_calls) * (elapsedTD_us - avg_td_us);
+                    stats_record.service_time = std::chrono::duration<double, std::micro>(avg_ts_us);
+                    stats_record.eff_service_time = std::chrono::duration<double, std::micro>(avg_td_us);
+                    stats_record.outputs_sent++;
+                    stats_record.bytes_sent += sizeof(tuple_t);
+                    startTD = current_time_nsecs();
 #endif
                     return t;
                 }
@@ -213,7 +217,19 @@ private:
                         isEND = !rich_source_func_loop(*shipper, context); // call the generation function sending some tuples through the shipper
                     }
 #if defined(TRACE_WINDFLOW)
-                    sentTuples = shipper->delivered();
+                    uint64_t delivered = (shipper->delivered() - last_delivered_count);
+                    last_delivered_count = shipper->delivered();
+                    endTS = current_time_nsecs();
+                    endTD = current_time_nsecs();
+                    double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
+                    avg_ts_us += (1.0 / source_func_calls) * (elapsedTS_us - avg_ts_us);
+                    double elapsedTD_us = ((double) (endTD - startTD)) / 1000;
+                    avg_td_us += (1.0 / source_func_calls) * (elapsedTD_us - avg_td_us);
+                    stats_record.service_time = std::chrono::duration<double, std::micro>(avg_ts_us);
+                    stats_record.eff_service_time = std::chrono::duration<double, std::micro>(avg_td_us);
+                    stats_record.outputs_sent += delivered;
+                    stats_record.bytes_sent += delivered * sizeof(tuple_t);
+                    startTD = current_time_nsecs();
 #endif
                     return this->GO_ON;
                 }
@@ -221,21 +237,25 @@ private:
         }
 
         // svc_end method (utilized by the FastFlow runtime)
-        void svc_end()
+        void svc_end() override
         {
             // call the closing function
             closing_func(context);
+            // delete the shipper object used by this replica
             delete shipper;
 #if defined(TRACE_WINDFLOW)
-            std::ostringstream stream;
-            stream << "************************************LOG************************************\n";
-            stream << "Generated tuples: " << sentTuples << "\n";
-            stream << "***************************************************************************\n";
-            *logfile << stream.str();
-            logfile->close();
-            delete logfile;
+            // dump log file with statistics
+            stats_record.dump_toFile();
 #endif
         }
+
+#if defined(TRACE_WINDFLOW)
+        // method to return a copy of the Stats_Record of this node
+        Stats_Record get_StatsRecord() const
+        {
+            return stats_record;
+        }
+#endif
     };
 
 public:
@@ -243,27 +263,28 @@ public:
      *  \brief Constructor
      *  
      *  \param _func function with signature accepted by the Source operator
-     *  \param _pardegree parallelism degree of the Source operator
-     *  \param _name string with the unique name of the Source operator
+     *  \param _parallelism internal parallelism of the Source operator
+     *  \param _name name of the Source operator
      *  \param _closing_func closing function
      */ 
     template<typename F_t>
     Source(F_t _func,
-           size_t _pardegree,
+           size_t _parallelism,
            std::string _name,
            closing_func_t _closing_func):
-           used(false),
-           name(_name)
+           name(_name),
+           parallelism(_parallelism),
+           used(false)
     {
-        // check the validity of the parallelism degree
-        if (_pardegree == 0) {
+        // check the validity of the parallelism value
+        if (_parallelism == 0) {
             std::cerr << RED << "WindFlow Error: Source has parallelism zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Source_Node
         std::vector<ff_node *> first_set;
-        for (size_t i=0; i<_pardegree; i++) {
-            auto *seq = new Source_Node(_func, _name, RuntimeContext(_pardegree, i), _closing_func);
+        for (size_t i=0; i<_parallelism; i++) {
+            auto *seq = new Source_Node(_func, _name, RuntimeContext(_parallelism, i), _closing_func);
             first_set.push_back(seq);
         }
         // add first set
@@ -275,21 +296,58 @@ public:
     }
 
     /** 
+     *  \brief Get the name of the Source
+     *  \return name of the Source
+     */ 
+    std::string getName() const override
+    {
+        return name;
+    }
+
+    /** 
+     *  \brief Get the total parallelism within the Source
+     *  \return total parallelism within the Source
+     */ 
+    size_t getParallelism() const override
+    {
+        return parallelism;
+    }
+
+    /** 
+     *  \brief Return the routing mode of inputs to the Accumulator
+     *  \return routing mode (always NONE for the Accumulator)
+     */ 
+    routing_modes_t getRoutingMode() const override
+    {
+        return NONE;
+    }
+
+    /** 
      *  \brief Check whether the Source has been used in a MultiPipe
      *  \return true if the Source has been added/chained to an existing MultiPipe
-     */
-    bool isUsed() const
+     */ 
+    bool isUsed() const override
     {
         return used;
     }
 
     /** 
-     *  \brief Get the name of the operator
-     *  \return string representing the name of the operator
-     */
-    std::string getName() const
+     *  \brief Get the Stats_Record of each replica within the Source
+     *  \return vector of Stats_Record objects
+     */ 
+    std::vector<Stats_Record> get_StatsRecords() const override
     {
-        return name;
+#if !defined(TRACE_WINDFLOW)
+        std::cerr << YELLOW << "WindFlow Warning: statistics are not enabled, compile with -DTRACE_WINDFLOW" << DEFAULT_COLOR << std::endl;
+        return {};
+#else
+        std::vector<Stats_Record> records;
+        for(auto *w: this->getFirstSet()) {
+            auto *node = static_cast<Source_Node *>(w);
+            records.push_back(node->get_StatsRecord());
+        }
+        return records;
+#endif
     }
 
     /// deleted constructors/operators

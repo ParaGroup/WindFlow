@@ -53,18 +53,21 @@ private:
 
 public:
     // Constructor
-    StreamArchive(compare_func_t _lessThan): lessThan(_lessThan) {}
+    StreamArchive(compare_func_t _lessThan):
+                  lessThan(_lessThan) {}
 
     // method to add a tuple to the archive
     void insert(const tuple_t &_t)
     {
         auto it = std::lower_bound(archive.begin(), archive.end(), _t, lessThan);
         // _t must be added at the end
-        if (it == archive.end())
+        if (it == archive.end()) {
             archive.push_back(_t);
+        }
         // otherwise it must be added to the correct position
-        else
+        else {
             archive.insert(it, _t);
+        }
     }
 
     // method to remove all the tuples prior to _t

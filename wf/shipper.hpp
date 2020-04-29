@@ -27,7 +27,7 @@
  *  to the next stage of the application.
  *  
  *  The template parameter of the data items that can be used with the Shipper must be default
- *  constructible, with a copy Constructor and copy assignment operator, and they
+ *  constructible, with a copy Constructor and a copy assignment operator, and they
  *  must provide and implement the setControlFields() and getControlFields() methods.
  */ 
 
@@ -54,7 +54,7 @@ private:
     // ff_node to be used for the delivery
     ff::ff_node *node;
     // counter of the delivered results
-    unsigned long n_delivered;
+    uint64_t n_delivered;
 
 public:
     /** 
@@ -64,15 +64,14 @@ public:
      */ 
     Shipper(ff::ff_node &_node):
             node(&_node),
-            n_delivered(0)
-    {}
+            n_delivered(0) {}
 
     /** 
      *  \brief Return the number of results delivered
      *  
      *  \return number of results
      */  
-    unsigned long delivered() const
+    uint64_t delivered() const
     {
         return n_delivered;
     }

@@ -29,8 +29,8 @@
  *  identifiers or by timestamps.
  */ 
 
-#ifndef ORDERINGNODE_H
-#define ORDERINGNODE_H
+#ifndef ORDERING_NODE_H
+#define ORDERING_NODE_H
 
 // includes
 #include<deque>
@@ -64,10 +64,12 @@ private:
             tuple_t *B = extractTuple<tuple_t, input_t>(wB);
             uint64_t id_A = (mode == ID) ? std::get<1>(A->getControlFields()) : std::get<2>(A->getControlFields());
             uint64_t id_B = (mode == ID) ? std::get<1>(B->getControlFields()) : std::get<2>(B->getControlFields());
-            if (id_A > id_B)
+            if (id_A > id_B) {
                 return true;
-            else if (id_A < id_B)
+            }
+            else if (id_A < id_B) {
                 return false;
+            }
             else {
                 assert(A != B);
                 return (A > B); // compare the memory pointers to have a unique ordering!!!
@@ -89,8 +91,7 @@ private:
                        emit_counter(0),
                        maxs(_n, 0),
                        eos_marker(nullptr),
-                       queue(Comparator(_mode))
-        {}
+                       queue(Comparator(_mode)) {}
     };
     // hash table that maps key identifiers onto key descriptors
     std::unordered_map<key_t, Key_Descriptor> keyMap;
@@ -108,19 +109,19 @@ public:
                   eos_received(0),
                   mode(_mode),
                   globalQueue(Comparator(_mode)),
-                  received(0)
-    {}
+                  received(0) {}
 
     // svc_init method (utilized by the FastFlow runtime)
-    int svc_init()
+    int svc_init() override
     {
-        for (size_t i=0; i<this->get_num_inchannels(); i++)
+        for (size_t i=0; i<this->get_num_inchannels(); i++) {
             globalMaxs.push_back(0);
+        }
         return 0;
     }
 
     // svc method (utilized by the FastFlow runtime)
-    input_t *svc(input_t *wr)
+    input_t *svc(input_t *wr) override
     {
         // extract the key and id/ts from the input tuple
         tuple_t *r = extractTuple<tuple_t, input_t>(wr);
@@ -194,7 +195,7 @@ public:
     }
 
     // method to manage the EOS (utilized by the FastFlow runtime)
-    void eosnotify(ssize_t id)
+    void eosnotify(ssize_t id) override
     {
         eos_received++;
         // check the number of received EOS messages
@@ -278,7 +279,7 @@ public:
     }
 
     // svc_end method (utilized by the FastFlow runtime)
-    void svc_end() {}
+    void svc_end() override {}
 };
 
 } // namespace wf

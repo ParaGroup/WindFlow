@@ -64,6 +64,7 @@ private:
     uint64_t triggering_delay = 0;
     win_type_t winType = CB;
     size_t batch_len = 1;
+    int gpu_id = 0;
     size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
     std::string name = "seq_gpu";
     size_t scratchpad_size = 0;
@@ -111,15 +112,27 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the batch configuration
+     *  \brief Method to specify the batch size
      *  
      *  \param _batch_len number of windows in a batch
-     *  \param _n_thread_block number of threads per block
      *  \return the object itself
      */ 
-    WinSeqGPU_Builder<F_t> &withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_CUDA_NUM_THREAD_BLOCK)
+    WinSeqGPU_Builder<F_t> &withBatch(size_t _batch_len)
     {
         batch_len = _batch_len;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to specify the GPU configuration used to launch kernels
+     *  
+     *  \param _gpu_id identifier of the chosen GPU device (default zero)
+     *  \param _n_thread_block number of threads per block (default is DEFAULT_CUDA_NUM_THREAD_BLOCK)
+     *  \return the object itself
+     */ 
+    WinSeqGPU_Builder<F_t> &withGPUConfiguration(int _gpu_id=0, size_t _n_thread_block=DEFAULT_CUDA_NUM_THREAD_BLOCK)
+    {
+        gpu_id = _gpu_id;
         n_thread_block = _n_thread_block;
         return *this;
     }
@@ -161,6 +174,7 @@ public:
                                 triggering_delay,
                                 winType,
                                 batch_len,
+                                gpu_id,
                                 n_thread_block,
                                 name,
                                 scratchpad_size);
@@ -179,6 +193,7 @@ public:
                                               triggering_delay,
                                               winType,
                                               batch_len,
+                                              gpu_id,
                                               n_thread_block,
                                               name,
                                               scratchpad_size);
@@ -218,6 +233,7 @@ private:
     uint64_t triggering_delay = 0;
     win_type_t winType = CB;
     size_t batch_len = 1;
+    int gpu_id = 0;
     size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
     bool rebuild = false;
     std::string name = "seqffat_gpu";
@@ -266,15 +282,27 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the batch configuration
+     *  \brief Method to specify the batch size
      *  
      *  \param _batch_len number of windows in a batch
-     *  \param _n_thread_block number of threads per block
      *  \return the object itself
      */ 
-    WinSeqFFATGPU_Builder<F_t, G_t> &withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_CUDA_NUM_THREAD_BLOCK)
+    WinSeqFFATGPU_Builder<F_t, G_t> &withBatch(size_t _batch_len)
     {
         batch_len = _batch_len;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to specify the GPU configuration used to launch kernels
+     *  
+     *  \param _gpu_id identifier of the chosen GPU device (default zero)
+     *  \param _n_thread_block number of threads per block (default is DEFAULT_CUDA_NUM_THREAD_BLOCK)
+     *  \return the object itself
+     */ 
+    WinSeqFFATGPU_Builder<F_t, G_t> &withGPUConfiguration(int _gpu_id=0, size_t _n_thread_block=DEFAULT_CUDA_NUM_THREAD_BLOCK)
+    {
+        gpu_id = _gpu_id;
         n_thread_block = _n_thread_block;
         return *this;
     }
@@ -317,6 +345,7 @@ public:
                                  triggering_delay,
                                  winType,
                                  batch_len,
+                                 gpu_id,
                                  n_thread_block,
                                  rebuild,
                                  name);
@@ -336,6 +365,7 @@ public:
                                                triggering_delay,
                                                winType,
                                                batch_len,
+                                               gpu_id,
                                                n_thread_block,
                                                rebuild,
                                                name);
@@ -368,10 +398,12 @@ private:
     win_type_t winType = CB;
     size_t pardegree = 1;
     size_t batch_len = 1;
+    int gpu_id = 0;
     size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
     std::string name = "wf_gpu";
     size_t scratchpad_size = 0;
     opt_level_t opt_level = LEVEL2;
+    bool isComplex=false;
 
     // window parameters initialization (input is a Pane_Farm_GPU)
     template<typename ...Args>
@@ -382,19 +414,23 @@ private:
         triggering_delay = _pf.triggering_delay;
         winType = _pf.winType;
         batch_len = _pf.batch_len;
+        gpu_id = _pf.gpu_id;
         n_thread_block = _pf.n_thread_block;
+        isComplex = true;
     }
 
     // window parameters initialization (input is a Win_MapReduce_GPU)
     template<typename ...Args>
-    void initWindowConf(Win_MapReduce_GPU<Args...> &_wm)
+    void initWindowConf(Win_MapReduce_GPU<Args...> &_wmr)
     {
-        win_len = _wm.win_len;
-        slide_len = _wm.slide_len;
-        triggering_delay = _wm.triggering_delay;
-        winType = _wm.winType;
-        batch_len = _wm.batch_len;
-        n_thread_block = _wm.n_thread_block;
+        win_len = _wmr.win_len;
+        slide_len = _wmr.slide_len;
+        triggering_delay = _wmr.triggering_delay;
+        winType = _wmr.winType;
+        batch_len = _wmr.batch_len;
+        gpu_id = _wmr.gpu_id;
+        n_thread_block = _wmr.n_thread_block;
+        isComplex = true;
     }
 
     // window parameters initialization (input is a logic)
@@ -406,6 +442,7 @@ private:
         triggering_delay = 0;
         winType = CB;
         batch_len = 1;
+        gpu_id = 0;
         n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
     }
 
@@ -429,6 +466,11 @@ public:
      */ 
     WinFarmGPU_Builder<T> &withCBWindows(uint64_t _win_len, uint64_t _slide_len)
     {
+        // check if it is a complex nesting
+        if (isComplex) {
+            std::cerr << RED << "WindFlow Error: nesting does not allow configuring the Win_Farm_GPU parameters" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
         win_len = _win_len;
         slide_len = _slide_len;
         winType = CB;
@@ -447,6 +489,11 @@ public:
                                          std::chrono::microseconds _slide_len,
                                          std::chrono::microseconds _triggering_delay=std::chrono::microseconds::zero())
     {
+        // check if it is a complex nesting
+        if (isComplex) {
+            std::cerr << RED << "WindFlow Error: nesting does not allow configuring the Win_Farm_GPU parameters" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
         win_len = _win_len.count();
         slide_len = _slide_len.count();
         triggering_delay = _triggering_delay.count();
@@ -467,15 +514,37 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the batch configuration
+     *  \brief Method to specify the batch size
      *  
      *  \param _batch_len number of windows in a batch
-     *  \param _n_thread_block number of threads per block
      *  \return the object itself
      */ 
-    WinFarmGPU_Builder<T> &withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_CUDA_NUM_THREAD_BLOCK)
+    WinFarmGPU_Builder<T> &withBatch(size_t _batch_len)
     {
+        // check if it is a complex nesting
+        if (isComplex) {
+            std::cerr << RED << "WindFlow Error: nesting does not allow configuring the Win_Farm_GPU parameters" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
         batch_len = _batch_len;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to specify the GPU configuration used to launch kernels
+     *  
+     *  \param _gpu_id identifier of the chosen GPU device (default zero)
+     *  \param _n_thread_block number of threads per block (default is DEFAULT_CUDA_NUM_THREAD_BLOCK)
+     *  \return the object itself
+     */ 
+    WinFarmGPU_Builder<T> &withGPUConfiguration(int _gpu_id=0, size_t _n_thread_block=DEFAULT_CUDA_NUM_THREAD_BLOCK)
+    {
+        // check if it is a complex nesting
+        if (isComplex) {
+            std::cerr << RED << "WindFlow Error: nesting does not allow configuring the Win_Farm_GPU parameters" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        gpu_id = _gpu_id;
         n_thread_block = _n_thread_block;
         return *this;
     }
@@ -500,6 +569,11 @@ public:
      */ 
     WinFarmGPU_Builder<T> &withScratchpad(size_t _scratchpad_size)
     {
+        // check if it is a complex nesting
+        if (isComplex) {
+            std::cerr << RED << "WindFlow Error: nesting does not allow configuring the Win_Farm_GPU parameters" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
         scratchpad_size = _scratchpad_size;
         return *this;
     }
@@ -530,6 +604,7 @@ public:
                                  winType,
                                  pardegree,
                                  batch_len,
+                                 gpu_id,
                                  n_thread_block,
                                  name,
                                  scratchpad_size,
@@ -551,6 +626,7 @@ public:
                                                winType,
                                                pardegree,
                                                batch_len,
+                                               gpu_id,
                                                n_thread_block,
                                                name,
                                                scratchpad_size,
@@ -587,11 +663,13 @@ private:
     win_type_t winType = CB;
     size_t pardegree = 1;
     size_t batch_len = 1;
+    int gpu_id = 0;
     size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
     std::string name = "wf_gpu";
     size_t scratchpad_size = 0;
     routing_func_t routing_func = [](size_t k, size_t n) { return k%n; };
     opt_level_t opt_level = LEVEL2;
+    bool isComplex=false;
 
     // window parameters initialization (input is a Pane_Farm_GPU)
     template<typename ...Args>
@@ -602,19 +680,23 @@ private:
         triggering_delay = _pf.triggering_delay;
         winType = _pf.winType;
         batch_len = _pf.batch_len;
+        gpu_id = _pf.gpu_id;
         n_thread_block = _pf.n_thread_block;
+        isComplex = true;
     }
 
     // window parameters initialization (input is a Win_MapReduce_GPU)
     template<typename ...Args>
-    void initWindowConf(Win_MapReduce_GPU<Args...> &_wm)
+    void initWindowConf(Win_MapReduce_GPU<Args...> &_wmr)
     {
-        win_len = _wm.win_len;
-        slide_len = _wm.slide_len;
-        triggering_delay = _wm.triggering_delay;
-        winType = _wm.winType;
-        batch_len = _wm.batch_len;
-        n_thread_block = _wm.n_thread_block;
+        win_len = _wmr.win_len;
+        slide_len = _wmr.slide_len;
+        triggering_delay = _wmr.triggering_delay;
+        winType = _wmr.winType;
+        batch_len = _wmr.batch_len;
+        gpu_id = _wmr.gpu_id;
+        n_thread_block = _wmr.n_thread_block;
+        isComplex = true;
     }
 
     // window parameters initialization (input is a logic)
@@ -626,6 +708,7 @@ private:
         triggering_delay = 0;
         winType = CB;
         batch_len = 1;
+        gpu_id = 0;
         n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
     }
 
@@ -649,6 +732,11 @@ public:
      */ 
     KeyFarmGPU_Builder<T> &withCBWindows(uint64_t _win_len, uint64_t _slide_len)
     {
+        // check if it is a complex nesting
+        if (isComplex) {
+            std::cerr << RED << "WindFlow Error: nesting does not allow configuring the Key_Farm_GPU parameters" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
         win_len = _win_len;
         slide_len = _slide_len;
         winType = CB;
@@ -667,6 +755,11 @@ public:
                                          std::chrono::microseconds _slide_len,
                                          std::chrono::microseconds _triggering_delay=std::chrono::microseconds::zero())
     {
+        // check if it is a complex nesting
+        if (isComplex) {
+            std::cerr << RED << "WindFlow Error: nesting does not allow configuring the Key_Farm_GPU parameters" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
         win_len = _win_len.count();
         slide_len = _slide_len.count();
         triggering_delay = _triggering_delay.count();
@@ -687,15 +780,37 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the batch configuration
+     *  \brief Method to specify the batch size
      *  
      *  \param _batch_len number of windows in a batch
-     *  \param _n_thread_block number of threads per block
      *  \return the object itself
      */ 
-    KeyFarmGPU_Builder<T> &withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_CUDA_NUM_THREAD_BLOCK)
+    KeyFarmGPU_Builder<T> &withBatch(size_t _batch_len)
     {
+        // check if it is a complex nesting
+        if (isComplex) {
+            std::cerr << RED << "WindFlow Error: nesting does not allow configuring the Key_Farm_GPU parameters" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
         batch_len = _batch_len;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to specify the GPU configuration used to launch kernels
+     *  
+     *  \param _gpu_id identifier of the chosen GPU device (default zero)
+     *  \param _n_thread_block number of threads per block (default is DEFAULT_CUDA_NUM_THREAD_BLOCK)
+     *  \return the object itself
+     */ 
+    KeyFarmGPU_Builder<T> &withGPUConfiguration(int _gpu_id=0, size_t _n_thread_block=DEFAULT_CUDA_NUM_THREAD_BLOCK)
+    {
+        // check if it is a complex nesting
+        if (isComplex) {
+            std::cerr << RED << "WindFlow Error: nesting does not allow configuring the Key_Farm_GPU parameters" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        gpu_id = _gpu_id;
         n_thread_block = _n_thread_block;
         return *this;
     }
@@ -720,6 +835,11 @@ public:
      */ 
     KeyFarmGPU_Builder<T> &withScratchpad(size_t _scratchpad_size)
     {
+        // check if it is a complex nesting
+        if (isComplex) {
+            std::cerr << RED << "WindFlow Error: nesting does not allow configuring the Key_Farm_GPU parameters" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
         scratchpad_size = _scratchpad_size;
         return *this;
     }
@@ -750,6 +870,7 @@ public:
                                  winType,
                                  pardegree,
                                  batch_len,
+                                 gpu_id,
                                  n_thread_block,
                                  name,
                                  scratchpad_size,
@@ -771,6 +892,7 @@ public:
                                                winType,
                                                pardegree,
                                                batch_len,
+                                               gpu_id,
                                                n_thread_block,
                                                name,
                                                scratchpad_size,
@@ -815,6 +937,7 @@ private:
     win_type_t winType = CB;
     size_t pardegree = 1;
     size_t batch_len = 1;
+    int gpu_id = 0;
     size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
     bool rebuild = false;
     std::string name = "kff_gpu";
@@ -876,15 +999,27 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the batch configuration
+     *  \brief Method to specify the batch size
      *  
      *  \param _batch_len number of windows in a batch
-     *  \param _n_thread_block number of threads per block
      *  \return the object itself
      */ 
-    KeyFFATGPU_Builder<F_t, G_t> &withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_CUDA_NUM_THREAD_BLOCK)
+    KeyFFATGPU_Builder<F_t, G_t> &withBatch(size_t _batch_len)
     {
         batch_len = _batch_len;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to specify the GPU configuration used to launch kernels
+     *  
+     *  \param _gpu_id identifier of the chosen GPU device (default zero)
+     *  \param _n_thread_block number of threads per block (default is DEFAULT_CUDA_NUM_THREAD_BLOCK)
+     *  \return the object itself
+     */ 
+    KeyFFATGPU_Builder<F_t, G_t> &withGPUConfiguration(int _gpu_id=0, size_t _n_thread_block=DEFAULT_CUDA_NUM_THREAD_BLOCK)
+    {
+        gpu_id = _gpu_id;
         n_thread_block = _n_thread_block;
         return *this;
     }
@@ -928,6 +1063,7 @@ public:
                                  winType,
                                  pardegree,
                                  batch_len,
+                                 gpu_id,
                                  n_thread_block,
                                  rebuild, name,
                                  routing_func);
@@ -948,6 +1084,7 @@ public:
                                                winType,
                                                pardegree,
                                                batch_len,
+                                               gpu_id,
                                                n_thread_block,
                                                rebuild,
                                                name,
@@ -1007,6 +1144,7 @@ private:
     size_t plq_degree = 1;
     size_t wlq_degree = 1;
     size_t batch_len = 1;
+    int gpu_id = 0;
     size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
     std::string name = "pf_gpu";
     size_t scratchpad_size = 0;
@@ -1072,15 +1210,27 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the batch configuration
+     *  \brief Method to specify the batch size
      *  
      *  \param _batch_len number of panes/windows in a batch
-     *  \param _n_thread_block number of threads per block
      *  \return the object itself
      */ 
-    PaneFarmGPU_Builder<F_t, G_t> &withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_CUDA_NUM_THREAD_BLOCK)
+    PaneFarmGPU_Builder<F_t, G_t> &withBatch(size_t _batch_len)
     {
         batch_len = _batch_len;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to specify the GPU configuration used to launch kernels
+     *  
+     *  \param _gpu_id identifier of the chosen GPU device (default zero)
+     *  \param _n_thread_block number of threads per block (default is DEFAULT_CUDA_NUM_THREAD_BLOCK)
+     *  \return the object itself
+     */ 
+    PaneFarmGPU_Builder<F_t, G_t> &withGPUConfiguration(int _gpu_id=0, size_t _n_thread_block=DEFAULT_CUDA_NUM_THREAD_BLOCK)
+    {
+        gpu_id = _gpu_id;
         n_thread_block = _n_thread_block;
         return *this;
     }
@@ -1148,6 +1298,7 @@ public:
                                   plq_degree,
                                   wlq_degree,
                                   batch_len,
+                                  gpu_id,
                                   n_thread_block,
                                   name,
                                   scratchpad_size,
@@ -1171,6 +1322,7 @@ public:
                                                 plq_degree,
                                                 wlq_degree,
                                                 batch_len,
+                                                gpu_id,
                                                 n_thread_block,
                                                 name,
                                                 scratchpad_size,
@@ -1231,6 +1383,7 @@ private:
     size_t map_degree = 2;
     size_t reduce_degree = 1;
     size_t batch_len = 1;
+    int gpu_id = 0;
     size_t n_thread_block = DEFAULT_CUDA_NUM_THREAD_BLOCK;
     std::string name = "wmw_gpu";
     size_t scratchpad_size = 0;
@@ -1296,15 +1449,27 @@ public:
     }
 
     /** 
-     *  \brief Method to specify the batch configuration
+     *  \brief Method to specify the batch size
      *  
      *  \param _batch_len number of partitions/windows in a batch
-     *  \param _n_thread_block number of threads per block
      *  \return the object itself
      */ 
-    WinMapReduceGPU_Builder<F_t, G_t> &withBatch(size_t _batch_len, size_t _n_thread_block=DEFAULT_CUDA_NUM_THREAD_BLOCK)
+    WinMapReduceGPU_Builder<F_t, G_t> &withBatch(size_t _batch_len)
     {
         batch_len = _batch_len;
+        return *this;
+    }
+
+    /** 
+     *  \brief Method to specify the GPU configuration used to launch kernels
+     *  
+     *  \param _gpu_id identifier of the chosen GPU device (default zero)
+     *  \param _n_thread_block number of threads per block (default is DEFAULT_CUDA_NUM_THREAD_BLOCK)
+     *  \return the object itself
+     */ 
+    WinMapReduceGPU_Builder<F_t, G_t> &withGPUConfiguration(int _gpu_id=0, size_t _n_thread_block=DEFAULT_CUDA_NUM_THREAD_BLOCK)
+    {
+        gpu_id = _gpu_id;
         n_thread_block = _n_thread_block;
         return *this;
     }
@@ -1372,6 +1537,7 @@ public:
                                       map_degree,
                                       reduce_degree,
                                       batch_len,
+                                      gpu_id,
                                       n_thread_block,
                                       name,
                                       scratchpad_size,
@@ -1395,6 +1561,7 @@ public:
                                                     map_degree,
                                                     reduce_degree,
                                                     batch_len,
+                                                    gpu_id,
                                                     n_thread_block,
                                                     name,
                                                     scratchpad_size,

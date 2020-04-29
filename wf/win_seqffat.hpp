@@ -19,24 +19,24 @@
  *  @author  Elia Ruggeri and Gabriele Mencagli
  *  @date    10/03/2020
  *  
- *  @brief Win_SeqFFAT node executing a windowed query on a multi-core CPU
+ *  @brief Win_SeqFFAT node executing associative windowed queries on a multi-core CPU
  *         with the algorithm in the FlatFAT data structure
  *  
  *  @section Win_SeqFFAT (Description)
  *  
- *  This file implements the Win_SeqFFAT node able to execute windowed queries on a
- *  multicore. The node executes streaming windows in a serial fashion on a CPU
- *  core. The algorithm is the one implemented by the FlatFAT data structure.
+ *  This file implements the Win_SeqFFAT node able to execute associative windowed queries
+ *  ona multicore. The node executes streaming windows in a serial fashion on a CPU core.
+ *  The algorithm is the one implemented by the FlatFAT data structure.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with
- *  a copy Constructor and copy assignment operator, and they must provide and implement
+ *  a copy Constructor and a copy assignment operator, and they must provide and implement
  *  the setControlFields() and getControlFields() methods.
  */ 
 
 #ifndef WIN_SEQFFAT_H
 #define WIN_SEQFFAT_H
 
-/// includes
+// includes
 #include<deque>
 #include<vector>
 #include<string>
@@ -44,34 +44,28 @@
 #include<math.h>
 #include<ff/node.hpp>
 #include<ff/multinode.hpp>
+#include<basic.hpp>
 #include<meta.hpp>
 #include<flatfat.hpp>
 #include<meta_gpu.hpp>
+#include<stats_record.hpp>
 
 namespace wf {
 
-/** 
- *  \class Win_SeqFFAT
- *  
- *  \brief Win_SeqFFAT node executing a windowed query on a multi-core CPU
- *         using the algorithm in the FlatFAT data structure
- *  
- *  This class implements the Win_SeqFFAT node executing windowed queries on a multicore
- *  in a serial fashion using the algorithm in the FlatFAT data structure.
- */ 
+// Win_SeqFFAT class
 template<typename tuple_t, typename result_t>
 class Win_SeqFFAT: public ff::ff_minode_t<tuple_t, result_t>
 {
 public:
-    /// type of the lift function
+    // type of the lift function
     using winLift_func_t = std::function<void(const tuple_t &, result_t &)>;
-    /// type of the rich lift function
+    // type of the rich lift function
     using rich_winLift_func_t = std::function<void(const tuple_t &, result_t &, RuntimeContext &)>;
-    /// type of the combine function
+    // type of the combine function
     using winComb_func_t = std::function<void(const result_t &, const result_t &, result_t &)>;
-    /// type of the rich combine function
+    // type of the rich combine function
     using rich_winComb_func_t = std::function<void(const result_t &, const result_t &, result_t &, RuntimeContext &)>;
-    /// type of the closing function
+    // type of the closing function
     using closing_func_t = std::function<void(RuntimeContext &)>;
 
 private:
@@ -148,16 +142,15 @@ private:
     bool isRichLift; // flag stating whether the lift function is riched
     bool isRichCombine; // flag stating whether the combine function is riched
     RuntimeContext context; // RuntimeContext
-    OperatorConfig config; // configuration structure of the Win_SeqFFAT node
+    WinOperatorConfig config; // configuration structure of the Win_SeqFFAT node
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     size_t dropped_tuples; // number of dropped tuples
     size_t eos_received; // number of received EOS messages
 #if defined(TRACE_WINDFLOW)
-    unsigned long rcvTuples = 0;
+    Stats_Record stats_record;
     double avg_td_us = 0;
     double avg_ts_us = 0;
-    volatile unsigned long startTD, startTS, endTD, endTS;
-    ofstream *logfile = nullptr;
+    volatile uint64_t startTD, startTS, endTD, endTS;
 #endif
 
     // function to compute the gcd (std::gcd is available only in C++17)
@@ -195,20 +188,7 @@ private:
     }
 
 public:
-    /** 
-     *  \brief Constructor I
-     *  
-     *  \param _winLift_func the lift function to translate a tuple into a result
-     *  \param _winComb_func the combine function to combine two results into a result
-     *  \param _win_len window length (in no. of tuples or in time units)
-     *  \param _slide_len slide length (in no. of tuples or in time units)
-     *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
-     *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _name string with the unique name of the node
-     *  \param _closing_func closing function
-     *  \param _context RuntimeContext object to be used
-     *  \param _config configuration of the node
-     */ 
+    // Constructor I
     Win_SeqFFAT(winLift_func_t _winLift_func,
                 winComb_func_t _winComb_func,
                 uint64_t _win_len,
@@ -218,7 +198,7 @@ public:
                 std::string _name,
                 closing_func_t _closing_func,
                 RuntimeContext _context,
-                OperatorConfig _config):
+                WinOperatorConfig _config):
                 winLift_func(_winLift_func),
                 winComb_func(_winComb_func),
                 win_len(_win_len),
@@ -237,20 +217,7 @@ public:
         init();
     }
 
-    /** 
-     *  \brief Constructor II
-     *  
-     *  \param _rich_winLift_func the rich lift function to translate a tuple into a result
-     *  \param _winComb_func the combine function to combine two results into a result
-     *  \param _win_len window length (in no. of tuples or in time units)
-     *  \param _slide_len slide length (in no. of tuples or in time units)
-     *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
-     *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _name string with the unique name of the node
-     *  \param _closing_func closing function
-     *  \param _context RuntimeContext object to be used
-     *  \param _config configuration of the node
-     */ 
+    // Constructor II
     Win_SeqFFAT(rich_winLift_func_t _rich_winLift_func,
                 winComb_func_t _winComb_func,
                 uint64_t _win_len,
@@ -260,7 +227,7 @@ public:
                 std::string _name,
                 closing_func_t _closing_func,
                 RuntimeContext _context,
-                OperatorConfig _config):
+                WinOperatorConfig _config):
                 rich_winLift_func(_rich_winLift_func),
                 winComb_func(_winComb_func),
                 win_len(_win_len),
@@ -279,20 +246,7 @@ public:
         init();
     }
 
-    /** 
-     *  \brief Constructor III
-     *  
-     *  \param _winLift_func the lift function to translate a tuple into a result
-     *  \param _rich_winComb_func the rich combine function to combine two results into a result
-     *  \param _win_len window length (in no. of tuples or in time units)
-     *  \param _slide_len slide length (in no. of tuples or in time units)
-     *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
-     *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _name string with the unique name of the node
-     *  \param _closing_func closing function
-     *  \param _context RuntimeContext object to be used
-     *  \param _config configuration of the node
-     */ 
+    // Constructor III
     Win_SeqFFAT(winLift_func_t _winLift_func,
                 rich_winComb_func_t _rich_winComb_func,
                 uint64_t _win_len,
@@ -302,7 +256,7 @@ public:
                 std::string _name,
                 closing_func_t _closing_func,
                 RuntimeContext _context,
-                OperatorConfig _config):
+                WinOperatorConfig _config):
                 winLift_func(_winLift_func),
                 rich_winComb_func(_rich_winComb_func),
                 win_len(_win_len),
@@ -321,20 +275,7 @@ public:
         init();
     }
 
-    /** 
-     *  \brief Constructor IV
-     *  
-     *  \param _rich_winLift_func the rich lift function to translate a tuple into a result
-     *  \param _rich_winComb_func the rich combine function to combine two results into a result
-     *  \param _win_len window length (in no. of tuples or in time units)
-     *  \param _slide_len slide length (in no. of tuples or in time units)
-     *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
-     *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _name string with the unique name of the node
-     *  \param _closing_func closing function
-     *  \param _context RuntimeContext object to be used
-     *  \param _config configuration of the node
-     */ 
+    // Constructor IV
     Win_SeqFFAT(rich_winLift_func_t _rich_winLift_func,
                 rich_winComb_func_t _rich_winComb_func,
                 uint64_t _win_len,
@@ -344,7 +285,7 @@ public:
                 std::string _name,
                 closing_func_t _closing_func,
                 RuntimeContext _context,
-                OperatorConfig _config):
+                WinOperatorConfig _config):
                 rich_winLift_func(_rich_winLift_func),
                 rich_winComb_func(_rich_winComb_func),
                 win_len(_win_len),
@@ -364,33 +305,16 @@ public:
     }
 
     // svc_init method (utilized by the FastFlow runtime)
-    int svc_init()
+    int svc_init() override
     {
 #if defined(TRACE_WINDFLOW)
-        logfile = new std::ofstream();
-        name += "_" + std::to_string(this->get_my_id()) + "_" + std::to_string(getpid()) + ".log";
-#if defined(LOG_DIR)
-        std::string filename = std::string(STRINGIFY(LOG_DIR)) + "/" + name;
-        std::string log_dir = std::string(STRINGIFY(LOG_DIR));
-#else
-        std::string filename = "log/" + name;
-        std::string log_dir = std::string("log");
-#endif
-        // create the log directory
-        if (mkdir(log_dir.c_str(), 0777) != 0) {
-            struct stat st;
-            if((stat(log_dir.c_str(), &st) != 0) || !S_ISDIR(st.st_mode)) {
-                std::cerr << RED << "WindFlow Error: directory for log files cannot be created" << DEFAULT_COLOR << std::endl;
-                exit(EXIT_FAILURE);
-            }
-        }
-        logfile->open(filename);
+            stats_record = Stats_Record(name, "replica_" + std::to_string(this->get_my_id()), false);
 #endif
         return 0;
     }
 
     // svc method (utilized by the FastFlow runtime)
-    result_t *svc(tuple_t *t)
+    result_t *svc(tuple_t *t) override
     {
         // two separate logics depending on the window type
         if (winType == CB) {
@@ -407,9 +331,11 @@ public:
     {
 #if defined (TRACE_WINDFLOW)
         startTS = current_time_nsecs();
-        if (rcvTuples == 0)
+        if (stats_record.inputs_received == 0) {
             startTD = current_time_nsecs();
-        rcvTuples++;
+        }
+        stats_record.inputs_received++;
+        stats_record.bytes_received += sizeof(tuple_t);
 #endif
         // extract the key and id fields from the input tuple
         auto key = std::get<0>(t->getControlFields()); // key
@@ -472,6 +398,10 @@ public:
             // send the window result
             out->setControlFields(std::get<0>(out->getControlFields()), gwid, std::get<2>(out->getControlFields()));
             this->ff_send_out(out);
+#if defined(TRACE_WINDFLOW)
+            stats_record.outputs_sent++;
+            stats_record.bytes_sent += sizeof(result_t);
+#endif
         }
         // delete the input
         delete t;
@@ -479,9 +409,11 @@ public:
         endTS = current_time_nsecs();
         endTD = current_time_nsecs();
         double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
-        avg_ts_us += (1.0 / rcvTuples) * (elapsedTS_us - avg_ts_us);
+        avg_ts_us += (1.0 / stats_record.inputs_received) * (elapsedTS_us - avg_ts_us);
         double elapsedTD_us = ((double) (endTD - startTD)) / 1000;
-        avg_td_us += (1.0 / rcvTuples) * (elapsedTD_us - avg_td_us);
+        avg_td_us += (1.0 / stats_record.inputs_received) * (elapsedTD_us - avg_td_us);
+        stats_record.service_time = std::chrono::duration<double, std::micro>(avg_ts_us);
+        stats_record.eff_service_time = std::chrono::duration<double, std::micro>(avg_td_us);
         startTD = current_time_nsecs();
 #endif
     }
@@ -491,9 +423,11 @@ public:
     {
 #if defined (TRACE_WINDFLOW)
         startTS = current_time_nsecs();
-        if (rcvTuples == 0)
+        if (stats_record.inputs_received == 0) {
             startTD = current_time_nsecs();
-        rcvTuples++;
+        }
+        stats_record.inputs_received++;
+        stats_record.bytes_received += sizeof(tuple_t);
 #endif
         // extract the key and timestamp fields from the input tuple
         auto key = std::get<0>(t->getControlFields()); // key
@@ -569,9 +503,11 @@ public:
         endTS = current_time_nsecs();
         endTD = current_time_nsecs();
         double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
-        avg_ts_us += (1.0 / rcvTuples) * (elapsedTS_us - avg_ts_us);
+        avg_ts_us += (1.0 / stats_record.inputs_received) * (elapsedTS_us - avg_ts_us);
         double elapsedTD_us = ((double) (endTD - startTD)) / 1000;
-        avg_td_us += (1.0 / rcvTuples) * (elapsedTD_us - avg_td_us);
+        avg_td_us += (1.0 / stats_record.inputs_received) * (elapsedTD_us - avg_td_us);
+        stats_record.service_time = std::chrono::duration<double, std::micro>(avg_ts_us);
+        stats_record.eff_service_time = std::chrono::duration<double, std::micro>(avg_td_us);
         startTD = current_time_nsecs();
 #endif
     }
@@ -618,11 +554,15 @@ public:
             // send the window result
             out->setControlFields(std::get<0>(out->getControlFields()), gwid, std::get<2>(out->getControlFields()));
             this->ff_send_out(out);
+#if defined(TRACE_WINDFLOW)
+            stats_record.outputs_sent++;
+            stats_record.bytes_sent += sizeof(result_t);
+#endif
         }
     }
 
     // method to manage the EOS (utilized by the FastFlow runtime)
-    void eosnotify(ssize_t id)
+    void eosnotify(ssize_t id) override
     {
         eos_received++;
         // check the number of received EOS messages
@@ -664,6 +604,10 @@ public:
                 // send the window result
                 out->setControlFields(std::get<0>(out->getControlFields()), gwid, std::get<2>(out->getControlFields()));
                 this->ff_send_out(out);
+#if defined(TRACE_WINDFLOW)
+                stats_record.outputs_sent++;
+                stats_record.bytes_sent += sizeof(result_t);
+#endif
             }
         }
     }
@@ -699,64 +643,47 @@ public:
                 // send the window result
                 out->setControlFields(std::get<0>(out->getControlFields()), gwid, std::get<2>(out->getControlFields()));
                 this->ff_send_out(out);
+#if defined(TRACE_WINDFLOW)
+                stats_record.outputs_sent++;
+                stats_record.bytes_sent += sizeof(result_t);
+#endif
             }
         }
     }
 
     // svc_end method (utilized by the FastFlow runtime)
-    void svc_end()
+    void svc_end() override
     {
         // call the closing function
         closing_func(context);
 #if defined(TRACE_WINDFLOW)
-        std::ostringstream stream;
-        stream << "************************************LOG************************************\n";
-        stream << "No. of received tuples: " << rcvTuples << "\n";
-        stream << "Average service time: " << avg_ts_us << " usec \n";
-        stream << "Average inter-departure time: " << avg_td_us << " usec \n";
-        stream << "Dropped tuples: " << dropped_tuples << "\n";
-        stream << "***************************************************************************\n";
-        *logfile << stream.str();
-        logfile->close();
-        delete logfile;
+        // dump log file with statistics
+        stats_record.dump_toFile();
 #endif
     }
 
-    /** 
-     *  \brief Get the window type (CB or TB) utilized by the node
-     *  \return adopted windowing semantics (count- or time-based)
-     */ 
-    win_type_t getWinType() const
-    {
-        return winType;
-    }
-
-    /** 
-     *  \brief Get the number of dropped tuples by the Win_SeqFFAT
-     *  \return number of tuples dropped during the processing by the Win_SeqFFAT
-     */ 
+    // method to return the number of dropped tuples by this node
     size_t getNumDroppedTuples() const
     {
         return dropped_tuples;
     }
 
-    /** 
-     *  \brief Get the name of the node
-     *  \return string representing the name of the node
-     */
-    std::string getName() const
+#if defined(TRACE_WINDFLOW)
+    // method to return a copy of the Stats_Record of this node
+    Stats_Record get_StatsRecord() const
     {
-        return name;
+        return stats_record;
     }
+#endif
 
-    /// Method to start the node execution asynchronously
-    virtual int run(bool)
+    // method to start the node execution asynchronously
+    int run(bool) override
     {
         return ff::ff_minode::run();
     }
 
-    /// Method to wait the node termination
-    virtual int wait()
+    // method to wait the node termination
+    int wait() override
     {
         return ff::ff_minode::wait();
     }

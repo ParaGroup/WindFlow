@@ -50,8 +50,9 @@
 #include<tree_emitter.hpp>
 #include<basic_emitter.hpp>
 #include<ordering_node.hpp>
-#include<standard_emitter.hpp>
+#include<basic_operator.hpp>
 #include<transformations.hpp>
+#include<standard_emitter.hpp>
 #include<splitting_emitter.hpp>
 #include<broadcast_emitter.hpp>
 
@@ -70,22 +71,21 @@ struct AppNode
     AppNode(MultiPipe *_mp=nullptr,
             AppNode *_parent=nullptr):
             mp(_mp),
-            parent(_parent)
-    {}
+            parent(_parent) {}
 };
 
 // class selfkiller_node (placeholder in the second set of matrioskas)
 class selfkiller_node: public ff::ff_minode
 {
     // svc_init (utilized by the FastFlow runtime)
-    int svc_init()
+    int svc_init() override
     {
         skipfirstpop(true);
         return 0;
     }
 
     // svc method (utilized by the FastFlow runtime)
-    void *svc(void *)
+    void *svc(void *) override
     {
         return this->EOS; // terminates immediately!
     }
@@ -112,6 +112,7 @@ private:
     Mode mode; // processing mode of the PipeGraph
     bool isStarted; // flag stating whether the PipeGraph has already been started
     bool isEnded; // flag stating whether the PipeGraph has completed its processing
+    std::vector<std::reference_wrapper<Basic_Operator>> listOperators;// sequence of operators that have been added/chained within this PipeGraph
 #ifdef GRAPHVIZ_WINDFLOW
     GVC_t *gvc; // pointer to the GVC environment
     Agraph_t *gv_graph; // pointer to the graphviz representation of the PipeGraph
@@ -210,6 +211,15 @@ public:
     size_t getNumThreads() const;
 
     /** 
+     *  \brief Return the list of operators added/chained within the PipeGraph
+     *  \return vector containing reference wrapper to the operators
+     */ 
+    std::vector<std::reference_wrapper<Basic_Operator>> get_ListOperators() const
+    {
+        return listOperators;
+    }
+
+    /** 
      *  \brief Dump the .gv and .pdf files representing the PipeGraph using the
      *         Graph Description Language (DOT)
      */ 
@@ -247,8 +257,6 @@ class MultiPipe: public ff::ff_pipeline
 private:
     // friendship with the PipeGraph class
     friend class PipeGraph;
-    // enumeration of the routing types
-    enum routing_types_t { NONE, FORWARD, KEYBY, COMPLEX };
     PipeGraph *graph; // PipeGraph creating this MultiPipe
     bool has_source; // true if the MultiPipe starts with a Source
     bool has_sink; // true if the MultiPipe ends with a Sink
@@ -284,8 +292,7 @@ private:
               splittingBranches(0),
               forceShuffling(false),
               lastParallelism(0),
-              outputType("")
-    {}
+              outputType("") {}
 
     // Private Constructor II (to create a MultiPipe resulting from the merge of other MultiPipe instances)
     MultiPipe(PipeGraph *_graph,
@@ -327,7 +334,7 @@ private:
 
     // method to add an operator to the MultiPipe
     template<typename emitter_t, typename collector_t=dummy_mi>
-    void add_operator(ff::ff_farm *_op, routing_types_t _type, ordering_mode_t _ordering=TS);
+    void add_operator(ff::ff_farm *_op, routing_modes_t _type, ordering_mode_t _ordering=TS);
 
     // method to chain an operator with the previous one in the MultiPipe
     template<typename worker_t>
@@ -352,7 +359,7 @@ private:
 
 #ifdef GRAPHVIZ_WINDFLOW
     // method to add of a new operator to the graphviz representation
-    void gv_add_vertex(std::string typeOP, std::string nameOP, bool isCPU_OP, bool isNested, routing_types_t routing_type);
+    void gv_add_vertex(std::string typeOP, std::string nameOP, bool isCPU_OP, bool isNested, routing_modes_t routing_type);
 
     // method to chain of a new operator in the graphviz representation
     void gv_chain_vertex(std::string label, std::string nameOP);
@@ -973,6 +980,8 @@ MultiPipe &PipeGraph::add_source(Source<tuple_t> &_source)
     (root->children).push_back(new AppNode(mp, root));
     // this MultiPipe must be deleted at the end
     toBeDeteled.push_back(mp);
+    // add this operator to listOperators
+    listOperators.push_back(std::ref(static_cast<Basic_Operator &>(_source)));
     return *mp;
 }
 
@@ -1026,7 +1035,7 @@ inline int PipeGraph::start()
 #else
     std::cout << "--> Backpressure " << RED << "disabled" << DEFAULT_COLOR << std::endl;
 #endif
-#if defined(BLOCKING_MODE)
+#if !defined(BLOCKING_MODE)
     std::cout << "--> Non-blocking queues " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
 #else
     std::cout << "--> Blocking queues " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
@@ -1154,7 +1163,7 @@ MultiPipe &MultiPipe::add_source(Source<tuple_t> &_source)
 
 // implementation of the method to add an operator to the MultiPipe
 template<typename emitter_t, typename collector_t>
-void MultiPipe::add_operator(ff::ff_farm *_op, routing_types_t _type, ordering_mode_t _ordering)
+void MultiPipe::add_operator(ff::ff_farm *_op, routing_modes_t _type, ordering_mode_t _ordering)
 {
     // check the Source presence
     if (!has_source) {
@@ -1438,7 +1447,7 @@ inline void MultiPipe::prepareSplittingEmitters(Basic_Emitter *_e)
 
 #ifdef GRAPHVIZ_WINDFLOW
 // implementation of the method to add of a new operator to the graphviz representation
-inline void MultiPipe::gv_add_vertex(std::string typeOP, std::string nameOP, bool isCPU_OP, bool isNested, routing_types_t routing_type)
+inline void MultiPipe::gv_add_vertex(std::string typeOP, std::string nameOP, bool isCPU_OP, bool isNested, routing_modes_t routing_type)
 {
     auto *gv_graph = (this->graph)->gv_graph;
     // creating the new vertex
@@ -1569,19 +1578,21 @@ MultiPipe &MultiPipe::add(Filter<tuple_t, result_t> &_filter)
     }
     // call the generic method to add the operator to the MultiPipe
     if (graph->mode == Mode::DETERMINISTIC) {
-        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_filter, _filter.isKeyed() ? KEYBY : FORWARD, TS);
+        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_filter, _filter.getRoutingMode(), TS);
     }
     else {
-        add_operator<Standard_Emitter<tuple_t>>(&_filter, _filter.isKeyed() ? KEYBY : FORWARD);
+        add_operator<Standard_Emitter<tuple_t>>(&_filter, _filter.getRoutingMode());
     }
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
     // the Filter operator is now used
     _filter.used = true;
+    // add this operator to listOperators
+    (graph->listOperators).push_back(std::ref(static_cast<Basic_Operator &>(_filter)));
 #ifdef GRAPHVIZ_WINDFLOW
     // update the graphviz representation
-    gv_add_vertex("Filter(" + std::to_string(_filter.getNWorkers()) + ")", _filter.getName(), true, false, _filter.isKeyed() ? KEYBY : FORWARD);
+    gv_add_vertex("Filter (" + std::to_string(_filter.getParallelism()) + ")", _filter.getName(), true, false, _filter.getRoutingMode());
 #endif
     return *this;
 }
@@ -1603,17 +1614,19 @@ MultiPipe &MultiPipe::chain(Filter<tuple_t, result_t> &_filter)
         exit(EXIT_FAILURE);
     }
     // try to chain the operator with the MultiPipe
-    if (!_filter.isKeyed()) {
+    if (_filter.getRoutingMode() != KEYBY) {
         bool chained = chain_operator<typename Filter<tuple_t, result_t>::Filter_Node>(&_filter);
         if (!chained) {
             add(_filter);
         }
-#ifdef GRAPHVIZ_WINDFLOW
         else {
+            // add this operator to listOperators
+            (graph->listOperators).push_back(std::ref(static_cast<Basic_Operator &>(_filter)));         
+#ifdef GRAPHVIZ_WINDFLOW
             // update the graphviz representation
-            gv_chain_vertex("Filter(" + std::to_string(_filter.getNWorkers()) + ")", _filter.getName());
+            gv_chain_vertex("Filter (" + std::to_string(_filter.getParallelism()) + ")", _filter.getName());
+#endif        
         }
-#endif
     }
     else {
         add(_filter);
@@ -1644,19 +1657,21 @@ MultiPipe &MultiPipe::add(Map<tuple_t, result_t> &_map)
     }
     // call the generic method to add the operator to the MultiPipe
     if (graph->mode == Mode::DETERMINISTIC) {
-        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_map, _map.isKeyed() ? KEYBY : FORWARD, TS);
+        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_map, _map.getRoutingMode(), TS);
     }
     else {
-        add_operator<Standard_Emitter<tuple_t>>(&_map, _map.isKeyed() ? KEYBY : FORWARD);
+        add_operator<Standard_Emitter<tuple_t>>(&_map, _map.getRoutingMode());
     }
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
     // the Map operator is now used
     _map.used = true;
+    // add this operator to listOperators
+    (graph->listOperators).push_back(std::ref(static_cast<Basic_Operator &>(_map)));
 #ifdef GRAPHVIZ_WINDFLOW
     // update the graphviz representation
-    gv_add_vertex("Map(" + std::to_string(_map.getNWorkers()) + ")", _map.getName(), true, false, _map.isKeyed() ? KEYBY : FORWARD);
+    gv_add_vertex("Map (" + std::to_string(_map.getParallelism()) + ")", _map.getName(), true, false, _map.getRoutingMode());
 #endif
     return *this;
 }
@@ -1678,17 +1693,19 @@ MultiPipe &MultiPipe::chain(Map<tuple_t, result_t> &_map)
         exit(EXIT_FAILURE);
     }
     // try to chain the operator with the MultiPipe
-    if (!_map.isKeyed()) {
+    if (_map.getRoutingMode() != KEYBY) {
         bool chained = chain_operator<typename Map<tuple_t, result_t>::Map_Node>(&_map);
         if (!chained) {
             add(_map);
         }
-#ifdef GRAPHVIZ_WINDFLOW
         else {
+            // add this operator to listOperators
+            (graph->listOperators).push_back(std::ref(static_cast<Basic_Operator &>(_map)));
+#ifdef GRAPHVIZ_WINDFLOW
             // update the graphviz representation
-            gv_chain_vertex("Map(" + std::to_string(_map.getNWorkers()) + ")", _map.getName());
+            gv_chain_vertex("Map (" + std::to_string(_map.getParallelism()) + ")", _map.getName());
+#endif        
         }
-#endif
     }
     else {
         add(_map);
@@ -1719,19 +1736,21 @@ MultiPipe &MultiPipe::add(FlatMap<tuple_t, result_t> &_flatmap)
     }
     // call the generic method to add the operator
     if (graph->mode == Mode::DETERMINISTIC) {
-        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_flatmap, _flatmap.isKeyed() ? KEYBY : FORWARD, TS);
+        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_flatmap, _flatmap.getRoutingMode(), TS);
     }
     else {
-        add_operator<Standard_Emitter<tuple_t>>(&_flatmap, _flatmap.isKeyed() ? KEYBY : FORWARD);
+        add_operator<Standard_Emitter<tuple_t>>(&_flatmap, _flatmap.getRoutingMode());
     }
     // save the new output type from this MultiPipe
     result_t r;
     outputType = typeid(r).name();
     // the FlatMap operator is now used
     _flatmap.used = true;
+    // add this operator to listOperators
+    (graph->listOperators).push_back(std::ref(static_cast<Basic_Operator &>(_flatmap)));
 #ifdef GRAPHVIZ_WINDFLOW
     // update the graphviz representation
-    gv_add_vertex("FlatMap(" + std::to_string(_flatmap.getNWorkers()) + ")", _flatmap.getName(), true, false, _flatmap.isKeyed() ? KEYBY : FORWARD);
+    gv_add_vertex("FlatMap (" + std::to_string(_flatmap.getParallelism()) + ")", _flatmap.getName(), true, false, _flatmap.getRoutingMode());
 #endif
     return *this;
 }
@@ -1752,17 +1771,19 @@ MultiPipe &MultiPipe::chain(FlatMap<tuple_t, result_t> &_flatmap)
         std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the FlatMap operator" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
-    if (!_flatmap.isKeyed()) {
+    if (_flatmap.getRoutingMode() != KEYBY) {
         bool chained = chain_operator<typename FlatMap<tuple_t, result_t>::FlatMap_Node>(&_flatmap);
         if (!chained) {
             add(_flatmap);
         }
-#ifdef GRAPHVIZ_WINDFLOW
         else {
+            // add this operator to listOperators
+            (graph->listOperators).push_back(std::ref(static_cast<Basic_Operator &>(_flatmap)));
+#ifdef GRAPHVIZ_WINDFLOW
             // update the graphviz representation
-            gv_chain_vertex("FlatMap(" + std::to_string(_flatmap.getNWorkers()) + ")", _flatmap.getName());
+            gv_chain_vertex("FlatMap (" + std::to_string(_flatmap.getParallelism()) + ")", _flatmap.getName());
+#endif        
         }
-#endif
     }
     else {
         add(_flatmap);
@@ -1803,9 +1824,11 @@ MultiPipe &MultiPipe::add(Accumulator<tuple_t, result_t> &_acc)
     outputType = typeid(r).name();
     // the Accumulator operator is now used
     _acc.used = true;
+    // add this operator to listOperators
+    (graph->listOperators).push_back(std::ref(static_cast<Basic_Operator &>(_acc)));
 #ifdef GRAPHVIZ_WINDFLOW
     // update the graphviz representation
-    gv_add_vertex("Accum(" + std::to_string(_acc.getNWorkers()) + ")", _acc.getName(), true, false, KEYBY);
+    gv_add_vertex("Accum (" + std::to_string(_acc.getParallelism()) + ")", _acc.getName(), true, false, KEYBY);
 #endif
     return *this;
 }
@@ -1822,7 +1845,7 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
     // count-based windows are possible only in DETERMINISTIC mode
     if (_wf.getWinType() == CB && graph->mode != Mode::DETERMINISTIC) {
         std::cerr << RED << "WindFlow Error: count-based windows require DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
-        exit(EXIT_FAILURE);  
+        exit(EXIT_FAILURE);
     }
     // check the type compatibility
     tuple_t t;
@@ -1832,7 +1855,7 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
         exit(EXIT_FAILURE);
     }
     // check whether the Win_Farm has complex parallel replicas inside
-    if (_wf.useComplexNesting()) {
+    if (_wf.isComplexNesting()) {
         // check whether internal replicas have been prepared for nesting
         if (_wf.getOptLevel() != LEVEL2 || _wf.getInnerOptLevel() != LEVEL2) {
             std::cerr << RED << "WindFlow Error: tried a nesting without preparing the inner operator" << DEFAULT_COLOR << std::endl;
@@ -1842,7 +1865,7 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
             // inner replica is a Pane_Farm
             if(_wf.getInnerType() == PF_CPU) {
                 // check the parallelism degree of the PLQ stage
-                if ((_wf.getInnerParallelism()).first > 1) {
+                if ((_wf.getInnerParallelisms()).first > 1) {
                     if (_wf.getWinType() == TB) {
                         // call the generic method to add the operator to the MultiPipe
                         if (graph->mode == Mode::DETERMINISTIC) {
@@ -1854,7 +1877,7 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
                     }
                     else {
                         // special case count-based windows
-                        _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getParallelism() * (_wf.getInnerParallelism()).first), true);
+                        _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getNumComplexReplicas() * (_wf.getInnerParallelisms()).first), true);
                         // call the generic method to add the operator to the MultiPipe
                         add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
                     }
@@ -1871,14 +1894,14 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
                     }
                     else {
                         // special case count-based windows
-                        _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getParallelism()), true);
+                        _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getNumComplexReplicas()), true);
                         // call the generic method to add the operator to the MultiPipe
                         add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
                     }
                 }
 #ifdef GRAPHVIZ_WINDFLOW
                 // update the graphviz representation
-                gv_add_vertex("WF(PF(" + std::to_string(_wf.getInnerParallelism().first) + "," + std::to_string(_wf.getInnerParallelism().second) + "), " + _wf.getParallelism() + ")", _wf.getName(), true, true, COMPLEX);
+                gv_add_vertex("WF[PF(" + std::to_string(_wf.getInnerParallelisms().first) + "," + std::to_string(_wf.getInnerParallelisms().second) + "), " + _wf.getNumComplexReplicas() + "]", _wf.getName(), true, true, COMPLEX);
 #endif
             }
             // inner replica is a Win_MapReduce
@@ -1894,9 +1917,9 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
                 }
                 else {
                     // special case count-based windows
-                    _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getParallelism() * (_wf.getInnerParallelism()).first), true);
-                    size_t n_map = (_wf.getInnerParallelism()).first;
-                    for (size_t i=0; i<_wf.getParallelism(); i++) {
+                    _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getNumComplexReplicas() * (_wf.getInnerParallelisms()).first), true);
+                    size_t n_map = (_wf.getInnerParallelisms()).first;
+                    for (size_t i=0; i<_wf.getNumComplexReplicas(); i++) {
                         ff::ff_pipeline *pipe = static_cast<ff::ff_pipeline *>((_wf.getWorkers())[i]);
                         auto &stages = pipe->getStages();
                         ff::ff_a2a *a2a = static_cast<ff::ff_a2a *>(stages[0]);
@@ -1910,7 +1933,7 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
                 }
 #ifdef GRAPHVIZ_WINDFLOW
                 // update the graphviz representation
-                gv_add_vertex("WF(WMR(" + std::to_string(_wf.getInnerParallelism().first) + "," + std::to_string(_wf.getInnerParallelism().second) + "), " + std::to_string(_wf.getParallelism()) + ")", _wf.getName(), true, true, COMPLEX);
+                gv_add_vertex("WF[WMR(" + std::to_string(_wf.getInnerParallelisms().first) + "," + std::to_string(_wf.getInnerParallelisms().second) + "), " + std::to_string(_wf.getNumComplexReplicas()) + "]", _wf.getName(), true, true, COMPLEX);
 #endif
             }
             forceShuffling = true;
@@ -1935,7 +1958,7 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
         }
 #ifdef GRAPHVIZ_WINDFLOW
         // update the graphviz representation
-        gv_add_vertex("WF(" + std::to_string(_wf.getParallelism()) + ")", _wf.getName(), true, false, COMPLEX);
+        gv_add_vertex("WF (" + std::to_string(_wf.getParallelism()) + ")", _wf.getName(), true, false, COMPLEX);
 #endif
     }
     // save the new output type from this MultiPipe
@@ -1943,6 +1966,8 @@ MultiPipe &MultiPipe::add(Win_Farm<tuple_t, result_t> &_wf)
     outputType = typeid(r).name();
     // the Win_Farm operator is now used
     _wf.used = true;
+    // add this operator to listOperators
+    (graph->listOperators).push_back(std::ref(static_cast<Basic_Operator &>(_wf)));
     return *this;
 }
 
@@ -1968,7 +1993,7 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
         exit(EXIT_FAILURE);
     }
     // check whether the Win_Farm_GPU has complex parallel replicas inside
-    if (_wf.useComplexNesting()) {
+    if (_wf.isComplexNesting()) {
         // check whether internal replicas have been prepared for nesting
         if (_wf.getOptLevel() != LEVEL2 || _wf.getInnerOptLevel() != LEVEL2) {
             std::cerr << RED << "WindFlow Error: tried a nesting without preparing the inner operator" << DEFAULT_COLOR << std::endl;
@@ -1978,7 +2003,7 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
             // inner replica is a Pane_Farm_GPU
             if(_wf.getInnerType() == PF_GPU) {
                 // check the parallelism degree of the PLQ stage
-                if ((_wf.getInnerParallelism()).first > 1) {
+                if ((_wf.getInnerParallelisms()).first > 1) {
                     if (_wf.getWinType() == TB) {
                         // call the generic method to add the operator to the MultiPipe
                         if (graph->mode == Mode::DETERMINISTIC) {
@@ -1990,7 +2015,7 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
                     }
                     else {
                         // special case count-based windows
-                        _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getParallelism() * (_wf.getInnerParallelism()).first), true);
+                        _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getNumComplexReplicas() * (_wf.getInnerParallelisms()).first), true);
                         // call the generic method to add the operator to the MultiPipe
                         add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
                     }
@@ -2007,14 +2032,14 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
                     }
                     else {
                         // special case count-based windows
-                        _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getParallelism()), true);
+                        _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getNumComplexReplicas()), true);
                         // call the generic method to add the operator to the MultiPipe
                         add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
                     }
                 }
 #ifdef GRAPHVIZ_WINDFLOW
                 // update the graphviz representation
-                gv_add_vertex("WF_GPU(PF_GPU(" + std::to_string(_wf.getInnerParallelism().first) + "," + std::to_string(_wf.getInnerParallelism().second) + "), " + _wf.getParallelism() + ")", _wf.getName(), false, true, COMPLEX);
+                gv_add_vertex("WF_GPU[PF_GPU(" + std::to_string(_wf.getInnerParallelisms().first) + "," + std::to_string(_wf.getInnerParallelisms().second) + "), " + _wf.getNumComplexReplicas() + "]", _wf.getName(), false, true, COMPLEX);
 #endif
             }
             // inner replica is a Win_MapReduce_GPU
@@ -2030,9 +2055,9 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
                 }
                 else {
                     // special case count-based windows
-                    _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getParallelism() * (_wf.getInnerParallelism()).first), true);
-                    size_t n_map = (_wf.getInnerParallelism()).first;
-                    for (size_t i=0; i<_wf.getParallelism(); i++) {
+                    _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getNumComplexReplicas() * (_wf.getInnerParallelisms()).first), true);
+                    size_t n_map = (_wf.getInnerParallelisms()).first;
+                    for (size_t i=0; i<_wf.getNumComplexReplicas(); i++) {
                         ff::ff_pipeline *pipe = static_cast<ff::ff_pipeline *>((_wf.getWorkers())[i]);
                         auto &stages = pipe->getStages();
                         ff::ff_a2a *a2a = static_cast<ff::ff_a2a *>(stages[0]);
@@ -2046,7 +2071,7 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
                 }
 #ifdef GRAPHVIZ_WINDFLOW
                 // update the graphviz representation
-                gv_add_vertex("WF_GPU(WMR_GPU(" + std::to_string(_wf.getInnerParallelism().first) + "," + std::to_string(_wf.getInnerParallelism().second) + "), " + _wf.getParallelism() + ")", _wf.getName(), false, true, COMPLEX);
+                gv_add_vertex("WF_GPU[WMR_GPU(" + std::to_string(_wf.getInnerParallelisms().first) + "," + std::to_string(_wf.getInnerParallelisms().second) + "), " + _wf.getNumComplexReplicas() + "]", _wf.getName(), false, true, COMPLEX);
 #endif
             }
             forceShuffling = true;
@@ -2071,7 +2096,7 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
         }
 #ifdef GRAPHVIZ_WINDFLOW
         // update the graphviz representation
-        gv_add_vertex("WF_GPU(" + std::to_string(_wf.getParallelism()) + ")", _wf.getName(), false, false, COMPLEX);
+        gv_add_vertex("WF_GPU (" + std::to_string(_wf.getParallelism()) + ")", _wf.getName(), false, false, COMPLEX);
 #endif
     }
     // save the new output type from this MultiPipe
@@ -2079,6 +2104,8 @@ MultiPipe &MultiPipe::add(Win_Farm_GPU<tuple_t, result_t, F_t> &_wf)
     outputType = typeid(r).name();
     // the Win_Farm_GPU operator is now used
     _wf.used = true;
+    // add this operator to listOperators
+    (graph->listOperators).push_back(std::ref(static_cast<Basic_Operator &>(_wf)));
     return *this;
 }
 
@@ -2104,7 +2131,7 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
         exit(EXIT_FAILURE);
     }
     // check whether the Key_Farm has complex parallel replicas inside
-    if (_kf.useComplexNesting()) {
+    if (_kf.isComplexNesting()) {
         // check whether internal replicas have been prepared for nesting
         if (_kf.getOptLevel() != LEVEL2 || _kf.getInnerOptLevel() != LEVEL2) {
             std::cerr << RED << "WindFlow Error: tried a nesting without preparing the inner operator" << DEFAULT_COLOR << std::endl;
@@ -2113,8 +2140,8 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
         else {
             // inner replica is a Pane_Farm
             if(_kf.getInnerType() == PF_CPU) {
-                // check the parallelism degree of the PLQ stage
-                if ((_kf.getInnerParallelism()).first > 1) {
+                // check the parallelism of the PLQ stage
+                if ((_kf.getInnerParallelisms()).first > 1) {
                     if (_kf.getWinType() == TB) {
                         // call the generic method to add the operator to the MultiPipe
                         if (graph->mode == Mode::DETERMINISTIC) {
@@ -2129,8 +2156,8 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
                         auto *emitter = static_cast<Tree_Emitter *>(_kf.getEmitter());
                         KF_Emitter<tuple_t> *rootnode = new KF_Emitter<tuple_t>(*(static_cast<KF_Emitter<tuple_t> *>(emitter->getRootNode())));
                         std::vector<Basic_Emitter *> children;
-                        size_t n_plq = (_kf.getInnerParallelism()).first;
-                        for (size_t i=0; i<_kf.getParallelism(); i++) {
+                        size_t n_plq = (_kf.getInnerParallelisms()).first;
+                        for (size_t i=0; i<_kf.getNumComplexReplicas(); i++) {
                             auto *b_node = new Broadcast_Emitter<tuple_t>(n_plq);
                             b_node->setTree_EmitterMode(true);
                             children.push_back(b_node);
@@ -2157,7 +2184,7 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
                 }
 #ifdef GRAPHVIZ_WINDFLOW
                 // update the graphviz representation
-                gv_add_vertex("KF(PF(" + std::to_string(_kf.getInnerParallelism().first) + "," + std::to_string(_kf.getInnerParallelism().second) + "), " + std::to_string(_kf.getParallelism()) + ")", _kf.getName(), true, true, KEYBY);
+                gv_add_vertex("KF[PF(" + std::to_string(_kf.getInnerParallelisms().first) + "," + std::to_string(_kf.getInnerParallelisms().second) + "), " + std::to_string(_kf.getNumComplexReplicas()) + "]", _kf.getName(), true, true, KEYBY);
 #endif
             }
             // inner replica is a Win_MapReduce
@@ -2176,21 +2203,22 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
                     auto *emitter = static_cast<Tree_Emitter *>(_kf.getEmitter());
                     KF_Emitter<tuple_t> *rootnode = new KF_Emitter<tuple_t>(*(static_cast<KF_Emitter<tuple_t> *>(emitter->getRootNode())));
                     std::vector<Basic_Emitter *> children;
-                    size_t n_map = (_kf.getInnerParallelism()).first;
-                    for (size_t i=0; i<_kf.getParallelism(); i++) {
+                    size_t n_map = (_kf.getInnerParallelisms()).first;
+                    for (size_t i=0; i<_kf.getNumComplexReplicas(); i++) {
                         auto *b_node = new Broadcast_Emitter<tuple_t>(n_map);
                         b_node->setTree_EmitterMode(true);
                         children.push_back(b_node);
                     }
                     auto *new_emitter = new Tree_Emitter(rootnode, children, true, true);
                     _kf.change_emitter(new_emitter, true);
-                    for (size_t i=0; i<_kf.getParallelism(); i++) {
+                    for (size_t i=0; i<_kf.getNumComplexReplicas(); i++) {
                         ff::ff_pipeline *pipe = static_cast<ff::ff_pipeline *>((_kf.getWorkers())[i]);
                         auto &stages = pipe->getStages();
                         ff::ff_a2a *a2a = static_cast<ff::ff_a2a *>(stages[0]);
                         std::vector<ff::ff_node *> nodes;
-                        for (size_t j=0; j<n_map; j++)
+                        for (size_t j=0; j<n_map; j++) {
                             nodes.push_back(new WinMap_Dropper<tuple_t>(j, n_map));
+                        }
                         combine_a2a_withFirstNodes(a2a, nodes, true);
                     }
                     // call the generic method to add the operator to the MultiPipe
@@ -2198,7 +2226,7 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
                 }
 #ifdef GRAPHVIZ_WINDFLOW
                 // update the graphviz representation
-                gv_add_vertex("KF(WMR(" + std::to_string(_kf.getInnerParallelism().first) + "," + std::to_string(_kf.getInnerParallelism().second) + "), " + std::to_string(_kf.getParallelism()) + ")", _kf.getName(), true, true, KEYBY);
+                gv_add_vertex("KF[WMR(" + std::to_string(_kf.getInnerParallelisms().first) + "," + std::to_string(_kf.getInnerParallelisms().second) + "), " + std::to_string(_kf.getNumComplexReplicas()) + "]", _kf.getName(), true, true, KEYBY);
 #endif
             }
             forceShuffling = true;
@@ -2220,7 +2248,7 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
         }
 #ifdef GRAPHVIZ_WINDFLOW
         // update the graphviz representation
-        gv_add_vertex("KF(" + std::to_string(_kf.getParallelism()) + ")", _kf.getName(), true, false, KEYBY);
+        gv_add_vertex("KF (" + std::to_string(_kf.getParallelism()) + ")", _kf.getName(), true, false, KEYBY);
 #endif
     }
     // save the new output type from this MultiPipe
@@ -2228,6 +2256,8 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
     outputType = typeid(r).name();
     // the Key_Farm operator is now used
     _kf.used = true;
+    // add this operator to listOperators
+    (graph->listOperators).push_back(std::ref(static_cast<Basic_Operator &>(_kf)));
     return *this;
 }
 
@@ -2253,7 +2283,7 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
         exit(EXIT_FAILURE);
     }
     // check whether the Key_Farm_GPU has complex parallel replicas inside
-    if (_kf.useComplexNesting()) {
+    if (_kf.isComplexNesting()) {
         // check whether internal replicas have been prepared for nesting
         if (_kf.getOptLevel() != LEVEL2 || _kf.getInnerOptLevel() != LEVEL2) {
             std::cerr << RED << "WindFlow Error: tried a nesting without preparing the inner operator" << DEFAULT_COLOR << std::endl;
@@ -2263,7 +2293,7 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
             // inner replica is a Pane_Farm_GPU
             if(_kf.getInnerType() == PF_GPU) {
                 // check the parallelism degree of the PLQ stage
-                if ((_kf.getInnerParallelism()).first > 1) {
+                if ((_kf.getInnerParallelisms()).first > 1) {
                     if (_kf.getWinType() == TB) {
                         // call the generic method to add the operator to the MultiPipe
                         if (graph->mode == Mode::DETERMINISTIC) {
@@ -2278,8 +2308,8 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
                         auto *emitter = static_cast<Tree_Emitter *>(_kf.getEmitter());
                         KF_Emitter<tuple_t> *rootnode = new KF_Emitter<tuple_t>(*(static_cast<KF_Emitter<tuple_t> *>(emitter->getRootNode())));
                         std::vector<Basic_Emitter *> children;
-                        size_t n_plq = (_kf.getInnerParallelism()).first;
-                        for (size_t i=0; i<_kf.getParallelism(); i++) {
+                        size_t n_plq = (_kf.getInnerParallelisms()).first;
+                        for (size_t i=0; i<_kf.getNumComplexReplicas(); i++) {
                             auto *b_node = new Broadcast_Emitter<tuple_t>(n_plq);
                             b_node->setTree_EmitterMode(true);
                             children.push_back(b_node);
@@ -2306,7 +2336,7 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
                 }
 #ifdef GRAPHVIZ_WINDFLOW
                 // update the graphviz representation
-                gv_add_vertex("KF_GPU(PF_GPU(" + std::to_string(_kf.getInnerParallelism().first) + "," + std::to_string(_kf.getInnerParallelism().second) + "), " + std::to_string(_kf.getParallelism()) + ")", _kf.getName(), false, true, KEYBY);
+                gv_add_vertex("KF_GPU[PF_GPU(" + std::to_string(_kf.getInnerParallelisms().first) + "," + std::to_string(_kf.getInnerParallelisms().second) + "), " + std::to_string(_kf.getNumComplexReplicas()) + "]", _kf.getName(), false, true, KEYBY);
 #endif
             }
             // inner replica is a Win_MapReduce_GPU
@@ -2325,15 +2355,15 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
                     auto *emitter = static_cast<Tree_Emitter *>(_kf.getEmitter());
                     KF_Emitter<tuple_t> *rootnode = new KF_Emitter<tuple_t>(*(static_cast<KF_Emitter<tuple_t> *>(emitter->getRootNode())));
                     std::vector<Basic_Emitter *> children;
-                    size_t n_map = (_kf.getInnerParallelism()).first;
-                    for (size_t i=0; i<_kf.getParallelism(); i++) {
+                    size_t n_map = (_kf.getInnerParallelisms()).first;
+                    for (size_t i=0; i<_kf.getNumComplexReplicas(); i++) {
                         auto *b_node = new Broadcast_Emitter<tuple_t>(n_map);
                         b_node->setTree_EmitterMode(true);
                         children.push_back(b_node);
                     }
                     auto *new_emitter = new Tree_Emitter(rootnode, children, true, true);
                     _kf.change_emitter(new_emitter, true);
-                    for (size_t i=0; i<_kf.getParallelism(); i++) {
+                    for (size_t i=0; i<_kf.getNumComplexReplicas(); i++) {
                         ff::ff_pipeline *pipe = static_cast<ff::ff_pipeline *>((_kf.getWorkers())[i]);
                         auto &stages = pipe->getStages();
                         ff::ff_a2a *a2a = static_cast<ff::ff_a2a *>(stages[0]);
@@ -2347,7 +2377,7 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
                 }
 #ifdef GRAPHVIZ_WINDFLOW
                 // update the graphviz representation
-                gv_add_vertex("KF_GPU(WMR_GPU(" + std::to_string(_kf.getInnerParallelism().first) + "," + std::to_string(_kf.getInnerParallelism().second) + "), " + std::to_string(_kf.getParallelism()) + ")", _kf.getName(), false, true, KEYBY);
+                gv_add_vertex("KF_GPU[WMR_GPU(" + std::to_string(_kf.getInnerParallelisms().first) + "," + std::to_string(_kf.getInnerParallelisms().second) + "), " + std::to_string(_kf.getNumComplexReplicas()) + "]", _kf.getName(), false, true, KEYBY);
 #endif
             }
             forceShuffling = true;
@@ -2369,7 +2399,7 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
         }
 #ifdef GRAPHVIZ_WINDFLOW
         // update the graphviz representation
-        gv_add_vertex("KF_GPU(" + std::to_string(_kf.getParallelism()) + ")", _kf.getName(), false, false, KEYBY);
+        gv_add_vertex("KF_GPU (" + std::to_string(_kf.getParallelism()) + ")", _kf.getName(), false, false, KEYBY);
 #endif
     }
     // save the new output type from this MultiPipe
@@ -2377,6 +2407,8 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
     outputType = typeid(r).name();
     // the Key_Farm_GPU operator is now used
     _kf.used = true;
+    // add this operator to listOperators
+    (graph->listOperators).push_back(std::ref(static_cast<Basic_Operator &>(_kf)));
     return *this;
 }
 
@@ -2418,9 +2450,11 @@ MultiPipe &MultiPipe::add(Key_FFAT<tuple_t, result_t> &_kff)
     outputType = typeid(r).name();
     // the Key_FFAT operator is now used
     _kff.used = true;
+    // add this operator to listOperators
+    (graph->listOperators).push_back(std::ref(static_cast<Basic_Operator &>(_kff)));
 #ifdef GRAPHVIZ_WINDFLOW
     // update the graphviz representation
-    gv_add_vertex("KFF(" + std::to_string(_kff.getNWorkers()) + ")", _kff.getName(), true, false, KEYBY);
+    gv_add_vertex("KFF (" + std::to_string(_kff.getParallelism()) + ")", _kff.getName(), true, false, KEYBY);
 #endif
     return *this;
 }
@@ -2463,9 +2497,11 @@ MultiPipe &MultiPipe::add(Key_FFAT_GPU<tuple_t, result_t, F_t> &_kff)
     outputType = typeid(r).name();
     // the Key_FFAT_GPU operator is now used
     _kff.used = true;
+    // add this operator to listOperators
+    (graph->listOperators).push_back(std::ref(static_cast<Basic_Operator &>(_kff)));
 #ifdef GRAPHVIZ_WINDFLOW
     // update the graphviz representation
-    gv_add_vertex("KFF_GPU(" + std::to_string(_kff.getNWorkers()) + ")", _kff.getName(), false, false, KEYBY);
+    gv_add_vertex("KFF_GPU (" + std::to_string(_kff.getParallelism()) + ")", _kff.getName(), false, false, KEYBY);
 #endif
     return *this;
 }
@@ -2568,9 +2604,11 @@ MultiPipe &MultiPipe::add(Pane_Farm<tuple_t, result_t> &_pf)
     outputType = typeid(r).name();
     // the Pane_Farm operator is now used
     _pf.used = true;
+    // add this operator to listOperators
+    (graph->listOperators).push_back(std::ref(static_cast<Basic_Operator &>(_pf)));
 #ifdef GRAPHVIZ_WINDFLOW
     // update the graphviz representation
-    gv_add_vertex("PF(" + std::to_string(_pf.getPLQParallelism()) + "," + std::to_string(_pf.getWLQParallelism() + ")"), _pf.getName(), true, false, COMPLEX);
+    gv_add_vertex("PF (" + std::to_string(_pf.getPLQParallelism()) + "," + std::to_string(_pf.getWLQParallelism() + ")"), _pf.getName(), true, false, COMPLEX);
 #endif
     return *this;
 }
@@ -2673,9 +2711,11 @@ MultiPipe &MultiPipe::add(Pane_Farm_GPU<tuple_t, result_t, F_t> &_pf)
     outputType = typeid(r).name();
     // the Pane_Farm operator is now used
     _pf.used = true;
+    // add this operator to listOperators
+    (graph->listOperators).push_back(std::ref(static_cast<Basic_Operator &>(_pf)));
 #ifdef GRAPHVIZ_WINDFLOW
     // update the graphviz representation
-    gv_add_vertex("PF_GPU(" + std::to_string(_pf.getPLQParallelism()) + "," + std::to_string(_pf.getWLQParallelism() + ")"), _pf.getName(), false, false, COMPLEX);
+    gv_add_vertex("PF_GPU (" + std::to_string(_pf.getPLQParallelism()) + "," + std::to_string(_pf.getWLQParallelism() + ")"), _pf.getName(), false, false, COMPLEX);
 #endif
     return *this;
 }
@@ -2765,9 +2805,11 @@ MultiPipe &MultiPipe::add(Win_MapReduce<tuple_t, result_t> &_wmr)
     outputType = typeid(r).name();
     // the Win_MapReduce operator is now used
     _wmr.used = true;
+    // add this operator to listOperators
+    (graph->listOperators).push_back(std::ref(static_cast<Basic_Operator &>(_wmr)));
 #ifdef GRAPHVIZ_WINDFLOW
     // update the graphviz representation
-    gv_add_vertex("WMR(" + std::to_string(_wmr.getMAPParallelism()) + "," + std::to_string(_wmr.getREDUCEParallelism() + ")"), _wmr.getName(), true, false, COMPLEX);
+    gv_add_vertex("WMR (" + std::to_string(_wmr.getMAPParallelism()) + "," + std::to_string(_wmr.getREDUCEParallelism() + ")"), _wmr.getName(), true, false, COMPLEX);
 #endif
     return *this;
 }
@@ -2857,9 +2899,11 @@ MultiPipe &MultiPipe::add(Win_MapReduce_GPU<tuple_t, result_t, F_t> &_wmr)
     outputType = typeid(r).name();
     // the Win_MapReduce_GPU operator is now used
     _wmr.used = true;
+    // add this operator to listOperators
+    (graph->listOperators).push_back(std::ref(static_cast<Basic_Operator &>(_wmr)));
 #ifdef GRAPHVIZ_WINDFLOW
     // update the graphviz representation
-    gv_add_vertex("WMR_GPU(" + std::to_string(_wmr.getMAPParallelism()) + "," + std::to_string(_wmr.getREDUCEParallelism() + ")"), _wmr.getName(), false, false, COMPLEX);
+    gv_add_vertex("WMR_GPU (" + std::to_string(_wmr.getMAPParallelism()) + "," + std::to_string(_wmr.getREDUCEParallelism() + ")"), _wmr.getName(), false, false, COMPLEX);
 #endif
     return *this;
 }
@@ -2882,19 +2926,21 @@ MultiPipe &MultiPipe::add_sink(Sink<tuple_t> &_sink)
     }
     // call the generic method to add the operator to the MultiPipe
     if (graph->mode == Mode::DETERMINISTIC) {
-        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_sink, _sink.isKeyed() ? KEYBY : FORWARD, TS);
+        add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_sink, _sink.getRoutingMode(), TS);
     }
     else {
-        add_operator<Standard_Emitter<tuple_t>>(&_sink, _sink.isKeyed() ? KEYBY : FORWARD);
+        add_operator<Standard_Emitter<tuple_t>>(&_sink, _sink.getRoutingMode());
     }
     has_sink = true;
     // save the new output type from this MultiPipe
     outputType = opInType;
     // the Sink operator is now used
     _sink.used = true;
+    // add this operator to listOperators
+    (graph->listOperators).push_back(std::ref(static_cast<Basic_Operator &>(_sink)));
 #ifdef GRAPHVIZ_WINDFLOW
     // update the graphviz representation
-    gv_add_vertex("Sink(" + std::to_string(_sink.getNWorkers()) + ")", _sink.getName(), true, false, _sink.isKeyed() ? KEYBY : FORWARD);
+    gv_add_vertex("Sink (" + std::to_string(_sink.getParallelism()) + ")", _sink.getName(), true, false, _sink.getRoutingMode());
 #endif
     return *this;
 }
@@ -2916,17 +2962,19 @@ MultiPipe &MultiPipe::chain_sink(Sink<tuple_t> &_sink)
         exit(EXIT_FAILURE);
     }
     // try to chain the Sink with the MultiPipe
-    if (!_sink.isKeyed()) {
+    if (_sink.getRoutingMode() != KEYBY) {
         bool chained = chain_operator<typename Sink<tuple_t>::Sink_Node>(&_sink);
         if (!chained) {
             return add_sink(_sink);
         }
-#ifdef GRAPHVIZ_WINDFLOW
         else {
+            // add this operator to listOperators
+            (graph->listOperators).push_back(std::ref(static_cast<Basic_Operator &>(_sink)));
+#ifdef GRAPHVIZ_WINDFLOW
             // update the graphviz representation
-            gv_chain_vertex("Sink(" + std::to_string(_sink.getNWorkers()) + ")", _sink.getName());
-        }
+            gv_chain_vertex("Sink (" + std::to_string(_sink.getParallelism()) + ")", _sink.getName());
 #endif
+        }
     }
     else {
         return add_sink(_sink);

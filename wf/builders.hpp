@@ -188,7 +188,7 @@ private:
     using routing_func_t = std::function<size_t(size_t, size_t)>;
     uint64_t pardegree = 1;
     std::string name = "filter";
-    bool isKeyed = false;
+    bool isKeyBy = false;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
     routing_func_t routing_func = [](size_t k, size_t n) { return k%n; };
 
@@ -231,7 +231,7 @@ public:
      */ 
     Filter_Builder<F_t> &enable_KeyBy()
     {
-        isKeyed = true;
+        isKeyBy = true;
         return *this;
     }
 
@@ -260,7 +260,7 @@ public:
      */ 
     filter_t build()
     {
-        if (!isKeyed) {
+        if (!isKeyBy) {
             return filter_t(func,
                             pardegree,
                             name,
@@ -283,7 +283,7 @@ public:
      */ 
     filter_t *build_ptr()
     {
-        if (!isKeyed) {
+        if (!isKeyBy) {
             return new filter_t(func,
                                 pardegree,
                                 name,
@@ -305,7 +305,7 @@ public:
      */ 
     std::unique_ptr<filter_t> build_unique()
     {
-        if (!isKeyed) {
+        if (!isKeyBy) {
             return std::make_unique<filter_t>(func,
                                               pardegree,
                                               name,
@@ -350,7 +350,7 @@ private:
     using routing_func_t = std::function<size_t(size_t, size_t)>;
     uint64_t pardegree = 1;
     std::string name = "map";
-    bool isKeyed = false;
+    bool isKeyBy = false;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
     routing_func_t routing_func = [](size_t k, size_t n) { return k%n; };
 
@@ -393,7 +393,7 @@ public:
      */ 
     Map_Builder<F_t> &enable_KeyBy()
     {
-        isKeyed = true;
+        isKeyBy = true;
         return *this;
     }
 
@@ -422,7 +422,7 @@ public:
      */ 
     map_t build()
     {
-        if (!isKeyed) {
+        if (!isKeyBy) {
             return map_t(func,
                          pardegree,
                          name,
@@ -445,7 +445,7 @@ public:
      */ 
     map_t *build_ptr()
     {
-        if (!isKeyed) {
+        if (!isKeyBy) {
             return new map_t(func,
                              pardegree,
                              name,
@@ -467,7 +467,7 @@ public:
      */ 
     std::unique_ptr<map_t> build_unique()
     {
-        if (!isKeyed) {
+        if (!isKeyBy) {
             return std::make_unique<map_t>(func,
                                            pardegree,
                                            name,
@@ -510,7 +510,7 @@ private:
     using routing_func_t = std::function<size_t(size_t, size_t)>;
     uint64_t pardegree = 1;
     std::string name = "flatmap";
-    bool isKeyed = false;
+    bool isKeyBy = false;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
     routing_func_t routing_func = [](size_t k, size_t n) { return k%n; };
 
@@ -553,7 +553,7 @@ public:
      */ 
     FlatMap_Builder<F_t> &enable_KeyBy()
     {
-        isKeyed = true;
+        isKeyBy = true;
         return *this;
     }
 
@@ -582,7 +582,7 @@ public:
      */ 
     flatmap_t build()
     {
-        if (!isKeyed) {
+        if (!isKeyBy) {
             return flatmap_t(func,
                              pardegree,
                              name,
@@ -605,7 +605,7 @@ public:
      */ 
     flatmap_t *build_ptr()
     {
-        if (!isKeyed) {
+        if (!isKeyBy) {
             return new flatmap_t(func,
                                  pardegree,
                                  name,
@@ -627,7 +627,7 @@ public:
      */ 
     std::unique_ptr<flatmap_t> build_unique()
     {
-        if (!isKeyed) {
+        if (!isKeyBy) {
             return std::make_unique<flatmap_t>(func,
                                                pardegree,
                                                name,
@@ -903,7 +903,7 @@ public:
                         winType, name,
                         closing_func,
                         RuntimeContext(1, 0),
-                        OperatorConfig(0, 1, slide_len, 0, 1, slide_len),
+                        WinOperatorConfig(0, 1, slide_len, 0, 1, slide_len),
                         SEQ); // guaranteed copy elision in C++17
     }
 #endif
@@ -922,7 +922,7 @@ public:
                             name,
                             closing_func,
                             RuntimeContext(1, 0),
-                            OperatorConfig(0, 1, slide_len, 0, 1, slide_len),
+                            WinOperatorConfig(0, 1, slide_len, 0, 1, slide_len),
                             SEQ);
     }
 
@@ -941,7 +941,7 @@ public:
                                           name,
                                           closing_func,
                                           RuntimeContext(1, 0),
-                                          OperatorConfig(0, 1, slide_len, 0, 1, slide_len),
+                                          WinOperatorConfig(0, 1, slide_len, 0, 1, slide_len),
                                           SEQ);
     }
 };
@@ -1073,7 +1073,7 @@ public:
                          name,
                          closing_func,
                          RuntimeContext(1, 0),
-                         OperatorConfig(0, 1, slide_len, 0, 1, slide_len));
+                         WinOperatorConfig(0, 1, slide_len, 0, 1, slide_len));
     }
 #endif
 
@@ -1093,7 +1093,7 @@ public:
                              name,
                              closing_func,
                              RuntimeContext(1, 0),
-                             OperatorConfig(0, 1, slide_len, 0, 1, slide_len));
+                             WinOperatorConfig(0, 1, slide_len, 0, 1, slide_len));
     }
 
     /** 
@@ -1112,7 +1112,7 @@ public:
                                            name,
                                            closing_func,
                                            RuntimeContext(1, 0),
-                                           OperatorConfig(0, 1, slide_len, 0, 1, slide_len));
+                                           WinOperatorConfig(0, 1, slide_len, 0, 1, slide_len));
     }
 };
 
@@ -1162,12 +1162,12 @@ private:
 
     // window parameters initialization (input is a Win_MapReduce)
     template<typename ...Args>
-    void initWindowConf(Win_MapReduce<Args...> &_wm)
+    void initWindowConf(Win_MapReduce<Args...> &_wmr)
     {
-        win_len = _wm.win_len;
-        slide_len = _wm.slide_len;
-        triggering_delay = _wm.triggering_delay;
-        winType = _wm.winType;
+        win_len = _wmr.win_len;
+        slide_len = _wmr.slide_len;
+        triggering_delay = _wmr.triggering_delay;
+        winType = _wmr.winType;
     }
 
     // window parameters initialization (input is a logic)
@@ -1388,12 +1388,12 @@ private:
 
     // window parameters initialization (input is a Win_MapReduce)
     template<typename ...Args>
-    void initWindowConf(Win_MapReduce<Args...> &_wm)
+    void initWindowConf(Win_MapReduce<Args...> &_wmr)
     {
-        win_len = _wm.win_len;
-        slide_len = _wm.slide_len;
-        triggering_delay = _wm.triggering_delay;
-        winType = _wm.winType;
+        win_len = _wmr.win_len;
+        slide_len = _wmr.slide_len;
+        triggering_delay = _wmr.triggering_delay;
+        winType = _wmr.winType;
     }
 
     // window parameters initialization (input is a logic)
@@ -2219,7 +2219,7 @@ private:
     using routing_func_t = std::function<size_t(size_t, size_t)>;
     uint64_t pardegree = 1;
     std::string name = "sink";
-    bool isKeyed = false;
+    bool isKeyBy = false;
     closing_func_t closing_func = [](RuntimeContext &r) -> void { return; };
     routing_func_t routing_func = [](size_t k, size_t n) { return k%n; };
 
@@ -2262,7 +2262,7 @@ public:
      */ 
     Sink_Builder<F_t> &enable_KeyBy()
     {
-        isKeyed = true;
+        isKeyBy = true;
         return *this;
     }
 
@@ -2291,7 +2291,7 @@ public:
      */ 
     sink_t build()
     {
-        if (!isKeyed) {
+        if (!isKeyBy) {
             return sink_t(func,
                           pardegree,
                           name,
@@ -2314,7 +2314,7 @@ public:
      */ 
     sink_t *build_ptr()
     {
-        if (!isKeyed) {
+        if (!isKeyBy) {
             return new sink_t(func,
                               pardegree,
                               name,
@@ -2336,7 +2336,7 @@ public:
      */ 
     std::unique_ptr<sink_t> build_unique()
     {
-        if (!isKeyed) {
+        if (!isKeyBy) {
             return std::make_unique<sink_t>(func,
                                             pardegree,
                                             name,

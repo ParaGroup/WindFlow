@@ -19,26 +19,25 @@
  *  @author  Elia Ruggeri and Gabriele Mencagli
  *  @date    16/03/2020
  *  
- *  @brief Win_SeqFFAT_GPU node executing a windowed query on a a CPU+GPU system
+ *  @brief Win_SeqFFAT_GPU node executing associative windowed queries on GPU
  *         with the algorithm in the FlatFAT_GPU data structure
  *  
  *  @section Win_SeqFFAT_GPU (Description)
  *  
- *  This file implements the Win_SeqFFAT_GPU node able to execute windowed queries
- *  on a heterogeneous system (CPU+GPU). The node prepares batches of input tuples
- *  sequentially on a CPU core and offloads on the GPU the parallel processing of the
- *  windows within each batch. The algorithm is the one implemented by the FlatFAT_GPU
- *  data structure.
+ *  This file implements the Win_SeqFFAT_GPU node able to execute associative windowed
+ *  queries on a GPU device. The node prepares batches of input tuples sequentially on
+ *  a CPU core and offloads on the GPU the parallel processing of the windows within
+ *  the same batch. The algorithm is the one implemented by the FlatFAT_GPU.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with
- *  a copy Constructor and copy assignment operator, and they must provide and implement
+ *  a copy Constructor and a copy assignment operator, and they must provide and implement
  *  the setControlFields() and getControlFields() methods.
  */ 
 
 #ifndef WIN_SEQFFAT_GPU_H
 #define WIN_SEQFFAT_GPU_H
 
-/// includes
+// includes
 #include<deque>
 #include<vector>
 #include<string>
@@ -49,23 +48,16 @@
 #include<meta.hpp>
 #include<meta_gpu.hpp>
 #include<flatfat_gpu.hpp>
+#include<stats_record.hpp>
 
 namespace wf {
 
-/** 
- *  \class Win_SeqFFAT_GPU
- *  
- *  \brief Win_SeqFFAT_GPU node executing a windowed query on a on a CPU+GPU system
- *         using the algorithm in the FlatFAT_GPU data structure
- *  
- *  This class implements the Win_SeqFFAT_GPU node executing windowed queries on a heterogeneous
- *  system (CPU+GPU) in a serial fashion using the algorithm in the FlatFAT_GPU data structure.
- */ 
+// Win_SeqFFAT_GPU class
 template<typename tuple_t, typename result_t, typename comb_F_t>
 class Win_SeqFFAT_GPU: public ff::ff_minode_t<tuple_t, result_t>
 {
 private:
-    /// type of the lift function
+    // type of the lift function
     using winLift_func_t = std::function<void(const tuple_t &, result_t &)>;
     tuple_t tmp; // never used
     // key data type
@@ -135,27 +127,23 @@ private:
     uint64_t triggering_delay; // triggering delay in time units (meaningful for TB windows only)
     win_type_t winType; // window type (CB or TB)
     std::string name; // string of the unique name of the node
-    OperatorConfig config; // configuration structure of the Win_SeqFFAT_GPU node
+    WinOperatorConfig config; // configuration structure of the Win_SeqFFAT_GPU node
     std::unordered_map<size_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     size_t batch_len; // length of the micro-batch in terms of no. of windows
     size_t tuples_per_batch; // number of tuples per batch (only for CB windows)
     bool rebuild; // flag stating whether the FLATFAT_GPU must be built every batch or only updated
     bool isRunningKernel = false; // true if the kernel is running on the GPU, false otherwise
     Key_Descriptor *lastKeyD = nullptr; // pointer to the key descriptor of the running kernel on the GPU
+    int gpu_id; // identifier of the chosen GPU device
     size_t n_thread_block; // number of threads per block
     cudaStream_t cudaStream; // CUDA stream used by this Win_SeqFFAT_GPU
     size_t dropped_tuples; // number of dropped tuples
     size_t eos_received; // number of received EOS messages
-#if defined(LOG_DIR)
-    bool isTriggering = false;
-    unsigned long rcvTuples = 0;
-    unsigned long rcvTuplesTriggering = 0; // a triggering tuple activates a new batch
+#if defined(TRACE_WINDFLOW)
+    Stats_Record stats_record;
     double avg_td_us = 0;
     double avg_ts_us = 0;
-    double avg_ts_triggering_us = 0;
-    double avg_ts_non_triggering_us = 0;
-    volatile unsigned long startTD, startTS, endTD, endTS;
-    ofstream *logfile = nullptr;
+    volatile uint64_t startTD, startTS, endTD, endTS;
 #endif
 
     // function to compute the gcd (std::gcd is available only in C++17)
@@ -176,10 +164,11 @@ private:
                     uint64_t _triggering_delay,
                     win_type_t _winType,
                     size_t _batch_len,
+                    int _gpu_id,
                     size_t _n_thread_block,
                     bool _rebuild,
                     std::string _name,
-                    OperatorConfig _config):
+                    WinOperatorConfig _config):
                     winLift_func(_winLift_func),
                     winComb_func(_winComb_func),
                     win_len(_win_len),
@@ -187,6 +176,7 @@ private:
                     triggering_delay(_triggering_delay),
                     winType(_winType),
                     batch_len(_batch_len),
+                    gpu_id(_gpu_id),
                     n_thread_block(_n_thread_block),
                     rebuild(_rebuild),
                     name(_name),
@@ -207,29 +197,6 @@ private:
         // check the validity of the batch length
         if (batch_len == 0) {
             std::cerr << RED << "WindFlow Error: batch length in Win_SeqFFAT_GPU cannot be zero" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        // create the CUDA stream
-        if (cudaStreamCreate(&cudaStream) != cudaSuccess) {
-            std::cerr << RED << "WindFlow Error: cudaStreamCreate() returns error code" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        int deviceID = 0; // only one GPU device supported
-        int max_thread_block = 0; // maximum number of threads per block
-        gpuErrChk(cudaDeviceGetAttribute(&max_thread_block, cudaDevAttrMaxThreadsPerBlock, deviceID));
-        assert(max_thread_block>0);
-        // check the number of threads per block limit
-        if (max_thread_block < n_thread_block) {
-            std::cerr << RED << "WindFlow Error: number of threads per block exceeds the limit of the GPU device (" << max_thread_block << ")" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        size_t noBlocks = (int) ceil(batch_len / ((double) n_thread_block));
-        int max_blocks = 0; // maximum number of blocks
-        gpuErrChk(cudaDeviceGetAttribute(&max_blocks, cudaDevAttrMaxBlockDimX, deviceID));
-        assert(max_blocks>0);
-        // check the number of blocks limit
-        if (max_blocks < noBlocks) {
-            std::cerr << RED << "WindFlow Error: number of blocks exceeds the limit of the GPU device (" << max_blocks << ")" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // set the quantum value (for time-based windows only)
@@ -254,6 +221,10 @@ private:
                 *r = results[i];
                 r->setControlFields(std::get<0>(r->getControlFields()), (lastKeyD->gwids)[i], (lastKeyD->tsWin)[i]);
                 this->ff_send_out(r);
+#if defined(TRACE_WINDFLOW)
+                stats_record.outputs_sent++;
+                stats_record.bytes_sent += sizeof(result_t);
+#endif
             }
             isRunningKernel = false;
             (lastKeyD->gwids).erase((lastKeyD->gwids).begin(), (lastKeyD->gwids).begin()+batch_len);
@@ -263,20 +234,7 @@ private:
     }
 
 public:
-    /** 
-     *  \brief Constructor
-     *  
-     *  \param _winLift_func the lift function to translate a tuple into a result (__host__ function)
-     *  \param _winComb_func the combine function to combine two results into a result (__host__ __device__ function)
-     *  \param _win_len window length (in no. of tuples or in time units)
-     *  \param _slide_len slide length (in no. of tuples or in time units)
-     *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
-     *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _batch_len no. of windows in a batch
-     *  \param _n_thread_block number of threads per block
-     *  \param _rebuild flag stating whether the FlatFAT_GPU must be rebuilt from scratch for each new batch
-     *  \param _name string with the unique name of the node
-     */ 
+    // Constructor
     Win_SeqFFAT_GPU(winLift_func_t _winLift_func,
                     comb_F_t _winComb_func,
                     uint64_t _win_len,
@@ -284,43 +242,63 @@ public:
                     uint64_t _triggering_delay,
                     win_type_t _winType,
                     size_t _batch_len,
+                    int _gpu_id,
                     size_t _n_thread_block,
                     bool _rebuild,
                     std::string _name):
-                    Win_SeqFFAT_GPU(_winLift_func, _winComb_func, _win_len, _slide_len, _triggering_delay, _winType, _batch_len, _n_thread_block, _rebuild, _name, OperatorConfig( 0, 1, _slide_len, 0, 1, _slide_len ))
-    {}
+                    Win_SeqFFAT_GPU(_winLift_func, _winComb_func, _win_len, _slide_len, _triggering_delay, _winType, _batch_len, _gpu_id, _n_thread_block, _rebuild, _name, WinOperatorConfig( 0, 1, _slide_len, 0, 1, _slide_len )) {}
 
     // svc_init method (utilized by the FastFlow runtime)
-    int svc_init()
+    int svc_init() override
     {
+        // check the validity of the chosen GPU device
+        int devicesCount = 0; // number of available GPU devices
+        gpuErrChk(cudaGetDeviceCount(&devicesCount));
+        if (gpu_id >= devicesCount) {
+            std::cerr << RED << "WindFlow Error: chosen GPU device is not a valid one" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        // use the chosen GPU device
+        gpuErrChk(cudaSetDevice(gpu_id));
+        // check the number of threads per block limit
+        int max_thread_block = 0; // maximum number of threads per block
+        gpuErrChk(cudaDeviceGetAttribute(&max_thread_block, cudaDevAttrMaxThreadsPerBlock, gpu_id));
+        assert(max_thread_block>0);
+        // check the number of threads per block limit
+        if (max_thread_block < n_thread_block) {
+            std::cerr << RED << "WindFlow Error: number of threads per block exceeds the limit of the GPU device (max is " << max_thread_block << ")" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        size_t noBlocks = (int) ceil(batch_len / ((double) n_thread_block));
+        int max_blocks = 0; // maximum number of blocks
+        gpuErrChk(cudaDeviceGetAttribute(&max_blocks, cudaDevAttrMaxBlockDimX, gpu_id));
+        assert(max_blocks>0);
+        // check the number of blocks limit
+        if (max_blocks < noBlocks) {
+            std::cerr << RED << "WindFlow Error: number of blocks exceeds the limit of the GPU device (max is " << max_blocks << ")" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        // create the CUDA stream
+        gpuErrChk(cudaStreamCreate(&cudaStream));
         // compute the fixed number of tuples per batch (only sliding windows here)
         tuples_per_batch = (batch_len - 1) * slide_len + win_len;
 #if defined(TRACE_WINDFLOW)
-        logfile = new std::ofstream();
-        name += "_" + std::to_string(this->get_my_id()) + "_" + std::to_string(getpid()) + ".log";
-#if defined(LOG_DIR)
-        std::string filename = std::string(STRINGIFY(LOG_DIR)) + "/" + name;
-        std::string log_dir = std::string(STRINGIFY(LOG_DIR));
-#else
-        std::string filename = "log/" + name;
-        std::string log_dir = std::string("log");
-#endif
-        // create the log directory
-        if (mkdir(log_dir.c_str(), 0777) != 0) {
-            struct stat st;
-            if((stat(log_dir.c_str(), &st) != 0) || !S_ISDIR(st.st_mode)) {
-                std::cerr << RED << "WindFlow Error: directory for log files cannot be created" << DEFAULT_COLOR << std::endl;
-                exit(EXIT_FAILURE);
-            }
-        }
-        logfile->open(filename);
+        stats_record = Stats_Record(name, "replica_" + std::to_string(this->get_my_id()), true);
 #endif
         return 0;
     }
 
     // svc method (utilized by the FastFlow runtime)
-    result_t *svc(tuple_t *t)
+    result_t *svc(tuple_t *t) override
     {
+#if defined(TRACE_WINDFLOW)
+        startTS = current_time_nsecs();
+        if (stats_record.inputs_received == 0) {
+            startTD = current_time_nsecs();
+        }
+        stats_record.inputs_received++;
+        stats_record.bytes_received += sizeof(tuple_t);
+#endif
         // two separate logics depending on the window type
         if (winType == CB) {
             svcCBWindows(t);
@@ -328,18 +306,23 @@ public:
         else {
             svcTBWindows(t);
         }
+#if defined(TRACE_WINDFLOW)
+        endTS = current_time_nsecs();
+        endTD = current_time_nsecs();
+        double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
+        avg_ts_us += (1.0 / stats_record.inputs_received) * (elapsedTS_us - avg_ts_us);
+        double elapsedTD_us = ((double) (endTD - startTD)) / 1000;
+        avg_td_us += (1.0 / stats_record.inputs_received) * (elapsedTD_us - avg_td_us);
+        stats_record.service_time = std::chrono::duration<double, std::micro>(avg_ts_us);
+        stats_record.eff_service_time = std::chrono::duration<double, std::micro>(avg_td_us);
+        startTD = current_time_nsecs();
+#endif
         return this->GO_ON;
     }
 
     // processing logic with count-based windows
     void svcCBWindows(tuple_t *t)
     {
-#if defined (LOG_DIR)
-        startTS = current_time_nsecs();
-        if (rcvTuples == 0)
-            startTD = current_time_nsecs();
-        rcvTuples++;
-#endif
         // extract the key and id fields from the input tuple
         auto key = std::get<0>(t->getControlFields()); // key
         size_t hashcode = std::hash<decltype(key)>()(key); // compute the hashcode of the key
@@ -349,6 +332,9 @@ public:
         if (it == keyMap.end()) {
             keyMap.insert(std::make_pair(key, Key_Descriptor(winLift_func, winComb_func, tuples_per_batch, batch_len, win_len, slide_len, key, &cudaStream, n_thread_block)));
             it = keyMap.find(key);
+#if defined(TRACE_WINDFLOW)
+            (((*it).second).fatgpu).set_StatsRecord(&stats_record);
+#endif
         }
         Key_Descriptor &key_d = (*it).second;
         // gwid of the first window of that key assigned to this Win_SeqFFAT_GPU instance
@@ -381,10 +367,6 @@ public:
         }
         // check whether a new batch is ready to be computed
         if (key_d.batchedWin == batch_len) {
-#if defined(LOG_DIR)
-            rcvTuplesTriggering++;
-            isTriggering = true;
-#endif
             // if we have a previously launched batch, we emit its results
             waitAndFlush();
             // if we need to rebuild everytime the FLATFAT_GPU
@@ -414,31 +396,11 @@ public:
         }
         // delete the input
         delete t;
-#if defined(LOG_DIR)
-        endTS = current_time_nsecs();
-        endTD = current_time_nsecs();
-        double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
-        avg_ts_us += (1.0 / rcvTuples) * (elapsedTS_us - avg_ts_us);
-        if (isTriggering)
-            avg_ts_triggering_us += (1.0 / rcvTuplesTriggering) * (elapsedTS_us - avg_ts_triggering_us);
-        else
-            avg_ts_non_triggering_us += (1.0 / (rcvTuples - rcvTuplesTriggering)) * (elapsedTS_us - avg_ts_non_triggering_us);
-        isTriggering = false;
-        double elapsedTD_us = ((double) (endTD - startTD)) / 1000;
-        avg_td_us += (1.0 / rcvTuples) * (elapsedTD_us - avg_td_us);
-        startTD = current_time_nsecs();
-#endif
     }
 
     // processing logic with time-based windows
     void svcTBWindows(tuple_t *t)
     {
-#if defined (LOG_DIR)
-        startTS = current_time_nsecs();
-        if (rcvTuples == 0)
-            startTD = current_time_nsecs();
-        rcvTuples++;
-#endif
         // extract the key and timestamp fields from the input tuple
         auto key = std::get<0>(t->getControlFields()); // key
         uint64_t ts = std::get<2>(t->getControlFields()); // timestamp
@@ -447,6 +409,9 @@ public:
         if (it == keyMap.end()) {
             keyMap.insert(std::make_pair(key, Key_Descriptor(winLift_func, winComb_func, tuples_per_batch, batch_len, win_len, slide_len, key, &cudaStream, n_thread_block)));
             it = keyMap.find(key);
+#if defined(TRACE_WINDFLOW)
+            (((*it).second).fatgpu).set_StatsRecord(&stats_record);
+#endif
         }
         Key_Descriptor &key_d = (*it).second;
         // compute the identifier of the quantum containing the input tuple
@@ -494,20 +459,6 @@ public:
         acc_results.erase(acc_results.begin(), acc_results.begin() + n_completed);
         // delete the input
         delete t;
-#if defined(TRACE_WINDFLOW)
-        endTS = current_time_nsecs();
-        endTD = current_time_nsecs();
-        double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
-        avg_ts_us += (1.0 / rcvTuples) * (elapsedTS_us - avg_ts_us);
-        if (isTriggering)
-            avg_ts_triggering_us += (1.0 / rcvTuplesTriggering) * (elapsedTS_us - avg_ts_triggering_us);
-        else
-            avg_ts_non_triggering_us += (1.0 / (rcvTuples - rcvTuplesTriggering)) * (elapsedTS_us - avg_ts_non_triggering_us);
-        isTriggering = false;
-        double elapsedTD_us = ((double) (endTD - startTD)) / 1000;
-        avg_td_us += (1.0 / rcvTuples) * (elapsedTD_us - avg_td_us);
-        startTD = current_time_nsecs();
-#endif
     }
 
     // process a window (for time-based logic)
@@ -542,10 +493,6 @@ public:
         }
         // check whether a new batch is ready to be computed
         if (key_d.batchedWin == batch_len) {
-#if defined(LOG_DIR)
-            rcvTuplesTriggering++;
-            isTriggering = true;
-#endif
             // if we have a previously launched batch, we emit its results
             waitAndFlush();
             // if we need to rebuild everytime the FLATFAT_GPU
@@ -576,7 +523,7 @@ public:
     }
 
     // method to manage the EOS (utilized by the FastFlow runtime)
-    void eosnotify(ssize_t id)
+    void eosnotify(ssize_t id) override
     {
         eos_received++;
         // check the number of received EOS messages
@@ -620,6 +567,10 @@ public:
                 res->setControlFields(key, gwid, std::get<2>(res->getControlFields()));
                 remaining_tuples.erase(remaining_tuples.begin(), remaining_tuples.begin() + slide_len);
                 this->ff_send_out(res);
+#if defined(TRACE_WINDFLOW)
+                stats_record.outputs_sent++;
+                stats_record.bytes_sent += sizeof(result_t);
+#endif
             }
             // for all the incomplete windows
             size_t numIncompletedWins = ceil(remaining_tuples.size() / (double) slide_len);
@@ -636,6 +587,10 @@ public:
                 auto lastPos = remaining_tuples.end( ) <= remaining_tuples.begin( ) + slide_len ? remaining_tuples.end( ) : remaining_tuples.begin( ) + slide_len;
                 remaining_tuples.erase(remaining_tuples.begin(), lastPos);
                 this->ff_send_out(res);
+#if defined(TRACE_WINDFLOW)
+                stats_record.outputs_sent++;
+                stats_record.bytes_sent += sizeof(result_t);
+#endif
             }
         }
     }
@@ -676,6 +631,10 @@ public:
                 res->setControlFields(key, gwid, std::get<2>(res->getControlFields()));
                 remaining_tuples.erase(remaining_tuples.begin(), remaining_tuples.begin() + slide_len);
                 this->ff_send_out(res);
+#if defined(TRACE_WINDFLOW)
+                stats_record.outputs_sent++;
+                stats_record.bytes_sent += sizeof(result_t);
+#endif
             }
             // for all the incomplete windows
             size_t numIncompletedWins = ceil(remaining_tuples.size() / (double) slide_len);
@@ -692,66 +651,47 @@ public:
                 auto lastPos = remaining_tuples.end( ) <= remaining_tuples.begin() + slide_len ? remaining_tuples.end() : remaining_tuples.begin() + slide_len;
                 remaining_tuples.erase(remaining_tuples.begin(), lastPos);
                 this->ff_send_out(res);
+#if defined(TRACE_WINDFLOW)
+                stats_record.outputs_sent++;
+                stats_record.bytes_sent += sizeof(result_t);
+#endif
             }
         }
     }
 
     // svc_end method (utilized by the FastFlow runtime)
-    void svc_end()
+    void svc_end() override
     {
         // destroy the CUDA stream
-        cudaStreamDestroy(cudaStream);
-#if defined (TRACE_WINDFLOW)
-        ostringstream stream;
-        stream << "************************************LOG************************************\n";
-        stream << "No. of received tuples: " << rcvTuples << "\n";
-        stream << "No. of received tuples (triggering): " << rcvTuplesTriggering << "\n";
-        stream << "Average service time: " << avg_ts_us << " usec \n";
-        stream << "Average service time (triggering): " << avg_ts_triggering_us << " usec \n";
-        stream << "Average service time (non triggering): " << avg_ts_non_triggering_us << " usec \n";
-        stream << "Average inter-departure time: " << avg_td_us << " usec \n";
-        stream << "***************************************************************************\n";
-        *logfile << stream.str();
-        logfile->close();
-        delete logfile;
+        gpuErrChk(cudaStreamDestroy(cudaStream));
+#if defined(TRACE_WINDFLOW)
+        // dump log file with statistics
+        stats_record.dump_toFile();
 #endif
     }
 
-    /** 
-     *  \brief Get the window type (CB or TB) utilized by the node
-     *  \return adopted windowing semantics (count- or time-based)
-     */ 
-    win_type_t getWinType() const
-    {
-        return winType;
-    }
-
-    /** 
-     *  \brief Get the number of dropped tuples by the Win_SeqFFAT_GPU
-     *  \return number of tuples dropped during the processing by the Win_SeqFFAT_GPU
-     */ 
+    // method to return the number of dropped tuples by this node
     size_t getNumDroppedTuples() const
     {
         return dropped_tuples;
     }
 
-    /** 
-     *  \brief Get the name of the node
-     *  \return string representing the name of the node
-     */
-    std::string getName() const
+#if defined(TRACE_WINDFLOW)
+    // method to return a copy of the Stats_Record of this node
+    Stats_Record get_StatsRecord() const
     {
-        return name;
+        return stats_record;
     }
+#endif
 
-    /// Method to start the node execution asynchronously
-    virtual int run(bool)
+    // method to start the node execution asynchronously
+    int run(bool) override
     {
         return ff::ff_minode::run();
     }
 
-    /// Method to wait the node termination
-    virtual int wait()
+    // method to wait the node termination
+    int wait() override
     {
         return ff::ff_minode::wait();
     }

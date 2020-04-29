@@ -91,24 +91,23 @@ public:
                slide_outer(_slide_outer),
                role(_role),
                to_workers(pardegree),
-               isCombined(false)
-    {}
+               isCombined(false) {}
 
     // clone method
-    Basic_Emitter *clone() const
+    Basic_Emitter *clone() const override
     {
         WF_Emitter<tuple_t, input_t> *copy = new WF_Emitter<tuple_t, input_t>(*this);
         return copy;
     }
 
     // svc_init method (utilized by the FastFlow runtime)
-    int svc_init()
+    int svc_init() override
     {
         return 0;
     }
 
     // svc method (utilized by the FastFlow runtime)
-    void *svc(void *in)
+    void *svc(void *in) override
     {
         input_t *wt = reinterpret_cast<input_t *>(in);
         // extract the key and id/timestamp fields from the input tuple
@@ -159,10 +158,12 @@ public:
         long last_w = -1;
         // sliding or tumbling windows
         if (win_len >= slide_len) {
-            if (id+1-initial_id < win_len)
+            if (id+1-initial_id < win_len) {
                 first_w = 0;
-            else
+            }
+            else {
                 first_w = ceil(((double) (id + 1 - win_len - initial_id))/((double) slide_len));
+            }
             last_w = ceil(((double) id + 1 - initial_id)/((double) slide_len)) - 1;
         }
         // hopping windows
@@ -192,16 +193,18 @@ public:
         wrapper_in_t *out = prepareWrapper<input_t, wrapper_in_t>(wt, countRcv);
         // for each destination we send the same wrapper
         for (size_t i = 0; i < countRcv; i++) {
-            if (!isCombined)
+            if (!isCombined) {
                 this->ff_send_out_to(out, to_workers[i]);
-            else
+            }
+            else {
                 output_queue.push_back(std::make_pair(out, to_workers[i]));
+            }
         }
         return this->GO_ON;
     }
 
     // method to manage the EOS (utilized by the FastFlow runtime)
-    void eosnotify(ssize_t id)
+    void eosnotify(ssize_t id) override
     {
         // iterate over all the keys
         for (auto &k: keyMap) {
@@ -212,32 +215,34 @@ public:
                 *t = key_d.last_tuple;
                 wrapper_in_t *wt = new wrapper_in_t(t, pardegree, true); // eos marker enabled
                 for (size_t i=0; i < pardegree; i++) {
-                    if (!isCombined)
+                    if (!isCombined) {
                         this->ff_send_out_to(wt, i);
-                    else
+                    }
+                    else {
                         output_queue.push_back(std::make_pair(wt, i));
+                    }
                 }
             }
         }
     }
 
     // svc_end method (utilized by the FastFlow runtime)
-    void svc_end() {}
+    void svc_end() override {}
 
     // get the number of destinations
-    size_t getNDestinations() const
+    size_t getNDestinations() const override
     {
         return pardegree;
     }
 
     // set/unset the Tree_Emitter mode
-    void setTree_EmitterMode(bool _val)
+    void setTree_EmitterMode(bool _val) override
     {
         isCombined = _val;
     }
 
     // method to get a reference to the internal output queue (used in Tree_Emitter mode)
-    std::vector<std::pair<void *, int>> &getOutputQueue()
+    std::vector<std::pair<void *, int>> &getOutputQueue() override
     {
         return output_queue;
     }
@@ -265,13 +270,13 @@ private:
 
 public:
     // svc_init method (utilized by the FastFlow runtime)
-    int svc_init()
+    int svc_init() override
     {
         return 0;
     }
 
     // svc method (utilized by the FastFlow runtime)
-    result_t *svc(result_t *r)
+    result_t *svc(result_t *r) override
     {
         // extract key and identifier from the result
         auto key = std::get<0>(r->getControlFields()); // key
@@ -307,7 +312,7 @@ public:
     }
 
     // svc_end method (utilized by the FastFlow runtime)
-    void svc_end() {}
+    void svc_end() override {}
 };
 
 } // namespace wf

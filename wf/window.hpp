@@ -36,7 +36,7 @@
 #include<functional>
 #if __cplusplus < 201703L //not C++17
     #include<experimental/optional>
-    namespace std { using namespace experimental; } // ugly but necessary until CUDA will support C++17!
+    namespace std { using namespace experimental; }
 #else
     #include<optional>
 #endif
@@ -62,18 +62,20 @@ public:
                  win_len(_win_len),
                  slide_len(_slide_len),
                  lwid(_lwid),
-                 initial_id(_initial_id)
-    {}
+                 initial_id(_initial_id) {}
 
     // method to trigger a new event from the input tuple's identifier
     win_event_t operator()(uint64_t _id) const
     {
-        if (_id < initial_id + lwid * slide_len)
+        if (_id < initial_id + lwid * slide_len) {
             return OLD;
-        else if (_id <= (win_len + lwid * slide_len - 1) + initial_id)
+        }
+        else if (_id <= (win_len + lwid * slide_len - 1) + initial_id) {
             return IN;
-        else
+        }
+        else {
             return FIRED;
+        }
     }
 };
 
@@ -98,20 +100,23 @@ public:
                  slide_len(_slide_len),
                  lwid(_lwid),
                  starting_ts(_starting_ts),
-                 triggering_delay(_triggering_delay)
-    {}
+                 triggering_delay(_triggering_delay) {}
 
     // method to trigger a new event from the input tuple's timestamp
     win_event_t operator()(uint64_t _ts) const
     {
-        if (_ts < starting_ts + lwid * slide_len)
+        if (_ts < starting_ts + lwid * slide_len) {
             return OLD;
-        else if (_ts < (win_len + lwid * slide_len) + starting_ts)
+        }
+        else if (_ts < (win_len + lwid * slide_len) + starting_ts) {
             return IN;
-        else if (_ts < (win_len + lwid * slide_len) + starting_ts + triggering_delay)
+        }
+        else if (_ts < (win_len + lwid * slide_len) + starting_ts + triggering_delay) {
             return DELAYED;
-        else
+        }
+        else {
             return FIRED;
+        }
     }
 };
 
@@ -181,8 +186,9 @@ public:
     win_event_t onTuple(const tuple_t &_t)
     {
         // the window has been batched, doing nothing
-        if (batched)
+        if (batched) {
             return BATCHED;
+        }
         if (winType == CB) { // count-based windows (in-order streams only)
             uint64_t id = std::get<1>(_t.getControlFields()); // id of the input tuple
             // evaluate the triggerer

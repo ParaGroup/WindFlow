@@ -72,24 +72,23 @@ public:
                    win_type_t _winType):
                    map_degree(_map_degree),
                    winType(_winType),
-                   isCombined(false)
-    {}
+                   isCombined(false) {}
 
     // clone method
-    Basic_Emitter *clone() const
+    Basic_Emitter *clone() const override
     {
         WinMap_Emitter<tuple_t, input_t> *copy = new WinMap_Emitter<tuple_t, input_t>(*this);
         return copy;
     }
 
     // svc_init method (utilized by the FastFlow runtime)
-    int svc_init()
+    int svc_init() override
     {
         return 0;
     }
 
     // svc method (utilized by the FastFlow runtime)
-    void *svc(void *in)
+    void *svc(void *in) override
     {
         input_t *wt = reinterpret_cast<input_t *>(in);
         // extract the key and id/timestamp fields from the input tuple
@@ -126,16 +125,18 @@ public:
         // prepare the wrapper to be sent
         wrapper_in_t *out = prepareWrapper<input_t, wrapper_in_t>(wt, 1);
         // send the wrapper to the next Win_Seq
-        if (!isCombined)
+        if (!isCombined) {
             this->ff_send_out_to(out, key_d.nextDst);
-        else
+        }
+        else {
             output_queue.push_back(std::make_pair(out, key_d.nextDst));
+        }
         key_d.nextDst = (key_d.nextDst + 1) % map_degree;
         return this->GO_ON;
     }
 
     // method to manage the EOS (utilized by the FastFlow runtime)
-    void eosnotify(ssize_t id)
+    void eosnotify(ssize_t id) override
     {
         // iterate over all the keys
         for (auto &k: keyMap) {
@@ -146,32 +147,34 @@ public:
                 *tuple = key_d.last_tuple;
                 wrapper_in_t *out = new wrapper_in_t(tuple, map_degree, true); // eos marker enabled
                 for (size_t i=0; i < map_degree; i++) {
-                    if (!isCombined)
+                    if (!isCombined) {
                         this->ff_send_out_to(out, i);
-                    else
+                    }
+                    else {
                         output_queue.push_back(std::make_pair(out, i));
+                    }
                 }
             }
         }
     }
 
     // svc_end method (utilized by the FastFlow runtime)
-    void svc_end() {}
+    void svc_end() override {}
 
     // get the number of destinations
-    size_t getNDestinations() const
+    size_t getNDestinations() const override
     {
         return map_degree;
     }
 
     // set/unset the Tree_Emitter mode
-    void setTree_EmitterMode(bool _val)
+    void setTree_EmitterMode(bool _val) override
     {
         isCombined = _val;
     }
 
     // method to get a reference to the internal output queue (used in Tree_Emitter mode)
-    std::vector<std::pair<void *, int>> &getOutputQueue()
+    std::vector<std::pair<void *, int>> &getOutputQueue() override
     {
         return output_queue;
     }
@@ -204,17 +207,16 @@ public:
     WinMap_Dropper(size_t _my_id,
                    size_t _map_degree):
                    my_id(_my_id),
-                   map_degree(_map_degree)
-    {}
+                   map_degree(_map_degree) {}
 
     // svc_init method (utilized by the FastFlow runtime)
-    int svc_init()
+    int svc_init() override
     {
         return 0;
     }
 
     // svc method (utilized by the FastFlow runtime)
-    wrapper_in_t *svc(wrapper_in_t *wt)
+    wrapper_in_t *svc(wrapper_in_t *wt) override
     {
         // extract the key field from the input tuple
         tuple_t *t = extractTuple<tuple_t, wrapper_in_t>(wt);
@@ -249,7 +251,7 @@ public:
     }
 
     // svc_end method (utilized by the FastFlow runtime)
-    void svc_end() {}
+    void svc_end() override {}
 };
 
 // class WinMap_Collector
@@ -274,13 +276,13 @@ private:
 
 public:
     // svc_init method (utilized by the FastFlow runtime)
-    int svc_init()
+    int svc_init() override
     {
         return 0;
     }
 
     // svc method (utilized by the FastFlow runtime)
-    result_t *svc(result_t *r)
+    result_t *svc(result_t *r) override
     {
         // extract key and identifier from the result
         auto key = std::get<0>(r->getControlFields()); // key
@@ -316,7 +318,7 @@ public:
     }
 
     // svc_end method (utilized by the FastFlow runtime)
-    void svc_end() {}
+    void svc_end() override {}
 };
 
 } // namespace wf

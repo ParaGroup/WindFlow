@@ -19,20 +19,19 @@
  *  @author  Gabriele Mencagli
  *  @date    21/05/2018
  *  
- *  @brief Key_Farm_GPU operator executing a windowed transformation in parallel
- *         on a CPU+GPU system
+ *  @brief Key_Farm_GPU operator executing windowed queries on GPU
  *  
  *  @section Key_Farm_GPU (Description)
  *  
  *  This file implements the Key_Farm_GPU operator able to executes windowed queries
- *  on a heterogeneous system (CPU+GPU). The operator prepares batches of input tuples
- *  in parallel on the CPU cores and offloads on the GPU the parallel processing of the
- *  windows within each batch. Batches of different sub-streams can be executed in
- *  parallel while consecutive batches of the same sub-stream are prepared on the CPU and
- *  offloaded on the GPU sequentially.
+ *  on a GPU device. The operator prepares batches of input tuples in parallel on the
+ *  CPU cores and offloads on the GPU the parallel processing of the windows within the
+ *  same batch. Batches of different sub-streams can be executed in parallel while
+ *  consecutive batches of the same sub-stream are prepared on the CPU and offloaded
+ *  on the GPU sequentially.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with a copy
- *  constructor and copy assignment operator, and they must provide and implement the
+ *  constructor and a copy assignment operator, and they must provide and implement the
  *  setControlFields() and getControlFields() methods. The third template argument win_F_t
  *  is the type of the callable object to be used for GPU processing.
  */ 
@@ -52,6 +51,7 @@
 #include<wm_nodes.hpp>
 #include<tree_emitter.hpp>
 #include<basic_emitter.hpp>
+#include<basic_operator.hpp>
 #include<transformations.hpp>
 
 namespace wf {
@@ -59,7 +59,7 @@ namespace wf {
 /** 
  *  \class Key_Farm_GPU
  *  
- *  \brief Key_Farm_GPU operator executing a windowed query in parallel on a CPU+GPU system
+ *  \brief Key_Farm_GPU operator executing windowed queries in parallel on GPU
  *  
  *  This class implements the Key_Farm_GPU operator. The operator prepares in parallel distinct
  *  batches of tuples (on the CPU cores) and offloads the processing of the batches on the GPU
@@ -67,14 +67,14 @@ namespace wf {
  *  with tuples of same sub-stream are prepared/offloaded sequentially on the CPU.
  */ 
 template<typename tuple_t, typename result_t, typename win_F_t, typename input_t>
-class Key_Farm_GPU: public ff::ff_farm
+class Key_Farm_GPU: public ff::ff_farm, public Basic_Operator
 {
 public:
     /// type of the Pane_Farm_GPU passed to the proper nesting Constructor
     using pane_farm_gpu_t = Pane_Farm_GPU<tuple_t, result_t, win_F_t>;
     /// type of the Win_MapReduce_GPU passed to the proper nesting Constructor
     using win_mapreduce_gpu_t = Win_MapReduce_GPU<tuple_t, result_t, win_F_t>;
-    /// function type to map the key hashcode onto an identifier starting from zero to pardegree-1
+    /// function type to map the key hashcode onto an identifier starting from zero to parallelism/num_replicas-1
     using routing_func_t = std::function<size_t(size_t, size_t)>;
 
 private:
@@ -90,32 +90,28 @@ private:
     template<typename T>
     friend auto get_KF_GPU_nested_type(T);
     friend class MultiPipe;
-    // flag stating whether the Key_Farm_GPU has been instantiated with complex workers (Pane_Farm_GPU or Win_MapReduce_GPU)
-    bool hasComplexWorkers;
-    // optimization level of the Key_Farm_GPU
-    opt_level_t outer_opt_level;
-    // optimization level of the inner operators
-    opt_level_t inner_opt_level;
-    // type of the inner operators
-    pattern_t inner_type;
-    // parallelism of the Key_Farm_GPU
-    size_t parallelism;
-    // parallelism degrees of the inner operators
-    size_t inner_parallelism_1;
-    size_t inner_parallelism_2;
-    // window type (CB or TB)
-    win_type_t winType;
-    bool used; // true if the operator has been added/chained in a MultiPipe
-    std::vector<ff_node *> kf_workers; // vector of pointers to the Key_Farm_GPU workers
-    std::string name; // name of the operator
+    std::string name; // name of the Key_Farm_GPU
+    size_t parallelism; // internal parallelism of the Key_Farm_GPU
+    bool used; // true if the Key_Farm_GPU has been added/chained in a MultiPipe
+    bool isComplex; // true if the Key_Farm_GPU replicates Pane_Farm_GPU or Win_MapReduce_GPU instances
+    opt_level_t outer_opt_level; // optimization level of the Key_Farm_GPU
+    opt_level_t inner_opt_level; // optimization level of the inner operators within the Key_Farm_GPU
+    pattern_t inner_type; // type of the inner operators (SEQ, PF_GPU or WMR_GPU)
+    size_t outer_parallelism; // number of complex replicas within the Key_Farm_GPU
+    size_t inner_parallelism_1; // first parallelism of the inner operators
+    size_t inner_parallelism_2; // second parallelism of the inner operators
+    win_type_t winType; // type of windows (count-based or time-based)
+    std::vector<ff_node *> kf_workers; // vector of pointers to the Key_Farm_GPU workers (Win_Seq_GPU or Pane_Farm_GPU or Win_MapReduce_GPU instances)
 
     // method to optimize the structure of the Key_Farm_GPU operator
     void optimize_KeyFarmGPU(opt_level_t opt)
     {
-        if (opt == LEVEL0) // no optimization
+        if (opt == LEVEL0) { // no optimization
             return;
-        else if (opt == LEVEL1) // optimization level 1
+        }
+        else if (opt == LEVEL1) { // optimization level 1
             remove_internal_collectors(*this); // remove all the default collectors in the Key_Farm_GPU
+        }
         else { // optimization level 2
             kf_emitter_t *kf_e = static_cast<kf_emitter_t *>(this->getEmitter());
             auto &oldWorkers = this->getWorkers();
@@ -125,8 +121,9 @@ private:
             for (auto *w: oldWorkers) {
                 ff::ff_pipeline *pipe = static_cast<ff::ff_pipeline *>(w);
                 ff::ff_node *e = remove_emitter_from_pipe(*pipe);
-                if (e == nullptr)
+                if (e == nullptr) {
                     tobeTransformmed = false;
+                }
                 else {
                     Basic_Emitter *my_e = static_cast<Basic_Emitter *>(e);
                     Es.push_back(my_e);
@@ -152,12 +149,13 @@ public:
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _pardegree parallelism degree of the Key_Farm_GPU operator
+     *  \param _parallelism internal parallelism of the Key_Farm_GPU operator
      *  \param _batch_len no. of windows in a batch
+     *  \param _gpu_id identifier of the chosen GPU device
      *  \param _n_thread_block number of threads per block
-     *  \param _name string with the unique name of the operator
+     *  \param _name name of the operator
      *  \param _scratchpad_size size in bytes of the scratchpad area local of a CUDA thread (pre-allocated on the global memory of the GPU)
-     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
+     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to parallelism-1
      *  \param _opt_level optimization level used to build the operator
      */ 
     Key_Farm_GPU(win_F_t _win_func,
@@ -165,31 +163,33 @@ public:
                  uint64_t _slide_len,
                  uint64_t _triggering_delay,
                  win_type_t _winType,
-                 size_t _pardegree,
+                 size_t _parallelism,
                  size_t _batch_len,
+                 int _gpu_id,
                  size_t _n_thread_block,
                  std::string _name,
                  size_t _scratchpad_size,
                  routing_func_t _routing_func,
                  opt_level_t _opt_level):
-                 hasComplexWorkers(false),
-                 outer_opt_level(_opt_level),
-                 inner_opt_level(LEVEL0),
-                 inner_type(SEQ_GPU),
-                 parallelism(_pardegree),
-                 inner_parallelism_1(1),
-                 inner_parallelism_2(0),
-                 winType(_winType),
+                 name(_name),
+                 parallelism(_parallelism),
                  used(false),
-                 name(_name)
+                 isComplex(false),
+                 outer_opt_level(_opt_level),
+                 inner_opt_level(LEVEL0), // not meaningful
+                 inner_type(SEQ_GPU),
+                 outer_parallelism(0), // not meaningful
+                 inner_parallelism_1(0), // not meaningful
+                 inner_parallelism_2(0), // not meaningful
+                 winType(_winType)
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
             std::cerr << RED << "WindFlow Error: window length or slide in Key_Farm_GPU cannot be zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        // check the validity of the parallelism degree
-        if (_pardegree == 0) {
+        // check the validity of the parallelism value
+        if (_parallelism == 0) {
             std::cerr << RED << "WindFlow Error: Key_Farm_GPU has parallelism zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -204,17 +204,17 @@ public:
             outer_opt_level = LEVEL0;
         }
         // std::vector of Win_Seq_GPU
-        std::vector<ff::ff_node *> w(_pardegree);
+        std::vector<ff::ff_node *> w(_parallelism);
         // create the Win_Seq_GPU
-        for (size_t i = 0; i < _pardegree; i++) {
-            auto *seq = new win_seq_gpu_t(_win_func, _win_len, _slide_len, _triggering_delay, _winType, _batch_len, _n_thread_block, _name + "_kf", _scratchpad_size);
+        for (size_t i = 0; i < _parallelism; i++) {
+            auto *seq = new win_seq_gpu_t(_win_func, _win_len, _slide_len, _triggering_delay, _winType, _batch_len, _gpu_id, _n_thread_block, _name, _scratchpad_size);
             w[i] = seq;
             kf_workers.push_back(seq);
         }
         ff::ff_farm::add_workers(w);
         ff::ff_farm::add_collector(nullptr);
         // create the Emitter node
-        ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _pardegree));
+        ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _parallelism));
         // when the Key_Farm_GPU will be destroyed we need aslo to destroy the emitter, workers and collector
         ff::ff_farm::cleanup_all();
     }
@@ -227,12 +227,13 @@ public:
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _pardegree parallelism degree of the Key_Farm_GPU operator
+     *  \param _num_replicas number of replicas of the Pane_Farm_GPU within this Key_Farm_GPU operator
      *  \param _batch_len no. of windows in a batch
+     *  \param _gpu_id identifier of the chosen GPU device
      *  \param _n_thread_block number of threads per block
-     *  \param _name string with the unique name of the operator
+     *  \param _name name of the operator
      *  \param _scratchpad_size size in bytes of the scratchpad area local of a CUDA thread (pre-allocated on the global memory of the GPU)
-     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
+     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to _num_replicas-1
      *  \param _opt_level optimization level used to build the operator
      */ 
     Key_Farm_GPU(pane_farm_gpu_t &_pf,
@@ -240,29 +241,34 @@ public:
                  uint64_t _slide_len,
                  uint64_t _triggering_delay,
                  win_type_t _winType,
-                 size_t _pardegree,
+                 size_t _num_replicas,
                  size_t _batch_len,
+                 int _gpu_id,
                  size_t _n_thread_block,
                  std::string _name,
                  size_t _scratchpad_size,
                  routing_func_t _routing_func,
                  opt_level_t _opt_level):
-                 hasComplexWorkers(true),
-                 outer_opt_level(_opt_level),
-                 inner_type(PF_GPU),
-                 parallelism(_pardegree),
-                 winType(_winType),
+                 name(_name),
+                 parallelism(_num_replicas * (_pf.plq_parallelism + _pf.wlq_parallelism)),
                  used(false),
-                 name(_name)
+                 isComplex(true),
+                 outer_opt_level(_opt_level),
+                 inner_opt_level(_pf.opt_level),
+                 inner_type(PF_GPU),
+                 outer_parallelism(_num_replicas),
+                 inner_parallelism_1(_pf.plq_parallelism),
+                 inner_parallelism_2(_pf.wlq_parallelism),
+                 winType(_winType)
     {      
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
             std::cerr << RED << "WindFlow Error: window length or slide in Key_Farm_GPU cannot be zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        // check the validity of the parallelism degree
-        if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: Key_Farm_GPU has parallelism zero" << DEFAULT_COLOR << std::endl;
+        // check the validity of the number of replicas
+        if (_num_replicas == 0) {
+            std::cerr << RED << "WindFlow Error: number of replicas of the Pane_Farm_GPU within the Key_Farm_GPU is zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
@@ -278,33 +284,41 @@ public:
         else {
             _pf.used4Nesting = true;
         }
-        // check the compatibility of the windowing/batching parameters
-        if (_pf.win_len != _win_len || _pf.slide_len != _slide_len || _pf.triggering_delay != _triggering_delay || _pf.winType != _winType || _pf.batch_len != _batch_len || _pf.n_thread_block != _n_thread_block) {
-            std::cerr << RED << "WindFlow Error: incompatible windowing and batching parameters between Key_Farm_GPU and Pane_Farm_GPU" << DEFAULT_COLOR << std::endl;
+        // check the compatibility of the configuration parameters between the Key_Farm_GPU and the inner Pane_Farm_GPU
+        if (_pf.win_len != _win_len ||
+            _pf.slide_len != _slide_len ||
+            _pf.triggering_delay != _triggering_delay ||
+            _pf.winType != _winType ||
+            _pf.batch_len != _batch_len ||
+            _pf.n_thread_block != _n_thread_block||
+            _pf.gpu_id != _gpu_id)
+        {
+            std::cerr << RED << "WindFlow Error: incompatible configuration parameters between Key_Farm_GPU and Pane_Farm_GPU" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        inner_opt_level = _pf.opt_level;
-        inner_parallelism_1 = _pf.plq_degree;
-        inner_parallelism_2 = _pf.wlq_degree;
         // std::vector of Pane_Farm_GPU
-        std::vector<ff::ff_node *> w(_pardegree);
+        std::vector<ff::ff_node *> w(_num_replicas);
         // create the Pane_Farm_GPU starting from the passed one
-        for (size_t i = 0; i < _pardegree; i++) {
+        for (size_t i = 0; i < _num_replicas; i++) {
             // configuration structure of the Pane_Farm_GPU
-            OperatorConfig configPF(0, 1, _slide_len, 0, 1, _slide_len);
+            WinOperatorConfig configPF(0, 1, _slide_len, 0, 1, _slide_len);
             // create the correct Pane_Farm_GPU
             pane_farm_gpu_t *pf_W = nullptr;
             if (_pf.isGPUPLQ) {
-                if (_pf.isNICWLQ)
-                    pf_W = new pane_farm_gpu_t(_pf.gpuFunction, _pf.wlq_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_kf_" + std::to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
-                else
-                    pf_W = new pane_farm_gpu_t(_pf.gpuFunction, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_kf_" + std::to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
+                if (_pf.isNICWLQ) {
+                    pf_W = new pane_farm_gpu_t(_pf.gpuFunction, _pf.wlq_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_parallelism, _pf.wlq_parallelism, _pf.batch_len, _pf.gpu_id, _pf.n_thread_block, _name + "_pf_" + std::to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
+                }
+                else {
+                    pf_W = new pane_farm_gpu_t(_pf.gpuFunction, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_parallelism, _pf.wlq_parallelism, _pf.batch_len, _pf.gpu_id, _pf.n_thread_block, _name + "_pf_" + std::to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
+                }
             }
             else {
-                if (_pf.isNICPLQ)
-                    pf_W = new pane_farm_gpu_t(_pf.plq_func, _pf.gpuFunction, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_kf_" + std::to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
-                else
-                    pf_W = new pane_farm_gpu_t(_pf.plqupdate_func, _pf.gpuFunction, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _pf.batch_len, _pf.n_thread_block, _name + "_kf_" + std::to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
+                if (_pf.isNICPLQ) {
+                    pf_W = new pane_farm_gpu_t(_pf.plq_func, _pf.gpuFunction, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_parallelism, _pf.wlq_parallelism, _pf.batch_len, _pf.gpu_id, _pf.n_thread_block, _name + "_pf_" + std::to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
+                }
+                else {
+                    pf_W = new pane_farm_gpu_t(_pf.plqupdate_func, _pf.gpuFunction, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_parallelism, _pf.wlq_parallelism, _pf.batch_len, _pf.gpu_id, _pf.n_thread_block, _name + "_pf_" + std::to_string(i), _pf.scratchpad_size, false, _pf.opt_level, configPF);
+                }
             }
             w[i] = pf_W;
             kf_workers.push_back(pf_W);
@@ -312,7 +326,7 @@ public:
         ff::ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
         ff::ff_farm::add_collector(new kf_collector_t());
-        ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _pardegree));
+        ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _num_replicas));
         // optimization process according to the provided optimization level
         optimize_KeyFarmGPU(_opt_level);
         // when the Key_Farm_GPU will be destroyed we need aslo to destroy the emitter, workers and collector
@@ -322,47 +336,53 @@ public:
     /** 
      *  \brief Constructor III (Nesting with Win_MapReduce_GPU)
      *  
-     *  \param _wm Win_MapReduce_GPU to be replicated within the Key_Farm_GPU operator
+     *  \param _wmr Win_MapReduce_GPU to be replicated within the Key_Farm_GPU operator
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _pardegree parallelism degree of the Key_Farm_GPU operator
+     *  \param _num_replicas number of replicas of the Win_MapReduce_GPU within this Key_Farm_GPU operator
      *  \param _batch_len no. of windows in a batch
+     *  \param _gpu_id identifier of the chosen GPU device
      *  \param _n_thread_block number of threads per block
-     *  \param _name string with the unique name of the operator
+     *  \param _name name of the operator
      *  \param _scratchpad_size size in bytes of the scratchpad area local of a CUDA thread (pre-allocated on the global memory of the GPU)
-     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
+     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to _num_replicas-1
      *  \param _opt_level optimization level used to build the operator
      */ 
-    Key_Farm_GPU(win_mapreduce_gpu_t &_wm,
+    Key_Farm_GPU(win_mapreduce_gpu_t &_wmr,
                  uint64_t _win_len,
                  uint64_t _slide_len,
                  uint64_t _triggering_delay,
                  win_type_t _winType,
-                 size_t _pardegree,
+                 size_t _num_replicas,
                  size_t _batch_len,
+                 int _gpu_id,
                  size_t _n_thread_block,
                  std::string _name,
                  size_t _scratchpad_size,
                  routing_func_t _routing_func,
                  opt_level_t _opt_level):
-                 hasComplexWorkers(true),
-                 outer_opt_level(_opt_level),
-                 inner_type(WMR_GPU),
-                 parallelism(_pardegree),
-                 winType(_winType),
+                 name(_name),
+                 parallelism(_num_replicas * (_wmr.map_parallelism + _wmr.reduce_parallelism)),
                  used(false),
-                 name(_name)
-    {      
+                 isComplex(true),
+                 outer_opt_level(_opt_level),
+                 inner_opt_level(_wmr.opt_level),
+                 inner_type(WMR_GPU),
+                 outer_parallelism(_num_replicas),
+                 inner_parallelism_1(_wmr.map_parallelism),
+                 inner_parallelism_2(_wmr.reduce_parallelism),
+                 winType(_winType)
+    {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
             std::cerr << RED << "WindFlow Error: window length or slide in Key_Farm_GPU cannot be zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        // check the validity of the parallelism degree
-        if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: Key_Farm_GPU has parallelism zero" << DEFAULT_COLOR << std::endl;
+        // check the validity of the number of replicas
+        if (_num_replicas == 0) {
+            std::cerr << RED << "WindFlow Error: number of replicas of the Win_MapReduce_GPU within the Key_Farm_GPU is zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // check the validity of the batch length
@@ -371,48 +391,56 @@ public:
             exit(EXIT_FAILURE);
         }
         // check that the Win_MapReduce_GPU has not already been used in a nested structure
-        if (_wm.isUsed4Nesting()) {
+        if (_wmr.isUsed4Nesting()) {
             std::cerr << RED << "WindFlow Error: Win_MapReduce_GPU has already been used in a nested structure" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);            
         }
         else {
-            _wm.used4Nesting = true;
+            _wmr.used4Nesting = true;
         }
-        // check the compatibility of the windowing/batching parameters
-        if (_wm.win_len != _win_len || _wm.slide_len != _slide_len || _wm.triggering_delay != _triggering_delay || _wm.winType != _winType || _wm.batch_len != _batch_len || _wm.n_thread_block != _n_thread_block) {
-            std::cerr << RED << "WindFlow Error: incompatible windowing and batching parameters between Key_Farm_GPU and Win_MapReduce_GPU" << DEFAULT_COLOR << std::endl;
+        // check the compatibility of the configuration parameters between the Key_Farm_GPU and the inner Win_MapReduce_GPU
+        if (_wmr.win_len != _win_len ||
+            _wmr.slide_len != _slide_len ||
+            _wmr.triggering_delay != _triggering_delay ||
+            _wmr.winType != _winType ||
+            _wmr.batch_len != _batch_len ||
+            _wmr.n_thread_block != _n_thread_block||
+            _wmr.gpu_id != _gpu_id)
+        {
+            std::cerr << RED << "WindFlow Error: incompatible configuration parameters between Key_Farm_GPU and Win_MapReduce_GPU" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        inner_opt_level = _wm.opt_level;
-        inner_parallelism_1 = _wm.map_degree;
-        inner_parallelism_2 = _wm.reduce_degree;
         // std::vector of Win_MapReduce_GPU
-        std::vector<ff::ff_node *> w(_pardegree);
+        std::vector<ff::ff_node *> w(_num_replicas);
         // create the Win_MapReduce_GPU starting from the passed one
-        for (size_t i = 0; i < _pardegree; i++) {
+        for (size_t i = 0; i < _num_replicas; i++) {
             // configuration structure of the Win_MapReduce_GPU
-            OperatorConfig configWM(0, 1, _slide_len, 0, 1, _slide_len);
+            WinOperatorConfig configWM(0, 1, _slide_len, 0, 1, _slide_len);
             // create the correct Win_MapReduce_GPU
-            win_mapreduce_gpu_t *wm_W = nullptr;
-            if (_wm.isGPUMAP) {
-                if (_wm.isNICREDUCE)
-                    wm_W = new win_mapreduce_gpu_t(_wm.gpuFunction, _wm.reduce_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_kf_" + std::to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
-                else
-                    wm_W = new win_mapreduce_gpu_t(_wm.gpuFunction, _wm.reduceupdate_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_kf_" + std::to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
+            win_mapreduce_gpu_t *wmr_W = nullptr;
+            if (_wmr.isGPUMAP) {
+                if (_wmr.isNICREDUCE) {
+                    wmr_W = new win_mapreduce_gpu_t(_wmr.gpuFunction, _wmr.reduce_func, _wmr.win_len, _wmr.slide_len, _wmr.triggering_delay, _wmr.winType, _wmr.map_parallelism, _wmr.reduce_parallelism, _wmr.batch_len, _wmr.gpu_id, _wmr.n_thread_block, _name + "_wmr_" + std::to_string(i), _wmr.scratchpad_size, false, _wmr.opt_level, configWM);
+                }
+                else {
+                    wmr_W = new win_mapreduce_gpu_t(_wmr.gpuFunction, _wmr.reduceupdate_func, _wmr.win_len, _wmr.slide_len, _wmr.triggering_delay, _wmr.winType, _wmr.map_parallelism, _wmr.reduce_parallelism, _wmr.batch_len, _wmr.gpu_id, _wmr.n_thread_block, _name + "_wmr_" + std::to_string(i), _wmr.scratchpad_size, false, _wmr.opt_level, configWM);
+                }
             }
             else {
-                if (_wm.isNICMAP)
-                    wm_W = new win_mapreduce_gpu_t(_wm.map_func, _wm.gpuFunction, _wm.win_len, _wm.slide_len , _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_kf_" + std::to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
-                else
-                    wm_W = new win_mapreduce_gpu_t(_wm.mapupdate_func, _wm.gpuFunction, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _wm.batch_len, _wm.n_thread_block, _name + "_kf_" + std::to_string(i), _wm.scratchpad_size, false, _wm.opt_level, configWM);
+                if (_wmr.isNICMAP) {
+                    wmr_W = new win_mapreduce_gpu_t(_wmr.map_func, _wmr.gpuFunction, _wmr.win_len, _wmr.slide_len , _wmr.triggering_delay, _wmr.winType, _wmr.map_parallelism, _wmr.reduce_parallelism, _wmr.batch_len, _wmr.gpu_id, _wmr.n_thread_block, _name + "_wmr_" + std::to_string(i), _wmr.scratchpad_size, false, _wmr.opt_level, configWM);
+                }
+                else {
+                    wmr_W = new win_mapreduce_gpu_t(_wmr.mapupdate_func, _wmr.gpuFunction, _wmr.win_len, _wmr.slide_len, _wmr.triggering_delay, _wmr.winType, _wmr.map_parallelism, _wmr.reduce_parallelism, _wmr.batch_len, _wmr.gpu_id, _wmr.n_thread_block, _name + "_wmr_" + std::to_string(i), _wmr.scratchpad_size, false, _wmr.opt_level, configWM);
+                }
             }
-            w[i] = wm_W;
-            kf_workers.push_back(wm_W);
+            w[i] = wmr_W;
+            kf_workers.push_back(wmr_W);
         }
         ff::ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
         ff::ff_farm::add_collector(new kf_collector_t());
-        ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _pardegree));
+        ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _num_replicas));
         // optimization process according to the provided optimization level
         optimize_KeyFarmGPU(_opt_level);
         // when the Key_Farm_GPU will be destroyed we need aslo to destroy the emitter, workers and collector
@@ -420,17 +448,53 @@ public:
     }
 
     /** 
-     *  \brief Check whether the Key_Farm_GPU has been instantiated with complex operators inside
-     *  \return true if the Key_Farm_GPU has complex operators inside
+     *  \brief Get the name of the Key_Farm_GPU
+     *  \return name of the Key_Farm_GPU
      */ 
-    bool useComplexNesting() const
+    std::string getName() const override
     {
-        return hasComplexWorkers;
+        return name;
     }
 
     /** 
-     *  \brief Get the optimization level used to build the operator
-     *  \return adopted utilization level by the operator
+     *  \brief Get the total parallelism within the Key_Farm_GPU
+     *  \return total parallelism within the Key_Farm_GPU
+     */ 
+    size_t getParallelism() const override
+    {
+        return parallelism;
+    }
+
+    /** 
+     *  \brief Return the routing mode of inputs to the Key_Farm_GPU
+     *  \return routing mode (always KEYBY for the Key_Farm_GPU)
+     */ 
+    routing_modes_t getRoutingMode() const override
+    {
+        return KEYBY;
+    }
+
+    /** 
+     *  \brief Check whether the Key_Farm_GPU has been used in a MultiPipe
+     *  \return true if the Key_Farm_GPU has been added/chained to an existing MultiPipe
+     */ 
+    bool isUsed() const override
+    {
+        return used;
+    }
+
+    /** 
+     *  \brief Check whether the Key_Farm_GPU has been instantiated with complex operators inside
+     *  \return true if the Key_Farm_GPU has complex operators inside
+     */ 
+    bool isComplexNesting() const
+    {
+        return isComplex;
+    }
+
+    /** 
+     *  \brief Get the optimization level used to build the Key_Farm_GPU
+     *  \return adopted utilization level by the Key_Farm_GPU
      */ 
     opt_level_t getOptLevel() const
     {
@@ -438,8 +502,8 @@ public:
     }
 
     /** 
-     *  \brief Type of the inner operators used by this Key_Farm_GPU
-     *  \return type of the inner operators
+     *  \brief Type of the inner operators replicated by the Key_Farm_GPU
+     *  \return type of the inner operators within the Key_Farm_GPU
      */ 
     pattern_t getInnerType() const
     {
@@ -447,48 +511,42 @@ public:
     }
 
     /** 
-     *  \brief Get the optimization level of the inner operators within this Key_Farm_GPU
-     *  \return adopted utilization level by the inner operators
+     *  \brief Get the optimization level of the inner operators within the Key_Farm_GPU
+     *  \return adopted utilization level by the inner operators within the Key_Farm_GPU
      */ 
     opt_level_t getInnerOptLevel() const
     {
+        assert(isComplex);
         return inner_opt_level;
     }
 
     /** 
-     *  \brief Get the parallelism degree of the Key_Farm_GPU
-     *  \return parallelism degree of the Key_Farm_GPU
+     *  \brief Get the number of complex replicas within the Key_Farm_GPU
+     *  \return number of complex replicas within the Key_Farm_GPU
      */ 
-    size_t getParallelism() const
+    size_t getNumComplexReplicas() const
     {
-        return parallelism;
-    }       
+        assert(isComplex);
+        return outer_parallelism;
+    }
 
     /** 
-     *  \brief Get the parallelism degrees of the inner operators within this Key_Farm_GPU
-     *  \return parallelism degrees of the inner operators
+     *  \brief Get the parallelism (PLQ, WLQ or MAP, REDUCE) of the inner operators within the Key_Farm_GPU
+     *  \return parallelism (PLQ, WLQ or MAP, REDUCE) of the inner operators within the Key_Farm_GPU
      */ 
-    std::pair<size_t, size_t> getInnerParallelism() const
+    std::pair<size_t, size_t> getInnerParallelisms() const
     {
+        assert(isComplex);
         return std::make_pair(inner_parallelism_1, inner_parallelism_2);
     }
 
     /** 
-     *  \brief Get the window type (CB or TB) utilized by the operator
-     *  \return adopted windowing semantics (count- or time-based)
+     *  \brief Get the window type (CB or TB) utilized by the Key_Farm_GPU
+     *  \return adopted windowing semantics (count-based or time-based)
      */ 
     win_type_t getWinType() const
     {
         return winType;
-    }
-
-    /** 
-     *  \brief Check whether the Key_Farm_GPU has been used in a MultiPipe
-     *  \return true if the Key_Farm_GPU has been added/chained to an existing MultiPipe
-     */
-    bool isUsed() const
-    {
-        return used;
     }
 
     /** 
@@ -523,12 +581,41 @@ public:
     }
 
     /** 
-     *  \brief Get the name of the operator
-     *  \return string representing the name of the operator
-     */
-    std::string getName() const
+     *  \brief Get the Stats_Record of each replica within the Key_Farm_GPU
+     *  \return vector of Stats_Record objects
+     */ 
+    std::vector<Stats_Record> get_StatsRecords() const override
     {
-        return name;
+#if !defined(TRACE_WINDFLOW)
+        std::cerr << YELLOW << "WindFlow Warning: statistics are not enabled, compile with -DTRACE_WINDFLOW" << DEFAULT_COLOR << std::endl;
+        return {};
+#else
+        std::vector<Stats_Record> records;
+        if (this->getInnerType() == SEQ_GPU) {
+            for (auto *w: kf_workers) {
+                auto *seq = static_cast<win_seq_gpu_t *>(w);
+                records.push_back(seq->get_StatsRecord());
+            }
+        }
+        else if (this->getInnerType() == PF_GPU) {
+            for (auto *w: kf_workers) {
+                auto *pf = static_cast<pane_farm_gpu_t *>(w);
+                auto v = pf->get_StatsRecords();
+                records.insert(records.end(), v.begin(), v.end());
+            }
+        }
+        else if (this->getInnerType() == WMR_GPU) {
+            for (auto *w: kf_workers) {
+                auto *wmr = static_cast<win_mapreduce_gpu_t *>(w);
+                auto v = wmr->get_StatsRecords();
+                records.insert(records.end(), v.begin(), v.end());
+            }
+        }
+        else {
+            abort();
+        }
+        return records;
+#endif      
     }
 
     /// deleted constructors/operators

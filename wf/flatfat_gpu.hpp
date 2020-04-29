@@ -42,6 +42,7 @@
 #include<algorithm>
 #include<functional>
 #include<basic.hpp>
+#include<stats_record.hpp>
 
 namespace wf {
 
@@ -53,8 +54,9 @@ __global__ void InitTreeLevel_Kernel(comb_F_t winComb_func,
                                      size_t levelBSize)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i >= levelBSize)
+    if (i >= levelBSize) {
         return;
+    }
     winComb_func(levelA[i*2], levelA[i*2+1], levelB[i]);
 }
 
@@ -65,11 +67,12 @@ __global__ void UpdateTreeLevel_Kernel(comb_F_t winComb_func,
                                        result_t *levelB,
                                        size_t offset,
                                        size_t levelBSize,
-                                      int numThreads)
+                                       int numThreads)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i >= numThreads)
+    if (i >= numThreads) {
         return;
+    }
     i = (i + offset) % levelBSize;
     winComb_func(levelA[i*2], levelA[i*2+1], levelB[i]);
 }
@@ -80,7 +83,7 @@ __host__ __device__ int Parent(int pos, int B)
     return (pos >> 1) | B;
 }
 
-// CUDA KERNEL: compute the results of all the windows within the batch
+// CUDA KERNEL: compute the results of all the windows within the batch (thanks to Massimo Coppola, ISTI-CNR, Pisa, Italy)
 template<typename result_t, typename comb_F_t>
 __global__ void ComputeResults_Kernel(comb_F_t winComb_func,
                                       result_t *fat, 
@@ -94,8 +97,9 @@ __global__ void ComputeResults_Kernel(comb_F_t winComb_func,
                                       int S)
 {
     int win_local_id = blockIdx.x * blockDim.x + threadIdx.x;
-    if (win_local_id >= Nb)
+    if (win_local_id >= Nb) {
         return;
+    }
     int win_global_id = win_local_id  + b_id * Nb;
     int wS = (offset + win_local_id * S) % B;
     while(W > 0) {
@@ -163,31 +167,34 @@ private:
     result_t zero; // zero value
     cudaStream_t *cudaStream; // pointer to the CUDA stream used by this FlatFAT_GPU
     size_t n_thread_block; // number of threads per block
+#if defined(TRACE_WINDFLOW)
+    Stats_Record *stats_record=nullptr;
+#endif
 
 public:
     // Constructor
     FlatFAT_GPU(winLift_func_t _winLift_func,
-               comb_F_t _winComb_func,
-               size_t _batchSize,
-               size_t _numWindows,
-               size_t _windowSize,
-               size_t _slide,
-               key_t _key,
-               cudaStream_t *_cudaStream,
-               size_t _n_thread_block):
-               d_tree(nullptr),
-               d_results(nullptr),
-               results(nullptr),
-               batchSize(_batchSize),
-               windowSize(_windowSize),
-               slide(_slide),
-               key(_key),
-               Nb(_numWindows),
-               offset(0),
-               winLift_func(_winLift_func),
-               winComb_func(_winComb_func),
-               cudaStream(_cudaStream),
-               n_thread_block(_n_thread_block)
+                comb_F_t _winComb_func,
+                size_t _batchSize,
+                size_t _numWindows,
+                size_t _windowSize,
+                size_t _slide,
+                key_t _key,
+                cudaStream_t *_cudaStream,
+                size_t _n_thread_block):
+                d_tree(nullptr),
+                d_results(nullptr),
+                results(nullptr),
+                batchSize(_batchSize),
+                windowSize(_windowSize),
+                slide(_slide),
+                key(_key),
+                Nb(_numWindows),
+                offset(0),
+                winLift_func(_winLift_func),
+                winComb_func(_winComb_func),
+                cudaStream(_cudaStream),
+                n_thread_block(_n_thread_block)
     {
         size_t noBits = (size_t) ceil(log2(batchSize));
         size_t n = 1 << noBits;
@@ -241,12 +248,12 @@ public:
     }
 
     // method to build the FlatFAT_GPU tree
-    void build(const std::vector<result_t> &inputs,
-               int b_id)
+    void build(const std::vector<result_t> &inputs, int b_id)
     {
         // check the size of the input vector
-        if (inputs.size() != batchSize)
+        if (inputs.size() != batchSize) {
             return;
+        }
         // copy the input vector in the tree vector
         std::vector<result_t> tree(inputs.begin(), inputs.end());
         // fill the remaining entries in the tree with zeros
@@ -254,6 +261,9 @@ public:
         assert(tree.size() == treeSize);
         // copy the tree data in the GPU
         gpuErrChk(cudaMemcpy((void *) d_tree, (void *) tree.data(), treeMemSize, cudaMemcpyHostToDevice));
+#if defined(TRACE_WINDFLOW)
+        stats_record->bytes_copied_hd += treeMemSize;
+#endif
         // pointer to the first level of the tree
         result_t *d_levelA = d_tree;
         int pow = 1;
@@ -264,6 +274,9 @@ public:
         while (d_levelB < d_tree + treeSize && i > 0) {
             int noBlocks = (int) ceil(i / ((double) n_thread_block));
             // call the kernel to initialize level i
+#if defined(TRACE_WINDFLOW)
+            stats_record->num_kernels++;
+#endif
             InitTreeLevel_Kernel<result_t, comb_F_t><<<noBlocks, n_thread_block, 0, *cudaStream>>>(winComb_func, d_levelA, d_levelB, i);
             if (err = cudaGetLastError()) {
                 std::cerr << RED << "WindFlow Error: invoking the GPU kernel (InitTreeLevel_Kernel) causes error -> " << err << DEFAULT_COLOR << std::endl;
@@ -276,11 +289,17 @@ public:
             i /= 2;
         }
         // copy the initial values in the GPU
+#if defined(TRACE_WINDFLOW)
+        stats_record->bytes_copied_hd += Nb * sizeof(result_t);
+#endif
         gpuErrChk(cudaMemcpy((void *) d_results, (void *) initResults.data(), Nb * sizeof(result_t), cudaMemcpyHostToDevice));
         // compute the results of the Nb windows in the initial batch
         if (Nb > n_thread_block) {
             int noBlocks = (int) ceil(Nb / ((double) n_thread_block));
             // call the kernel
+#if defined(TRACE_WINDFLOW)
+            stats_record->num_kernels++;
+#endif
             cudaError_t err;
             ComputeResults_Kernel<result_t, comb_F_t><<<noBlocks, n_thread_block, 0, *cudaStream>>>(winComb_func, d_tree, d_results, offset, noLeaves, batchSize, windowSize, b_id, Nb, slide);
             if (err = cudaGetLastError()) {
@@ -290,6 +309,9 @@ public:
         }
         else {
             // call the kernel
+#if defined(TRACE_WINDFLOW)
+            stats_record->num_kernels++;
+#endif
             cudaError_t err;
             ComputeResults_Kernel<result_t, comb_F_t><<<1, Nb>>>(winComb_func, d_tree, d_results, offset, noLeaves, batchSize, windowSize, b_id, Nb, slide);
             if (err = cudaGetLastError()) {
@@ -300,16 +322,21 @@ public:
     }
 
     // method to update the FlatFAT_GPU with new inputs
-    void update(const std::vector<result_t> &inputs,
-                int b_id)
+    void update(const std::vector<result_t> &inputs, int b_id)
     {
         // compute the remaining space at the end of the tree
         size_t spaceLeft = batchSize - offset;
         if (inputs.size() <= spaceLeft) {
+#if defined(TRACE_WINDFLOW)
+            stats_record->bytes_copied_hd += inputs.size() * sizeof(result_t);
+#endif
             // add all the input elements to the tree
             gpuErrChk(cudaMemcpy(d_tree + offset, inputs.data(), inputs.size() * sizeof(result_t), cudaMemcpyHostToDevice));
         }
         else {
+#if defined(TRACE_WINDFLOW)
+            stats_record->bytes_copied_hd += spaceLeft * sizeof(result_t) + (inputs.size() - spaceLeft) * sizeof(result_t);
+#endif
             // split in two parts
             gpuErrChk(cudaMemcpy(d_tree + offset, inputs.data(), spaceLeft * sizeof(result_t), cudaMemcpyHostToDevice));
             gpuErrChk(cudaMemcpy(d_tree, inputs.data() + spaceLeft, (inputs.size() - spaceLeft) * sizeof(result_t), cudaMemcpyHostToDevice));
@@ -327,6 +354,9 @@ public:
             // call the kernel to update a level of the tree
             size_t numBlocks = ceil(numThreads / ((double) n_thread_block));
             // call the kernel
+#if defined(TRACE_WINDFLOW)
+            stats_record->num_kernels++;
+#endif
             cudaError_t err;
             UpdateTreeLevel_Kernel<result_t, comb_F_t><<<numBlocks, n_thread_block>>>(winComb_func, d_levelA, d_levelB, distance, sizeB, numThreads);
             if (err = cudaGetLastError()) {
@@ -343,12 +373,18 @@ public:
             numThreads = ceil((double) inputs.size() / (pow << 1)) + 1;
         }
         offset = (offset + inputs.size()) % batchSize;
+#if defined(TRACE_WINDFLOW)
+        stats_record->bytes_copied_hd += Nb * sizeof(result_t);
+#endif
         // copy the initial values in the GPU
         gpuErrChk(cudaMemcpy((void *) d_results, (void *) initResults.data(), Nb * sizeof(result_t), cudaMemcpyHostToDevice));
         // compute the results of the Nb windows in the initial batch
         if (Nb > n_thread_block) {
             int noBlocks = (int) ceil(Nb / ((double) n_thread_block));
             // call the kernel
+#if defined(TRACE_WINDFLOW)
+            stats_record->num_kernels++;
+#endif
             cudaError_t err;
             ComputeResults_Kernel<result_t, comb_F_t><<<noBlocks, n_thread_block>>>(winComb_func, d_tree, d_results, offset, noLeaves, batchSize, windowSize, b_id, Nb, slide);
             if (err = cudaGetLastError()) {
@@ -358,6 +394,9 @@ public:
         }
         else {
             // call the kernel
+#if defined(TRACE_WINDFLOW)
+            stats_record->num_kernels++;
+#endif
             cudaError_t err;
             ComputeResults_Kernel<result_t, comb_F_t><<<1, Nb>>>(winComb_func, d_tree, d_results, offset, noLeaves, batchSize, windowSize, b_id, Nb, slide);
             if (err = cudaGetLastError()) {
@@ -370,6 +409,9 @@ public:
     // method to get (synchronously) the array of results computed by the GPU
     const result_t *getSyncResults()
     {
+#if defined(TRACE_WINDFLOW)
+        stats_record->bytes_copied_dh += Nb * sizeof(result_t);
+#endif
         // synchronous copy
         gpuErrChk(cudaMemcpy((void *) results, (void *) d_results, Nb * sizeof(result_t), cudaMemcpyDeviceToHost));
         return results;
@@ -378,6 +420,9 @@ public:
     // method to start (asynchronously) the copy of the array of results from the GPU
     void getAsyncResults()
     {
+#if defined(TRACE_WINDFLOW)
+        stats_record->bytes_copied_dh += Nb * sizeof(result_t);
+#endif
         gpuErrChk(cudaMemcpyAsync((void *) results, (void *) d_results, Nb * sizeof(result_t), cudaMemcpyDeviceToHost));
     }
 
@@ -391,10 +436,21 @@ public:
     // method to get the vector of batched inputs
     std::vector<result_t> getBatchedTuples()
     {
+#if defined(TRACE_WINDFLOW)
+        stats_record->bytes_copied_dh += (batchSize - offset) * sizeof(result_t) + offset * sizeof(result_t);
+#endif
         gpuErrChk(cudaMemcpy((void *) tuples, (void *) (d_tree + offset), (batchSize - offset) * sizeof(result_t), cudaMemcpyDeviceToHost));
         gpuErrChk(cudaMemcpy((void *) (tuples + batchSize - offset), (void *) d_tree, offset * sizeof(result_t), cudaMemcpyDeviceToHost));
         return std::vector<result_t>(tuples, tuples + batchSize);
     }
+
+#if defined(TRACE_WINDFLOW)
+    // method to provide the Stats_Record structure for gathering statistics
+    void set_StatsRecord(Stats_Record *_stats_record)
+    {
+        stats_record = _stats_record;
+    }
+#endif
 };
 
 } // namespace wf

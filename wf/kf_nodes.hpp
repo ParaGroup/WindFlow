@@ -43,68 +43,69 @@ template<typename tuple_t>
 class KF_Emitter: public Basic_Emitter
 {
 private:
-    // type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
+    // type of the function to map the key hashcode onto an identifier starting from zero to parallelism-1
     using routing_func_t = std::function<size_t(size_t, size_t)>;
     routing_func_t routing_func; // routing function
-    size_t pardegree; // parallelism degree (number of inner operators)
+    size_t parallelism; // parallelism degree (number of inner operators)
     bool isCombined; // true if this node is used within a Tree_Emitter node
     std::vector<std::pair<void *, int>> output_queue; // used in case of Tree_Emitter mode
 
 public:
     // Constructor
     KF_Emitter(routing_func_t _routing_func,
-               size_t _pardegree):
+               size_t _parallelism):
                routing_func(_routing_func),
-               pardegree(_pardegree),
-               isCombined(false)
-    {}
+               parallelism(_parallelism),
+               isCombined(false) {}
 
     // clone method
-    Basic_Emitter *clone() const
+    Basic_Emitter *clone() const override
     {
         KF_Emitter<tuple_t> *copy = new KF_Emitter<tuple_t>(*this);
         return copy;
     }
 
     // svc_init method (utilized by the FastFlow runtime)
-    int svc_init()
+    int svc_init() override
     {
         return 0;
     }
 
     // svc method (utilized by the FastFlow runtime)
-    void *svc(void *in)
+    void *svc(void *in) override
     {
         tuple_t *t = reinterpret_cast<tuple_t *>(in);
         // extract the key from the input tuple
         auto key = std::get<0>(t->getControlFields()); // key
         size_t hashcode = std::hash<decltype(key)>()(key); // compute the hashcode of the key
         // evaluate the routing function
-        size_t dest_w = routing_func(hashcode, pardegree);
-        if (!isCombined)
+        size_t dest_w = routing_func(hashcode, parallelism);
+        if (!isCombined) {
             this->ff_send_out_to(t, dest_w);
-        else
+        }
+        else {
             output_queue.push_back(std::make_pair(t, dest_w));
+        }
         return this->GO_ON;
     }
 
     // svc_end method (FastFlow runtime)
-    void svc_end() {}
+    void svc_end() override {}
 
     // get the number of destinations
-    size_t getNDestinations() const
+    size_t getNDestinations() const override
     {
-        return pardegree;
+        return parallelism;
     }
 
     // set/unset the Tree_Emitter mode
-    void setTree_EmitterMode(bool _val)
+    void setTree_EmitterMode(bool _val) override
     {
         isCombined = _val;
     }
 
     // method to get a reference to the internal output queue (used in Tree_Emitter mode)
-    std::vector<std::pair<void *, int>> &getOutputQueue()
+    std::vector<std::pair<void *, int>> &getOutputQueue() override
     {
         return output_queue;
     }
@@ -112,7 +113,7 @@ public:
 
 // class KF_Collector
 template<typename result_t>
-class KF_Collector: public ff::ff_minode_t<result_t, result_t>
+class KF_Collector: public ff::ff_minode_t<result_t>
 {
 private:
     result_t tmp; // never used
@@ -133,13 +134,13 @@ private:
 
 public:
     // svc_init method (utilized by the FastFlow runtime)
-    int svc_init()
+    int svc_init() override
     {
         return 0;
     }
 
     // svc method (utilized by the FastFlow runtime)
-    result_t *svc(result_t *r)
+    result_t *svc(result_t *r) override
     {
         // extract key and identifier from the result
         auto key = std::get<0>(r->getControlFields()); // key
@@ -175,7 +176,7 @@ public:
     }
 
     // svc_end method (utilized by the FastFlow runtime)
-    void svc_end() {}
+    void svc_end() override {}
 };
 
 } // namespace wf

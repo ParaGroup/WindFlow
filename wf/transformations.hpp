@@ -19,12 +19,12 @@
  *  @author  Gabriele Mencagli
  *  @date    15/06/2019
  *  
- *  @brief Set of transformations useful for operators optimization
+ *  @brief Set of transformations useful for window-based operators
  *  
  *  @section Transformations (Description)
  *  
  *  This file implements a set of transformations useful to optimize
- *  the structure of some windowed operators.
+ *  the structure of window-based operators.
  */ 
 
 #ifndef TRANSF_H
@@ -41,7 +41,7 @@ struct dummy_mi: ff::ff_minode
 {
     dummy_mi(ordering_mode_t _mode=TS) {}
 
-    void *svc(void *in)
+    void *svc(void *in) override
     {
         return in;
     }
@@ -50,7 +50,7 @@ struct dummy_mi: ff::ff_minode
 // struct of the dummy multi-ouput node
 struct dummy_mo: ff::ff_monode
 {
-    void *svc(void *in)
+    void *svc(void *in) override
     {
         return in;
     }
@@ -174,8 +174,9 @@ inline ff::ff_node *remove_emitter_from_pipe(ff::ff_pipeline &pipe_in)
             return emitter;
         }
     }
-    else
+    else {
         return nullptr;
+    }
 }
 
 } // namespace wf

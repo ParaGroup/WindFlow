@@ -51,54 +51,55 @@ private:
 public:
     // Constructor
     Broadcast_Emitter(size_t _n_dest):
-                   n_dest(_n_dest),
-                   isCombined(false)
-    {}
+                      n_dest(_n_dest),
+                      isCombined(false) {}
 
     // clone method
-    Basic_Emitter *clone() const
+    Basic_Emitter *clone() const override
     {
         Broadcast_Emitter<tuple_t, input_t> *copy = new Broadcast_Emitter<tuple_t, input_t>(*this);
         return copy;
     }
 
     // svc_init method (utilized by the FastFlow runtime)
-    int svc_init()
+    int svc_init() override
     {
         return 0;
     }
 
     // svc method (utilized by the FastFlow runtime)
-    void *svc(void *in)
+    void *svc(void *in) override
     {
         input_t *wt = reinterpret_cast<input_t *>(in);
         wrapper_in_t *out = prepareWrapper<input_t, wrapper_in_t>(wt, n_dest);
         for(size_t i=0; i<n_dest; i++) {
-            if (!isCombined)
+            if (!isCombined) {
                 this->ff_send_out_to(out, i);
-            else
+            }
+            else {
                 output_queue.push_back(std::make_pair(out, i));
+            }
         }
         return this->GO_ON;
     }
 
     // svc_end method (utilized by the FastFlow runtime)
-    void svc_end() {}
+    void svc_end() override {}
 
     // get the number of destinations
-    size_t getNDestinations() const
+    size_t getNDestinations() const override
     {
         return n_dest;
     }
 
     // set/unset the Tree_Emitter mode
-    void setTree_EmitterMode(bool _val)
+    void setTree_EmitterMode(bool _val) override
     {
         isCombined = _val;
     }
 
     // method to get a reference to the internal output queue (used in Tree_Emitter mode)
-    std::vector<std::pair<void *, int>> &getOutputQueue()
+    std::vector<std::pair<void *, int>> &getOutputQueue() override
     {
         return output_queue;
     }

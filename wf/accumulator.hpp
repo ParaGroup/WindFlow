@@ -27,7 +27,7 @@
  *  functions on data streams.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with a copy
- *  constructor and copy assignment operator, and thet must provide and implement the
+ *  constructor and a copy assignment operator, and they must provide and implement the
  *  setControlFields() and getControlFields() methods.
  */ 
 
@@ -36,7 +36,6 @@
 
 /// includes
 #include<string>
-#include<iostream>
 #include<unordered_map>
 #include<ff/node.hpp>
 #include<ff/pipeline.hpp>
@@ -44,6 +43,8 @@
 #include<ff/farm.hpp>
 #include<basic.hpp>
 #include<context.hpp>
+#include<stats_record.hpp>
+#include<basic_operator.hpp>
 #include<standard_emitter.hpp>
 
 namespace wf {
@@ -57,7 +58,7 @@ namespace wf {
  *  functions on data streams.
  */ 
 template<typename tuple_t, typename result_t>
-class Accumulator: public ff::ff_farm
+class Accumulator: public ff::ff_farm, public Basic_Operator
 {
 public:
     /// type of the reduce/fold function
@@ -66,7 +67,7 @@ public:
     using rich_acc_func_t = std::function<void(const tuple_t &, result_t &, RuntimeContext &)>;
     /// type of the closing function
     using closing_func_t = std::function<void(RuntimeContext &)>;
-    /// type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
+    /// type of the function to map the key hashcode onto an identifier starting from zero to parallelism-1
     using routing_func_t = std::function<size_t(size_t, size_t)>;
 
 private:
@@ -75,8 +76,9 @@ private:
     using key_t = typename std::remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
     // friendships with other classes in the library
     friend class MultiPipe;
-    bool used; // true if the operator has been added/chained in a MultiPipe
-    std::string name; // name of the operator
+    std::string name; // name of the Accumulator
+    size_t parallelism; // internal parallelism of the Accumulator
+    bool used; // true if the Accumulator has been added/chained in a MultiPipe
     // class Accumulator_Node
     class Accumulator_Node: public ff::ff_minode_t<tuple_t, result_t>
     {
@@ -84,7 +86,7 @@ private:
         acc_func_t acc_func; // reduce/fold function
         rich_acc_func_t rich_acc_func; // rich reduce/fold function
         closing_func_t closing_func; // closing function
-        std::string name; // string of the unique name of the operator
+        std::string name; // name of the operator
         bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
         RuntimeContext context; // RuntimeContext
         result_t init_value; // initial value of the results
@@ -95,17 +97,15 @@ private:
 
             // Constructor
             Key_Descriptor(result_t _init_value):
-                           result(_init_value)
-            {}
+                           result(_init_value) {}
         };
         // hash table that maps key values onto key descriptors
         std::unordered_map<key_t, Key_Descriptor> keyMap;
 #if defined(TRACE_WINDFLOW)
-        unsigned long rcvTuples = 0;
+        Stats_Record stats_record;
         double avg_td_us = 0;
         double avg_ts_us = 0;
-        volatile unsigned long startTD, startTS, endTD, endTS;
-        std::ofstream *logfile = nullptr;
+        volatile uint64_t startTD, startTS, endTD, endTS;
 #endif
 
 public:
@@ -120,8 +120,7 @@ public:
                         name(_name),
                         isRich(false),
                         context(_context),
-                        closing_func(_closing_func)
-        {}
+                        closing_func(_closing_func) {}
 
         // Constructor II
         Accumulator_Node(rich_acc_func_t _rich_acc_func,
@@ -134,43 +133,29 @@ public:
                          name(_name),
                          isRich(true),
                          context(_context),
-                         closing_func(_closing_func)
-        {}
+                         closing_func(_closing_func) {}
 
         // svc_init method (utilized by the FastFlow runtime)
-        int svc_init()
+        int svc_init() override
         {
 #if defined(TRACE_WINDFLOW)
-            logfile = new std::ofstream();
-            name += "_" + std::to_string(this->get_my_id()) + "_" + std::to_string(getpid()) + ".log";
-#if defined(LOG_DIR)
-            std::string filename = std::string(STRINGIFY(LOG_DIR)) + "/" + name;
-            std::string log_dir = std::string(STRINGIFY(LOG_DIR));
-#else
-            std::string filename = "log/" + name;
-            std::string log_dir = std::string("log");
-#endif
-            // create the log directory
-            if (mkdir(log_dir.c_str(), 0777) != 0) {
-                struct stat st;
-                if((stat(log_dir.c_str(), &st) != 0) || !S_ISDIR(st.st_mode)) {
-                    std::cerr << RED << "WindFlow Error: directory for log files cannot be created" << DEFAULT_COLOR << std::endl;
-                    exit(EXIT_FAILURE);
-                }
-            }
-            logfile->open(filename);
+            stats_record = Stats_Record(name, "replica_" + std::to_string(this->get_my_id()), false);
 #endif
             return 0;
         }
 
         // svc method (utilized by the FastFlow runtime)
-        result_t *svc(tuple_t *t)
+        result_t *svc(tuple_t *t) override
         {
 #if defined(TRACE_WINDFLOW)
             startTS = current_time_nsecs();
-            if (rcvTuples == 0)
+            if (stats_record.inputs_received == 0) {
                 startTD = current_time_nsecs();
-            rcvTuples++;
+            }
+            stats_record.inputs_received++;
+            stats_record.bytes_received += sizeof(tuple_t);
+            stats_record.outputs_sent++;
+            stats_record.bytes_sent += sizeof(result_t);
 #endif
             // extract key from the input tuple
             auto key = std::get<0>(t->getControlFields()); // key
@@ -183,41 +168,46 @@ public:
             }
             Key_Descriptor &key_d = (*it).second;
             // call the reduce/fold function on the input
-            if (!isRich)
+            if (!isRich) {
                 acc_func(*t, key_d.result);
-            else
+            }
+            else {
                 rich_acc_func(*t, key_d.result, context);
+            }
             // copy the result
             result_t *r = new result_t(key_d.result);
 #if defined(TRACE_WINDFLOW)
             endTS = current_time_nsecs();
             endTD = current_time_nsecs();
             double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
-            avg_ts_us += (1.0 / rcvTuples) * (elapsedTS_us - avg_ts_us);
+            avg_ts_us += (1.0 / stats_record.inputs_received) * (elapsedTS_us - avg_ts_us);
             double elapsedTD_us = ((double) (endTD - startTD)) / 1000;
-            avg_td_us += (1.0 / rcvTuples) * (elapsedTD_us - avg_td_us);
+            avg_td_us += (1.0 / stats_record.inputs_received) * (elapsedTD_us - avg_td_us);
+            stats_record.service_time = std::chrono::duration<double, std::micro>(avg_ts_us);
+            stats_record.eff_service_time = std::chrono::duration<double, std::micro>(avg_td_us);
             startTD = current_time_nsecs();
 #endif
             return r;
         }
 
         // svc_end method (utilized by the FastFlow runtime)
-        void svc_end()
+        void svc_end() override
         {
             // call the closing function
             closing_func(context);
 #if defined(TRACE_WINDFLOW)
-            std::ostringstream stream;
-            stream << "************************************LOG************************************\n";
-            stream << "No. of received tuples: " << rcvTuples << "\n";
-            stream << "Average service time: " << avg_ts_us << " usec \n";
-            stream << "Average inter-departure time: " << avg_td_us << " usec \n";
-            stream << "***************************************************************************\n";
-            *logfile << stream.str();
-            logfile->close();
-            delete logfile;
+            // dump log file with statistics
+            stats_record.dump_toFile();
 #endif
         }
+
+#if defined(TRACE_WINDFLOW)
+        // method to return a copy of the Stats_Record of this node
+        Stats_Record get_StatsRecord() const
+        {
+            return stats_record;
+        }
+#endif
     };
 
 public:
@@ -225,34 +215,35 @@ public:
      *  \brief Constructor
      *  
      *  \param _func function with signature accepted by the Accumulator operator
-     *  \param _init_value initial value to be used by the fold function (for reduce the initial value is the one obtained by the default Constructor of result_t)
-     *  \param _pardegree parallelism degree of the Accumulator operator
-     *  \param _name string with the unique name of the Accumulator operator
+     *  \param _init_value initial value to be used by the fold function
+     *  \param _parallelism internal parallelism of the Accumulator operator
+     *  \param _name string with the name of the Accumulator operator
      *  \param _closing_func closing function
-     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
+     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to parallelism-1
      */ 
     template<typename F_t>
     Accumulator(F_t _func,
                 result_t _init_value,
-                size_t _pardegree,
+                size_t _parallelism,
                 std::string _name,
                 closing_func_t _closing_func,
                 routing_func_t _routing_func):
-                used(false),
-                name(_name)
+                name(_name),
+                parallelism(_parallelism),
+                used(false)
     {
-        // check the validity of the parallelism degree
-        if (_pardegree == 0) {
+        // check the validity of the parallelism value
+        if (_parallelism == 0) {
             std::cerr << RED << "WindFlow Error: Accumulator has parallelism zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // vector of Accumulator_Node
         std::vector<ff_node *> w;
-        for (size_t i=0; i<_pardegree; i++) {
-            auto *seq = new Accumulator_Node(_func, _init_value, _name, RuntimeContext(_pardegree, i), _closing_func);
+        for (size_t i=0; i<_parallelism; i++) {
+            auto *seq = new Accumulator_Node(_func, _init_value, _name, RuntimeContext(_parallelism, i), _closing_func);
             w.push_back(seq);
         }
-        ff::ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func, _pardegree));
+        ff::ff_farm::add_emitter(new Standard_Emitter<tuple_t>(_routing_func, _parallelism));
         ff::ff_farm::add_workers(w);
         // add default collector
         ff::ff_farm::add_collector(nullptr);
@@ -261,21 +252,58 @@ public:
     }
 
     /** 
+     *  \brief Get the name of the Accumulator
+     *  \return string representing the name of the Accumulator
+     */ 
+    std::string getName() const override
+    {
+        return name;
+    }
+
+    /** 
+     *  \brief Get the total parallelism within the Accumulator
+     *  \return total parallelism within the Accumulator
+     */ 
+    size_t getParallelism() const override
+    {
+        return parallelism;
+    }
+
+    /** 
+     *  \brief Return the routing mode of inputs to the Accumulator
+     *  \return routing mode (always KEYBY for the Accumulator)
+     */ 
+    routing_modes_t getRoutingMode() const override
+    {
+        return KEYBY;
+    }
+
+    /** 
      *  \brief Check whether the Accumulator has been used in a MultiPipe
      *  \return true if the Accumulator has been added/chained to an existing MultiPipe
-     */
-    bool isUsed() const
+     */ 
+    bool isUsed() const override
     {
         return used;
     }
 
     /** 
-     *  \brief Get the name of the operator
-     *  \return string representing the name of the operator
-     */
-    std::string getName() const
+     *  \brief Get the Stats_Record of each replica within the Accumulator
+     *  \return vector of Stats_Record objects
+     */ 
+    std::vector<Stats_Record> get_StatsRecords() const override
     {
-        return name;
+#if !defined(TRACE_WINDFLOW)
+        std::cerr << YELLOW << "WindFlow Warning: statistics are not enabled, compile with -DTRACE_WINDFLOW" << DEFAULT_COLOR << std::endl;
+        return {};
+#else
+        std::vector<Stats_Record> records;
+        for(auto *w: this->getWorkers()) {
+            auto *node = static_cast<Accumulator_Node *>(w);
+            records.push_back(node->get_StatsRecord());
+        }
+        return records;
+#endif
     }
 
     /// deleted constructors/operators

@@ -43,5 +43,8 @@ WindFlow is a header-only template library. To build your applications you have 
 ```
 All the examples compile with <tt>gcc</tt> at least version <tt>7.5.0</tt> (with full support to C++17). The examples for GPU need <tt>CUDA</tt> at least version <tt>9.0</tt> with support for C++14 (C++17 is not currently supported by CUDA).
 
+# About the License
+<strong>WindFlow</strong> and <strong>FastFlow</strong> are released with the <strong>LGPL-3</strong> license and they are both header-only libraries. So, any developer who wants to use our libraries for her applications must honor Section 3 of the LGPL (she should mention "prominently" that her application uses WindFlow/FastFlow and linking the LGPL text somewhere). Please be careful that, if compiled with the -DGRAPHVIZ_WINDFLOW macro, WindFlow needs the dynamic libraries of libgraphviz (authors should check the compatibility with its license).
+
 # Contributors
 The main developer and maintainer of WindFlow is [Gabriele Mencagli](mailto:mencagli@di.unipi.it) (Department of Computer Science, University of Pisa, Italy).

@@ -19,18 +19,18 @@
  *  @author  Gabriele Mencagli
  *  @date    17/03/2020
  *  
- *  @brief Key_FFAT_GPU operator executing a windowed query in parallel
- *         on a CPU+GPU system using the FlatFAT algorithm for GPU
+ *  @brief Key_FFAT_GPU operator executing a windowed query in parallel on GPU
+ *         using the FlatFAT algorithm for GPU
  *  
  *  @section Key_FFAT_GPU (Description)
  *  
  *  This file implements the Key_FFAT_GPU operator able to executes windowed queries
- *  on a heterogeneous system (CPU+GPU). The operator prepares batches of input tuples
- *  in parallel on the CPU cores and offloads on the GPU the parallel processing of the
- *  windows within each batch. Batches of different sub-streams can be executed in
- *  parallel while consecutive batches of the same sub-stream are prepared on the CPU and
- *  offloaded on the GPU sequentially. However, windows are efficiently processed using
- *  a variant for GPU of the FlatFAT algorithm.
+ *  on a GPU device. The operator prepares batches of input tuples in parallel on the
+ *  CPU cores and offloads on the GPU the parallel processing of the windows within the
+ *  same batch. Batches of different sub-streams can be executed in parallel while
+ *  consecutive batches of the same sub-stream are prepared on the CPU and offloaded on
+ *  the GPU sequentially. However, windows are efficiently processed using a variant for
+ *  GPU of the FlatFAT algorithm.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with a copy
  *  constructor and copy assignment operator, and they must provide and implement the
@@ -49,13 +49,14 @@
 #include<basic.hpp>
 #include<win_seqffat_gpu.hpp>
 #include<kf_nodes.hpp>
+#include<basic_operator.hpp>
 
 namespace wf {
 
 /** 
  *  \class Key_FFAT_GPU
  *  
- *  \brief Key_FFAT_GPU operator executing a windowed query in parallel on a CPU+GPU system
+ *  \brief Key_FFAT_GPU operator executing a windowed query in parallel on GPU
  *  
  *  This class implements the Key_FFAT_GPU operator. The operator prepares in parallel distinct
  *  batches of tuples (on the CPU cores) and offloads the processing of the batches on the GPU
@@ -65,12 +66,12 @@ namespace wf {
  *  algorithm.
  */ 
 template<typename tuple_t, typename result_t, typename comb_F_t>
-class Key_FFAT_GPU: public ff::ff_farm
+class Key_FFAT_GPU: public ff::ff_farm, public Basic_Operator
 {
 public:
     /// type of the lift function
     using winLift_func_t = std::function<void(const tuple_t &, result_t &)>;
-    /// function type to map the key hashcode onto an identifier starting from zero to pardegree-1
+    /// function type to map the key hashcode onto an identifier starting from zero to parallelism-1
     using routing_func_t = std::function<size_t(size_t, size_t)>;
 
 private:
@@ -82,13 +83,10 @@ private:
     using kf_collector_t = KF_Collector<result_t>;
     // friendships with other classes in the library
     friend class MultiPipe;
-    // parallelism of the Key_FFAT_GPU
-    size_t parallelism;
-    // window type (CB or TB)
-    win_type_t winType;
-    bool used; // true if the operator has been added/chained in a MultiPipe
-    std::vector<ff_node *> kf_workers; // vector of pointers to the Key_FFAT_GPU workers
-    std::string name; // name of the operator
+    std::string name; // name of the Key_FFAT_GPU
+    size_t parallelism; // internal parallelism of the Key_FFAT_GPU
+    bool used; // true if the Key_FFAT_GPU has been added/chained in a MultiPipe
+    win_type_t winType; // type of windows (count-based or time-based)
 
 public:
     /** 
@@ -100,12 +98,13 @@ public:
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _pardegree parallelism degree of the Key_FFAT_GPU operator
+     *  \param _parallelism internal parallelism of the Key_FFAT_GPU operator
      *  \param _batch_len no. of windows in a batch
+     *  \param _gpu_id identifier of the chosen GPU device
      *  \param _n_thread_block number of threads per block
      *  \param _rebuild flag stating whether the FlatFAT_GPU must be rebuilt from scratch for each new batch
      *  \param _name string with the unique name of the operator
-     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
+     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to parallelism-1
      */ 
     Key_FFAT_GPU(winLift_func_t _winLift_func,
                  comb_F_t _winComb_func,
@@ -113,16 +112,17 @@ public:
                  uint64_t _slide_len,
                  uint64_t _triggering_delay,
                  win_type_t _winType,
-                 size_t _pardegree,
+                 size_t _parallelism,
                  size_t _batch_len,
+                 int _gpu_id,
                  size_t _n_thread_block,
                  bool _rebuild,
                  std::string _name,
                  routing_func_t _routing_func):
-                 parallelism(_pardegree),
-                 winType(_winType),
+                 name(_name),
+                 parallelism(_parallelism),
                  used(false),
-                 name(_name)
+                 winType(_winType)
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -134,8 +134,8 @@ public:
             std::cerr << RED << "WindFlow Error: Key_FFAT_GPU can be used with sliding windows only (s<w)" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        // check the validity of the parallelism degree
-        if (_pardegree == 0) {
+        // check the validity of the parallelism value
+        if (_parallelism == 0) {
             std::cerr << RED << "WindFlow Error: Key_FFAT_GPU has parallelism zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -145,46 +145,63 @@ public:
             exit(EXIT_FAILURE);
         }
         // std::vector of Win_SeqFFAT_GPU
-        std::vector<ff::ff_node *> w(_pardegree);
+        std::vector<ff::ff_node *> w(_parallelism);
         // create the Win_SeqFFAT_GPU
-        for (size_t i = 0; i < _pardegree; i++) {
-            auto *ffat_gpu = new win_seqffat_gpu_t(_winLift_func, _winComb_func, _win_len, _slide_len, _triggering_delay, _winType, _batch_len, _n_thread_block, _rebuild, _name + "_kff");
+        for (size_t i = 0; i < _parallelism; i++) {
+            auto *ffat_gpu = new win_seqffat_gpu_t(_winLift_func, _winComb_func, _win_len, _slide_len, _triggering_delay, _winType, _batch_len, _gpu_id, _n_thread_block, _rebuild, _name);
             w[i] = ffat_gpu;
-            kf_workers.push_back(ffat_gpu);
         }
         ff::ff_farm::add_workers(w);
         ff::ff_farm::add_collector(nullptr);
         // create the Emitter node
-        ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _pardegree));
+        ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _parallelism));
         // when the Key_Farm_GPU will be destroyed we need aslo to destroy the emitter, workers and collector
         ff::ff_farm::cleanup_all();
     }
 
     /** 
-     *  \brief Get the parallelism degree of the Key_FFAT_GPU
-     *  \return parallelism degree of the Key_FFAT_GPU
+     *  \brief Get the name of the Key_FFAT_GPU
+     *  \return string representing the name of the Key_FFAT_GPU
      */ 
-    size_t getParallelism() const
+    std::string getName() const override
+    {
+        return name;
+    }
+
+    /** 
+     *  \brief Get the total parallelism within the Key_FFAT_GPU
+     *  \return total parallelism within the Key_FFAT_GPU
+     */ 
+    size_t getParallelism() const override
     {
         return parallelism;
     }
 
     /** 
-     *  \brief Get the window type (CB or TB) utilized by the operator
-     *  \return adopted windowing semantics (count- or time-based)
+     *  \brief Return the routing mode of inputs to the Key_FFAT_GPU
+     *  \return routing mode (always KEYBY for the Key_FFAT_GPU)
      */ 
-    win_type_t getWinType() const
+    routing_modes_t getRoutingMode() const override
     {
-        return winType;
+        return KEYBY;
     }
 
     /** 
      *  \brief Check whether the Key_FFAT_GPU has been used in a MultiPipe
      *  \return true if the Key_FFAT_GPU has been added/chained to an existing MultiPipe
-     */
-    bool isUsed() const
+     */ 
+    bool isUsed() const override
     {
         return used;
+    }
+
+    /** 
+     *  \brief Get the window type (CB or TB) utilized by the Key_FFAT_GPU
+     *  \return adopted windowing semantics (count-based or time-based)
+     */ 
+    win_type_t getWinType() const
+    {
+        return winType;
     }
 
     /** 
@@ -194,7 +211,8 @@ public:
     size_t getNumDroppedTuples() const
     {
         size_t count = 0;
-        for (auto *w: kf_workers) {
+        auto workers = this->getWorkers();
+        for (auto *w: workers) {
             auto *seq = static_cast<win_seqffat_gpu_t *>(w);
             count += seq->getNumDroppedTuples();
         }
@@ -202,12 +220,23 @@ public:
     }
 
     /** 
-     *  \brief Get the name of the operator
-     *  \return string representing the name of the operator
-     */
-    std::string getName() const
+     *  \brief Get the Stats_Record of each replica within the Key_FFAT_GPU
+     *  \return vector of Stats_Record objects
+     */ 
+    std::vector<Stats_Record> get_StatsRecords() const override
     {
-        return name;
+#if !defined(TRACE_WINDFLOW)
+        std::cerr << YELLOW << "WindFlow Warning: statistics are not enabled, compile with -DTRACE_WINDFLOW" << DEFAULT_COLOR << std::endl;
+        return {};
+#else
+        std::vector<Stats_Record> records;
+        auto workers = this->getWorkers();
+        for (auto *w: workers) {
+            auto *seq = static_cast<win_seqffat_gpu_t *>(w);
+            records.push_back(seq->get_StatsRecord());
+        }
+        return records;
+#endif      
     }
 
     /// deleted constructors/operators

@@ -19,7 +19,7 @@
  *  @author  Gabriele Mencagli
  *  @date    17/10/2017
  *  
- *  @brief Key_Farm operator executing a windowed query in parallel
+ *  @brief Key_Farm operator executing windowed queries in parallel
  *         on multi-core CPUs
  *  
  *  @section Key_Farm (Description)
@@ -31,7 +31,7 @@
  *  windows of the same sub-stream are executed rigorously in order.
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with
- *  a copy constructor and copy assignment operator, and they must provide and implement
+ *  a copy constructor and a copy assignment operator, and they must provide and implement
  *  the setControlFields() and getControlFields() methods.
  */ 
 
@@ -50,6 +50,7 @@
 #include<wm_nodes.hpp>
 #include<tree_emitter.hpp>
 #include<basic_emitter.hpp>
+#include<basic_operator.hpp>
 #include<transformations.hpp>
 
 namespace wf {
@@ -57,14 +58,14 @@ namespace wf {
 /** 
  *  \class Key_Farm
  *  
- *  \brief Key_Farm operator executing a windowed query in parallel on multi-core CPUs
+ *  \brief Key_Farm operator executing windowed queries in parallel on multi-core CPUs
  *  
  *  This class implements the Key_Farm operator executing windowed queries in parallel on
  *  a multicore. In the operator, only windows belonging to different sub-streams can be
  *  executed in parallel.
  */ 
 template<typename tuple_t, typename result_t, typename input_t>
-class Key_Farm: public ff::ff_farm
+class Key_Farm: public ff::ff_farm, public Basic_Operator
 {
 public:
     /// type of the non-incremental window processing function
@@ -81,7 +82,7 @@ public:
     using pane_farm_t = Pane_Farm<tuple_t, result_t>;
     /// type of the Win_MapReduce used for the nesting Constructor
     using win_mapreduce_t = Win_MapReduce<tuple_t, result_t>;
-    /// type of the functionto map the key hashcode onto an identifier starting from zero to pardegree-1
+    /// type of the functionto map the key hashcode onto an identifier starting from zero to parallelism/num_replicas-1
     using routing_func_t = std::function<size_t(size_t, size_t)>;
 
 private:
@@ -97,24 +98,18 @@ private:
     template<typename T>
     friend auto get_KF_nested_type(T);
     friend class MultiPipe;
-    // flag stating whether the Key_Farm has been instantiated with complex workers (Pane_Farm or Win_MapReduce)
-    bool hasComplexWorkers;
-    // optimization level of the Key_Farm
-    opt_level_t outer_opt_level;
-    // optimization level of the inner operators
-    opt_level_t inner_opt_level;
-    // type of the inner operators
-    pattern_t inner_type;
-    // parallelism of the Key_Farm
-    size_t parallelism;
-    // parallelism degrees of the inner operators
-    size_t inner_parallelism_1;
-    size_t inner_parallelism_2;
-    // window type (CB or TB)
-    win_type_t winType;
-    bool used; // true if the operator has been added/chained in a MultiPipe
-    std::vector<ff_node *> kf_workers; // vector of pointers to the Key_Farm workers
-    std::string name; // name of the operator
+    std::string name; // name of the Key_Farm
+    size_t parallelism; // internal parallelism of the Key_Farm
+    bool used; // true if the Key_Farm has been added/chained in a MultiPipe
+    bool isComplex; // true if the Key_Farm replicates Pane_Farm or Win_MapReduce instances
+    opt_level_t outer_opt_level; // optimization level of the Key_Farm
+    opt_level_t inner_opt_level; // optimization level of the inner operators within the Key_Farm
+    pattern_t inner_type; // type of the inner operators (SEQ, PF or WMR)
+    size_t outer_parallelism; // number of complex replicas within the Key_Farm
+    size_t inner_parallelism_1; // first parallelism of the inner operators
+    size_t inner_parallelism_2; // second parallelism of the inner operators
+    win_type_t winType; // type of windows (count-based or time-based)
+    std::vector<ff_node *> kf_workers; // vector of pointers to the Key_Farm workers (Win_Seq or Pane_Farm or Win_MapReduce instances)
 
     // Private Constructor
     template<typename F_t>
@@ -123,30 +118,32 @@ private:
              uint64_t _slide_len,
              uint64_t _triggering_delay,
              win_type_t _winType,
-             size_t _pardegree,
+             size_t _parallelism,
              std::string _name,
              closing_func_t _closing_func,
              routing_func_t _routing_func,
              opt_level_t _opt_level,
-             OperatorConfig _config,
+             WinOperatorConfig _config,
              role_t _role):
-             hasComplexWorkers(false),
+             name(_name),
+             parallelism(_parallelism),
+             used(false),
+             isComplex(false),
              outer_opt_level(_opt_level),
-             inner_opt_level(LEVEL0),
+             inner_opt_level(LEVEL0), // not meaningful
              inner_type(SEQ_CPU),
-             parallelism(_pardegree),
-             inner_parallelism_1(1),
-             inner_parallelism_2(0),
-             winType(_winType),
-             name(_name)
+             outer_parallelism(0), // not meaningful
+             inner_parallelism_1(0), // not meaningful
+             inner_parallelism_2(0), // not meaningful
+             winType(_winType)
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
             std::cerr << RED << "WindFlow Error window length or slide in Key_Farm cannot be zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        // check the validity of the parallelism degree
-        if (_pardegree == 0) {
+        // check the validity of the parallelism value
+        if (_parallelism == 0) {
             std::cerr << RED << "WindFlow Error: Key_Farm has parallelism zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -156,18 +153,18 @@ private:
             outer_opt_level = LEVEL0;
         }
         // std::vector of Win_Seq
-        std::vector<ff_node *> w(_pardegree);
+        std::vector<ff_node *> w(_parallelism);
         // create the Win_Seq
-        for (size_t i = 0; i < _pardegree; i++) {
-            OperatorConfig configSeq(0, 1, _slide_len, 0, 1, _slide_len);
-            auto *seq = new win_seq_t(_func, _win_len, _slide_len, _triggering_delay, _winType, _name + "_kf", _closing_func, RuntimeContext(_pardegree, i), configSeq, SEQ);
+        for (size_t i = 0; i < _parallelism; i++) {
+            WinOperatorConfig configSeq(0, 1, _slide_len, 0, 1, _slide_len);
+            auto *seq = new win_seq_t(_func, _win_len, _slide_len, _triggering_delay, _winType, _name, _closing_func, RuntimeContext(_parallelism, i), configSeq, SEQ);
             w[i] = seq;
             kf_workers.push_back(seq);
         }
         ff::ff_farm::add_workers(w);
         ff::ff_farm::add_collector(nullptr);
         // create the Emitter node
-        ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _pardegree));
+        ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _parallelism));
         // when the Key_Farm will be destroyed we need aslo to destroy the emitter, workers and collector
         ff::ff_farm::cleanup_all();
     }
@@ -175,10 +172,12 @@ private:
     // method to optimize the structure of the Key_Farm operator
     void optimize_KeyFarm(opt_level_t opt)
     {
-        if (opt == LEVEL0) // no optimization
+        if (opt == LEVEL0) { // no optimization
             return;
-        else if (opt == LEVEL1) // optimization level 1
+        }
+        else if (opt == LEVEL1) { // optimization level 1
             remove_internal_collectors(*this); // remove all the default collectors in the Key_Farm
+        }
         else { // optimization level 2
             kf_emitter_t *kf_e = static_cast<kf_emitter_t *>(this->getEmitter());
             auto &oldWorkers = this->getWorkers();
@@ -188,8 +187,9 @@ private:
             for (auto *w: oldWorkers) {
                 ff::ff_pipeline *pipe = static_cast<ff::ff_pipeline *>(w);
                 ff_node *e = remove_emitter_from_pipe(*pipe);
-                if (e == nullptr)
+                if (e == nullptr)  {
                     tobeTransformmed = false;
+                }
                 else {
                     Basic_Emitter *my_e = static_cast<Basic_Emitter *>(e);
                     Es.push_back(my_e);
@@ -215,10 +215,10 @@ public:
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _pardegree parallelism degree of the Key_Farm operator
-     *  \param _name string with the unique name of the operator
+     *  \param _parallelism internal parallelism of the Key_Farm operator
+     *  \param _name name of the operator
      *  \param _closing_func closing function
-     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
+     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to parallelism-1
      *  \param _opt_level optimization level used to build the operator
      */ 
     template<typename F_t>
@@ -227,15 +227,12 @@ public:
              uint64_t _slide_len,
              uint64_t _triggering_delay,
              win_type_t _winType,
-             size_t _pardegree,
+             size_t _parallelism,
              std::string _name,
              closing_func_t _closing_func,
              routing_func_t _routing_func,
              opt_level_t _opt_level):
-             Key_Farm(_win_func, _win_len, _slide_len, _triggering_delay, _winType, _pardegree, _name, _closing_func, _routing_func, _opt_level, OperatorConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ)
-    {
-        used = false;
-    }
+             Key_Farm(_win_func, _win_len, _slide_len, _triggering_delay, _winType, _parallelism, _name, _closing_func, _routing_func, _opt_level, WinOperatorConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ) {}
 
     /** 
      *  \brief Constructor II (Nesting with Pane_Farm)
@@ -245,10 +242,10 @@ public:
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _pardegree parallelism degree of the Key_Farm operator
-     *  \param _name string with the unique name of the operator
+     *  \param _num_replicas number of replicas of the Pane_Farm within this Key_Farm operator
+     *  \param _name name of the operator
      *  \param _closing_func closing function
-     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
+     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to _num_replicas-1
      *  \param _opt_level optimization level used to build the operator
      */ 
     Key_Farm(pane_farm_t &_pf,
@@ -256,27 +253,31 @@ public:
              uint64_t _slide_len,
              uint64_t _triggering_delay,
              win_type_t _winType,
-             size_t _pardegree,
+             size_t _num_replicas,
              std::string _name,
              closing_func_t _closing_func,
              routing_func_t _routing_func,
              opt_level_t _opt_level):
-             hasComplexWorkers(true),
-             outer_opt_level(_opt_level),
-             inner_type(PF_CPU),
-             parallelism(_pardegree),
-             winType(_winType),
+             name(_name),
+             parallelism(_num_replicas * (_pf.plq_parallelism + _pf.wlq_parallelism)),
              used(false),
-             name(_name)
+             isComplex(true),
+             outer_opt_level(_opt_level),
+             inner_opt_level(_pf.opt_level),
+             inner_type(PF_CPU),
+             outer_parallelism(_num_replicas),
+             inner_parallelism_1(_pf.plq_parallelism),
+             inner_parallelism_2(_pf.wlq_parallelism),
+             winType(_winType)
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
             std::cerr << RED << "WindFlow Error: window length or slide in Key_Farm cannot be zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        // check the validity of the parallelism degree
-        if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: Key_Farm has parallelism zero" << DEFAULT_COLOR << std::endl;
+        // check the validity of the number of replicas
+        if (_num_replicas == 0) {
+            std::cerr << RED << "WindFlow Error: number of replicas of the Pane_Farm within the Key_Farm is zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // check that the Pane_Farm has not already been used in a nested structure
@@ -292,56 +293,53 @@ public:
             std::cerr << RED << "WindFlow Error: incompatible windowing parameters between Key_Farm and Pane_Farm" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        inner_opt_level = _pf.opt_level;
-        inner_parallelism_1 = _pf.plq_degree;
-        inner_parallelism_2 = _pf.wlq_degree;
         // std::vector of Pane_Farm
-        std::vector<ff_node *> w(_pardegree);
+        std::vector<ff_node *> w(_num_replicas);
         // create the Pane_Farm starting from the passed one
-        for (size_t i = 0; i < _pardegree; i++) {
+        for (size_t i = 0; i < _num_replicas; i++) {
             // configuration structure of the Pane_Farm
-            OperatorConfig configPF(0, 1, _slide_len, 0, 1, _slide_len);
+            WinOperatorConfig configPF(0, 1, _slide_len, 0, 1, _slide_len);
             // create the correct Pane_Farm
             pane_farm_t *pf_W = nullptr;
             if (_pf.isNICPLQ && _pf.isNICWLQ && !_pf.isRichPLQ && !_pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.plq_func, _pf.wlq_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.plq_func, _pf.wlq_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_parallelism, _pf.wlq_parallelism, _name + "_pf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (_pf.isNICPLQ && !_pf.isNICWLQ && !_pf.isRichPLQ && !_pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.plq_func, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.plq_func, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_parallelism, _pf.wlq_parallelism, _name + "_pf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (!_pf.isNICPLQ && _pf.isNICWLQ && !_pf.isRichPLQ && !_pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.plqupdate_func, _pf.wlq_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.plqupdate_func, _pf.wlq_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_parallelism, _pf.wlq_parallelism, _name + "_pf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (!_pf.isNICPLQ && !_pf.isNICWLQ && !_pf.isRichPLQ && !_pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.plqupdate_func, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.plqupdate_func, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_parallelism, _pf.wlq_parallelism, _name + "_pf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (_pf.isNICPLQ && _pf.isNICWLQ && _pf.isRichPLQ && !_pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.rich_plq_func, _pf.wlq_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.rich_plq_func, _pf.wlq_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_parallelism, _pf.wlq_parallelism, _name + "_pf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (_pf.isNICPLQ && !_pf.isNICWLQ && _pf.isRichPLQ && !_pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.rich_plq_func, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.rich_plq_func, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_parallelism, _pf.wlq_parallelism, _name + "_pf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (!_pf.isNICPLQ && _pf.isNICWLQ && _pf.isRichPLQ && !_pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.rich_plqupdate_func, _pf.wlq_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.rich_plqupdate_func, _pf.wlq_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_parallelism, _pf.wlq_parallelism, _name + "_pf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (!_pf.isNICPLQ && !_pf.isNICWLQ && _pf.isRichPLQ && !_pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.rich_plqupdate_func, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.rich_plqupdate_func, _pf.wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_parallelism, _pf.wlq_parallelism, _name + "_pf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (_pf.isNICPLQ && _pf.isNICWLQ && !_pf.isRichPLQ && _pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.plq_func, _pf.rich_wlq_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.plq_func, _pf.rich_wlq_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_parallelism, _pf.wlq_parallelism, _name + "_pf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (_pf.isNICPLQ && !_pf.isNICWLQ && !_pf.isRichPLQ && _pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.plq_func, _pf.rich_wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.plq_func, _pf.rich_wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_parallelism, _pf.wlq_parallelism, _name + "_pf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (!_pf.isNICPLQ && _pf.isNICWLQ && !_pf.isRichPLQ && _pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.plqupdate_func, _pf.rich_wlq_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.plqupdate_func, _pf.rich_wlq_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_parallelism, _pf.wlq_parallelism, _name + "_pf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (!_pf.isNICPLQ && !_pf.isNICWLQ && !_pf.isRichPLQ && _pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.plqupdate_func, _pf.rich_wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.plqupdate_func, _pf.rich_wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_parallelism, _pf.wlq_parallelism, _name + "_pf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (_pf.isNICPLQ && _pf.isNICWLQ && _pf.isRichPLQ && _pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.rich_plq_func, _pf.rich_wlq_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.rich_plq_func, _pf.rich_wlq_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_parallelism, _pf.wlq_parallelism, _name + "_pf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (_pf.isNICPLQ && !_pf.isNICWLQ && _pf.isRichPLQ && _pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.rich_plq_func, _pf.rich_wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.rich_plq_func, _pf.rich_wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_parallelism, _pf.wlq_parallelism, _name + "_pf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (!_pf.isNICPLQ && _pf.isNICWLQ && _pf.isRichPLQ && _pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.rich_plqupdate_func, _pf.rich_wlq_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.rich_plqupdate_func, _pf.rich_wlq_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_parallelism, _pf.wlq_parallelism, _name + "_pf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             if (!_pf.isNICPLQ && !_pf.isNICWLQ && _pf.isRichPLQ && _pf.isRichWLQ)
-                pf_W = new pane_farm_t(_pf.rich_plqupdate_func, _pf.rich_wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_degree, _pf.wlq_degree, _name + "_kf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
+                pf_W = new pane_farm_t(_pf.rich_plqupdate_func, _pf.rich_wlqupdate_func, _pf.win_len, _pf.slide_len, _pf.triggering_delay, _pf.winType, _pf.plq_parallelism, _pf.wlq_parallelism, _name + "_pf_" + std::to_string(i), _pf.closing_func, false, _pf.opt_level, configPF);
             w[i] = pf_W;
             kf_workers.push_back(pf_W);
         }
         ff::ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
         ff::ff_farm::add_collector(new kf_collector_t());
-        ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _pardegree));
+        ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _num_replicas));
         // optimization process according to the provided optimization level
         optimize_KeyFarm(_opt_level);
         // when the Key_Farm will be destroyed we need aslo to destroy the emitter, workers and collector
@@ -351,108 +349,109 @@ public:
     /** 
      *  \brief Constructor III (Nesting with Win_MapReduce)
      *  
-     *  \param _wm Win_MapReduce to be replicated within the Key_Farm operator
+     *  \param _wmr Win_MapReduce to be replicated within the Key_Farm operator
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _pardegree parallelism degree of the Key_Farm operator
-     *  \param _name string with the unique name of the operator
+     *  \param _num_replicas number of replicas of the Win_MapReduce within this Key_Farm operator
+     *  \param _name name of the operator
      *  \param _closing_func closing function
-     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
+     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to _num_replicas-1
      *  \param _opt_level optimization level used to build the operator
      */ 
-    Key_Farm(win_mapreduce_t &_wm,
+    Key_Farm(win_mapreduce_t &_wmr,
              uint64_t _win_len,
              uint64_t _slide_len,
              uint64_t _triggering_delay,
              win_type_t _winType,
-             size_t _pardegree,
+             size_t _num_replicas,
              std::string _name,
              closing_func_t _closing_func,
              routing_func_t _routing_func,
              opt_level_t _opt_level):
-             hasComplexWorkers(true),
-             outer_opt_level(_opt_level),
-             inner_type(WMR_CPU),
-             parallelism(_pardegree),
-             winType(_winType),
+             name(_name),
+             parallelism(_num_replicas * (_wmr.map_parallelism + _wmr.reduce_parallelism)),
              used(false),
-             name(_name)
+             isComplex(true),
+             outer_opt_level(_opt_level),
+             inner_opt_level(_wmr.opt_level),
+             inner_type(WMR_CPU),
+             outer_parallelism(_num_replicas),
+             inner_parallelism_1(_wmr.map_parallelism),
+             inner_parallelism_2(_wmr.reduce_parallelism),
+             winType(_winType)
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
             std::cerr << RED << "WindFlow Error: window length or slide in Key_Farm cannot be zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        // check the validity of the parallelism degree
-        if (_pardegree == 0) {
-            std::cerr << RED << "WindFlow Error: Key_Farm has parallelism zero" << DEFAULT_COLOR << std::endl;
+        // check the validity of the number of replicas
+        if (_num_replicas == 0) {
+            std::cerr << RED << "WindFlow Error: number of replicas of the Win_MapReduce within the Key_Farm is zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // check that the Win_MapReduce has not already been used in a nested structure
-        if (_wm.isUsed4Nesting()) {
+        if (_wmr.isUsed4Nesting()) {
             std::cerr << RED << "WindFlow Error: Win_MapReduce has already been used in a nested structure" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);            
         }
         else {
-            _wm.used4Nesting = true;
+            _wmr.used4Nesting = true;
         }
         // check the compatibility of the windowing parameters
-        if (_wm.win_len != _win_len || _wm.slide_len != _slide_len || _wm.triggering_delay != _triggering_delay || _wm.winType != _winType) {
+        if (_wmr.win_len != _win_len || _wmr.slide_len != _slide_len || _wmr.triggering_delay != _triggering_delay || _wmr.winType != _winType) {
             std::cerr << RED << "WindFlow Error: incompatible windowing parameters between Key_Farm and Win_MapReduce" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        inner_opt_level = _wm.opt_level;
-        inner_parallelism_1 = _wm.map_degree;
-        inner_parallelism_2 = _wm.reduce_degree;
         // std::vector of Win_MapReduce
-        std::vector<ff_node *> w(_pardegree);
+        std::vector<ff_node *> w(_num_replicas);
         // create the Win_MapReduce starting from the passed one
-        for (size_t i = 0; i < _pardegree; i++) {
+        for (size_t i = 0; i < _num_replicas; i++) {
             // configuration structure of the Win_MapReduce
-            OperatorConfig configWM(0, 1, _slide_len, 0, 1, _slide_len);
+            WinOperatorConfig configWM(0, 1, _slide_len, 0, 1, _slide_len);
             // create the correct Win_MapReduce
-            win_mapreduce_t *wm_W = nullptr;
-            if (_wm.isNICMAP && _wm.isNICREDUCE && !_wm.isRichMAP && !_wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.map_func, _wm.reduce_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
-            if (_wm.isNICMAP && !_wm.isNICREDUCE && !_wm.isRichMAP && !_wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.map_func, _wm.reduceupdate_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
-            if (!_wm.isNICMAP && _wm.isNICREDUCE && !_wm.isRichMAP && !_wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.mapupdate_func, _wm.reduce_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
-            if (!_wm.isNICMAP && !_wm.isNICREDUCE && !_wm.isRichMAP && !_wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.mapupdate_func, _wm.reduceupdate_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
-            if (_wm.isNICMAP && _wm.isNICREDUCE && _wm.isRichMAP && !_wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.rich_map_func, _wm.reduce_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
-            if (_wm.isNICMAP && !_wm.isNICREDUCE && _wm.isRichMAP && !_wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.rich_map_func, _wm.reduceupdate_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
-            if (!_wm.isNICMAP && _wm.isNICREDUCE && _wm.isRichMAP && !_wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.rich_mapupdate_func, _wm.reduce_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
-            if (!_wm.isNICMAP && !_wm.isNICREDUCE && _wm.isRichMAP && !_wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.rich_mapupdate_func, _wm.reduceupdate_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
-            if (_wm.isNICMAP && _wm.isNICREDUCE && !_wm.isRichMAP && _wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.map_func, _wm.rich_reduce_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
-            if (_wm.isNICMAP && !_wm.isNICREDUCE && !_wm.isRichMAP && _wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.map_func, _wm.rich_reduceupdate_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
-            if (!_wm.isNICMAP && _wm.isNICREDUCE && !_wm.isRichMAP && _wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.mapupdate_func, _wm.rich_reduce_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
-            if (!_wm.isNICMAP && !_wm.isNICREDUCE && !_wm.isRichMAP && _wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.mapupdate_func, _wm.rich_reduceupdate_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
-            if (_wm.isNICMAP && _wm.isNICREDUCE && _wm.isRichMAP && _wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.rich_map_func, _wm.rich_reduce_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
-            if (_wm.isNICMAP && !_wm.isNICREDUCE && _wm.isRichMAP && _wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.rich_map_func, _wm.rich_reduceupdate_func, _wm.win_len, _wm.slide_len,_wm.triggering_delay,  _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
-            if (!_wm.isNICMAP && _wm.isNICREDUCE && _wm.isRichMAP && _wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.rich_mapupdate_func, _wm.rich_reduce_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
-            if (!_wm.isNICMAP && !_wm.isNICREDUCE && _wm.isRichMAP && _wm.isRichREDUCE)
-                wm_W = new win_mapreduce_t(_wm.rich_mapupdate_func, _wm.rich_reduceupdate_func, _wm.win_len, _wm.slide_len, _wm.triggering_delay, _wm.winType, _wm.map_degree, _wm.reduce_degree, _name + "_wf_" + std::to_string(i), _wm.closing_func, false, _wm.opt_level, configWM);
-            w[i] = wm_W;
-            kf_workers.push_back(wm_W);
+            win_mapreduce_t *wmr_W = nullptr;
+            if (_wmr.isNICMAP && _wmr.isNICREDUCE && !_wmr.isRichMAP && !_wmr.isRichREDUCE)
+                wmr_W = new win_mapreduce_t(_wmr.map_func, _wmr.reduce_func, _wmr.win_len, _wmr.slide_len, _wmr.triggering_delay, _wmr.winType, _wmr.map_parallelism, _wmr.reduce_parallelism, _name + "_wmr_" + std::to_string(i), _wmr.closing_func, false, _wmr.opt_level, configWM);
+            if (_wmr.isNICMAP && !_wmr.isNICREDUCE && !_wmr.isRichMAP && !_wmr.isRichREDUCE)
+                wmr_W = new win_mapreduce_t(_wmr.map_func, _wmr.reduceupdate_func, _wmr.win_len, _wmr.slide_len, _wmr.triggering_delay, _wmr.winType, _wmr.map_parallelism, _wmr.reduce_parallelism, _name + "_wmr_" + std::to_string(i), _wmr.closing_func, false, _wmr.opt_level, configWM);
+            if (!_wmr.isNICMAP && _wmr.isNICREDUCE && !_wmr.isRichMAP && !_wmr.isRichREDUCE)
+                wmr_W = new win_mapreduce_t(_wmr.mapupdate_func, _wmr.reduce_func, _wmr.win_len, _wmr.slide_len, _wmr.triggering_delay, _wmr.winType, _wmr.map_parallelism, _wmr.reduce_parallelism, _name + "_wmr_" + std::to_string(i), _wmr.closing_func, false, _wmr.opt_level, configWM);
+            if (!_wmr.isNICMAP && !_wmr.isNICREDUCE && !_wmr.isRichMAP && !_wmr.isRichREDUCE)
+                wmr_W = new win_mapreduce_t(_wmr.mapupdate_func, _wmr.reduceupdate_func, _wmr.win_len, _wmr.slide_len, _wmr.triggering_delay, _wmr.winType, _wmr.map_parallelism, _wmr.reduce_parallelism, _name + "_wmr_" + std::to_string(i), _wmr.closing_func, false, _wmr.opt_level, configWM);
+            if (_wmr.isNICMAP && _wmr.isNICREDUCE && _wmr.isRichMAP && !_wmr.isRichREDUCE)
+                wmr_W = new win_mapreduce_t(_wmr.rich_map_func, _wmr.reduce_func, _wmr.win_len, _wmr.slide_len, _wmr.triggering_delay, _wmr.winType, _wmr.map_parallelism, _wmr.reduce_parallelism, _name + "_wmr_" + std::to_string(i), _wmr.closing_func, false, _wmr.opt_level, configWM);
+            if (_wmr.isNICMAP && !_wmr.isNICREDUCE && _wmr.isRichMAP && !_wmr.isRichREDUCE)
+                wmr_W = new win_mapreduce_t(_wmr.rich_map_func, _wmr.reduceupdate_func, _wmr.win_len, _wmr.slide_len, _wmr.triggering_delay, _wmr.winType, _wmr.map_parallelism, _wmr.reduce_parallelism, _name + "_wmr_" + std::to_string(i), _wmr.closing_func, false, _wmr.opt_level, configWM);
+            if (!_wmr.isNICMAP && _wmr.isNICREDUCE && _wmr.isRichMAP && !_wmr.isRichREDUCE)
+                wmr_W = new win_mapreduce_t(_wmr.rich_mapupdate_func, _wmr.reduce_func, _wmr.win_len, _wmr.slide_len, _wmr.triggering_delay, _wmr.winType, _wmr.map_parallelism, _wmr.reduce_parallelism, _name + "_wmr_" + std::to_string(i), _wmr.closing_func, false, _wmr.opt_level, configWM);
+            if (!_wmr.isNICMAP && !_wmr.isNICREDUCE && _wmr.isRichMAP && !_wmr.isRichREDUCE)
+                wmr_W = new win_mapreduce_t(_wmr.rich_mapupdate_func, _wmr.reduceupdate_func, _wmr.win_len, _wmr.slide_len, _wmr.triggering_delay, _wmr.winType, _wmr.map_parallelism, _wmr.reduce_parallelism, _name + "_wmr_" + std::to_string(i), _wmr.closing_func, false, _wmr.opt_level, configWM);
+            if (_wmr.isNICMAP && _wmr.isNICREDUCE && !_wmr.isRichMAP && _wmr.isRichREDUCE)
+                wmr_W = new win_mapreduce_t(_wmr.map_func, _wmr.rich_reduce_func, _wmr.win_len, _wmr.slide_len, _wmr.triggering_delay, _wmr.winType, _wmr.map_parallelism, _wmr.reduce_parallelism, _name + "_wmr_" + std::to_string(i), _wmr.closing_func, false, _wmr.opt_level, configWM);
+            if (_wmr.isNICMAP && !_wmr.isNICREDUCE && !_wmr.isRichMAP && _wmr.isRichREDUCE)
+                wmr_W = new win_mapreduce_t(_wmr.map_func, _wmr.rich_reduceupdate_func, _wmr.win_len, _wmr.slide_len, _wmr.triggering_delay, _wmr.winType, _wmr.map_parallelism, _wmr.reduce_parallelism, _name + "_wmr_" + std::to_string(i), _wmr.closing_func, false, _wmr.opt_level, configWM);
+            if (!_wmr.isNICMAP && _wmr.isNICREDUCE && !_wmr.isRichMAP && _wmr.isRichREDUCE)
+                wmr_W = new win_mapreduce_t(_wmr.mapupdate_func, _wmr.rich_reduce_func, _wmr.win_len, _wmr.slide_len, _wmr.triggering_delay, _wmr.winType, _wmr.map_parallelism, _wmr.reduce_parallelism, _name + "_wmr_" + std::to_string(i), _wmr.closing_func, false, _wmr.opt_level, configWM);
+            if (!_wmr.isNICMAP && !_wmr.isNICREDUCE && !_wmr.isRichMAP && _wmr.isRichREDUCE)
+                wmr_W = new win_mapreduce_t(_wmr.mapupdate_func, _wmr.rich_reduceupdate_func, _wmr.win_len, _wmr.slide_len, _wmr.triggering_delay, _wmr.winType, _wmr.map_parallelism, _wmr.reduce_parallelism, _name + "_wmr_" + std::to_string(i), _wmr.closing_func, false, _wmr.opt_level, configWM);
+            if (_wmr.isNICMAP && _wmr.isNICREDUCE && _wmr.isRichMAP && _wmr.isRichREDUCE)
+                wmr_W = new win_mapreduce_t(_wmr.rich_map_func, _wmr.rich_reduce_func, _wmr.win_len, _wmr.slide_len, _wmr.triggering_delay, _wmr.winType, _wmr.map_parallelism, _wmr.reduce_parallelism, _name + "_wmr_" + std::to_string(i), _wmr.closing_func, false, _wmr.opt_level, configWM);
+            if (_wmr.isNICMAP && !_wmr.isNICREDUCE && _wmr.isRichMAP && _wmr.isRichREDUCE)
+                wmr_W = new win_mapreduce_t(_wmr.rich_map_func, _wmr.rich_reduceupdate_func, _wmr.win_len, _wmr.slide_len,_wmr.triggering_delay,  _wmr.winType, _wmr.map_parallelism, _wmr.reduce_parallelism, _name + "_wmr_" + std::to_string(i), _wmr.closing_func, false, _wmr.opt_level, configWM);
+            if (!_wmr.isNICMAP && _wmr.isNICREDUCE && _wmr.isRichMAP && _wmr.isRichREDUCE)
+                wmr_W = new win_mapreduce_t(_wmr.rich_mapupdate_func, _wmr.rich_reduce_func, _wmr.win_len, _wmr.slide_len, _wmr.triggering_delay, _wmr.winType, _wmr.map_parallelism, _wmr.reduce_parallelism, _name + "_wmr_" + std::to_string(i), _wmr.closing_func, false, _wmr.opt_level, configWM);
+            if (!_wmr.isNICMAP && !_wmr.isNICREDUCE && _wmr.isRichMAP && _wmr.isRichREDUCE)
+                wmr_W = new win_mapreduce_t(_wmr.rich_mapupdate_func, _wmr.rich_reduceupdate_func, _wmr.win_len, _wmr.slide_len, _wmr.triggering_delay, _wmr.winType, _wmr.map_parallelism, _wmr.reduce_parallelism, _name + "_wmr_" + std::to_string(i), _wmr.closing_func, false, _wmr.opt_level, configWM);
+            w[i] = wmr_W;
+            kf_workers.push_back(wmr_W);
         }
         ff::ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
         ff::ff_farm::add_collector(new kf_collector_t());
-        ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _pardegree));
+        ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _num_replicas));
         // optimization process according to the provided optimization level
         optimize_KeyFarm(_opt_level);
         // when the Key_Farm will be destroyed we need aslo to destroy the emitter, workers and collector
@@ -460,17 +459,53 @@ public:
     }
 
     /** 
-     *  \brief Check whether the Key_Farm has been instantiated with complex operators inside
-     *  \return true if the Key_Farm has complex operators inside
+     *  \brief Get the name of the Key_Farm
+     *  \return name of the Key_Farm
      */ 
-    bool useComplexNesting() const
+    std::string getName() const override
     {
-        return hasComplexWorkers;
+        return name;
     }
 
     /** 
-     *  \brief Get the optimization level used to build the operator
-     *  \return adopted utilization level by the operator
+     *  \brief Get the total parallelism within the Key_Farm
+     *  \return total parallelism within the Key_Farm
+     */ 
+    size_t getParallelism() const override
+    {
+        return parallelism;
+    }
+
+    /** 
+     *  \brief Return the routing mode of inputs to the Key_Farm
+     *  \return routing mode (always KEYBY for the Key_Farm)
+     */ 
+    routing_modes_t getRoutingMode() const override
+    {
+        return KEYBY;
+    }
+
+    /** 
+     *  \brief Check whether the Key_Farm has been used in a MultiPipe
+     *  \return true if the Key_Farm has been added/chained to an existing MultiPipe
+     */ 
+    bool isUsed() const override
+    {
+        return used;
+    }
+
+    /** 
+     *  \brief Check whether the Key_Farm has been instantiated with complex operators inside
+     *  \return true if the Key_Farm has complex operators inside
+     */ 
+    bool isComplexNesting() const
+    {
+        return isComplex;
+    }
+
+    /** 
+     *  \brief Get the optimization level used to build the Key_Farm
+     *  \return adopted utilization level by the Key_Farm
      */ 
     opt_level_t getOptLevel() const
     {
@@ -478,8 +513,8 @@ public:
     }
 
     /** 
-     *  \brief Type of the inner operators used by this Key_Farm
-     *  \return type of the inner operators
+     *  \brief Type of the inner operators replicated by the Key_Farm
+     *  \return type of the inner operators within the Key_Farm
      */ 
     pattern_t getInnerType() const
     {
@@ -487,48 +522,42 @@ public:
     }
 
     /** 
-     *  \brief Get the optimization level of the inner operators within this Key_Farm
-     *  \return adopted utilization level by the inner operators
+     *  \brief Get the optimization level of the inner operators within the Key_Farm
+     *  \return adopted utilization level by the inner operators within the Key_Farm
      */ 
     opt_level_t getInnerOptLevel() const
     {
+        assert(isComplex);
         return inner_opt_level;
     }
 
     /** 
-     *  \brief Get the parallelism degree of the Key_Farm
-     *  \return parallelism degree of the Key_Farm
+     *  \brief Get the number of complex replicas within the Key_Farm
+     *  \return number of complex replicas within the Key_Farm
      */ 
-    size_t getParallelism() const
+    size_t getNumComplexReplicas() const
     {
-        return parallelism;
-    }        
+        assert(isComplex);
+        return outer_parallelism;
+    }
 
     /** 
-     *  \brief Get the parallelism degrees of the inner operators within this Key_Farm
-     *  \return parallelism degrees of the inner operators
+     *  \brief Get the parallelism (PLQ, WLQ or MAP, REDUCE) of the inner operators within the Key_Farm
+     *  \return parallelism (PLQ, WLQ or MAP, REDUCE) of the inner operators within the Key_Farm
      */ 
-    std::pair<size_t, size_t> getInnerParallelism() const
+    std::pair<size_t, size_t> getInnerParallelisms() const
     {
+        assert(isComplex);
         return std::make_pair(inner_parallelism_1, inner_parallelism_2);
     }
 
     /** 
-     *  \brief Get the window type (CB or TB) utilized by the operator
-     *  \return adopted windowing semantics (count- or time-based)
+     *  \brief Get the window type (CB or TB) utilized by the Key_Farm
+     *  \return adopted windowing semantics (count-based or time-based)
      */ 
     win_type_t getWinType() const
     {
         return winType;
-    }
-
-    /** 
-     *  \brief Check whether the Key_Farm has been used in a MultiPipe
-     *  \return true if the Key_Farm has been added/chained to an existing MultiPipe
-     */
-    bool isUsed() const
-    {
-        return used;
     }
 
     /** 
@@ -563,12 +592,41 @@ public:
     }
 
     /** 
-     *  \brief Get the name of the operator
-     *  \return string representing the name of the operator
-     */
-    std::string getName() const
+     *  \brief Get the Stats_Record of each replica within the Key_Farm
+     *  \return vector of Stats_Record objects
+     */ 
+    std::vector<Stats_Record> get_StatsRecords() const override
     {
-        return name;
+#if !defined(TRACE_WINDFLOW)
+        std::cerr << YELLOW << "WindFlow Warning: statistics are not enabled, compile with -DTRACE_WINDFLOW" << DEFAULT_COLOR << std::endl;
+        return {};
+#else
+        std::vector<Stats_Record> records;
+        if (this->getInnerType() == SEQ_CPU) {
+            for (auto *w: kf_workers) {
+                auto *seq = static_cast<win_seq_t *>(w);
+                records.push_back(seq->get_StatsRecord());
+            }
+        }
+        else if (this->getInnerType() == PF_CPU) {
+            for (auto *w: kf_workers) {
+                auto *pf = static_cast<pane_farm_t *>(w);
+                auto v = pf->get_StatsRecords();
+                records.insert(records.end(), v.begin(), v.end());
+            }
+        }
+        else if (this->getInnerType() == WMR_CPU) {
+            for (auto *w: kf_workers) {
+                auto *wmr = static_cast<win_mapreduce_t *>(w);
+                auto v = wmr->get_StatsRecords();
+                records.insert(records.end(), v.begin(), v.end());
+            }
+        }
+        else {
+            abort();
+        }
+        return records;
+#endif      
     }
 
     /// deleted constructors/operators

@@ -42,9 +42,9 @@ template<typename tuple_t>
 class Standard_Emitter: public Basic_Emitter
 {
 private:
-    // type of the function to map the key hashcode onto an identifier starting from zero to pardegree-1
+    // type of the function to map the key hashcode onto an identifier starting from zero to n_dest-1
     using routing_func_t = std::function<size_t(size_t, size_t)>;
-    bool isKeyed; // flag stating whether the key-based distribution is used or not
+    bool isKeyBy; // flag stating whether the key-based distribution is used or not
     routing_func_t routing_func; // routing function
     bool isCombined; // true if this node is used within a Tree_Emitter node
     std::vector<std::pair<void *, int>> output_queue; // used in case of Tree_Emitter mode
@@ -54,40 +54,38 @@ private:
 public:
     // Constructor I
     Standard_Emitter(size_t _n_dest):
-                     isKeyed(false),
+                     isKeyBy(false),
                      isCombined(false),
                      dest_w(0),
-                     n_dest(_n_dest)
-    {}
+                     n_dest(_n_dest) {}
 
     // Constructor II
     Standard_Emitter(routing_func_t _routing_func,
                      size_t _n_dest):
-                     isKeyed(true),
+                     isKeyBy(true),
                      routing_func(_routing_func),
                      isCombined(false),
                      dest_w(0),
-                     n_dest(_n_dest)
-    {}
+                     n_dest(_n_dest) {}
 
     // clone method
-    Basic_Emitter *clone() const
+    Basic_Emitter *clone() const override
     {
         Standard_Emitter<tuple_t> *copy = new Standard_Emitter<tuple_t>(*this);
         return copy;
     }
 
     // svc_init method (utilized by the FastFlow runtime)
-    int svc_init()
+    int svc_init() override
     {
         return 0;
     }
 
     // svc method (utilized by the FastFlow runtime)
-    void *svc(void *in)
+    void *svc(void *in) override
     {
         tuple_t *t = reinterpret_cast<tuple_t *>(in);
-        if (isKeyed) { // keyed-based distribution enabled
+        if (isKeyBy) { // keyed-based distribution enabled
             // extract the key from the input tuple
             auto key = std::get<0>(t->getControlFields()); // key
             size_t hashcode = std::hash<decltype(key)>()(key); // compute the hashcode of the key
@@ -112,22 +110,22 @@ public:
     }
 
     // svc_end method (FastFlow runtime)
-    void svc_end() {}
+    void svc_end() override {}
 
     // get the number of destinations
-    size_t getNDestinations() const
+    size_t getNDestinations() const override
     {
         return n_dest;
     }
 
     // set/unset the Tree_Emitter mode
-    void setTree_EmitterMode(bool _val)
+    void setTree_EmitterMode(bool _val) override
     {
         isCombined = _val;
     }
 
     // method to get a reference to the internal output queue (used in Tree_Emitter mode)
-    std::vector<std::pair<void *, int>> &getOutputQueue()
+    std::vector<std::pair<void *, int>> &getOutputQueue() override
     {
         return output_queue;
     }

@@ -135,7 +135,7 @@ int main(int argc, char *argv[])
         // flatmap
         FlatMap_Functor flatmap_functor;
         FlatMap flatmap = FlatMap_Builder(flatmap_functor)
-                                .withName("test_kf+pf_cb_flatmap")
+                                .withName("flatmap")
                                 .withParallelism(flatmap_degree)
                                 .build();
         mp.chain(flatmap);

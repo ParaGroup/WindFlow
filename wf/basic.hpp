@@ -76,14 +76,26 @@ inline unsigned long current_time_nsecs()
 /// default capacity of vectors used internally by the library
 #define DEFAULT_VECTOR_CAPACITY 500
 
-/// inital batch size (in no. of tuples) used by GPU operators with time-based windows
+/// inital batch size (in no. of tuples) used by GPU window-based operators with time-based windows
 #define DEFAULT_BATCH_SIZE_TB 1000
 
-/// default number of threads per block used by GPU operators
+/// default number of threads per block used by GPU window-based operators
 #define DEFAULT_CUDA_NUM_THREAD_BLOCK 256
 
 /// supported processing modes of the PipeGraph
 enum class Mode { DEFAULT, DETERMINISTIC };
+
+/// supported window types of window-based operators
+enum win_type_t { CB, TB };
+
+/// supported optimization levels of window-based operators
+enum opt_level_t { LEVEL0, LEVEL1, LEVEL2 };
+
+/// enumeration of the routing modes of inputs to operator replicas
+enum routing_modes_t { NONE, FORWARD, KEYBY, COMPLEX };
+
+/// existing types of window-based operators in the library
+enum pattern_t { SEQ_CPU, SEQ_GPU, KF_CPU, KFF_CPU, KF_GPU, KFF_GPU, WF_CPU, WF_GPU, PF_CPU, PF_GPU, WMR_CPU, WMR_GPU };
 
 //@cond DOXY_IGNORE
 
@@ -96,19 +108,15 @@ inline void gpuAssert(cudaError_t code,
 {
     if (code != cudaSuccess) {
         fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
-        if (abort) exit(code);
+        if (abort) {
+            exit(code);
+        }
     }
 }
 
 // gpuErrChk macro
 #define gpuErrChk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 #endif
-
-// supported window types
-enum win_type_t { CB, TB };
-
-// supported optimization levels
-enum opt_level_t { LEVEL0, LEVEL1, LEVEL2 };
 
 // defines useful for strings
 #define STRINGIFY(x) XSTRINGIFY(x)
@@ -122,9 +130,6 @@ enum ordering_mode_t { ID, TS, TS_RENUMBERING };
 
 // supported roles of the Win_Seq/Win_Seq_GPU operators
 enum role_t { SEQ, PLQ, WLQ, MAP, REDUCE };
-
-// existing window-based operators of the library
-enum pattern_t { SEQ_CPU, SEQ_GPU, KF_CPU, KF_GPU, WF_CPU, WF_GPU, PF_CPU, PF_GPU, WMR_CPU, WMR_GPU };
 
 // macros for the linux terminal colors
 #define DEFAULT_COLOR   "\033[0m"
@@ -146,7 +151,7 @@ enum pattern_t { SEQ_CPU, SEQ_GPU, KF_CPU, KF_GPU, WF_CPU, WF_GPU, PF_CPU, PF_GP
 #define BOLDWHITE       "\033[1m\033[37m"
 
 // struct of the window-based operator's configuration parameters
-struct OperatorConfig {
+struct WinOperatorConfig {
     size_t id_outer; // identifier in the outermost operator
     size_t n_outer; // parallelism degree in the outermost operator
     uint64_t slide_outer; // sliding factor of the outermost operator
@@ -155,28 +160,27 @@ struct OperatorConfig {
     uint64_t slide_inner; // sliding factor of the innermost operator
 
     // Constructor I
-    OperatorConfig(): id_outer(0),
+    WinOperatorConfig():
+                     id_outer(0),
                      n_outer(0),
                      slide_outer(0),
                      id_inner(0),
                      n_inner(0),
-                     slide_inner(0)
-    {}
+                     slide_inner(0) {}
 
     // Constructor II
-    OperatorConfig(size_t _id_outer,
-                  size_t _n_outer,
-                  uint64_t _slide_outer,
-                  size_t _id_inner,
-                  size_t _n_inner,
-                  uint64_t _slide_inner):
-                  id_outer(_id_outer),
-                  n_outer(_n_outer),
-                  slide_outer(_slide_outer),
-                  id_inner(_id_inner),
-                  n_inner(_n_inner),
-                  slide_inner(_slide_inner)
-    {}
+    WinOperatorConfig(size_t _id_outer,
+                      size_t _n_outer,
+                      uint64_t _slide_outer,
+                      size_t _id_inner,
+                      size_t _n_inner,
+                      uint64_t _slide_inner):
+                      id_outer(_id_outer),
+                      n_outer(_n_outer),
+                      slide_outer(_slide_outer),
+                      id_inner(_id_inner),
+                      n_inner(_n_inner),
+                      slide_inner(_slide_inner) {}
 };
 
 //@endcond

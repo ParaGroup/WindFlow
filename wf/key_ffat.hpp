@@ -46,6 +46,7 @@
 #include<basic.hpp>
 #include<win_seqffat.hpp>
 #include<kf_nodes.hpp>
+#include<basic_operator.hpp>
 
 namespace wf {
 
@@ -61,7 +62,7 @@ namespace wf {
  *  by using the FlatFAT algorithm.
  */ 
 template<typename tuple_t, typename result_t>
-class Key_FFAT: public ff::ff_farm
+class Key_FFAT: public ff::ff_farm, public Basic_Operator
 {
 public:
     /// type of the lift function
@@ -74,7 +75,7 @@ public:
     using rich_winComb_func_t = std::function<void(const result_t &, const result_t &, result_t &, RuntimeContext &)>;
     /// type of the closing function
     using closing_func_t = std::function<void(RuntimeContext &)>;
-    /// type of the functionto map the key hashcode onto an identifier starting from zero to pardegree-1
+    /// type of the functionto map the key hashcode onto an identifier starting from zero to parallelism-1
     using routing_func_t = std::function<size_t(size_t, size_t)>;
 
 private:
@@ -86,12 +87,10 @@ private:
     using kf_collector_t = KF_Collector<result_t>;
     // friendships with other classes in the library
     friend class MultiPipe;
-    // parallelism of the Key_FFAT
-    size_t parallelism;
-    // window type (CB or TB)
-    win_type_t winType;
-    bool used; // true if the operator has been added/chained in a MultiPipe
-    std::string name; // name of the operator
+    std::string name; // name of the Key_FFAT
+    size_t parallelism; // internal parallelism of the Key_FFAT
+    bool used; // true if the Key_FFAT has been added/chained in a MultiPipe
+    win_type_t winType; // type of windows (count-based or time-based)
 
 public:
     /** 
@@ -103,10 +102,10 @@ public:
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _triggering_delay (triggering delay in time units, meaningful for TB windows only otherwise it must be 0)
      *  \param _winType window type (count-based CB or time-based TB)
-     *  \param _pardegree parallelism degree of the Key_Farm operator
+     *  \param _parallelism internal parallelism of the Key_Farm operator
      *  \param _name string with the unique name of the operator
      *  \param _closing_func closing function
-     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to pardegree-1
+     *  \param _routing_func function to map the key hashcode onto an identifier starting from zero to parallelism-1
      */ 
     template<typename lift_F_t, typename comb_F_t>
     Key_FFAT(lift_F_t _winLift_func,
@@ -115,14 +114,14 @@ public:
              uint64_t _slide_len,
              uint64_t _triggering_delay,
              win_type_t _winType,
-             size_t _pardegree,
+             size_t _parallelism,
              std::string _name,
              closing_func_t _closing_func,
              routing_func_t _routing_func):
-             parallelism(_pardegree),
-             winType(_winType),
+             name(_name),
+             parallelism(_parallelism),
              used(false),
-             name(_name)       
+             winType(_winType)     
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -134,52 +133,70 @@ public:
             std::cerr << RED << "WindFlow Error: Key_FFAT can be used with sliding windows only (s<w)" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        // check the validity of the parallelism degree
-        if (_pardegree == 0) {
+        // check the validity of the parallelism value
+        if (_parallelism == 0) {
             std::cerr << RED << "WindFlow Error: Key_FFAT has parallelism zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // std::vector of Win_SeqFFAT
-        std::vector<ff_node *> w(_pardegree);
+        std::vector<ff_node *> w(_parallelism);
         // create the Win_SeqFFAT
-        for (size_t i = 0; i < _pardegree; i++) {
-            OperatorConfig configSeq(0, 1, _slide_len, 0, 1, _slide_len);
-            auto *ffat = new win_seqffat_t(_winLift_func, _winComb_func, _win_len, _slide_len, _triggering_delay, _winType, _name + "_kff", _closing_func, RuntimeContext(_pardegree, i), configSeq);
+        for (size_t i = 0; i < _parallelism; i++) {
+            WinOperatorConfig configSeq(0, 1, _slide_len, 0, 1, _slide_len);
+            auto *ffat = new win_seqffat_t(_winLift_func, _winComb_func, _win_len, _slide_len, _triggering_delay, _winType, _name, _closing_func, RuntimeContext(_parallelism, i), configSeq);
             w[i] = ffat;
         }
         ff::ff_farm::add_workers(w);
         ff::ff_farm::add_collector(nullptr);
         // create the Emitter node
-        ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _pardegree));
+        ff::ff_farm::add_emitter(new kf_emitter_t(_routing_func, _parallelism));
         // when the Key_FFAT will be destroyed we need aslo to destroy the emitter, workers and collector
         ff::ff_farm::cleanup_all();
     }
 
     /** 
-     *  \brief Get the parallelism degree of the Key_FFAT
-     *  \return parallelism degree of the Key_FFAT
+     *  \brief Get the name of the Key_FFAT
+     *  \return string representing the name of the Key_FFAT
      */ 
-    size_t getParallelism() const
+    std::string getName() const override
+    {
+        return name;
+    }
+
+    /** 
+     *  \brief Get the total parallelism within the Key_FFAT
+     *  \return total parallelism within the Key_FFAT
+     */ 
+    size_t getParallelism() const override
     {
         return parallelism;
     }
 
     /** 
-     *  \brief Get the window type (CB or TB) utilized by the operator
-     *  \return adopted windowing semantics (count- or time-based)
+     *  \brief Return the routing mode of inputs to the Key_FFAT
+     *  \return routing mode (always KEYBY for the Key_FFAT)
      */ 
-    win_type_t getWinType() const
+    routing_modes_t getRoutingMode() const override
     {
-        return winType;
+        return KEYBY;
     }
 
     /** 
      *  \brief Check whether the Key_FFAT has been used in a MultiPipe
      *  \return true if the Key_FFAT has been added/chained to an existing MultiPipe
-     */
-    bool isUsed() const
+     */ 
+    bool isUsed() const override
     {
         return used;
+    }
+
+    /** 
+     *  \brief Get the window type (CB or TB) utilized by the Key_FFAT
+     *  \return adopted windowing semantics (count-based or time-based)
+     */ 
+    win_type_t getWinType() const
+    {
+        return winType;
     }
 
     /** 
@@ -198,12 +215,23 @@ public:
     }
 
     /** 
-     *  \brief Get the name of the operator
-     *  \return string representing the name of the operator
-     */
-    std::string getName() const
+     *  \brief Get the Stats_Record of each replica within the Key_FFAT
+     *  \return vector of Stats_Record objects
+     */ 
+    std::vector<Stats_Record> get_StatsRecords() const override
     {
-        return name;
+#if !defined(TRACE_WINDFLOW)
+        std::cerr << YELLOW << "WindFlow Warning: statistics are not enabled, compile with -DTRACE_WINDFLOW" << DEFAULT_COLOR << std::endl;
+        return {};
+#else
+        std::vector<Stats_Record> records;
+        auto workers = this->getWorkers();
+        for (auto *w: workers) {
+            auto *seq = static_cast<win_seqffat_t *>(w);
+            records.push_back(seq->get_StatsRecord());
+        }
+        return records;
+#endif      
     }
 
     /// deleted constructors/operators

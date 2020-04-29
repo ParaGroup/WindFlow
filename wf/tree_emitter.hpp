@@ -63,8 +63,9 @@ public:
     {
         // configure all the nodes to work with the Tree_Emitter
         root->setTree_EmitterMode(true);
-        for (size_t i=0; i<children.size(); i++)
+        for (size_t i=0; i<children.size(); i++) {
             children[i]->setTree_EmitterMode(true);
+        }
     }
 
     // Copy Constructor
@@ -73,8 +74,9 @@ public:
         // deep copy of the root emitter node
         root = (_e.root)->clone();
         // deep copy of each child emitter node
-        for (size_t i=0; i<(_e.children).size(); i++)
+        for (size_t i=0; i<(_e.children).size(); i++) {
             children.push_back((_e.children[i])->clone());
+        }
         cleanUpRoot = true;
         cleanUpChildren = true;
         isCombined = _e.isCombined;
@@ -84,34 +86,37 @@ public:
     // Destructor
     ~Tree_Emitter()
     {
-        if (cleanUpRoot)
+        if (cleanUpRoot) {
             delete root;
+        }
         if (cleanUpChildren) {
-            for (size_t i=0; i<children.size(); i++)
+            for (size_t i=0; i<children.size(); i++) {
                 delete children[i];
+            }
         }
     }
 
     // clone method
-    Basic_Emitter *clone() const
+    Basic_Emitter *clone() const override
     {
         Basic_Emitter *copy_root = root->clone();
         std::vector<Basic_Emitter *> copy_children;
-        for (size_t i=0; i<children.size(); i++)
+        for (size_t i=0; i<children.size(); i++) {
             copy_children.push_back((children[i])->clone());
+        }
         auto *t = new Tree_Emitter(copy_root, copy_children, true, true);
         t->isCombined = isCombined;
         return t;
     }
 
     // svc_init method (utilized by the FastFlow runtime)
-    int svc_init()
+    int svc_init() override
     {
         return 0;
     }
 
     // svc method (utilized by the FastFlow runtime)
-    void *svc(void *t)
+    void *svc(void *t) override
     {
         // call the root svc
         root->svc(t);
@@ -122,12 +127,15 @@ public:
             auto &v2 = children[msg1.second]->getOutputQueue();
             for (auto msg2: v2) {
                 size_t offset = 0;
-                for (size_t i=0; i<msg1.second; i++)
+                for (size_t i=0; i<msg1.second; i++) {
                     offset += children[i]->getNDestinations();
-                if (!isCombined)
+                }
+                if (!isCombined) {
                     this->ff_send_out_to(msg2.first, offset + msg2.second);
-                else
+                }
+                else {
                     output_queue.push_back(std::make_pair(msg2.first, offset + msg2.second));
+                }
             }
             v2.clear();
         }
@@ -136,7 +144,7 @@ public:
     }
 
     // method to manage the EOS (utilized by the FastFlow runtime)
-    void eosnotify(ssize_t id)
+    void eosnotify(ssize_t id) override
     {
         // call the root eosnotify method
         root->eosnotify(-1);
@@ -147,12 +155,15 @@ public:
             auto &v2 = children[msg1.second]->getOutputQueue();
             for (auto msg2: v2) {
                 size_t offset = 0;
-                for (size_t i=0; i<msg1.second; i++)
+                for (size_t i=0; i<msg1.second; i++) {
                     offset += children[i]->getNDestinations();
-                if (!isCombined)
+                }
+                if (!isCombined) {
                     this->ff_send_out_to(msg2.first, offset + msg2.second);
-                else
+                }
+                else {
                     output_queue.push_back(std::make_pair(msg2.first, offset + msg2.second));
+                }
             }
             v2.clear();
         }
@@ -163,10 +174,12 @@ public:
             children[i]->eosnotify(-1);
             auto &v = children[i]->getOutputQueue();
             for (auto msg: v) {
-                if (!isCombined)
+                if (!isCombined) {
                     this->ff_send_out_to(msg.first, offset + msg.second);
-                else
+                }
+                else {
                     output_queue.push_back(std::make_pair(msg.first, offset + msg.second));
+                }
             }
             v.clear();
             offset += children[i]->getNDestinations();
@@ -174,25 +187,26 @@ public:
     }
 
     // svc_end method (FastFlow runtime)
-    void svc_end() {}
+    void svc_end() override {}
 
     // get the number of destinations
-    size_t getNDestinations() const
+    size_t getNDestinations() const override
     {
         size_t sum = 0;
-        for (size_t i=0; i<children.size(); i++)
+        for (size_t i=0; i<children.size(); i++) {
             sum += children[i]->getNDestinations();
+        }
         return sum;
     }
 
     // set/unset the Tree_Emitter mode
-    void setTree_EmitterMode(bool _val)
+    void setTree_EmitterMode(bool _val) override
     {
         isCombined = _val;
     }
 
     // method to get a reference to the internal output queue (used in Tree_Emitter mode)
-    std::vector<std::pair<void *, int>> &getOutputQueue()
+    std::vector<std::pair<void *, int>> &getOutputQueue() override
     {
         return output_queue;
     }
