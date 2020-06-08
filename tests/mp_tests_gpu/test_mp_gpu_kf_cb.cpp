@@ -100,6 +100,53 @@ int main(int argc, char *argv[])
         cout << "+-----+   +-----+   +------+   +-----+   +-------+   +-----+" << endl;
         // prepare the test
         PipeGraph graph("test_kf_cb_gpu", Mode::DETERMINISTIC);
+#if 0 // the version below is an example using CUDA 11 (now supporting C++17 in host code)
+      	// source
+        Source_Functor source_functor(stream_len, n_keys);
+        Source source = Source_Builder(source_functor).withName("source")
+                                .withParallelism(source_degree)
+                                .build();
+        MultiPipe &mp = graph.add_source(source);
+        // filter
+        Filter_Functor filter_functor;
+        Filter filter = Filter_Builder(filter_functor).withName("filter")
+                                .withParallelism(filter_degree)
+                                .build();
+        mp.chain(filter);
+        // flatmap
+        FlatMap_Functor flatmap_functor;
+        FlatMap flatmap = FlatMap_Builder(flatmap_functor).withName("flatmap")
+                                    .withParallelism(flatmap_degree)
+                                    .build();
+        mp.chain(flatmap);
+        // map
+        Map_Functor map_functor;
+        Map map = Map_Builder(map_functor).withName("map")
+                            .withParallelism(map_degree)
+                            .build();
+        mp.chain(map);
+        // kf
+        // Key_Farm function (non-incremental) on GPU
+        auto kf_function_gpu = [] __host__ __device__ (size_t wid, const tuple_t *data, size_t size, output_t *res, char *memory, size_t size_mem) {
+            long sum = 0;
+            for (size_t i=0; i<size; i++) {
+                sum += data[i].value;
+            }
+            res->value = sum;
+        };
+        Key_Farm_GPU kf = KeyFarmGPU_Builder(kf_function_gpu).withName("kf")
+                            .withParallelism(kf_degree)
+                            .withCBWindows(win_len, win_slide)
+                            .withBatch(batch_len)
+                            .build();
+        mp.add(kf);
+        // sink
+        Sink_Functor sink_functor(n_keys);
+        Sink sink = Sink_Builder(sink_functor).withName("sink")
+                            .withParallelism(1)
+                            .build();
+        mp.chain_sink(sink);
+#else // this is the default version with CUDA < 11 (supporting C++14 in host code)
         // source
         Source_Functor source_functor(stream_len, n_keys);
         auto *source = Source_Builder<decltype(source_functor)>(source_functor)
@@ -150,6 +197,7 @@ int main(int argc, char *argv[])
                             .withParallelism(1)
                             .build_ptr();
         mp.chain_sink(*sink);
+#endif
         // run the application
         graph.run();
         if (i == 0) {
