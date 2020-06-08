@@ -161,6 +161,27 @@ public:
         return *this;
     }
 
+#if __cplusplus >= 201703L
+    /** 
+     *  \brief Method to create the Win_Seq_GPU node (only C++17)
+     *  
+     *  \return a copy of the created Win_Seq_GPU node
+     */ 
+    winseq_gpu_t build()
+    {
+        return winseq_gpu_t(func,
+                            win_len,
+                            slide_len,
+                            triggering_delay,
+                            winType,
+                            batch_len,
+                            gpu_id,
+                            n_thread_block,
+                            name,
+                            scratchpad_size);
+    }
+#endif
+
     /** 
      *  \brief Method to create the Win_Seq_GPU node
      *  
@@ -330,6 +351,28 @@ public:
         rebuild = _rebuild;
         return *this;
     }
+
+#if __cplusplus >= 201703L
+    /** 
+     *  \brief Method to create the Win_SeqFFAT_GPU node (only C++17)
+     *  
+     *  \return a copy of the created Win_SeqFFAT_GPU node
+     */ 
+    winffat_gpu_t build()
+    {
+        return winffat_gpu_t(lift_func, 
+                             comb_func,
+                             win_len,
+                             slide_len,
+                             triggering_delay,
+                             winType,
+                             batch_len,
+                             gpu_id,
+                             n_thread_block,
+                             rebuild,
+                             name);
+    }
+#endif
 
     /** 
      *  \brief Method to create the Win_SeqFFAT_GPU node
@@ -589,6 +632,30 @@ public:
         opt_level = _opt_level;
         return *this;
     }
+
+#if __cplusplus >= 201703L
+    /** 
+     *  \brief Method to create the Win_Farm_GPU operator (only C++17)
+     *  
+     *  \return a copy of the created Win_Farm_GPU operator
+     */ 
+    winfarm_gpu_t build()
+    {
+        return winfarm_gpu_t(input,
+                             win_len,
+                             slide_len,
+                             triggering_delay,
+                             winType,
+                             pardegree,
+                             batch_len,
+                             gpu_id,
+                             n_thread_block,
+                             name,
+                             scratchpad_size,
+                             true,
+                             opt_level);
+    }
+#endif
 
     /** 
      *  \brief Method to create the Win_Farm_GPU operator
@@ -856,6 +923,30 @@ public:
         return *this;
     }
 
+#if __cplusplus >= 201703L
+    /** 
+     *  \brief Method to create the Key_Farm_GPU operator (only C++17)
+     *  
+     *  \return a copy of the created Key_Farm_GPU operator
+     */ 
+    keyfarm_gpu_t build()
+    {
+        return keyfarm_gpu_t(input,
+                             win_len,
+                             slide_len,
+                             triggering_delay,
+                             winType,
+                             pardegree,
+                             batch_len,
+                             gpu_id,
+                             n_thread_block,
+                             name,
+                             scratchpad_size,
+                             routing_func,
+                             opt_level);
+    }
+#endif
+
     /** 
      *  \brief Method to create the Key_Farm_GPU operator
      *  
@@ -1047,6 +1138,29 @@ public:
         rebuild = _rebuild;
         return *this;
     }
+
+#if __cplusplus >= 201703L
+    /** 
+     *  \brief Method to create the Key_FFAT_GPU operator (only C++17)
+     *  
+     *  \return a copy of the created Key_FFAT_GPU operator
+     */ 
+    keyffat_gpu_t build()
+    {
+        return keyffat_gpu_t(lift_func,
+                             comb_func,
+                             win_len,
+                             slide_len,
+                             triggering_delay,
+                             winType,
+                             pardegree,
+                             batch_len,
+                             gpu_id,
+                             n_thread_block,
+                             rebuild, name,
+                             routing_func);
+    }
+#endif
 
     /** 
      *  \brief Method to create the Key_FFAT_GPU operator
@@ -1281,6 +1395,32 @@ public:
         opt_level = LEVEL2;
         return *this;
     }
+
+#if __cplusplus >= 201703L
+    /** 
+     *  \brief Method to create the Pane_Farm_GPU operator (only C++17)
+     *  
+     *  \return a copy of the created Pane_Farm_GPU operator
+     */ 
+    panefarm_gpu_t build()
+    {
+        return panefarm_gpu_t(func_F,
+                              func_G,
+                              win_len,
+                              slide_len,
+                              triggering_delay,
+                              winType,
+                              plq_degree,
+                              wlq_degree,
+                              batch_len,
+                              gpu_id,
+                              n_thread_block,
+                              name,
+                              scratchpad_size,
+                              true,
+                              opt_level);
+    }
+#endif
 
     /** 
      *  \brief Method to create the Pane_Farm_GPU operator
@@ -1521,10 +1661,36 @@ public:
         return *this;
     }
 
+#if __cplusplus >= 201703L
     /** 
-     *  \brief Method to create the Pane_Farm_GPU operator
+     *  \brief Method to create the Win_MapReduce_GPU operator (only C++17)
      *  
-     *  \return a pointer to the created Pane_Farm_GPU operator (to be explicitly deallocated/destroyed)
+     *  \return a copy of the created Win_MapReduce_GPU operator
+     */ 
+    winmapreduce_gpu_t build()
+    {
+        return winmapreduce_gpu_t(func_F,
+                                  func_G,
+                                  win_len,
+                                  slide_len,
+                                  triggering_delay,
+                                  winType,
+                                  map_degree,
+                                  reduce_degree,
+                                  batch_len,
+                                  gpu_id,
+                                  n_thread_block,
+                                  name,
+                                  scratchpad_size,
+                                  true,
+                                  opt_level);
+    }
+#endif
+
+    /** 
+     *  \brief Method to create the Win_MapReduce_GPU operator
+     *  
+     *  \return a pointer to the created Win_MapReduce_GPU operator (to be explicitly deallocated/destroyed)
      */ 
     winmapreduce_gpu_t *build_ptr()
     {
@@ -1546,9 +1712,9 @@ public:
     }
 
     /** 
-     *  \brief Method to create the Pane_Farm_GPU operator
+     *  \brief Method to create the Win_MapReduce_GPU operator
      *  
-     *  \return a unique_ptr to the created Pane_Farm_GPU operator
+     *  \return a unique_ptr to the created Win_MapReduce_GPU operator
      */ 
     std::unique_ptr<winmapreduce_gpu_t> build_unique()
     {
