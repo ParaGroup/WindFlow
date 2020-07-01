@@ -13,7 +13,7 @@ The web site of the library is available at: https://paragroup.github.io/WindFlo
 
 # Dependencies
 The library needs the following dependencies:
-* GNU <strong>C/C++ compiler</strong> with support for at least C++14 (recommended C++17)
+* <strong>GNU C/C++ compiler</strong> with support for at least C++14 (recommended C++17)
 * <strong>CUDA</strong> (for compiling GPU examples) with support for at least C++14 (recommended C++17)
 * <strong>FastFlow</strong> version >= 3.0 (https://github.com/fastflow/fastflow)
 * <strong>libgraphviz-dev</strong> (only when compiling with -DGRAPHVIZ_WINDFLOW)
