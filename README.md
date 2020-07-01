@@ -9,7 +9,7 @@
 # Introduction
 WindFlow is a C++17 library for parallel data stream processing targeting heterogeneous shared-memory architectures featuring multi-core CPUs and GPU devices. The library provides common stream processing operators like map, flatmap, filter, fold/reduce as well as sliding-window operators designed with complex parallel features. The API allows building streaming applications through the <b>MultiPipe</b> and the <b>PipeGraph</b> programming constructs. The first is used to create parallel pipelines, while the second one allows several <b>MultiPipe</b> instances to be interconnected through <b>merge</b> and <b>split</b> operations, thus creating complex directed acyclic graphs of interconnected operators.
 
-The web site of the library is available at https://paragroup.github.io/WindFlow/.
+The web site of the library is available at: https://paragroup.github.io/WindFlow/.
 
 # Dependencies
 The library needs the following dependencies:
@@ -46,7 +46,7 @@ WindFlow makes use of <tt>std::optional</tt> in its source code. So, it is compl
 * GPU examples are written to be compiled with CUDA (NVCC) compiler supporting at least C++14. In this case, builders are used by explicitly providing their template arguments, resulting in a more verbose syntax. GPU examples can be easily converted in a C++17 style and compiled with CUDA (>= 11).
 
 # About the License
-<strong>WindFlow</strong> and <strong>FastFlow</strong> are released with the <strong>LGPL-3</strong> license and they are both header-only libraries. So, any developer who wants to use our libraries for her applications must honor Section 3 of the LGPL (she should mention "prominently" that her application uses WindFlow/FastFlow and linking the LGPL text somewhere). Please be careful that, if compiled with the -DGRAPHVIZ_WINDFLOW macro, WindFlow needs the dynamic libraries of libgraphviz (authors should check the compatibility with its license).
+WindFlow and FastFlow are released with the <strong>LGPL-3</strong> license and they are both header-only libraries. So, any developer who wants to use our libraries for her applications must honor Section 3 of the LGPL (she should mention "prominently" that her application uses WindFlow/FastFlow and linking the LGPL text somewhere). Please be careful that, if compiled with the -DGRAPHVIZ_WINDFLOW macro, WindFlow needs the dynamic libraries of libgraphviz (authors should check the compatibility with its license).
 
 # Contributors
 The main developer and maintainer of WindFlow is [Gabriele Mencagli](mailto:mencagli@di.unipi.it) (Department of Computer Science, University of Pisa, Italy).
