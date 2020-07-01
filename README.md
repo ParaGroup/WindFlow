@@ -13,7 +13,7 @@ The web site of the library is available at: https://paragroup.github.io/WindFlo
 
 # Dependencies
 The library needs the following dependencies:
-* <strong>C/C++ compiler</strong> with support for at least C++14 (recommended C++17)
+* GNU <strong>C/C++ compiler</strong> with support for at least C++14 (recommended C++17)
 * <strong>CUDA</strong> (for compiling GPU examples) with support for at least C++14 (recommended C++17)
 * <strong>FastFlow</strong> version >= 3.0 (https://github.com/fastflow/fastflow)
 * <strong>libgraphviz-dev</strong> (only when compiling with -DGRAPHVIZ_WINDFLOW)
@@ -44,6 +44,8 @@ WindFlow is a header-only template library. To build your applications you have 
 WindFlow makes use of <tt>std::optional</tt> in its source code. So, it is compliant with the C++17 standard, where optionals have been included in the standard officially. However, it is possible to compile the headers of the library with a compiler supporting C++14 (where optionals are still experimental). In the <tt>tests</tt> folder:
 * CPU examples are written to be compiled with a compiler supporting C++17. This reflects in the way the builder classes to instantiate operators have been used, where their template arguments are not explicitly specified (owing to the Class Template Argument Deduction feature of C++17). To compile with C++14 you have to change the use of the buiders by providing the template arguments explicitly;
 * GPU examples are written to be compiled with CUDA (NVCC) compiler supporting at least C++14. In this case, builders are used by explicitly providing their template arguments, resulting in a more verbose syntax. GPU examples can be easily converted in a C++17 style and compiled with CUDA (>= 11).
+
+The examples of the library have been compiled with GNU Compiler Collection (GCC). Tests seem to compile well also using <tt>clang</tt>.
 
 # About the License
 WindFlow and FastFlow are released with the <strong>LGPL-3</strong> license and they are both header-only libraries. So, any developer who wants to use our libraries for her applications must honor Section 3 of the LGPL (she should mention "prominently" that her application uses WindFlow/FastFlow and linking the LGPL text somewhere). Please be careful that, if compiled with the -DGRAPHVIZ_WINDFLOW macro, WindFlow needs the dynamic libraries of libgraphviz (authors should check the compatibility with its license).
