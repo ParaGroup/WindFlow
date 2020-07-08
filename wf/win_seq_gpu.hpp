@@ -68,7 +68,7 @@ __global__ void ComputeBatch_Kernel(void *input_data,
     using result_t = decltype(get_result_t_WinGPU(F));
     int id = threadIdx.x + blockIdx.x * blockDim.x;
     int stride = blockDim.x * gridDim.x;
-    // grid-stride loop over the windows within the batch
+    // grid-stride loop
     for (size_t i=id; i<batch_len; i+=stride) {
         if (scratchpad_size > 0) {
             F(gwids[i], ((const tuple_t *) input_data) + start[i], end[i] - start[i], &((result_t *) results)[i], &scratchpad_memory[id * scratchpad_size], scratchpad_size);
@@ -110,6 +110,7 @@ private:
         archive_t archive; // archive of tuples of this key
         std::vector<win_t> wins; // open windows of this key
         uint64_t emit_counter; // progressive counter (used if role is PLQ or MAP)
+        uint64_t next_ids; // progressive counter (used if isRenumbering is true)
         uint64_t next_lwid; // next window to be opened of this key (lwid)
         int64_t last_lwid; // last window closed of this key (lwid)
         size_t batchedWin; // number of batched windows of the key
@@ -124,6 +125,7 @@ private:
                        uint64_t _emit_counter=0):
                        archive(_compare_func),
                        emit_counter(_emit_counter),
+                       next_ids(0),
                        next_lwid(0),
                        last_lwid(-1),
                        batchedWin(0)
@@ -136,6 +138,7 @@ private:
                        archive(move(_k.archive)),
                        wins(move(_k.wins)),
                        emit_counter(_k.emit_counter),
+                       next_ids(_k.next_ids),
                        next_lwid(_k.next_lwid),
                        last_lwid(_k.last_lwid),
                        batchedWin(_k.batchedWin),
@@ -176,6 +179,7 @@ private:
     char *scratchpad_memory = nullptr; // scratchpage memory area (allocated on the GPU, one per CUDA thread)
     size_t dropped_tuples; // number of dropped tuples
     size_t eos_received; // number of received EOS messages
+    bool isRenumbering; // if true, the node assigns increasing identifiers to the input tuples (useful for count-based windows in DEFAULT mode)
 #if defined(TRACE_WINDFLOW)
     Stats_Record stats_record;
     double avg_td_us = 0;
@@ -209,7 +213,8 @@ private:
                 config(_config),
                 role(_role),
                 dropped_tuples(0),
-                eos_received(0)
+                eos_received(0),
+                isRenumbering(false)
     {
         // check the validity of the windowing parameters
         if (_win_len == 0 || _slide_len == 0) {
@@ -294,23 +299,25 @@ public:
         int devicesCount = 0; // number of available GPU devices
         gpuErrChk(cudaGetDeviceCount(&devicesCount));
         if (gpu_id >= devicesCount) {
-            std::cerr << RED << "WindFlow Error: chosen GPU device is not a valid one" << DEFAULT_COLOR << std::endl;
+            std::cerr << RED << "WindFlow Error: chosen GPU device is not valid" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // use the chosen GPU device
         gpuErrChk(cudaSetDevice(gpu_id));
-        // check the number of threads per block limit
+        // get the number of Stream MultiProcessors on the GPU
         int numSMs = 0; // number of SMs in the GPU
-        int max_thread_block = 0; // maximum number of threads per block
         gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, gpu_id));
         assert(numSMs>0);
+        // get the number of threads per block limit on the GPU
+        int max_thread_block = 0; // maximum number of threads per block
         gpuErrChk(cudaDeviceGetAttribute(&max_thread_block, cudaDevAttrMaxThreadsPerBlock, gpu_id));
         assert(max_thread_block>0);
         // check the number of threads per block limit
         if (max_thread_block < n_thread_block) {
-            std::cerr << RED << "WindFlow Error: number of threads per block exceeds the limit of the GPU device (max is " << max_thread_block << ")" << DEFAULT_COLOR << std::endl;
+            std::cerr << RED << "WindFlow Error: number of threads per block exceeds the limit of the GPU (max is " << max_thread_block << ")" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
+        // compute the number of blocks to be used by all the kernel invokations
         num_blocks = std::min((int) ceil((double) batch_len / n_thread_block), 32 * numSMs); // at most 32 blocks per SM
         // create the CUDA stream
         gpuErrChk(cudaStreamCreate(&cudaStream));
@@ -372,6 +379,12 @@ public:
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
+        // check if isRenumbering is enabled (used for count-based windows in DEFAULT mode)
+        if (isRenumbering) {
+        	assert(winType == CB);
+        	id = key_d.next_ids++;
+        	t->setControlFields(std::get<0>(t->getControlFields()), id, std::get<2>(t->getControlFields()));
+        }
         // gwid of the first window of that key assigned to this Win_Seq_GPU
         uint64_t first_gwid_key = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) * config.n_outer + (config.id_outer - (hashcode % config.n_outer) + config.n_outer) % config.n_outer;
         // initial identifer/timestamp of the keyed sub-stream arriving at this Win_Seq_GPU

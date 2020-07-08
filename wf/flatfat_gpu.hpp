@@ -53,11 +53,12 @@ __global__ void InitTreeLevel_Kernel(comb_F_t winComb_func,
                                      result_t *levelB,
                                      size_t levelBSize)
 {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i >= levelBSize) {
-        return;
-    }
-    winComb_func(levelA[i*2], levelA[i*2+1], levelB[i]);
+    int id = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = blockDim.x * gridDim.x;
+    // grid-stride loop
+    for (size_t i=id; i<levelBSize; i+=stride) {
+    	winComb_func(levelA[i*2], levelA[i*2+1], levelB[i]);
+	}
 }
 
 // CUDA KERNEL: update a level of the tree
@@ -67,17 +68,18 @@ __global__ void UpdateTreeLevel_Kernel(comb_F_t winComb_func,
                                        result_t *levelB,
                                        size_t offset,
                                        size_t levelBSize,
-                                       int numThreads)
+                                       int sizeUpdate)
 {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i >= numThreads) {
-        return;
+    int id = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = blockDim.x * gridDim.x;
+    // grid-stride loop
+    for (size_t i=id; i<sizeUpdate; i+=stride) {
+    	size_t my_i = (i + offset) % levelBSize;
+    	winComb_func(levelA[my_i*2], levelA[my_i*2+1], levelB[my_i]);
     }
-    i = (i + offset) % levelBSize;
-    winComb_func(levelA[i*2], levelA[i*2+1], levelB[i]);
 }
 
-// Parent function (both for the host and on the GPU device)
+// Parent function (both for the host and on the GPU)
 __host__ __device__ int Parent(int pos, int B)
 {
     return (pos >> 1) | B;
@@ -96,37 +98,38 @@ __global__ void ComputeResults_Kernel(comb_F_t winComb_func,
                                       int Nb,
                                       int S)
 {
-    int win_local_id = blockIdx.x * blockDim.x + threadIdx.x;
-    if (win_local_id >= Nb) {
-        return;
-    }
-    int win_global_id = win_local_id  + b_id * Nb;
-    int wS = (offset + win_local_id * S) % B;
-    while(W > 0) {
-        int range;
-        wS = wS >= B ? 0 : wS;
-        range = wS == 0 ? B : ( wS & -wS );
-        int64_t pow = W;
-        pow |= pow >> 1;
-        pow |= pow >> 2;
-        pow |= pow >> 4;
-        pow |= pow >> 8;
-        pow |= pow >> 16;
-        pow |= pow >> 32;
-        pow = (pow >> 1) + 1;
-        range = range < pow ? range : pow;
-        int tr = range;
-        int tn = wS;
-        while (tr > 1) {
-            tn = Parent(tn, numLeaves);
-            tr >>= 1;
-        }
-        winComb_func(results[win_local_id], fat[tn], results[win_local_id]);
-        int oldWS = wS;
-        wS += range;
-        range = wS >= B ? B - oldWS : range;
-        W -= range;
-    }
+    int id = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = blockDim.x * gridDim.x;
+    // grid-stride loop
+    for (size_t i=id; i<Nb; i+=stride) {
+    	int wS = (offset + i * S) % B;
+    	int WIN = W;
+	    while(WIN > 0) {
+	        int range;
+	        wS = wS >= B ? 0 : wS;
+	        range = wS == 0 ? B : ( wS & -wS );
+	        int64_t pow = WIN;
+	        pow |= pow >> 1;
+	        pow |= pow >> 2;
+	        pow |= pow >> 4;
+	        pow |= pow >> 8;
+	        pow |= pow >> 16;
+	        pow |= pow >> 32;
+	        pow = (pow >> 1) + 1;
+	        range = range < pow ? range : pow;
+	        int tr = range;
+	        int tn = wS;
+	        while (tr > 1) {
+	            tn = Parent(tn, numLeaves);
+	            tr >>= 1;
+	        }
+	        winComb_func(results[i], fat[tn], results[i]);
+	        int oldWS = wS;
+	        wS += range;
+	        range = wS >= B ? B - oldWS : range;
+	        WIN -= range;
+	    }
+	}
 }
 
 // class FlatFAT_GPU
@@ -167,6 +170,7 @@ private:
     result_t zero; // zero value
     cudaStream_t *cudaStream; // pointer to the CUDA stream used by this FlatFAT_GPU
     size_t n_thread_block; // number of threads per block
+    int numSMs = 0; // number of SMs in the GPU 
 #if defined(TRACE_WINDFLOW)
     Stats_Record *stats_record=nullptr;
 #endif
@@ -181,7 +185,8 @@ public:
                 size_t _slide,
                 key_t _key,
                 cudaStream_t *_cudaStream,
-                size_t _n_thread_block):
+                size_t _n_thread_block,
+                size_t _numSMs):
                 d_tree(nullptr),
                 d_results(nullptr),
                 results(nullptr),
@@ -194,7 +199,8 @@ public:
                 winLift_func(_winLift_func),
                 winComb_func(_winComb_func),
                 cudaStream(_cudaStream),
-                n_thread_block(_n_thread_block)
+                n_thread_block(_n_thread_block),
+                numSMs(_numSMs)
     {
         size_t noBits = (size_t) ceil(log2(batchSize));
         size_t n = 1 << noBits;
@@ -230,7 +236,8 @@ public:
                 winComb_func(_fatgpu.winComb_func),
                 zero(_fatgpu.zero),
                 cudaStream(_fatgpu.cudaStream),
-                n_thread_block(_fatgpu.n_thread_block)
+                n_thread_block(_fatgpu.n_thread_block),
+                numSMs(_fatgpu.numSMs)
     {
         gpuErrChk(cudaMalloc((void **) &d_tree, treeMemSize));
         gpuErrChk(cudaMallocHost((void **) &results, Nb * sizeof(result_t)));
@@ -272,7 +279,7 @@ public:
         cudaError_t err;
         // fill the levels of the tree, each with a separate kernel
         while (d_levelB < d_tree + treeSize && i > 0) {
-            int noBlocks = (int) ceil(i / ((double) n_thread_block));
+            int noBlocks = std::min((int) ceil(i / ((double) n_thread_block)), 32 * numSMs); // at most 32 blocks per SM
             // call the kernel to initialize level i
 #if defined(TRACE_WINDFLOW)
             stats_record->num_kernels++;
@@ -293,31 +300,16 @@ public:
         stats_record->bytes_copied_hd += Nb * sizeof(result_t);
 #endif
         gpuErrChk(cudaMemcpy((void *) d_results, (void *) initResults.data(), Nb * sizeof(result_t), cudaMemcpyHostToDevice));
-        // compute the results of the Nb windows in the initial batch
-        if (Nb > n_thread_block) {
-            int noBlocks = (int) ceil(Nb / ((double) n_thread_block));
-            // call the kernel
+        // compute the results of the first batch
+        int noBlocks = std::min((int) ceil(Nb / ((double) n_thread_block)), 32 * numSMs); // at most 32 blocks per SM
+        // call the kernel
 #if defined(TRACE_WINDFLOW)
-            stats_record->num_kernels++;
-#endif
-            cudaError_t err;
-            ComputeResults_Kernel<result_t, comb_F_t><<<noBlocks, n_thread_block, 0, *cudaStream>>>(winComb_func, d_tree, d_results, offset, noLeaves, batchSize, windowSize, b_id, Nb, slide);
-            if (err = cudaGetLastError()) {
-                std::cerr << RED << "WindFlow Error: invoking the GPU kernel (ComputeResults_Kernel) causes error -> " << err << DEFAULT_COLOR << std::endl;
-                exit(EXIT_FAILURE);
-            }
-        }
-        else {
-            // call the kernel
-#if defined(TRACE_WINDFLOW)
-            stats_record->num_kernels++;
-#endif
-            cudaError_t err;
-            ComputeResults_Kernel<result_t, comb_F_t><<<1, Nb>>>(winComb_func, d_tree, d_results, offset, noLeaves, batchSize, windowSize, b_id, Nb, slide);
-            if (err = cudaGetLastError()) {
-                std::cerr << RED << "WindFlow Error: invoking the GPU kernel (ComputeResults_Kernel) causes error -> " << err << DEFAULT_COLOR << std::endl;
-                exit(EXIT_FAILURE);
-            }
+        stats_record->num_kernels++;
+#endif        
+        ComputeResults_Kernel<result_t, comb_F_t><<<noBlocks, n_thread_block, 0, *cudaStream>>>(winComb_func, d_tree, d_results, offset, noLeaves, batchSize, windowSize, b_id, Nb, slide);
+        if (err = cudaGetLastError()) {
+            std::cerr << RED << "WindFlow Error: invoking the GPU kernel (ComputeResults_Kernel) causes error -> " << err << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
         }
     }
 
@@ -348,17 +340,17 @@ public:
         size_t update_pos = Parent(offset, noLeaves);
         size_t numSeenElements = noLeaves;
         size_t distance = update_pos - numSeenElements;
-        int numThreads = ceil((double) inputs.size() / (pow << 1)) + 1;
+        int sizeUpdate = ceil((double) inputs.size() / (pow << 1)) + 1;
         // update the levels of the tree, each with a separate kernel
         while (d_levelB < d_tree + treeSize) {
             // call the kernel to update a level of the tree
-            size_t numBlocks = ceil(numThreads / ((double) n_thread_block));
+            size_t numBlocks = std::min((int) ceil(sizeUpdate / ((double) n_thread_block)), 32 * numSMs); // at most 32 blocks per SM
             // call the kernel
 #if defined(TRACE_WINDFLOW)
             stats_record->num_kernels++;
 #endif
             cudaError_t err;
-            UpdateTreeLevel_Kernel<result_t, comb_F_t><<<numBlocks, n_thread_block>>>(winComb_func, d_levelA, d_levelB, distance, sizeB, numThreads);
+            UpdateTreeLevel_Kernel<result_t, comb_F_t><<<numBlocks, n_thread_block, 0, *cudaStream>>>(winComb_func, d_levelA, d_levelB, distance, sizeB, sizeUpdate);
             if (err = cudaGetLastError()) {
                 std::cerr << RED << "WindFlow Error: invoking the GPU kernel (UpdateTreeLevel_Kernel) causes error -> " << err << DEFAULT_COLOR << std::endl;
                 exit(EXIT_FAILURE);
@@ -370,7 +362,7 @@ public:
             update_pos = Parent(update_pos, noLeaves);
             numSeenElements += noLeaves / pow;
             distance = update_pos - numSeenElements;
-            numThreads = ceil((double) inputs.size() / (pow << 1)) + 1;
+            sizeUpdate = ceil((double) inputs.size() / (pow << 1)) + 1;
         }
         offset = (offset + inputs.size()) % batchSize;
 #if defined(TRACE_WINDFLOW)
@@ -378,31 +370,17 @@ public:
 #endif
         // copy the initial values in the GPU
         gpuErrChk(cudaMemcpy((void *) d_results, (void *) initResults.data(), Nb * sizeof(result_t), cudaMemcpyHostToDevice));
-        // compute the results of the Nb windows in the initial batch
-        if (Nb > n_thread_block) {
-            int noBlocks = (int) ceil(Nb / ((double) n_thread_block));
-            // call the kernel
+        // compute the results of the batch
+        int noBlocks = std::min((int) ceil(Nb / ((double) n_thread_block)), 32 * numSMs); // at most 32 blocks per SM
+        // call the kernel
 #if defined(TRACE_WINDFLOW)
-            stats_record->num_kernels++;
+        stats_record->num_kernels++;
 #endif
-            cudaError_t err;
-            ComputeResults_Kernel<result_t, comb_F_t><<<noBlocks, n_thread_block>>>(winComb_func, d_tree, d_results, offset, noLeaves, batchSize, windowSize, b_id, Nb, slide);
-            if (err = cudaGetLastError()) {
-                std::cerr << RED << "WindFlow Error: invoking the GPU kernel (ComputeResults_Kernel) causes error -> " << err << DEFAULT_COLOR << std::endl;
-                exit(EXIT_FAILURE);
-            }
-        }
-        else {
-            // call the kernel
-#if defined(TRACE_WINDFLOW)
-            stats_record->num_kernels++;
-#endif
-            cudaError_t err;
-            ComputeResults_Kernel<result_t, comb_F_t><<<1, Nb>>>(winComb_func, d_tree, d_results, offset, noLeaves, batchSize, windowSize, b_id, Nb, slide);
-            if (err = cudaGetLastError()) {
-                std::cerr << RED << "WindFlow Error: invoking the GPU kernel (ComputeResults_Kernel) causes error -> " << err << DEFAULT_COLOR << std::endl;
-                exit(EXIT_FAILURE);
-            }
+        cudaError_t err;
+        ComputeResults_Kernel<result_t, comb_F_t><<<noBlocks, n_thread_block, 0, *cudaStream>>>(winComb_func, d_tree, d_results, offset, noLeaves, batchSize, windowSize, b_id, Nb, slide);
+        if (err = cudaGetLastError()) {
+            std::cerr << RED << "WindFlow Error: invoking the GPU kernel (ComputeResults_Kernel) causes error -> " << err << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
         }
     }
 
@@ -429,7 +407,7 @@ public:
     // method to wait the completion of the results copy from the GPU to the host
     const result_t* waitResults()
     {
-        cudaDeviceSynchronize();
+        gpuErrChk(cudaDeviceSynchronize());
         return results;
     }
 

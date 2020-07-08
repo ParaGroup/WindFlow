@@ -62,6 +62,9 @@ private:
     tuple_t tmp; // never used
     // key data type
     using key_t = typename std::remove_reference<decltype(std::get<0>(tmp.getControlFields()))>::type;
+    // friendships with other classes in the library
+    template<typename T1, typename T2, typename T3>
+    friend class Key_FFAT_GPU;
     // struct of a key descriptor
     struct Key_Descriptor
     {
@@ -73,6 +76,7 @@ private:
         uint64_t rcv_counter; // number of tuples received of this key
         uint64_t slide_counter; // counter of the tuples in the last slide
         uint64_t ts_rcv_counter; // counter of received tuples (count-based translation)
+        uint64_t next_ids; // progressive counter (used if isRenumbering is true)
         uint64_t next_lwid;// next window to be opened of this key (lwid)
         size_t batchedWin; // number of batched windows of the key
         size_t num_processed_batches; // number of processed batches of this key
@@ -88,13 +92,15 @@ private:
                        size_t _slide_len,
                        key_t _key,
                        cudaStream_t *_cudaStream,
-                       size_t _n_thread_block):
-                       fatgpu(_winLift_func, _winComb_func, _batchSize, _numWindows, _win_len, _slide_len, _key, _cudaStream, _n_thread_block),
+                       size_t _n_thread_block,
+                       int _numSMs):
+                       fatgpu(_winLift_func, _winComb_func, _batchSize, _numWindows, _win_len, _slide_len, _key, _cudaStream, _n_thread_block, _numSMs),
                        cb_id(0),
                        last_quantum(0),
                        rcv_counter(0),
                        slide_counter(0),
                        ts_rcv_counter(0),
+                       next_ids(0),
                        next_lwid(0),
                        batchedWin(0),
                        num_processed_batches(0)
@@ -112,6 +118,7 @@ private:
                        rcv_counter(_k.rcv_counter),
                        slide_counter(_k.slide_counter),
                        ts_rcv_counter(_k.ts_rcv_counter),
+                       next_ids(_k.next_ids),
                        next_lwid(_k.next_lwid),
                        batchedWin(_k.batchedWin),
                        num_processed_batches(_k.num_processed_batches),
@@ -136,9 +143,11 @@ private:
     Key_Descriptor *lastKeyD = nullptr; // pointer to the key descriptor of the running kernel on the GPU
     int gpu_id; // identifier of the chosen GPU device
     size_t n_thread_block; // number of threads per block
+    int numSMs; // number of Stream MultiProcessors of the used GPU
     cudaStream_t cudaStream; // CUDA stream used by this Win_SeqFFAT_GPU
     size_t dropped_tuples; // number of dropped tuples
     size_t eos_received; // number of received EOS messages
+    bool isRenumbering; // if true, the node assigns increasing identifiers to the input tuples (useful for count-based windows in DEFAULT mode)
 #if defined(TRACE_WINDFLOW)
     Stats_Record stats_record;
     double avg_td_us = 0;
@@ -178,11 +187,13 @@ private:
                     batch_len(_batch_len),
                     gpu_id(_gpu_id),
                     n_thread_block(_n_thread_block),
+                    numSMs(0),
                     rebuild(_rebuild),
                     name(_name),
                     config(_config),
                     dropped_tuples(0),
-                    eos_received(0)
+                    eos_received(0),
+                    isRenumbering(false)
     {
         // check the validity of the windowing parameters
         if (win_len == 0 || slide_len == 0) {
@@ -255,27 +266,21 @@ public:
         int devicesCount = 0; // number of available GPU devices
         gpuErrChk(cudaGetDeviceCount(&devicesCount));
         if (gpu_id >= devicesCount) {
-            std::cerr << RED << "WindFlow Error: chosen GPU device is not a valid one" << DEFAULT_COLOR << std::endl;
+            std::cerr << RED << "WindFlow Error: chosen GPU device is not valid" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // use the chosen GPU device
         gpuErrChk(cudaSetDevice(gpu_id));
-        // check the number of threads per block limit
+        // get the number of Stream MultiProcessors on the GPU
+        gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, gpu_id));
+        assert(numSMs>0);
+        // get the number of threads per block limit on the GPU
         int max_thread_block = 0; // maximum number of threads per block
         gpuErrChk(cudaDeviceGetAttribute(&max_thread_block, cudaDevAttrMaxThreadsPerBlock, gpu_id));
         assert(max_thread_block>0);
         // check the number of threads per block limit
         if (max_thread_block < n_thread_block) {
-            std::cerr << RED << "WindFlow Error: number of threads per block exceeds the limit of the GPU device (max is " << max_thread_block << ")" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        size_t noBlocks = (int) ceil(batch_len / ((double) n_thread_block));
-        int max_blocks = 0; // maximum number of blocks
-        gpuErrChk(cudaDeviceGetAttribute(&max_blocks, cudaDevAttrMaxBlockDimX, gpu_id));
-        assert(max_blocks>0);
-        // check the number of blocks limit
-        if (max_blocks < noBlocks) {
-            std::cerr << RED << "WindFlow Error: number of blocks exceeds the limit of the GPU device (max is " << max_blocks << ")" << DEFAULT_COLOR << std::endl;
+            std::cerr << RED << "WindFlow Error: number of threads per block exceeds the limit of the GPU (max is " << max_thread_block << ")" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // create the CUDA stream
@@ -330,13 +335,19 @@ public:
         // access the descriptor of the input key
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
-            keyMap.insert(std::make_pair(key, Key_Descriptor(winLift_func, winComb_func, tuples_per_batch, batch_len, win_len, slide_len, key, &cudaStream, n_thread_block)));
+            keyMap.insert(std::make_pair(key, Key_Descriptor(winLift_func, winComb_func, tuples_per_batch, batch_len, win_len, slide_len, key, &cudaStream, n_thread_block, numSMs)));
             it = keyMap.find(key);
 #if defined(TRACE_WINDFLOW)
             (((*it).second).fatgpu).set_StatsRecord(&stats_record);
 #endif
         }
         Key_Descriptor &key_d = (*it).second;
+        // check if isRenumbering is enabled (used for count-based windows in DEFAULT mode)
+        if (isRenumbering) {
+        	assert(winType == CB);
+        	id = key_d.next_ids++;
+        	t->setControlFields(std::get<0>(t->getControlFields()), id, std::get<2>(t->getControlFields()));
+        }
         // gwid of the first window of that key assigned to this Win_SeqFFAT_GPU instance
         uint64_t first_gwid_key = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) * config.n_outer + (config.id_outer - (hashcode % config.n_outer) + config.n_outer) % config.n_outer;
         key_d.rcv_counter++;
@@ -407,7 +418,7 @@ public:
         // access the descriptor of the input key
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
-            keyMap.insert(std::make_pair(key, Key_Descriptor(winLift_func, winComb_func, tuples_per_batch, batch_len, win_len, slide_len, key, &cudaStream, n_thread_block)));
+            keyMap.insert(std::make_pair(key, Key_Descriptor(winLift_func, winComb_func, tuples_per_batch, batch_len, win_len, slide_len, key, &cudaStream, n_thread_block, numSMs)));
             it = keyMap.find(key);
 #if defined(TRACE_WINDFLOW)
             (((*it).second).fatgpu).set_StatsRecord(&stats_record);

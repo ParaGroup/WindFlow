@@ -220,7 +220,7 @@ public:
     }
 
     /** 
-     *  \brief Dump the .gv and .pdf files representing the PipeGraph using the
+     *  \brief Dump the .gv, .json and .pdf files representing the PipeGraph using the
      *         Graph Description Language (DOT)
      */ 
     void dump_DOTGraph()
@@ -229,8 +229,10 @@ public:
         gvLayout(this->gvc, this->gv_graph, const_cast<char *>("dot")); // set the layout to dot
         std::string name_dot = name + ".gv";
         std::string name_pdf = name + ".pdf";
+        std::string name_json = name + ".json";
         gvRenderFilename(this->gvc, this->gv_graph, const_cast<char *>("dot"), const_cast<char *>(name_dot.c_str())); // generate the dot file
         gvRenderFilename(this->gvc, this->gv_graph, const_cast<char *>("pdf"), const_cast<char *>(name_pdf.c_str())); // generate the pdf file
+        gvRenderFilename(this->gvc, this->gv_graph, const_cast<char *>("json"), const_cast<char *>(name_json.c_str())); // generate the json file
 #else
         std::cerr << YELLOW << "WindFlow Warning: dumping DOT graph is not enabled, compile with -DGRAPHVIZ_WINDFLOW" << DEFAULT_COLOR << std::endl;
 #endif
@@ -2118,11 +2120,17 @@ MultiPipe &MultiPipe::add(Key_Farm<tuple_t, result_t> &_kf)
         std::cerr << RED << "WindFlow Error: Key_Farm operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
-    // count-based windows are possible only in DETERMINISTIC mode
-    if (_kf.getWinType() == CB && graph->mode != Mode::DETERMINISTIC) {
-        std::cerr << RED << "WindFlow Error: count-based windows require DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
-        exit(EXIT_FAILURE);
-    }
+    // count-based windows and DEFAULT mode possible only without complex nested structures
+    if (_kf.getWinType() == CB && graph->mode == Mode::DEFAULT) {
+    	if (!_kf.isComplexNesting()) {
+    		// set the isRenumbering mode of the input operator
+    		_kf.set_isRenumbering();
+    	}
+    	else {
+        	std::cerr << RED << "WindFlow Error: count-based windows require DETERMINISTIC mode to work with complex nested structures" << DEFAULT_COLOR << std::endl;
+        	exit(EXIT_FAILURE);
+    	}
+	}
     // check the type compatibility
     tuple_t t;
     std::string opInType = typeid(t).name();
@@ -2270,11 +2278,17 @@ MultiPipe &MultiPipe::add(Key_Farm_GPU<tuple_t, result_t, F_t> &_kf)
         std::cerr << RED << "WindFlow Error: Key_Farm_GPU operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
-    // count-based windows are possible only in DETERMINISTIC mode
-    if (_kf.getWinType() == CB && graph->mode != Mode::DETERMINISTIC) {
-        std::cerr << RED << "WindFlow Error: count-based windows require DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
-        exit(EXIT_FAILURE);
-    }
+    // count-based windows and DEFAULT mode possible only without complex nested structures
+    if (_kf.getWinType() == CB && graph->mode == Mode::DEFAULT) {
+    	if (!_kf.isComplexNesting()) {
+    		// set the isRenumbering mode of the input operator
+    		_kf.set_isRenumbering();
+    	}
+    	else {
+        	std::cerr << RED << "WindFlow Error: count-based windows require DETERMINISTIC mode to work with complex nested structures" << DEFAULT_COLOR << std::endl;
+        	exit(EXIT_FAILURE);
+    	}
+	}
     // check the type compatibility
     tuple_t t;
     std::string opInType = typeid(t).name();
@@ -2421,11 +2435,11 @@ MultiPipe &MultiPipe::add(Key_FFAT<tuple_t, result_t> &_kff)
         std::cerr << RED << "WindFlow Error: Key_FFAT operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
-    // count-based windows are possible only in DETERMINISTIC mode
-    if (_kff.getWinType() == CB && graph->mode != Mode::DETERMINISTIC) {
-        std::cerr << RED << "WindFlow Error: count-based windows require DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
-        exit(EXIT_FAILURE);
-    } 
+    // prepare the operator for count-based windows
+    if (_kff.getWinType() == CB) {
+		// set the isRenumbering mode of the input operator
+    	_kff.set_isRenumbering();
+    }
     // check the type compatibility
     tuple_t t;
     std::string opInType = typeid(t).name();
@@ -2468,11 +2482,11 @@ MultiPipe &MultiPipe::add(Key_FFAT_GPU<tuple_t, result_t, F_t> &_kff)
         std::cerr << RED << "WindFlow Error: Key_FFAT_GPU operator has already been used in a MultiPipe" << DEFAULT_COLOR << std::endl;
         exit(EXIT_FAILURE);
     }
-    // count-based windows are possible only in DETERMINISTIC mode
-    if (_kff.getWinType() == CB && graph->mode != Mode::DETERMINISTIC) {
-        std::cerr << RED << "WindFlow Error: count-based windows require DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
-        exit(EXIT_FAILURE);
-    } 
+    // prepare the operator for count-based windows
+    if (_kff.getWinType() == CB) {
+		// set the isRenumbering mode of the input operator
+    	_kff.set_isRenumbering();
+    }
     // check the type compatibility
     tuple_t t;
     std::string opInType = typeid(t).name();

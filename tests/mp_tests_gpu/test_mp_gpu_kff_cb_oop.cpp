@@ -17,10 +17,10 @@
 /*  
  *  Test of the MultiPipe construct:
  *  
- *  +-----+   +-----+   +------+   +-----+   +-------+   +-----+
- *  |  S  |   |  F  |   |  FM  |   |  M  |   | KF_CB |   |  S  |
- *  | (1) +-->+ (*) +-->+  (*) +-->+ (*) +-->+  (*)  +-->+ (1) |
- *  +-----+   +-----+   +------+   +-----+   +-------+   +-----+
+ *  +-----+   +-----+   +------+   +-----+   +--------+   +-----+
+ *  |  S  |   |  F  |   |  FM  |   |  M  |   | KFF_CB |   |  S  |
+ *  | (1) +-->+ (*) +-->+  (*) +-->+ (*) +-->+  (*)   +-->+ (1) |
+ *  +-----+   +-----+   +------+   +-----+   +--------+   +-----+
  */ 
 
 // includes
@@ -37,8 +37,8 @@ using namespace std;
 using namespace chrono;
 using namespace wf;
 
-// global variable for the result
-extern long global_sum;
+// global variables
+extern long global_received;
 
 // main
 int main(int argc, char *argv[])
@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
     size_t n_keys = 1;
     size_t batch_len = 1;
     // initalize global variable
-    global_sum = 0;
+    global_received = 0;
     // arguments from command line
     if (argc != 13) {
         cout << argv[0] << " -r [runs] -l [stream_length] -k [n_keys] -w [win length] -s [win slide] -b [batch len]" << endl;
@@ -83,70 +83,23 @@ int main(int argc, char *argv[])
     size_t min = 1;
     size_t max = 9;
     std::uniform_int_distribution<std::mt19937::result_type> dist6(min, max);
-    int filter_degree, flatmap_degree, map_degree, kf_degree;
+    int filter_degree, flatmap_degree, map_degree, kff_degree;
     size_t source_degree = dist6(rng);
     source_degree = 1;
-    long last_result = 0;
+    long last_results = 0;
     // executes the runs
     for (size_t i=0; i<runs; i++) {
         filter_degree = dist6(rng);
         flatmap_degree = dist6(rng);
         map_degree = dist6(rng);
-        kf_degree = dist6(rng);
+        kff_degree = dist6(rng);
         cout << "Run " << i << endl;
-        cout << "+-----+   +-----+   +------+   +-----+   +-------+   +-----+" << endl;
-        cout << "|  S  |   |  F  |   |  FM  |   |  M  |   | KF_CB |   |  S  |" << endl;
-        cout << "| (" << source_degree << ") +-->+ (" << filter_degree << ") +-->+  (" << flatmap_degree << ") +-->+ (" << map_degree << ") +-->+  (" << kf_degree << ")  +-->+ (1) |" << endl;
-        cout << "+-----+   +-----+   +------+   +-----+   +-------+   +-----+" << endl;
+        cout << "+-----+   +-----+   +------+   +-----+   +--------+   +-----+" << endl;
+        cout << "|  S  |   |  F  |   |  FM  |   |  M  |   | KFF_CB |   |  S  |" << endl;
+        cout << "| (" << source_degree << ") +-->+ (" << filter_degree << ") +-->+  (" << flatmap_degree << ") +-->+ (" << map_degree << ") +-->+  (" << kff_degree << ")   +-->+ (1) |" << endl;
+        cout << "+-----+   +-----+   +------+   +-----+   +--------+   +-----+" << endl;
         // prepare the test
-        PipeGraph graph("test_kf_cb_gpu", Mode::DETERMINISTIC);
-#if 0 // the version below is an example using CUDA 11 (now supporting C++17 in host code)
-      	// source
-        Source_Functor source_functor(stream_len, n_keys);
-        Source source = Source_Builder(source_functor).withName("source")
-                                .withParallelism(source_degree)
-                                .build();
-        MultiPipe &mp = graph.add_source(source);
-        // filter
-        Filter_Functor filter_functor;
-        Filter filter = Filter_Builder(filter_functor).withName("filter")
-                                .withParallelism(filter_degree)
-                                .build();
-        mp.chain(filter);
-        // flatmap
-        FlatMap_Functor flatmap_functor;
-        FlatMap flatmap = FlatMap_Builder(flatmap_functor).withName("flatmap")
-                                    .withParallelism(flatmap_degree)
-                                    .build();
-        mp.chain(flatmap);
-        // map
-        Map_Functor map_functor;
-        Map map = Map_Builder(map_functor).withName("map")
-                            .withParallelism(map_degree)
-                            .build();
-        mp.chain(map);
-        // kf
-        // Key_Farm function (non-incremental) on GPU
-        auto kf_function_gpu = [] __host__ __device__ (size_t wid, const tuple_t *data, size_t size, output_t *res, char *memory, size_t size_mem) {
-            long sum = 0;
-            for (size_t i=0; i<size; i++) {
-                sum += data[i].value;
-            }
-            res->value = sum;
-        };
-        Key_Farm_GPU kf = KeyFarmGPU_Builder(kf_function_gpu).withName("kf")
-                            .withParallelism(kf_degree)
-                            .withCBWindows(win_len, win_slide)
-                            .withBatch(batch_len)
-                            .build();
-        mp.add(kf);
-        // sink
-        Sink_Functor sink_functor(n_keys);
-        Sink sink = Sink_Builder(sink_functor).withName("sink")
-                            .withParallelism(1)
-                            .build();
-        mp.chain_sink(sink);
-#else // this is the default version with CUDA < 11 (supporting C++14 in host code)
+        PipeGraph graph("test_kff_cb_gpu_oop");
         // source
         Source_Functor source_functor(stream_len, n_keys);
         auto *source = Source_Builder<decltype(source_functor)>(source_functor)
@@ -175,22 +128,26 @@ int main(int argc, char *argv[])
                             .withParallelism(map_degree)
                             .build_ptr();
         mp.chain(*map);
-        // kf
-        // Key_Farm function (non-incremental) on GPU
-        auto kf_function_gpu = [] __host__ __device__ (size_t wid, const tuple_t *data, size_t size, output_t *res, char *memory, size_t size_mem) {
-            long sum = 0;
-            for (size_t i=0; i<size; i++) {
-                sum += data[i].value;
-            }
-            res->value = sum;
+        // kff
+        // user-defined lift function
+        auto liftFunction = [](const tuple_t &t, output_t &out) {
+            out.key = t.key;
+            out.id = t.id;
+            out.ts = t.ts;
+            out.value = t.value;
         };
-        auto *kf = KeyFarmGPU_Builder<decltype(kf_function_gpu)>(kf_function_gpu)
-                            .withName("kf")
-                            .withParallelism(kf_degree)
-                            .withCBWindows(win_len, win_slide)
-                            .withBatch(batch_len)
-                            .build_ptr();
-        mp.add(*kf);
+        // user-defined combine function
+        auto combineFunction = [] __host__ __device__ (const output_t &o1, const output_t &o2, output_t &out) {
+            out.value = o1.value + o2.value;
+        };
+        // creation of the Key_FFAT_GPU operator
+        auto *kff_gpu = KeyFFATGPU_Builder<decltype(liftFunction), decltype(combineFunction)>(liftFunction, combineFunction)
+                                    .withCBWindows(win_len, win_slide)
+                                    .withParallelism(kff_degree)
+                                    .withBatch(batch_len)
+                                    .withName("kff")
+                                    .build_ptr();
+        mp.add(*kff_gpu);
         // sink
         Sink_Functor sink_functor(n_keys);
         auto *sink = Sink_Builder<decltype(sink_functor)>(sink_functor)
@@ -198,15 +155,14 @@ int main(int argc, char *argv[])
                             .withParallelism(1)
                             .build_ptr();
         mp.chain_sink(*sink);
-#endif
         // run the application
         graph.run();
         if (i == 0) {
-            last_result = global_sum;
+            last_results = global_received;
             cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT_COLOR << endl;
         }
         else {
-            if (last_result == global_sum) {
+            if (last_results == global_received) {
                 cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT_COLOR << endl;
             }
             else {

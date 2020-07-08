@@ -88,6 +88,16 @@ private:
     bool used; // true if the Key_FFAT_GPU has been added/chained in a MultiPipe
     win_type_t winType; // type of windows (count-based or time-based)
 
+    // method to set the isRenumbering mode of the internal nodes
+    void set_isRenumbering()
+    {
+    	assert(winType == CB); // only count-based windows
+    	for (auto *node: this->getWorkers()) {
+    		win_seqffat_gpu_t *seq = static_cast<win_seqffat_gpu_t *>(node);
+    		seq->isRenumbering = true;
+    	}
+    }
+
 public:
     /** 
      *  \brief Constructor

@@ -37,8 +37,8 @@ using namespace std;
 using namespace chrono;
 using namespace wf;
 
-// global variable for the result
-extern long global_sum;
+// global variables
+extern long global_received;
 
 // main
 int main(int argc, char *argv[])
@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
     size_t n_keys = 1;
     size_t batch_len = 1;
     // initalize global variable
-    global_sum = 0;
+    global_received = 0;
     // arguments from command line
     if (argc != 13) {
         cout << argv[0] << " -r [runs] -l [stream_length] -k [n_keys] -w [win length] -s [win slide] -b [batch len]" << endl;
@@ -86,7 +86,7 @@ int main(int argc, char *argv[])
     int filter_degree, flatmap_degree, map_degree, kf_degree;
     size_t source_degree = dist6(rng);
     source_degree = 1;
-    long last_result = 0;
+    long last_results = 0;
     // executes the runs
     for (size_t i=0; i<runs; i++) {
         filter_degree = dist6(rng);
@@ -99,7 +99,7 @@ int main(int argc, char *argv[])
         cout << "| (" << source_degree << ") +-->+ (" << filter_degree << ") +-->+  (" << flatmap_degree << ") +-->+ (" << map_degree << ") +-->+  (" << kf_degree << ")  +-->+ (1) |" << endl;
         cout << "+-----+   +-----+   +------+   +-----+   +-------+   +-----+" << endl;
         // prepare the test
-        PipeGraph graph("test_kf_cb_gpu", Mode::DETERMINISTIC);
+        PipeGraph graph("test_kf_cb_gpu_oop");
 #if 0 // the version below is an example using CUDA 11 (now supporting C++17 in host code)
       	// source
         Source_Functor source_functor(stream_len, n_keys);
@@ -202,11 +202,11 @@ int main(int argc, char *argv[])
         // run the application
         graph.run();
         if (i == 0) {
-            last_result = global_sum;
+            last_results = global_received;
             cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT_COLOR << endl;
         }
         else {
-            if (last_result == global_sum) {
+            if (last_results == global_received) {
                 cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT_COLOR << endl;
             }
             else {

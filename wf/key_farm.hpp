@@ -206,6 +206,16 @@ private:
         }
     }
 
+    // method to set the isRenumbering mode of the internal nodes
+    void set_isRenumbering()
+    {
+    	assert(!isComplex && winType == CB); // only count-based windows without complex nested structures
+    	for (auto *node: kf_workers) {
+    		win_seq_t *seq = static_cast<win_seq_t *>(node);
+    		seq->isRenumbering = true;
+    	}
+    }
+
 public:
     /** 
      *  \brief Constructor I

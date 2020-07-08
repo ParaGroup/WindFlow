@@ -98,6 +98,7 @@ private:
         archive_t archive; // archive of tuples of this key
         std::vector<win_t> wins; // open windows of this key
         uint64_t emit_counter; // progressive counter (used if role is PLQ or MAP)
+        uint64_t next_ids; // progressive counter (used if isRenumbering is true)
         uint64_t next_lwid; // next window to be opened of this key (lwid)
         int64_t last_lwid; // last window closed of this key (lwid)
 
@@ -106,6 +107,7 @@ private:
                        uint64_t _emit_counter=0):
                        archive(_compare_func),
                        emit_counter(_emit_counter),
+                       next_ids(0),
                        next_lwid(0),
                        last_lwid(-1)
         {
@@ -117,6 +119,7 @@ private:
                        archive(move(_k.archive)),
                        wins(move(_k.wins)),
                        emit_counter(_k.emit_counter),
+                       next_ids(_k.next_ids),
                        next_lwid(_k.next_lwid),
                        last_lwid(_k.last_lwid) {}
     };
@@ -140,6 +143,7 @@ private:
     std::pair<size_t, size_t> map_indexes = std::make_pair(0, 1); // indexes useful is the role is MAP
     size_t dropped_tuples; // number of dropped tuples
     size_t eos_received; // number of received EOS messages
+    bool isRenumbering; // if true, the node assigns increasing identifiers to the input tuples (useful for count-based windows in DEFAULT mode)
 #if defined(TRACE_WINDFLOW)
     Stats_Record stats_record;
     double avg_td_us = 0;
@@ -199,7 +203,8 @@ public:
             isNIC(true),
             isRich(false),
             dropped_tuples(0),
-            eos_received(0)
+            eos_received(0),
+            isRenumbering(false)
     {
         init();
     }
@@ -228,7 +233,8 @@ public:
             isNIC(true),
             isRich(true),
             dropped_tuples(0),
-            eos_received(0)
+            eos_received(0),
+            isRenumbering(false)
     {
         init();
     }
@@ -257,7 +263,8 @@ public:
             isNIC(false),
             isRich(false),
             dropped_tuples(0),
-            eos_received(0)
+            eos_received(0),
+            isRenumbering(false)
     {
         init();
     }
@@ -286,7 +293,8 @@ public:
             isNIC(false),
             isRich(true),
             dropped_tuples(0),
-            eos_received(0)
+            eos_received(0),
+            isRenumbering(false)
     {
         init();
     }
@@ -324,6 +332,12 @@ public:
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
+        // check if isRenumbering is enabled (used for count-based windows in DEFAULT mode)
+        if (isRenumbering) {
+        	assert(winType == CB);
+        	id = key_d.next_ids++;
+        	t->setControlFields(std::get<0>(t->getControlFields()), id, std::get<2>(t->getControlFields()));
+        }
         // gwid of the first window of that key assigned to this Win_Seq
         uint64_t first_gwid_key = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) * config.n_outer + (config.id_outer - (hashcode % config.n_outer) + config.n_outer) % config.n_outer;
         // initial identifer/timestamp of the keyed sub-stream arriving at this Win_Seq

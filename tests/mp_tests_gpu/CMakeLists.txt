@@ -4,8 +4,8 @@ enable_language(CUDA)
 # compiler and flags
 set(CMAKE_CUDA_STANDARD 14)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-set(CMAKE_CUDA_FLAGS_DEBUG "-w --expt-extended-lambda -g -O0")
-set(CMAKE_CUDA_FLAGS_RELEASE "-w --expt-extended-lambda -O3")
+set(CMAKE_CUDA_FLAGS_DEBUG "-w --expt-extended-lambda -g -O0 -gencode arch=compute_30,code=sm_30 -Wno-deprecated-gpu-targets")
+set(CMAKE_CUDA_FLAGS_RELEASE "-w --expt-extended-lambda -O3 -gencode arch=compute_30,code=sm_30 -Wno-deprecated-gpu-targets")
 
 # macros to be provided to the compiler
 add_definitions(-DFF_BOUNDED_BUFFER)

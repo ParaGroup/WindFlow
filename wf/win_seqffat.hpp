@@ -88,6 +88,7 @@ private:
         uint64_t rcv_counter; // number of tuples received of this key
         uint64_t slide_counter; // counter of the tuples in the last slide
         uint64_t ts_rcv_counter; // counter of received tuples (count-based translation)
+        uint64_t next_ids; // progressive counter (used if isRenumbering is true)
         uint64_t next_lwid; // next window to be opened of this key (lwid)
 
         // Constructor I
@@ -101,6 +102,7 @@ private:
                        rcv_counter(0),
                        slide_counter(0),
                        ts_rcv_counter(0),
+                       next_ids(0),
                        next_lwid(0) {}
 
         // Constructor II
@@ -114,6 +116,7 @@ private:
                        rcv_counter(0),
                        slide_counter(0),
                        ts_rcv_counter(0),
+                       next_ids(0),
                        next_lwid(0) {}
 
         // move Constructor
@@ -126,6 +129,7 @@ private:
                        rcv_counter(_k.rcv_counter),
                        slide_counter(_k.slide_counter),
                        ts_rcv_counter(_k.ts_rcv_counter),
+                       next_ids(_k.next_ids),
                        next_lwid(_k.next_lwid) {}
     };
     winLift_func_t winLift_func; // lift function
@@ -146,6 +150,7 @@ private:
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     size_t dropped_tuples; // number of dropped tuples
     size_t eos_received; // number of received EOS messages
+    bool isRenumbering; // if true, the node assigns increasing identifiers to the input tuples (useful for count-based windows in DEFAULT mode)
 #if defined(TRACE_WINDFLOW)
     Stats_Record stats_record;
     double avg_td_us = 0;
@@ -212,7 +217,8 @@ public:
                 isRichLift(false),
                 isRichCombine(false),
                 dropped_tuples(0),
-                eos_received(0)
+                eos_received(0),
+                isRenumbering(false)
     {
         init();
     }
@@ -241,7 +247,8 @@ public:
                 isRichLift(true),
                 isRichCombine(false),
                 dropped_tuples(0),
-                eos_received(0)
+                eos_received(0),
+                isRenumbering(false)
     {
         init();
     }
@@ -270,7 +277,8 @@ public:
                 isRichLift(false),
                 isRichCombine(true),
                 dropped_tuples(0),
-                eos_received(0)
+                eos_received(0),
+                isRenumbering(false)
     {
         init();
     }
@@ -299,7 +307,8 @@ public:
                 isRichLift(true),
                 isRichCombine(true),
                 dropped_tuples(0),
-                eos_received(0)
+                eos_received(0),
+                isRenumbering(false)
     {
         init();
     }
@@ -353,6 +362,12 @@ public:
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
+        // check if isRenumbering is enabled (used for count-based windows in DEFAULT mode)
+        if (isRenumbering) {
+        	assert(winType == CB);
+        	id = key_d.next_ids++;
+        	t->setControlFields(std::get<0>(t->getControlFields()), id, std::get<2>(t->getControlFields()));
+        }
         // gwid of the first window of that key assigned to this Win_SeqFFAT
         uint64_t first_gwid_key = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) * config.n_outer + (config.id_outer - (hashcode % config.n_outer) + config.n_outer) % config.n_outer;
         key_d.rcv_counter++;
