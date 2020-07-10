@@ -240,8 +240,8 @@ env.run(); // &lt;- run the app
           </code></pre>
           <p class="lead">The <code>PipeGraph</code> environment is created with a string provided to its constructor as the name of the application (useful for logging purposes, enabled with the compilation macro <code>TRACE_WINDFLOW</code> enabled). The second parameter of the <code>PipeGraph</code> is the <b> execution mode</b>. Two modes are supported:</p>
           <ul>
-            <li><b>DEFAULT</b>: this mode does not provide any guarantee of the ordering of inputs received by any replica of an operator in the application;</li>
-            <li><b>DETERMINISTIC</b>: this modes guarantees that every replica of each operator in the application always receives inputs ordered by timestamp.</li>
+            <li><b>DEFAULT</b>: this mode does not provide any guarantee of the ordering of inputs received by any replica of an operator in the application. It can be used if ordering is not really a matter for the application. Actually, this is the only available execution mode if sources cannot generate in-order timestamps (e.g., because they already receive disordered data from external data producers);</li>
+            <li><b>DETERMINISTIC</b>: this modes guarantees that every replica of each operator in the application always receives inputs ordered by timestamp. The general precondition to correctly use this execution mode is that all sources of the applications are able to generate the input streams with in-order timestamps.</li>
           </ul>
           <p class="lead">The application has the following structure:</p>
           <p style="text-align:center;"><img src="imgs/multipipe_1.jpg" width="90%" align="middle"/></p>
