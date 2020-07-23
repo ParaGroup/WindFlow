@@ -46,7 +46,9 @@
 #include<window.hpp>
 #include<context.hpp>
 #include<iterable.hpp>
-#include<stats_record.hpp>
+#if defined (TRACE_WINDFLOW)
+    #include<stats_record.hpp>
+#endif
 #include<stream_archive.hpp>
 
 namespace wf {
@@ -141,10 +143,10 @@ private:
     role_t role; // role of the Win_Seq
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     std::pair<size_t, size_t> map_indexes = std::make_pair(0, 1); // indexes useful is the role is MAP
-    size_t dropped_tuples; // number of dropped tuples
+    size_t ignored_tuples; // number of ignored tuples
     size_t eos_received; // number of received EOS messages
     bool isRenumbering; // if true, the node assigns increasing identifiers to the input tuples (useful for count-based windows in DEFAULT mode)
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
     Stats_Record stats_record;
     double avg_td_us = 0;
     double avg_ts_us = 0;
@@ -202,7 +204,7 @@ public:
             role(_role),
             isNIC(true),
             isRich(false),
-            dropped_tuples(0),
+            ignored_tuples(0),
             eos_received(0),
             isRenumbering(false)
     {
@@ -232,7 +234,7 @@ public:
             role(_role),
             isNIC(true),
             isRich(true),
-            dropped_tuples(0),
+            ignored_tuples(0),
             eos_received(0),
             isRenumbering(false)
     {
@@ -262,7 +264,7 @@ public:
             role(_role),
             isNIC(false),
             isRich(false),
-            dropped_tuples(0),
+            ignored_tuples(0),
             eos_received(0),
             isRenumbering(false)
     {
@@ -292,7 +294,7 @@ public:
             role(_role),
             isNIC(false),
             isRich(true),
-            dropped_tuples(0),
+            ignored_tuples(0),
             eos_received(0),
             isRenumbering(false)
     {
@@ -302,8 +304,8 @@ public:
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init() override
     {
-#if defined(TRACE_WINDFLOW)
-            stats_record = Stats_Record(name, "replica_" + std::to_string(this->get_my_id()), false);
+#if defined (TRACE_WINDFLOW)
+            stats_record = Stats_Record(name, std::to_string(this->get_my_id()), true, false);
 #endif
         return 0;
     }
@@ -311,7 +313,7 @@ public:
     // svc method (utilized by the FastFlow runtime)
     result_t *svc(input_t *wt) override
     {
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
         startTS = current_time_nsecs();
         if (stats_record.inputs_received == 0) {
             startTD = current_time_nsecs();
@@ -334,9 +336,9 @@ public:
         Key_Descriptor &key_d = (*it).second;
         // check if isRenumbering is enabled (used for count-based windows in DEFAULT mode)
         if (isRenumbering) {
-        	assert(winType == CB);
-        	id = key_d.next_ids++;
-        	t->setControlFields(std::get<0>(t->getControlFields()), id, std::get<2>(t->getControlFields()));
+            assert(winType == CB);
+            id = key_d.next_ids++;
+            t->setControlFields(std::get<0>(t->getControlFields()), id, std::get<2>(t->getControlFields()));
         }
         // gwid of the first window of that key assigned to this Win_Seq
         uint64_t first_gwid_key = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) * config.n_outer + (config.id_outer - (hashcode % config.n_outer) + config.n_outer) % config.n_outer;
@@ -348,11 +350,11 @@ public:
         if (role == WLQ || role == REDUCE) {
             initial_id = initial_inner;
         }
-        // check if the tuple must be dropped
+        // check if the tuple must be ignored
         uint64_t min_boundary = (key_d.last_lwid >= 0) ? win_len + (key_d.last_lwid  * slide_len) : 0;
         if (id < initial_id + min_boundary) {
             if (key_d.last_lwid >= 0) {
-                dropped_tuples++;
+                ignored_tuples++;
             }
             deleteTuple<tuple_t, input_t>(wt);
             return this->GO_ON;
@@ -454,7 +456,7 @@ public:
                     key_d.emit_counter++;
                 }
                 this->ff_send_out(out);
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
                 stats_record.outputs_sent++;
                 stats_record.bytes_sent += sizeof(result_t);
 #endif
@@ -464,7 +466,7 @@ public:
         wins.erase(wins.begin(), wins.begin() + cnt_fired);
         // delete the received tuple
         deleteTuple<tuple_t, input_t>(wt);
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
         endTS = current_time_nsecs();
         endTD = current_time_nsecs();
         double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
@@ -534,7 +536,7 @@ public:
                     (k.second).emit_counter++;
                 }
                 this->ff_send_out(out);
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
                 stats_record.outputs_sent++;
                 stats_record.bytes_sent += sizeof(result_t);
 #endif
@@ -547,19 +549,15 @@ public:
     {
         // call the closing function
         closing_func(context);
-#if defined(TRACE_WINDFLOW)
-        // dump log file with statistics
-        stats_record.dump_toFile();
-#endif
     }
 
-    // method to return the number of dropped tuples by this node
-    size_t getNumDroppedTuples() const
+    // method to return the number of ignored tuples by this node
+    size_t getNumIgnoredTuples() const
     {
-        return dropped_tuples;
+        return ignored_tuples;
     }
 
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
     // method to return a copy of the Stats_Record of this node
     Stats_Record get_StatsRecord() const
     {

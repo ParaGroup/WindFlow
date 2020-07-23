@@ -15,7 +15,8 @@
  */
 
 /*  
- *  Test of the MultiPipe construct with key attribute implemented by a std::string:
+ *  Test of the MultiPipe construct with KF, count-based windows and DETERMINISTIC mode.
+ *  The key attribute is implemented by a string.
  *  
  *  +-----+   +-----+   +------+   +-----+   +-------+   +-----+
  *  |  S  |   |  F  |   |  FM  |   |  M  |   | KF_CB |   |  S  |

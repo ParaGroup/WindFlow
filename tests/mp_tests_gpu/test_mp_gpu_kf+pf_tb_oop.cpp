@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Test of the MultiPipe construct with out-of-order streams:
+ *  Test of the MultiPipe construct with KF(PF), time-based windows and DEFAULT mode.
  *  
  *  +------------------------------------------------------------------+
  *  |                                             KF_TB(*)             |
@@ -171,7 +171,7 @@ int main(int argc, char *argv[])
         auto *pf = PaneFarmGPU_Builder<decltype(plq_function_gpu), decltype(wlq_function)>(plq_function_gpu, wlq_function)
                             .withName("pf")
                             .withParallelism(plq_degree, wlq_degree)
-                            .withTBWindows(microseconds(win_len), microseconds(win_slide), /* delay */ seconds(100)) // huge delay because the timestamps in this example does not respect the real generation speed
+                            .withTBWindows(microseconds(win_len), microseconds(win_slide), /* delay */ seconds(1)) // huge delay because the timestamps in this example does not respect the real generation speed
                             .withBatch(batch_len)
                             .prepare4Nesting()
                             .build_ptr();
@@ -193,16 +193,16 @@ int main(int argc, char *argv[])
         if (i == 0) {
             last_results = global_received;
             cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT_COLOR << endl;
-            cout << "Number of dropped tuples: " << kf->getNumDroppedTuples() << endl;
+            cout << "Number of ignored tuples: " << kf->getNumIgnoredTuples() << endl;
         }
         else {
             if (last_results == global_received) {
                 cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT_COLOR << endl;
-                cout << "Number of dropped tuples: " << kf->getNumDroppedTuples() << endl;
+                cout << "Number of ignored tuples: " << kf->getNumIgnoredTuples() << endl;
             }
             else {
                 cout << "Result is --> " << RED << "FAILED" << "!!!" << DEFAULT_COLOR << endl;
-                cout << "Number of dropped tuples: " << kf->getNumDroppedTuples() << endl;
+                cout << "Number of ignored tuples: " << kf->getNumIgnoredTuples() << endl;
             }
         }
     }

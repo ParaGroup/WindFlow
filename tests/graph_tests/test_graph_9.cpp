@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Test 9 of general graphs of MultiPipe instances:
+ *  Test 9 of general graphs of MultiPipe instances.
  *  
  *                                +---------------------+
  *                                |  +-----+   +-----+  |

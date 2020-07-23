@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Test of the MultiPipe construct with out-of-order streams:
+ *  Test of the MultiPipe construct with WMR, time-based windows and DEFAULT mode.
  *  
  *  +-----+   +-----+   +------+   +-----+   +--------+   +-----+
  *  |  S  |   |  F  |   |  FM  |   |  M  |   | WMR_TB |   |  S  |
@@ -144,16 +144,16 @@ int main(int argc, char *argv[])
         if (i == 0) {
             last_results = global_received;
             cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT_COLOR << endl;
-            cout << "Number of dropped tuples: " << wmr.getNumDroppedTuples() << endl;
+            cout << "Number of ignored tuples: " << wmr.getNumIgnoredTuples() << endl;
         }
         else {
             if (last_results == global_received) {
                 cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT_COLOR << endl;
-                cout << "Number of dropped tuples: " << wmr.getNumDroppedTuples() << endl;
+                cout << "Number of ignored tuples: " << wmr.getNumIgnoredTuples() << endl;
             }
             else {
                 cout << "Result is --> " << RED << "FAILED" << "!!!" << DEFAULT_COLOR << endl;
-                cout << "Number of dropped tuples: " << wmr.getNumDroppedTuples() << endl;
+                cout << "Number of ignored tuples: " << wmr.getNumIgnoredTuples() << endl;
             }
         }
     }

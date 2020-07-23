@@ -102,8 +102,8 @@ public:
             if (!isCombined) {
                 return t; // <- pseudo round-robin of FastFlow
                 // fixed round-robin
-            	// dest_w = (dest_w + 1) % n_dest;
-            	// this->ff_send_out_to(t, dest_w);
+                // dest_w = (dest_w + 1) % n_dest;
+                // this->ff_send_out_to(t, dest_w);
             }
             else {
                output_queue.push_back(std::make_pair(t, dest_w));

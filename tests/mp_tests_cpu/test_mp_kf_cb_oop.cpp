@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Test of the MultiPipe construct:
+ *  Test of the MultiPipe construct with KF, count-based windows and DEFAULT mode.
  *  
  *  +-----+   +-----+   +------+   +-----+   +-------+   +-----+
  *  |  S  |   |  F  |   |  FM  |   |  M  |   | KF_CB |   |  S  |

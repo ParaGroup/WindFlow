@@ -16,7 +16,7 @@
 
 /*  
  *  This test runs the graph below one time with a random number of replicas for each
- *  operator. Furthermore, it generates a graphviz representation of the application.
+ *  operator. It generates the tracing log files of the WindFlow library.
  *  
  *                                +---------------------+
  *                                |  +-----+   +-----+  |
@@ -247,7 +247,5 @@ int main(int argc, char *argv[])
     // run the application
     graph.run();
     cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT_COLOR << endl;
-    // generate the DOT graph of the application
-    graph.dump_DOTGraph();
     return 0;
 }

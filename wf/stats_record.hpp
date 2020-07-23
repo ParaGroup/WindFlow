@@ -19,12 +19,13 @@
  *  @author  Gabriele Mencagli
  *  @date    21/04/2020
  *  
- *  @brief Record of Statistics of an Operator Replica
+ *  @brief Record of Statistics of an operator replica
  *  
  *  @section Statistics Record (Description)
  *  
  *  This file implements the record of statistics gathered by a specific
- *  replica of an operator within a WindFlow application.
+ *  replica of an operator within a WindFlow application. The file is in
+ *  JSON format.
  */ 
 
 #ifndef STATS_RECORD_H
@@ -34,19 +35,14 @@
 #include<chrono>
 #include<fstream>
 #include<iomanip>
+#include<sstream>
 #include<time.h>
+#include<rapidjson/prettywriter.h>
 #include<basic.hpp>
 
 namespace wf {
 
-/** 
- *  \class Stats_Record
- *  
- *  \brief Record of statistics gathered by a replica of an operator
- *  
- *  This class contains a set of statistics gathered from the beginning of the
- *  execution by a specific replica of an operator within a WindFlow application.
- */ 
+// class Stats_Record
 class Stats_Record
 {
 private:
@@ -63,23 +59,25 @@ private:
     }
 
 public:
-    std::string nameOP; ///< name of the operator where this replica belongs to
-    std::string nameReplica; ///< name of the replica
-    std::string start_time_string; ///< starting date and time of the replica
-    std::chrono::time_point<std::chrono::system_clock> start_time; ///< starting time of the replica
-    uint64_t inputs_received = 0; ///< inputs received by the replica
-    uint64_t bytes_received = 0; ///< bytes received by the replica
-    uint64_t outputs_sent = 0; ///< outputs sent by the replica
-    uint64_t bytes_sent = 0; ///< bytes sent by the replica
-    std::chrono::duration<double, std::micro> service_time; ///< average ideal service time of the replica
-    std::chrono::duration<double, std::micro> eff_service_time; ///< effectuve service time of the replica
-    bool isGPUReplica; ///< true if the replica offloads the processing on a GPU device
-    /// the following variables are meaningful if isGPUReplica is true
-    uint64_t num_kernels = 0; ///< number of kernels calls
-    uint64_t bytes_copied_hd = 0; ///< bytes copied from Host to Device
-    uint64_t bytes_copied_dh = 0; ///< bytes copied from Device to Host
+    std::string nameOP; // name of the operator where this replica belongs to
+    std::string nameReplica; // name of the replica
+    std::string start_time_string; // starting date and time of the replica
+    std::chrono::time_point<std::chrono::system_clock> start_time; // starting time of the replica
+    uint64_t inputs_received = 0; // inputs received by the replica
+    uint64_t inputs_ignored = 0; // number of ignored inputs
+    uint64_t bytes_received = 0; // bytes received by the replica
+    uint64_t outputs_sent = 0; // outputs sent by the replica
+    uint64_t bytes_sent = 0; // bytes sent by the replica
+    std::chrono::duration<double, std::micro> service_time; // average ideal service time of the replica (microseconds)
+    std::chrono::duration<double, std::micro> eff_service_time; // effective service time of the replica (microseconds)
+    bool isWinOP; // true if the replica belongs to a window-based operator
+    bool isGPUReplica; // true if the replica offloads the processing on a GPU device
+    // the following variables are meaningful if isGPUReplica is true
+    uint64_t num_kernels = 0; // number of kernels calls
+    uint64_t bytes_copied_hd = 0; // bytes copied from Host to Device
+    uint64_t bytes_copied_dh = 0; // bytes copied from Device to Host
 
-    /// Contructor I
+    // Contructor I
     Stats_Record()
     {
         nameOP = "N/A";
@@ -89,69 +87,60 @@ public:
         isGPUReplica = false;
     }
 
-    /** 
-     *  \brief Constructor II
-     *  
-     *  \param _nameOP name of the operator where this replica belongs to
-     *  \param _nameReplica name of the replica
-     *  \param _isGPUReplica true if the replica belongs to a GPU operator, false otherwise
-     */ 
-    Stats_Record(std::string _nameOP, std::string _nameReplica, bool _isGPUReplica):
+    // Contructor II
+    Stats_Record(std::string _nameOP,
+                 std::string _nameReplica,
+                 bool _isWinOP,
+                 bool _isGPUReplica):
                  nameOP(_nameOP),
                  nameReplica(_nameReplica),
+                 isWinOP(_isWinOP),
                  isGPUReplica(_isGPUReplica)
     {
         start_time_string = return_current_time_and_date();
         start_time = std::chrono::system_clock::now();
     }
 
-    /// Method to dump the statistics of the replica in a log file
-    void dump_toFile()
+    // Method to append the statistics of the operator replica (JSON format)
+    void append_Stats(rapidjson::PrettyWriter<rapidjson::StringBuffer> &writer)
     {
-        std::ofstream logfile;
-#if defined(LOG_DIR)
-        std::string log_dir = std::string(STRINGIFY(LOG_DIR));
-        std::string filename = std::string(STRINGIFY(LOG_DIR)) + "/" + std::to_string(getpid()) + "_" + nameOP + "_" + nameReplica + ".log";
-#else
-        std::string log_dir = std::string("log");
-        std::string filename = "log/" + std::to_string(getpid()) + "_" + nameOP + "_" + nameReplica + ".log";
-#endif
-        // create the log directory
-        if (mkdir(log_dir.c_str(), 0777) != 0) {
-            struct stat st;
-            if((stat(log_dir.c_str(), &st) != 0) || !S_ISDIR(st.st_mode)) {
-                std::cerr << RED << "WindFlow Error: directory for log files cannot be created" << DEFAULT_COLOR << std::endl;
-                exit(EXIT_FAILURE);
-            }
-        }
-        logfile.open(filename);
         // get the ending time of this replica
         auto end_time = std::chrono::system_clock::now();
         // compute the execution length
         std::chrono::duration<double> elapsed_seconds = end_time - start_time;
-        // write statistics in the log file
-        std::ostringstream stream;
-        stream << "***************************************************************************\n";
-        stream << "Operator name: " << nameOP << "\n";
-        stream << "Replica name: " << nameReplica << "\n";
-        stream << "Starting date and time: " << start_time_string << "\n";
-        stream << "Execution duration (seconds): " << elapsed_seconds.count() << "\n";
-        stream << "\n";
-        stream << "Inputs received: " << inputs_received << "\n";
-        stream << "Bytes received: " << bytes_received << "\n";
-        stream << "Outputs sent: " << outputs_sent << "\n";
-        stream << "Bytes sent: " << bytes_sent << "\n";
-        stream << "Service time (usec): " << service_time.count() << "\n";
-        stream << "Effective service time (usec): " << eff_service_time.count() << "\n";
-        if (isGPUReplica) {
-            stream << "\n";
-            stream << "Kernels launched: " << num_kernels << "\n";
-            stream << "Bytes copied (Host->Device): " << bytes_copied_hd << "\n";
-            stream << "Bytes copied (Device->Host): " << bytes_copied_dh << "\n";
+        // append the statistics of this operator replica
+        writer.StartObject();
+        writer.Key("Replica_id");
+        writer.String(nameReplica.c_str());
+        writer.Key("Starting_time");
+        writer.String(start_time_string.c_str());
+        writer.Key("Running_time_sec");
+        writer.Double(elapsed_seconds.count());
+        writer.Key("Inputs_received");
+        writer.Uint64(inputs_received);
+        if (isWinOP) {
+            writer.Key("Inputs_ingored");
+            writer.Uint64(inputs_ignored);
         }
-        stream << "***************************************************************************\n";
-        logfile << stream.str();
-        logfile.close();
+        writer.Key("Bytes_received");
+        writer.Uint64(bytes_received);
+        writer.Key("Ouputs_sent");
+        writer.Uint64(outputs_sent);
+        writer.Key("Bytes_sent");
+        writer.Uint64(bytes_sent);
+        writer.Key("Service_time_usec");
+        writer.Double(service_time.count());
+        writer.Key("Eff_Service_time_usec");
+        writer.Double(eff_service_time.count());
+        if (isGPUReplica) {
+            writer.Key("Kernels_launched");
+            writer.Uint64(num_kernels);
+            writer.Key("Bytes_H2D");
+            writer.Uint64(bytes_copied_hd);
+            writer.Key("Bytes_D2H");
+            writer.Uint64(bytes_copied_dh);
+        }
+        writer.EndObject();
     }
 };
 

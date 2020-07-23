@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Test of the MultiPipe construct:
+ *  Test of the MultiPipe construct with PF, count-based windows and DETERMINISTIC mode.
  *  
  *  +-----+   +-----+   +------+   +-----+   +-------+   +-----+
  *  |  S  |   |  F  |   |  FM  |   |  M  |   | PF_CB |   |  S  |

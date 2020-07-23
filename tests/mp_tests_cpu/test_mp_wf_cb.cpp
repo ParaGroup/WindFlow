@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Test of the MultiPipe construct:
+ *  Test of the MultiPipe construct with WF, count-based windows and DETERMINISTIC mode.
  *  
  *  +-----+   +-----+   +------+   +-----+   +-------+   +-----+
  *  |  S  |   |  F  |   |  FM  |   |  M  |   | WF_CB |   |  S  |

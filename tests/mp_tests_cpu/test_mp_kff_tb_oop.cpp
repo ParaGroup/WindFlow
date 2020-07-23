@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Test of the MultiPipe construct with out-of-order streams:
+ *  Test of the MultiPipe construct with KFF, time-based windows and DEFAULT mode.
  *  
  *  +-----+   +-----+   +------+   +-----+   +--------+   +-----+
  *  |  S  |   |  F  |   |  FM  |   |  M  |   | KFF_TB |   |  S  |
@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
         mp.chain(map);
         // kff
         Key_FFAT kff = KeyFFAT_Builder(liftFunction, combineFunction)
-                                    .withTBWindows(microseconds(win_len), microseconds(win_slide), seconds(1))
+                                    .withTBWindows(microseconds(win_len), microseconds(win_slide), /* delay */ seconds(1)) // huge delay because the timestamps in this example does not respect the real generation speed
                                     .withParallelism(kff_degree)
                                     .withName("kff")
                                     .build();
@@ -142,16 +142,16 @@ int main(int argc, char *argv[])
         if (i == 0) {
             last_results = global_received;
             cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT_COLOR << endl;
-            cout << "Number of dropped tuples: " << kff.getNumDroppedTuples() << endl;
+            cout << "Number of ignored tuples: " << kff.getNumIgnoredTuples() << endl;
         }
         else {
             if (last_results == global_received) {
                 cout << "Result is --> " << GREEN << "OK" << "!!!" << DEFAULT_COLOR << endl;
-                cout << "Number of dropped tuples: " << kff.getNumDroppedTuples() << endl;
+                cout << "Number of ignored tuples: " << kff.getNumIgnoredTuples() << endl;
             }
             else {
                 cout << "Result is --> " << RED << "FAILED" << "!!!" << DEFAULT_COLOR << endl;
-                cout << "Number of dropped tuples: " << kff.getNumDroppedTuples() << endl;
+                cout << "Number of ignored tuples: " << kff.getNumIgnoredTuples() << endl;
             }
         }
     }

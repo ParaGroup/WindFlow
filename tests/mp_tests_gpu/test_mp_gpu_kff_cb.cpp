@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Test of the MultiPipe construct:
+ *  Test of the MultiPipe construct with KFF, count-based windows and DETERMINISTIC mode.
  *  
  *  +-----+   +-----+   +------+   +-----+   +--------+   +-----+
  *  |  S  |   |  F  |   |  FM  |   |  M  |   | KFF_CB |   |  S  |

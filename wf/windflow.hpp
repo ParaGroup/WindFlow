@@ -44,6 +44,7 @@
 #include<key_ffat.hpp>
 #include<pane_farm.hpp>
 #include<win_mapreduce.hpp>
+#include<multipipe.hpp>
 #include<pipegraph.hpp>
 #include<sink.hpp>
 

@@ -115,6 +115,9 @@ private:
     size_t outer_parallelism; // number of complex replicas within the Win_Farm
     size_t inner_parallelism_1; // first parallelism of the inner operators
     size_t inner_parallelism_2; // second parallelism of the inner operators
+    uint64_t win_len; // window length (no. of tuples or in time units)
+    uint64_t slide_len; // slide length (no. of tuples or in time units)
+    uint64_t triggering_delay; // triggering delay in time units (meaningful for TB windows only)
     win_type_t winType; // type of windows (count-based or time-based)
     std::vector<ff_node *> wf_workers; // vector of pointers to the Win_Farm workers (Win_Seq or Pane_Farm or Win_MapReduce instances)
 
@@ -142,6 +145,9 @@ private:
              outer_parallelism(0), // not meaningful
              inner_parallelism_1(0), // not meaningful
              inner_parallelism_2(0), // not meaningful
+             win_len(_win_len),
+             slide_len(_slide_len),
+             triggering_delay(_triggering_delay),
              winType(_winType)
     {
         // check the validity of the windowing parameters
@@ -283,6 +289,9 @@ public:
              outer_parallelism(_num_replicas),
              inner_parallelism_1(_pf.plq_parallelism),
              inner_parallelism_2(_pf.wlq_parallelism),
+             win_len(_win_len),
+             slide_len(_slide_len),
+             triggering_delay(_triggering_delay),
              winType(_winType)
     {
         // check the validity of the windowing parameters
@@ -400,6 +409,9 @@ public:
              outer_parallelism(_num_replicas),
              inner_parallelism_1(_wmr.map_parallelism),
              inner_parallelism_2(_wmr.reduce_parallelism),
+             win_len(_win_len),
+             slide_len(_slide_len),
+             triggering_delay(_triggering_delay),
              winType(_winType)
     {
         // check the validity of the windowing parameters
@@ -484,42 +496,6 @@ public:
     }
 
     /** 
-     *  \brief Get the name of the Win_Farm
-     *  \return name of the Win_Farm
-     */ 
-    std::string getName() const override
-    {
-        return name;
-    }
-
-    /** 
-     *  \brief Get the total parallelism within the Win_Farm
-     *  \return total parallelism within the Win_Farm
-     */ 
-    size_t getParallelism() const override
-    {
-        return parallelism;
-    }
-
-    /** 
-     *  \brief Return the routing mode of inputs to the Win_Farm
-     *  \return routing mode (always COMPLEX for the Win_Farm)
-     */ 
-    routing_modes_t getRoutingMode() const override
-    {
-        return COMPLEX;
-    }
-
-    /** 
-     *  \brief Check whether the Win_Farm has been used in a MultiPipe
-     *  \return true if the Win_Farm has been added/chained to an existing MultiPipe
-     */ 
-    bool isUsed() const override
-    {
-        return used;
-    }
-
-    /** 
      *  \brief Check whether the Win_Farm has been instantiated with complex operators inside
      *  \return true if the Win_Farm has complex operators inside
      */ 
@@ -586,28 +562,28 @@ public:
     }
 
     /** 
-     *  \brief Get the number of dropped tuples by the Win_Farm
-     *  \return number of tuples dropped during the processing by the Win_Farm
+     *  \brief Get the number of ignored tuples by the Win_Farm
+     *  \return number of tuples ignored during the processing by the Win_Farm
      */ 
-    size_t getNumDroppedTuples() const
+    size_t getNumIgnoredTuples() const
     {
         size_t count = 0;
         if (this->getInnerType() == SEQ_CPU) {
             for (auto *w: wf_workers) {
                 auto *seq = static_cast<win_seq_t *>(w);
-                count += seq->getNumDroppedTuples();
+                count += seq->getNumIgnoredTuples();
             }
         }
         else if (this->getInnerType() == PF_CPU) {
             for (auto *w: wf_workers) {
                 auto *pf = static_cast<panewrap_farm_t *>(w);
-                count += pf->getNumDroppedTuples();
+                count += pf->getNumIgnoredTuples();
             }
         }
         else if (this->getInnerType() == WMR_CPU) {
             for (auto *w: wf_workers) {
                 auto *wmr = static_cast<winwrap_map_t *>(w);
-                count += wmr->getNumDroppedTuples();
+                count += wmr->getNumIgnoredTuples();
             }
         }
         else {
@@ -617,42 +593,130 @@ public:
     }
 
     /** 
-     *  \brief Get the Stats_Record of each replica within the Win_Farm
-     *  \return vector of Stats_Record objects
+     *  \brief Get the name of the Win_Farm
+     *  \return name of the Win_Farm
      */ 
-    std::vector<Stats_Record> get_StatsRecords() const override
+    std::string getName() const override
     {
-#if !defined(TRACE_WINDFLOW)
-        std::cerr << YELLOW << "WindFlow Warning: statistics are not enabled, compile with -DTRACE_WINDFLOW" << DEFAULT_COLOR << std::endl;
-        return {};
+        return name;
+    }
+
+    /** 
+     *  \brief Get the total parallelism within the Win_Farm
+     *  \return total parallelism within the Win_Farm
+     */ 
+    size_t getParallelism() const override
+    {
+        return parallelism;
+    }
+
+    /** 
+     *  \brief Return the routing mode of inputs to the Win_Farm
+     *  \return routing mode (always COMPLEX for the Win_Farm)
+     */ 
+    routing_modes_t getRoutingMode() const override
+    {
+        return COMPLEX;
+    }
+
+    /** 
+     *  \brief Check whether the Win_Farm has been used in a MultiPipe
+     *  \return true if the Win_Farm has been added/chained to an existing MultiPipe
+     */ 
+    bool isUsed() const override
+    {
+        return used;
+    }
+
+#if defined (TRACE_WINDFLOW)
+    /// Dump the log file (JSON format) in the LOG_DIR directory
+    void dump_LogFile() const override
+    {
+        // create and open the log file in the LOG_DIR directory
+        std::ofstream logfile;
+#if defined (LOG_DIR)
+        std::string log_dir = std::string(STRINGIFY(LOG_DIR));
+        std::string filename = std::string(STRINGIFY(LOG_DIR)) + "/" + std::to_string(getpid()) + "_" + name + ".json";
 #else
-        std::vector<Stats_Record> records;
+        std::string log_dir = std::string("log");
+        std::string filename = "log/" + std::to_string(getpid()) + "_" + name + ".json";
+#endif
+        // create the log directory
+        if (mkdir(log_dir.c_str(), 0777) != 0) {
+            struct stat st;
+            if((stat(log_dir.c_str(), &st) != 0) || !S_ISDIR(st.st_mode)) {
+                std::cerr << RED << "WindFlow Error: directory for log files cannot be created" << DEFAULT_COLOR << std::endl;
+                exit(EXIT_FAILURE);
+            }
+        }
+        logfile.open(filename);
+        // create the rapidjson writer
+        rapidjson::StringBuffer buffer;
+        rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
+        // append the statistics of this operator
+        this->append_Stats(writer);
+        // serialize the object to file
+        logfile << buffer.GetString();
+        logfile.close();
+    }
+
+    // append the statistics of this operator
+    void append_Stats(rapidjson::PrettyWriter<rapidjson::StringBuffer> &writer) const override
+    {
+        // create the header of the JSON file
+        writer.StartObject();
+        writer.Key("Operator_name");
+        writer.String(name.c_str());
+        writer.Key("Operator_type");
+        writer.String("Win_Farm");
+        writer.Key("Distribution");
+        writer.String("COMPLEX");
+        writer.Key("Window_type");
+        if (winType == CB) {
+            writer.String("count-based");
+        }
+        else {
+            writer.String("time-based");
+            writer.Key("Window_delay");
+            writer.Uint(triggering_delay);  
+        }
+        writer.Key("Window_length");
+        writer.Uint(win_len);
+        writer.Key("Window_slide");
+        writer.Uint(slide_len);
+        if (!this->isComplexNesting()) {
+            writer.Key("Parallelism");
+            writer.Uint(parallelism);
+        }
+        else {
+            writer.Key("Parallelism");
+            writer.Uint(this->getNumComplexReplicas());         
+        }
+        writer.Key("Replicas");
+        writer.StartArray();
         if (this->getInnerType() == SEQ_CPU) {
             for (auto *w: wf_workers) {
                 auto *seq = static_cast<win_seq_t *>(w);
-                records.push_back(seq->get_StatsRecord());
+                Stats_Record record = seq->get_StatsRecord();
+                record.append_Stats(writer);
             }
         }
         else if (this->getInnerType() == PF_CPU) {
             for (auto *w: wf_workers) {
                 auto *pf = static_cast<panewrap_farm_t *>(w);
-                auto v = pf->get_StatsRecords();
-                records.insert(records.end(), v.begin(), v.end());
+                pf->append_Stats(writer);
             }
         }
         else if (this->getInnerType() == WMR_CPU) {
             for (auto *w: wf_workers) {
                 auto *wmr = static_cast<winwrap_map_t *>(w);
-                auto v = wmr->get_StatsRecords();
-                records.insert(records.end(), v.begin(), v.end());
+                wmr->append_Stats(writer);
             }
         }
-        else {
-            abort();
-        }
-        return records;
-#endif      
+        writer.EndArray();
+        writer.EndObject();   
     }
+#endif
 
     /// deleted constructors/operators
     Win_Farm(const Win_Farm &) = delete; // copy constructor

@@ -100,16 +100,13 @@ private:
     // variables for correcting the bug (temporarily)
     std::priority_queue<input_t *, std::deque<input_t *>, Comparator> globalQueue;
     std::vector<uint64_t> globalMaxs;
-    key_t mykey;
-    long received;
 
 public:
     // Constructor
-    Ordering_Node(ordering_mode_t _mode=ID):
+    Ordering_Node(ordering_mode_t _mode=ID, std::atomic<unsigned long> *_atomic_num_dropped=nullptr):
                   eos_received(0),
                   mode(_mode),
-                  globalQueue(Comparator(_mode)),
-                  received(0) {}
+                  globalQueue(Comparator(_mode)) {}
 
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init() override
@@ -187,8 +184,9 @@ public:
                     auto *copy_wt = createWrapper<tuple_t, input_t, wrapper_tuple_t<tuple_t>>(copy, 1);
                     this->ff_send_out(copy_wt);
                 }
-                else
+                else {
                     this->ff_send_out(wnext);
+                }
             }
         }
         return this->GO_ON;
@@ -219,8 +217,9 @@ public:
                     auto *copy_wt = createWrapper<tuple_t, input_t, wrapper_tuple_t<tuple_t>>(copy, 1);
                     this->ff_send_out(copy_wt);
                 }
-                else
+                else {
                     this->ff_send_out(wnext);
+                }
             }
             for (auto &k: keyMap) {
                 auto key = k.first;
@@ -235,8 +234,9 @@ public:
                         auto *copy_wt = createWrapper<tuple_t, input_t, wrapper_tuple_t<tuple_t>>(copy, 1, true);
                         this->ff_send_out(copy_wt);
                     }
-                    else
+                    else {
                         this->ff_send_out(key_d.eos_marker);
+                    }
                 }
             }
         }
@@ -258,8 +258,9 @@ public:
                         auto *copy_wt = createWrapper<tuple_t, input_t, wrapper_tuple_t<tuple_t>>(copy, 1);
                         this->ff_send_out(copy_wt);
                     }
-                    else
+                    else {
                         this->ff_send_out(wnext);
+                    }
                 }
                 // send the most recent EOS marker of this key (if it exists)
                 if(key_d.eos_marker != nullptr) {
@@ -271,8 +272,9 @@ public:
                         auto *copy_wt = createWrapper<tuple_t, input_t, wrapper_tuple_t<tuple_t>>(copy, 1, true);
                         this->ff_send_out(copy_wt);
                     }
-                    else
+                    else {
                         this->ff_send_out(key_d.eos_marker);
+                    }
                 }
             }
         }

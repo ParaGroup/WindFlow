@@ -16,7 +16,7 @@
 
 /*  
  *  Data types and operator functors for running the MultiPipe tests on CPU
- *  (key attribute implemented by a std::string)
+ *  (key attribute implemented by a string).
  */ 
 
 // includes
@@ -57,16 +57,14 @@ struct tuple_t
             key(_key),
             id(_id),
             ts(_ts),
-            value(_value)
-    {}
+            value(_value) {}
 
     // default constructor
     tuple_t():
             key("undefined"),
             id(0),
             ts(0),
-            value(0)
-    {}
+            value(0) {}
 
     // getControlFields method
     tuple<string, uint64_t, uint64_t> getControlFields() const
@@ -99,16 +97,14 @@ struct output_t
              key(_key),
              id(_id),
              ts(_ts),
-             value(_value)
-    {}
+             value(_value) {}
 
     // default constructor
     output_t():
              key("undefined"),
              id(0),
              ts(0),
-             value(0)
-    {}
+             value(0) {}
 
     // getControlFields method
     tuple<string, uint64_t, uint64_t> getControlFields() const
@@ -173,10 +169,12 @@ public:
     bool operator()(tuple_t &t)
     {
         // drop odd numbers
-        if (t.value % 2 == 0)
+        if (t.value % 2 == 0) {
             return true;
-        else
+        }
+        else {
             return false;
+        }
     }
 };
 

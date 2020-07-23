@@ -86,16 +86,20 @@ private:
     std::string name; // name of the Key_FFAT_GPU
     size_t parallelism; // internal parallelism of the Key_FFAT_GPU
     bool used; // true if the Key_FFAT_GPU has been added/chained in a MultiPipe
+    uint64_t win_len; // window length (no. of tuples or in time units)
+    uint64_t slide_len; // slide length (no. of tuples or in time units)
+    uint64_t triggering_delay; // triggering delay in time units (meaningful for TB windows only)
+    size_t batch_len; // length of the batch in terms of no. of windows
     win_type_t winType; // type of windows (count-based or time-based)
 
     // method to set the isRenumbering mode of the internal nodes
     void set_isRenumbering()
     {
-    	assert(winType == CB); // only count-based windows
-    	for (auto *node: this->getWorkers()) {
-    		win_seqffat_gpu_t *seq = static_cast<win_seqffat_gpu_t *>(node);
-    		seq->isRenumbering = true;
-    	}
+        assert(winType == CB); // only count-based windows
+        for (auto *node: this->getWorkers()) {
+            win_seqffat_gpu_t *seq = static_cast<win_seqffat_gpu_t *>(node);
+            seq->isRenumbering = true;
+        }
     }
 
 public:
@@ -132,6 +136,10 @@ public:
                  name(_name),
                  parallelism(_parallelism),
                  used(false),
+                 win_len(_win_len),
+                 slide_len(_slide_len),
+                 triggering_delay(_triggering_delay),
+                 batch_len(_batch_len),
                  winType(_winType)
     {
         // check the validity of the windowing parameters
@@ -170,6 +178,30 @@ public:
     }
 
     /** 
+     *  \brief Get the window type (CB or TB) utilized by the Key_FFAT_GPU
+     *  \return adopted windowing semantics (count-based or time-based)
+     */ 
+    win_type_t getWinType() const
+    {
+        return winType;
+    }
+
+    /** 
+     *  \brief Get the number of ignored tuples by the Key_FFAT_GPU
+     *  \return number of tuples ignored during the processing by the Key_FFAT_GPU
+     */ 
+    size_t getNumIgnoredTuples() const
+    {
+        size_t count = 0;
+        auto workers = this->getWorkers();
+        for (auto *w: workers) {
+            auto *seq = static_cast<win_seqffat_gpu_t *>(w);
+            count += seq->getNumIgnoredTuples();
+        }
+        return count;
+    }
+
+    /** 
      *  \brief Get the name of the Key_FFAT_GPU
      *  \return string representing the name of the Key_FFAT_GPU
      */ 
@@ -205,49 +237,78 @@ public:
         return used;
     }
 
-    /** 
-     *  \brief Get the window type (CB or TB) utilized by the Key_FFAT_GPU
-     *  \return adopted windowing semantics (count-based or time-based)
-     */ 
-    win_type_t getWinType() const
+#if defined (TRACE_WINDFLOW)
+    /// Dump the log file (JSON format) in the LOG_DIR directory
+    void dump_LogFile() const override
     {
-        return winType;
-    }
-
-    /** 
-     *  \brief Get the number of dropped tuples by the Key_FFAT_GPU
-     *  \return number of tuples dropped during the processing by the Key_FFAT_GPU
-     */ 
-    size_t getNumDroppedTuples() const
-    {
-        size_t count = 0;
-        auto workers = this->getWorkers();
-        for (auto *w: workers) {
-            auto *seq = static_cast<win_seqffat_gpu_t *>(w);
-            count += seq->getNumDroppedTuples();
-        }
-        return count;
-    }
-
-    /** 
-     *  \brief Get the Stats_Record of each replica within the Key_FFAT_GPU
-     *  \return vector of Stats_Record objects
-     */ 
-    std::vector<Stats_Record> get_StatsRecords() const override
-    {
-#if !defined(TRACE_WINDFLOW)
-        std::cerr << YELLOW << "WindFlow Warning: statistics are not enabled, compile with -DTRACE_WINDFLOW" << DEFAULT_COLOR << std::endl;
-        return {};
+        // create and open the log file in the LOG_DIR directory
+        std::ofstream logfile;
+#if defined (LOG_DIR)
+        std::string log_dir = std::string(STRINGIFY(LOG_DIR));
+        std::string filename = std::string(STRINGIFY(LOG_DIR)) + "/" + std::to_string(getpid()) + "_" + name + ".json";
 #else
-        std::vector<Stats_Record> records;
-        auto workers = this->getWorkers();
-        for (auto *w: workers) {
-            auto *seq = static_cast<win_seqffat_gpu_t *>(w);
-            records.push_back(seq->get_StatsRecord());
+        std::string log_dir = std::string("log");
+        std::string filename = "log/" + std::to_string(getpid()) + "_" + name + ".json";
+#endif
+        // create the log directory
+        if (mkdir(log_dir.c_str(), 0777) != 0) {
+            struct stat st;
+            if((stat(log_dir.c_str(), &st) != 0) || !S_ISDIR(st.st_mode)) {
+                std::cerr << RED << "WindFlow Error: directory for log files cannot be created" << DEFAULT_COLOR << std::endl;
+                exit(EXIT_FAILURE);
+            }
         }
-        return records;
-#endif      
+        logfile.open(filename);
+        // create the rapidjson writer
+        rapidjson::StringBuffer buffer;
+        rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
+        // append the statistics of this operator
+        this->append_Stats(writer);
+        // serialize the object to file
+        logfile << buffer.GetString();
+        logfile.close();
     }
+
+    /// append the statistics (JSON format) of this operator
+    void append_Stats(rapidjson::PrettyWriter<rapidjson::StringBuffer> &writer) const override
+    {
+        // create the header of the JSON file
+        writer.StartObject();
+        writer.Key("Operator_name");
+        writer.String(name.c_str());
+        writer.Key("Operator_type");
+        writer.String("Key_FFAT_GPU");
+        writer.Key("Distribution");
+        writer.String("KEYBY");
+        writer.Key("Window_type");
+        if (winType == CB) {
+            writer.String("count-based");
+        }
+        else {
+            writer.String("time-based");
+            writer.Key("Window_delay");
+            writer.Uint(triggering_delay);  
+        }
+        writer.Key("Window_length");
+        writer.Uint(win_len);
+        writer.Key("Window_slide");
+        writer.Uint(slide_len);
+        writer.Key("Batch_len");
+        writer.Uint(batch_len);
+        writer.Key("Parallelism");
+        writer.Uint(parallelism);
+        writer.Key("Replicas");
+        writer.StartArray();
+        // get statistics from all the replicas of the operator
+        for(auto *w: this->getWorkers()) {
+            auto *seq = static_cast<win_seqffat_gpu_t *>(w);
+            Stats_Record record = seq->get_StatsRecord();
+            record.append_Stats(writer);
+        }
+        writer.EndArray();
+        writer.EndObject();
+    }
+#endif
 
     /// deleted constructors/operators
     Key_FFAT_GPU(const Key_FFAT_GPU &) = delete; // copy constructor

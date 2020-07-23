@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Data types and operator functors for running the Split tests
+ *  Data types and operator functors for running the Split tests.
  */ 
 
 // includes
@@ -56,16 +56,14 @@ struct tuple_t
             key(_key),
             id(_id),
             ts(_ts),
-            value(_value)
-    {}
+            value(_value) {}
 
     // default constructor
     tuple_t():
             key(0),
             id(0),
             ts(0),
-            value(0)
-    {}
+            value(0) {}
 
     // getControlFields method
     tuple<size_t, uint64_t, uint64_t> getControlFields() const
@@ -115,10 +113,12 @@ public:
         k = (k+1) % keys;
         double x = (1000 * 0.05) / 1.05;
         next_ts += ceil(pareto(1.05, x));
-        if (sent < len*keys)
+        if (sent < len*keys) {
             return true;
-        else
+        }
+        else {
             return false;
+        }
     }
 };
 

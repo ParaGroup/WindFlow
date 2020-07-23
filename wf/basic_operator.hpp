@@ -32,7 +32,10 @@
 
 /// includes
 #include<basic.hpp>
-#include<stats_record.hpp>
+#if defined (TRACE_WINDFLOW)
+    #include<stats_record.hpp>
+    #include<rapidjson/prettywriter.h>
+#endif
 
 namespace wf {
 
@@ -70,11 +73,13 @@ public:
      */ 
     virtual bool isUsed() const = 0;
 
-    /** 
-     *  \brief Get the Stats_Record of each replica within the operator
-     *  \return vector of Stats_Record objects
-     */ 
-    virtual std::vector<Stats_Record> get_StatsRecords() const = 0;
+#if defined (TRACE_WINDFLOW)
+    /// Dump the log file (JSON format) in the LOG_DIR directory
+    virtual void dump_LogFile() const = 0;
+
+    /// append the statistics (JSON format) of this operator
+    virtual void append_Stats(rapidjson::PrettyWriter<rapidjson::StringBuffer> &) const = 0;
+#endif
 };
 
 } // namespace wf

@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Test of the MultiPipe construct:
+ *  Test of the MultiPipe construct with WMR, count-based windows and DETERMINISTIC mode.
  *  
  *  +-----+   +-----+   +------+   +-----+   +--------+   +-----+
  *  |  S  |   |  F  |   |  FM  |   |  M  |   | WMR_CB |   |  S  |

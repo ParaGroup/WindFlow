@@ -36,9 +36,10 @@ else()
     set(ff_root_dir $ENV{HOME}/fastflow)
 endif()
 
-# check graphviz dependency
+# check graphviz and rapidjson dependencies
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake.modules)
 include(${PROJECT_SOURCE_DIR}/cmake.modules/FindGraphviz.cmake)
+include(${PROJECT_SOURCE_DIR}/cmake.modules/FindRapidJSON.cmake)
 
 # add sub-folder with tests
 add_subdirectory(tests)

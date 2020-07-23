@@ -42,7 +42,9 @@
 #include<basic.hpp>
 #include<shipper.hpp>
 #include<context.hpp>
-#include<stats_record.hpp>
+#if defined (TRACE_WINDFLOW)
+    #include<stats_record.hpp>
+#endif
 #include<basic_operator.hpp>
 #include<transformations.hpp>
 
@@ -91,7 +93,7 @@ private:
         bool isEND; // flag stating whether the Source_Node has completed to generate items
         Shipper<tuple_t> *shipper = nullptr; // shipper object used for the delivery of results (single-loop version)
         RuntimeContext context; // RuntimeContext
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
         Stats_Record stats_record;
         double avg_td_us = 0;
         double avg_ts_us = 0;
@@ -158,8 +160,8 @@ private:
         {
             // create the shipper object used by this replica
             shipper = new Shipper<tuple_t>(*this);
-#if defined(TRACE_WINDFLOW)
-            stats_record = Stats_Record(name, "replica_" + std::to_string(this->get_my_id()), false);
+#if defined (TRACE_WINDFLOW)
+            stats_record = Stats_Record(name, std::to_string(this->get_my_id()), false, false);
 #endif
             return 0;
         }
@@ -167,7 +169,7 @@ private:
         // svc method (utilized by the FastFlow runtime)
         tuple_t *svc(tuple_t *) override
         {
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
             startTS = current_time_nsecs();
             if (stats_record.outputs_sent == 0) {
                 startTD = current_time_nsecs();
@@ -188,7 +190,7 @@ private:
                     else {
                         isEND = !rich_source_func_item(*t, context); // call the generation function filling the tuple
                     }
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
                     endTS = current_time_nsecs();
                     endTD = current_time_nsecs();
                     double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
@@ -216,7 +218,7 @@ private:
                     else {
                         isEND = !rich_source_func_loop(*shipper, context); // call the generation function sending some tuples through the shipper
                     }
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
                     uint64_t delivered = (shipper->delivered() - last_delivered_count);
                     last_delivered_count = shipper->delivered();
                     endTS = current_time_nsecs();
@@ -243,13 +245,9 @@ private:
             closing_func(context);
             // delete the shipper object used by this replica
             delete shipper;
-#if defined(TRACE_WINDFLOW)
-            // dump log file with statistics
-            stats_record.dump_toFile();
-#endif
         }
 
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
         // method to return a copy of the Stats_Record of this node
         Stats_Record get_StatsRecord() const
         {
@@ -331,24 +329,63 @@ public:
         return used;
     }
 
-    /** 
-     *  \brief Get the Stats_Record of each replica within the Source
-     *  \return vector of Stats_Record objects
-     */ 
-    std::vector<Stats_Record> get_StatsRecords() const override
+#if defined (TRACE_WINDFLOW)
+    /// Dump the log file (JSON format) in the LOG_DIR directory
+    void dump_LogFile() const override
     {
-#if !defined(TRACE_WINDFLOW)
-        std::cerr << YELLOW << "WindFlow Warning: statistics are not enabled, compile with -DTRACE_WINDFLOW" << DEFAULT_COLOR << std::endl;
-        return {};
+        // create and open the log file in the LOG_DIR directory
+        std::ofstream logfile;
+#if defined (LOG_DIR)
+        std::string log_dir = std::string(STRINGIFY(LOG_DIR));
+        std::string filename = std::string(STRINGIFY(LOG_DIR)) + "/" + std::to_string(getpid()) + "_" + name + ".json";
 #else
-        std::vector<Stats_Record> records;
+        std::string log_dir = std::string("log");
+        std::string filename = "log/" + std::to_string(getpid()) + "_" + name + ".json";
+#endif
+        // create the log directory
+        if (mkdir(log_dir.c_str(), 0777) != 0) {
+            struct stat st;
+            if((stat(log_dir.c_str(), &st) != 0) || !S_ISDIR(st.st_mode)) {
+                std::cerr << RED << "WindFlow Error: directory for log files cannot be created" << DEFAULT_COLOR << std::endl;
+                exit(EXIT_FAILURE);
+            }
+        }
+        logfile.open(filename);
+        // create the rapidjson writer
+        rapidjson::StringBuffer buffer;
+        rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
+        // append the statistics of this operator
+        this->append_Stats(writer);
+        // serialize the object to file
+        logfile << buffer.GetString();
+        logfile.close();
+    }
+
+    // append the statistics of this operator
+    void append_Stats(rapidjson::PrettyWriter<rapidjson::StringBuffer> &writer) const override
+    {
+        // create the header of the JSON file
+        writer.StartObject();
+        writer.Key("Operator_name");
+        writer.String(name.c_str());
+        writer.Key("Operator_type");
+        writer.String("Source");
+        writer.Key("Distribution");
+        writer.String("NONE");
+        writer.Key("Parallelism");
+        writer.Uint(parallelism);
+        writer.Key("Replicas");
+        writer.StartArray();
+        // get statistics from all the replicas of the operator
         for(auto *w: this->getFirstSet()) {
             auto *node = static_cast<Source_Node *>(w);
-            records.push_back(node->get_StatsRecord());
+            Stats_Record record = node->get_StatsRecord();
+            record.append_Stats(writer);
         }
-        return records;
-#endif
+        writer.EndArray();
+        writer.EndObject();   
     }
+#endif
 
     /// deleted constructors/operators
     Source(const Source &) = delete; // copy constructor

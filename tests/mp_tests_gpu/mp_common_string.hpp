@@ -16,7 +16,7 @@
 
 /*  
  *  Data types and operator functors for running the MultiPipe tests on GPU
- *  (key attribute implemented by a std::string)
+ *  (key attribute implemented by a string).
  */ 
 
 // includes
@@ -57,16 +57,14 @@ struct tuple_t
             key(_key),
             id(_id),
             ts(_ts),
-            value(_value)
-    {}
+            value(_value) {}
 
     // default constructor
     tuple_t():
             key("undefined"),
             id(0),
             ts(0),
-            value(0)
-    {}
+            value(0) {}
 
     // getControlFields method
     tuple<string, uint64_t, uint64_t> getControlFields() const
@@ -99,16 +97,14 @@ struct output_t
              key(_key),
              id(_id),
              ts(_ts),
-             value(_value)
-    {}
+             value(_value) {}
 
     // default constructor
     output_t():
              key("undefined"),
              id(0),
              ts(0),
-             value(0)
-    {}
+             value(0) {}
 
     // getControlFields method
     tuple<string, uint64_t, uint64_t> getControlFields() const
@@ -158,10 +154,12 @@ public:
         k = (k+1) % keys;
         double x = (1000 * 0.05) / 1.05;
         next_ts += ceil(pareto(1.05, x));
-        if (sent < len*keys)
+        if (sent < len*keys) {
             return true;
-        else
+        }
+        else {
             return false;
+        }
     }
 };
 
@@ -173,10 +171,12 @@ public:
     bool operator()(tuple_t &t)
     {
         // drop odd numbers
-        if (t.value % 2 == 0)
+        if (t.value % 2 == 0) {
             return true;
-        else
+        }
+        else {
             return false;
+        }
     }
 };
 

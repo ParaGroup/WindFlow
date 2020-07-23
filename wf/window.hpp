@@ -34,7 +34,7 @@
 // includes
 #include<tuple>
 #include<functional>
-#if __cplusplus < 201703L //not C++17
+#if __cplusplus < 201703L // not C++17
     #include<experimental/optional>
     namespace std { using namespace experimental; }
 #else
@@ -189,17 +189,25 @@ public:
         if (batched) {
             return BATCHED;
         }
-        if (winType == CB) { // count-based windows (in-order streams only)
+        if (winType == CB) { // count-based windows (the stream is assumed to be received ordered by identifiers, not necessarily by timestamps!)
             uint64_t id = std::get<1>(_t.getControlFields()); // id of the input tuple
             // evaluate the triggerer
             win_event_t event = triggerer(id);
             if (event == IN) {
                 no_tuples++;
                 if (!firstTuple) {
-                    firstTuple = std::make_optional(_t); // save the first tuple returning IN
+                    firstTuple = std::make_optional(_t); // save this tuple
+                    // window result has the timestamp of the most recent tuple raising IN
+                    result.setControlFields(std::get<0>(result.getControlFields()), std::get<1>(result.getControlFields()), std::get<2>(_t.getControlFields()));             
                 }
-                // window result has the timestamp of the last tuple raising IN
-                result.setControlFields(std::get<0>(result.getControlFields()), std::get<1>(result.getControlFields()), std::get<2>(_t.getControlFields()));
+                else {
+                    uint64_t result_ts = std::get<2>(result.getControlFields());
+                    uint64_t ts = std::get<2>(_t.getControlFields());
+                    if (result_ts < ts) {
+                        // window result has the timestamp of the most recent tuple raising IN
+                        result.setControlFields(std::get<0>(result.getControlFields()), std::get<1>(result.getControlFields()), ts);
+                    }
+                }
             }
             else if (event == FIRED) {
                 if (!lastTuple) {
@@ -211,14 +219,14 @@ public:
             }
             return event;
         }
-        else { // time-based windows (out-of-order streams are possible)
+        else { // time-based windows
             uint64_t ts = std::get<2>(_t.getControlFields()); // timestamp of the input tuple
             // evaluate the triggerer
             win_event_t event = triggerer(ts);
             if (event == IN) {
                 no_tuples++;
                 if (!firstTuple) {
-                    firstTuple = std::make_optional(_t); // save the oldest tuple returning IN
+                    firstTuple = std::make_optional(_t); // save this tuple
                 }
                 else {
                     uint64_t old_ts = std::get<2>(firstTuple->getControlFields());
@@ -229,7 +237,7 @@ public:
             }
             else if (event == DELAYED || event == FIRED) {
                 if (!lastTuple) {
-                    lastTuple = std::make_optional(_t); // save the oldest tuple more recent that the window final boundary
+                    lastTuple = std::make_optional(_t); // save this tuple
                 }
                 else {
                     uint64_t old_ts = std::get<2>(lastTuple->getControlFields());

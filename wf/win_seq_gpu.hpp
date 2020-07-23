@@ -30,8 +30,7 @@
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with
  *  a copy constructor and a copy assignment operator, and they must provide and implement
- *  the setControlFields() and getControlFields() methods. The third template argument
- *  win_F_t is the type of the callable object to be used for GPU processing.
+ *  the setControlFields() and getControlFields() methods.
  */ 
 
 #ifndef WIN_SEQ_GPU_H
@@ -47,7 +46,9 @@
 #include<meta.hpp>
 #include<window.hpp>
 #include<meta_gpu.hpp>
-#include<stats_record.hpp>
+#if defined (TRACE_WINDFLOW)
+    #include<stats_record.hpp>
+#endif
 #include<stream_archive.hpp>
 
 namespace wf {
@@ -155,32 +156,39 @@ private:
     uint64_t slide_len; // slide length (no. of tuples or in time units)
     uint64_t triggering_delay; // triggering delay in time units (meaningful for TB windows only)
     win_type_t winType; // window type (CB or TB)
-    std::string name; // std::string of the unique name of the node
+    std::string name; // string of the unique name of the node
     WinOperatorConfig config; // configuration structure of the Win_Seq_GPU node
     role_t role; // role of the Win_Seq_GPU
-    std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
+    std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps keys onto descriptors
     std::pair<size_t, size_t> map_indexes = std::make_pair(0, 1); // indexes useful is the role is MAP
     size_t batch_len; // length of the batch in terms of no. of windows
-    size_t tuples_per_batch; // number of tuples per batch (only for CB windows)
+    size_t tuples_per_batch; // number of tuples per batch
     win_F_t win_func; // function to be executed per window
-    result_t *host_results = nullptr; // array of results copied back from the GPU
     bool isRunningKernel = false; // true if the kernel is running on the GPU, false otherwise
     Key_Descriptor *lastKeyD = nullptr; // pointer to the key descriptor of the running kernel on the GPU
+    size_t ignored_tuples; // number of ignored tuples
+    size_t eos_received; // number of received EOS messages
+    bool isRenumbering; // if true, the node assigns increasing identifiers to the input tuples (useful for count-based windows in DEFAULT mode)
+    size_t scratchpad_size = 0; // size of the scratchpage memory area on the GPU (one per CUDA thread)
+    // memory arrays allocated in a page-locked manner on the HOST (prefix "pinned" used for them)
+    tuple_t *pinned_inputs = nullptr; // array of inputs of a batch
+    result_t *pinned_results = nullptr; // array of results of a batch
+    size_t *pinned_start = nullptr; // array of starting identifiers
+    size_t *pinned_end = nullptr; // array of ending identifiers
+    uint64_t *pinned_gwids = nullptr; // array of window identifiers
     // GPU variables
     int gpu_id; // identifier of the chosen GPU device
     size_t n_thread_block; // number of threads per block
     size_t num_blocks; // number of blocks of a GPU kernel
     cudaStream_t cudaStream; // CUDA stream used by this Win_Seq_GPU
-    tuple_t *Bin = nullptr; // array of tuples in the batch (allocated on the GPU)
-    result_t *Bout = nullptr; // array of results of the batch (allocated on the GPU)
-    size_t *gpu_start, *gpu_end = nullptr; // arrays of the starting/ending positions of each window in the batch (allocated on the GPU)
-    uint64_t *gpu_gwids = nullptr; // array of the gwids of the windows in the microbatch (allocated on the GPU)
-    size_t scratchpad_size = 0; // size of the scratchpage memory area on the GPU (one per CUDA thread)
-    char *scratchpad_memory = nullptr; // scratchpage memory area (allocated on the GPU, one per CUDA thread)
-    size_t dropped_tuples; // number of dropped tuples
-    size_t eos_received; // number of received EOS messages
-    bool isRenumbering; // if true, the node assigns increasing identifiers to the input tuples (useful for count-based windows in DEFAULT mode)
-#if defined(TRACE_WINDFLOW)
+    // arrays allocated in the global memory of the GPU (prefix "gpu" ised for them)
+    tuple_t *gpu_inputs = nullptr; // array of inputs of a batch
+    result_t *gpu_results = nullptr; // array of results of a batch
+    size_t *gpu_start = nullptr; // array of starting identifiers
+    size_t *gpu_end = nullptr; // array of ending identifiers
+    uint64_t *gpu_gwids = nullptr; // array of window identifiers
+    char *gpu_scratchpad = nullptr; // scratchpage memory area (one per CUDA thread)
+#if defined (TRACE_WINDFLOW)
     Stats_Record stats_record;
     double avg_td_us = 0;
     double avg_ts_us = 0;
@@ -212,7 +220,7 @@ private:
                 scratchpad_size(_scratchpad_size),
                 config(_config),
                 role(_role),
-                dropped_tuples(0),
+                ignored_tuples(0),
                 eos_received(0),
                 isRenumbering(false)
     {
@@ -254,7 +262,7 @@ private:
             // transmission of results
             for (size_t i=0; i<batch_len; i++) {
                 result_t *res = new result_t();
-                *res = host_results[i];
+                *res = pinned_results[i];
                 // special cases: role is PLQ or MAP
                 if (role == MAP) {
                     res->setControlFields(std::get<0>(res->getControlFields()), lastKeyD->emit_counter, std::get<2>(res->getControlFields()));
@@ -268,7 +276,7 @@ private:
                     lastKeyD->emit_counter++;
                 }
                 this->ff_send_out(res);
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
                 stats_record.outputs_sent++;
                 stats_record.bytes_sent += sizeof(result_t);
 #endif
@@ -302,7 +310,7 @@ public:
             std::cerr << RED << "WindFlow Error: chosen GPU device is not valid" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        // use the chosen GPU device
+        // use the chosen GPU device by this fastflow thread
         gpuErrChk(cudaSetDevice(gpu_id));
         // get the number of Stream MultiProcessors on the GPU
         int numSMs = 0; // number of SMs in the GPU
@@ -330,27 +338,41 @@ public:
             else { // hopping windows
                 tuples_per_batch = win_len * batch_len;
             }
-            // allocate Bin (of fixed size) on the GPU
-            gpuErrChk(cudaMalloc((tuple_t **) &Bin, tuples_per_batch * sizeof(tuple_t)));      // Bin
+            // allocate the gpu_inputs array on GPU
+            gpuErrChk(cudaMalloc(&gpu_inputs, tuples_per_batch * sizeof(tuple_t)));
+            // allocate the pinned_inputs array on HOST
+            gpuErrChk(cudaMallocHost(&pinned_inputs, tuples_per_batch * sizeof(tuple_t)));
         }
         // initialization with time-based windows
         else {
             tuples_per_batch = DEFAULT_BATCH_SIZE_TB;
-            // allocate Bin (with default size) on the GPU
-            gpuErrChk(cudaMalloc((tuple_t **) &Bin, tuples_per_batch * sizeof(tuple_t))); // Bin
+            // allocate the gpu_inputs array on GPU
+            gpuErrChk(cudaMalloc(&gpu_inputs, tuples_per_batch * sizeof(tuple_t)));
+            // allocate the pinned_inputs array on HOST
+            gpuErrChk(cudaMallocHost(&pinned_inputs, tuples_per_batch * sizeof(tuple_t)));
         }
-        // allocate the other arrays on the GPU/HOST
-        gpuErrChk(cudaMalloc((size_t **) &gpu_start, batch_len * sizeof(size_t)));             // gpu_start
-        gpuErrChk(cudaMalloc((size_t **) &gpu_end, batch_len * sizeof(size_t)));               // gpu_end
-        gpuErrChk(cudaMalloc((uint64_t **) &gpu_gwids, batch_len * sizeof(uint64_t)));         // gpu_gwids
-        gpuErrChk(cudaMalloc((result_t **) &Bout, batch_len * sizeof(result_t)));              // Bout
-        gpuErrChk(cudaMallocHost((void **) &host_results, batch_len * sizeof(result_t)));      // host_results
-        // allocate the scratchpad on the GPU (if required)
+        // allocate the gpu_start array on GPU
+        gpuErrChk(cudaMalloc(&gpu_start, batch_len * sizeof(size_t)));
+        // allocate the pinned_start array on HOST
+        gpuErrChk(cudaMallocHost(&pinned_start, batch_len * sizeof(size_t)));
+        // allocate the gpu_end array on GPU
+        gpuErrChk(cudaMalloc(&gpu_end, batch_len * sizeof(size_t)));
+        // allocate the pinned_end array on HOST
+        gpuErrChk(cudaMallocHost(&pinned_end, batch_len * sizeof(size_t)));
+        // allocate the gpu_gwids array on GPU
+        gpuErrChk(cudaMalloc(&gpu_gwids, batch_len * sizeof(uint64_t)));
+        // allocate the pinned_gwids array on HOST
+        gpuErrChk(cudaMallocHost(&pinned_gwids, batch_len * sizeof(uint64_t)));
+        // allocate the gpu_results array on GPU
+        gpuErrChk(cudaMalloc(&gpu_results, batch_len * sizeof(result_t)));
+        // allocate the pinned_results array on HOST
+        gpuErrChk(cudaMallocHost(&pinned_results, batch_len * sizeof(result_t)));
+        // allocate the gpu_scratchpad arrat on the GPU (if required)
         if (scratchpad_size > 0) {
-            gpuErrChk(cudaMalloc((char **) &scratchpad_memory, (num_blocks * n_thread_block) * scratchpad_size));  // scratchpad_memory
+            gpuErrChk(cudaMalloc(&gpu_scratchpad, (num_blocks * n_thread_block) * scratchpad_size));  // scratchpad_memory
         }
-#if defined(TRACE_WINDFLOW)
-        stats_record = Stats_Record(name, "replica_" + std::to_string(this->get_my_id()), true);
+#if defined (TRACE_WINDFLOW)
+        stats_record = Stats_Record(name, std::to_string(this->get_my_id()), true, true);
 #endif
         return 0;
     }
@@ -358,7 +380,7 @@ public:
     // svc method (utilized by the FastFlow runtime)
     result_t *svc(input_t *wt) override
     {
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
         startTS = current_time_nsecs();
         if (stats_record.inputs_received == 0) {
             startTD = current_time_nsecs();
@@ -381,9 +403,9 @@ public:
         Key_Descriptor &key_d = (*it).second;
         // check if isRenumbering is enabled (used for count-based windows in DEFAULT mode)
         if (isRenumbering) {
-        	assert(winType == CB);
-        	id = key_d.next_ids++;
-        	t->setControlFields(std::get<0>(t->getControlFields()), id, std::get<2>(t->getControlFields()));
+            assert(winType == CB);
+            id = key_d.next_ids++;
+            t->setControlFields(std::get<0>(t->getControlFields()), id, std::get<2>(t->getControlFields()));
         }
         // gwid of the first window of that key assigned to this Win_Seq_GPU
         uint64_t first_gwid_key = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) * config.n_outer + (config.id_outer - (hashcode % config.n_outer) + config.n_outer) % config.n_outer;
@@ -395,11 +417,11 @@ public:
         if (role == WLQ || role == REDUCE) {
             initial_id = initial_inner;
         }
-        // check if the tuple must be dropped
+        // check if the tuple must be ignored
         uint64_t min_boundary = (key_d.last_lwid >= 0) ? win_len + (key_d.last_lwid  * slide_len) : 0;
         if (id < initial_id + min_boundary) {
             if (key_d.last_lwid >= 0) {
-                dropped_tuples++;
+                ignored_tuples++;
             }
             deleteTuple<tuple_t, input_t>(wt);
             return this->GO_ON;
@@ -491,50 +513,66 @@ public:
                         dataBatch = (const tuple_t *) &(*((key_d.archive).getIterator(*(key_d.start_tuple))));
                         size_copy = (key_d.archive).getDistance(*(key_d.start_tuple), *(key_d.end_tuple));
                     }
-                    // prepare the host_results
-                    for (size_t i=0; i < batch_len; i++) {
-                        host_results[i].setControlFields(key, key_d.gwids[i], key_d.tsWin[i]);
+                    // prepare the pinned_results array with the timestamps of the results
+                    for (size_t i=0; i<batch_len; i++) {
+                        pinned_results[i].setControlFields(key, key_d.gwids[i], key_d.tsWin[i]);
                     }
-                    // copy of the arrays on the GPU
-                    gpuErrChk(cudaMemcpyAsync(gpu_start, (key_d.start).data(), batch_len * sizeof(size_t), cudaMemcpyHostToDevice, cudaStream));
-                    gpuErrChk(cudaMemcpyAsync(gpu_end, (key_d.end).data(), batch_len * sizeof(size_t), cudaMemcpyHostToDevice, cudaStream));
-                    gpuErrChk(cudaMemcpyAsync(gpu_gwids, (key_d.gwids).data(), batch_len * sizeof(uint64_t), cudaMemcpyHostToDevice, cudaStream));
-                    gpuErrChk(cudaMemcpyAsync(Bout, host_results, batch_len * sizeof(result_t), cudaMemcpyHostToDevice, cudaStream));
+                    // prepare and copy pinned_start to gpu_start
+                    memcpy(pinned_start, (key_d.start).data(), batch_len * sizeof(size_t));
+                    gpuErrChk(cudaMemcpyAsync(gpu_start, pinned_start, batch_len * sizeof(size_t), cudaMemcpyHostToDevice, cudaStream));
+                    // prepare and copy pinned_end to gpu_end
+                    memcpy(pinned_end, (key_d.end).data(), batch_len * sizeof(size_t));
+                    gpuErrChk(cudaMemcpyAsync(gpu_end, pinned_end, batch_len * sizeof(size_t), cudaMemcpyHostToDevice, cudaStream));
+                    // prepare and copy pinned_gwids to gpu_gwids
+                    memcpy(pinned_gwids, (key_d.gwids).data(), batch_len * sizeof(uint64_t));
+                    gpuErrChk(cudaMemcpyAsync(gpu_gwids, pinned_gwids, batch_len * sizeof(uint64_t), cudaMemcpyHostToDevice, cudaStream));
+                    // copy pinned_results to gpu_results
+                    gpuErrChk(cudaMemcpyAsync(gpu_results, pinned_results, batch_len * sizeof(result_t), cudaMemcpyHostToDevice, cudaStream));
                     // count-based windows
                     if (winType == CB) {
-                        gpuErrChk(cudaMemcpyAsync(Bin, dataBatch, size_copy * sizeof(tuple_t), cudaMemcpyHostToDevice, cudaStream));
+                        // prepare and copy pinned_inputs to gpu_inputs
+                        memcpy(pinned_inputs, dataBatch, size_copy * sizeof(tuple_t));
+                        gpuErrChk(cudaMemcpyAsync(gpu_inputs, pinned_inputs, size_copy * sizeof(tuple_t), cudaMemcpyHostToDevice, cudaStream));
                     }
                     // time-based windows
                     else {
                         // simple herustics to resize the array Bin on the GPU (if required)
                         if (size_copy > tuples_per_batch) {
                             tuples_per_batch = std::max(tuples_per_batch * 2, size_copy);
-                            // deallocate/allocate Bin
-                            gpuErrChk(cudaFree(Bin));
-                            gpuErrChk(cudaMalloc((tuple_t **) &Bin, tuples_per_batch * sizeof(tuple_t)));     // Bin
+                            // reallocate gpu_inputs
+                            gpuErrChk(cudaFree(gpu_inputs));
+                            gpuErrChk(cudaMalloc(&gpu_inputs, tuples_per_batch * sizeof(tuple_t)));
+                            // reallocate pinned_inputs
+                            gpuErrChk(cudaFreeHost(pinned_inputs));
+                            gpuErrChk(cudaMallocHost(&pinned_inputs, tuples_per_batch * sizeof(tuple_t)));
                         }
                         else if (size_copy < tuples_per_batch / 2) {
                             tuples_per_batch = tuples_per_batch / 2;
-                            // deallocate/allocate Bin
-                            gpuErrChk(cudaFree(Bin));
-                            gpuErrChk(cudaMalloc((tuple_t **) &Bin, tuples_per_batch * sizeof(tuple_t)));     // Bin
+                            // reallocate gpu_inputs
+                            gpuErrChk(cudaFree(gpu_inputs));
+                            gpuErrChk(cudaMalloc(&gpu_inputs, tuples_per_batch * sizeof(tuple_t)));
+                            // reallocate pinned_inputs
+                            gpuErrChk(cudaFreeHost(pinned_inputs));
+                            gpuErrChk(cudaMallocHost(&pinned_inputs, tuples_per_batch * sizeof(tuple_t)));
                         }
-                        // copy of the array Bin on the GPU
-                        gpuErrChk(cudaMemcpyAsync(Bin, dataBatch, size_copy * sizeof(tuple_t), cudaMemcpyHostToDevice, cudaStream));
+                        // prepare and copy pinned_inputs to gpu_inputs
+                        memcpy(pinned_inputs, dataBatch, size_copy * sizeof(tuple_t));
+                        gpuErrChk(cudaMemcpyAsync(gpu_inputs, pinned_inputs, size_copy * sizeof(tuple_t), cudaMemcpyHostToDevice, cudaStream));
                     }
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
                     stats_record.num_kernels++;
                     stats_record.bytes_copied_hd += 2 * (batch_len * sizeof(size_t)) + batch_len * sizeof(uint64_t) + batch_len * sizeof(result_t) + size_copy * sizeof(tuple_t);
                     stats_record.bytes_copied_dh += batch_len * sizeof(result_t);
 #endif
                     // call the kernel on the GPU
                     cudaError_t err;
-                    ComputeBatch_Kernel<win_F_t><<<num_blocks, n_thread_block, 0, cudaStream>>>(Bin, gpu_start, gpu_end, gpu_gwids, Bout, win_func, batch_len, scratchpad_memory, scratchpad_size);
+                    ComputeBatch_Kernel<win_F_t><<<num_blocks, n_thread_block, 0, cudaStream>>>(gpu_inputs, gpu_start, gpu_end, gpu_gwids, gpu_results, win_func, batch_len, gpu_scratchpad, scratchpad_size);
                     if (err = cudaGetLastError()) {
                         std::cerr << RED << "WindFlow Error: invoking the GPU kernel (ComputeBatch_Kernel) causes error -> " << err << DEFAULT_COLOR << std::endl;
                         exit(EXIT_FAILURE);
                     }
-                    gpuErrChk(cudaMemcpyAsync(host_results, Bout, batch_len * sizeof(result_t), cudaMemcpyDeviceToHost, cudaStream));
+                    // start asynchronous copy of the results from GPU to pinned_results
+                    gpuErrChk(cudaMemcpyAsync(pinned_results, gpu_results, batch_len * sizeof(result_t), cudaMemcpyDeviceToHost, cudaStream));
                     // purge the archive from tuples that are no longer necessary
                     if (key_d.start_tuple) {
                         (key_d.archive).purge(*(key_d.start_tuple));
@@ -557,7 +595,7 @@ public:
         wins.erase(wins.begin(), wins.begin() + cnt_fired);
         // delete the received tuple
         deleteTuple<tuple_t, input_t>(wt);
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
         endTS = current_time_nsecs();
         endTD = current_time_nsecs();
         double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
@@ -606,7 +644,7 @@ public:
                     // call win_func
                     win_func(win.getGWID(), my_input_data, distance(its.first, its.second), out, scratchpad_memory_cpu, scratchpad_size);
                 }
-                else {// empty window
+                else { // empty window
                     // call win_func
                     win_func(win.getGWID(), nullptr, 0, out, scratchpad_memory_cpu, scratchpad_size);
                 }
@@ -622,7 +660,7 @@ public:
                     (k.second).emit_counter++;
                 }
                 this->ff_send_out(out);
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
                 stats_record.outputs_sent++;
                 stats_record.bytes_sent += sizeof(result_t);
 #endif
@@ -635,32 +673,32 @@ public:
     // svc_end method (utilized by the FastFlow runtime)
     void svc_end() override
     {
-        // deallocate data structures allocated on the GPU
-        gpuErrChk(cudaFree(Bin));
+        // deallocate the arrays on GPU
+        gpuErrChk(cudaFree(gpu_inputs));
+        gpuErrChk(cudaFree(gpu_results));
         gpuErrChk(cudaFree(gpu_start));
         gpuErrChk(cudaFree(gpu_end));
         gpuErrChk(cudaFree(gpu_gwids));
-        gpuErrChk(cudaFree(Bout));
         if (scratchpad_size > 0) {
-            gpuErrChk(cudaFree(scratchpad_memory));
+            gpuErrChk(cudaFree(gpu_scratchpad));
         }
-        // deallocate data structures allocated on the CPU
-        gpuErrChk(cudaFreeHost(host_results));
+        // deallocate the arrays on HOST
+        gpuErrChk(cudaFreeHost(pinned_inputs));
+        gpuErrChk(cudaFreeHost(pinned_results));
+        gpuErrChk(cudaFreeHost(pinned_start));
+        gpuErrChk(cudaFreeHost(pinned_end));
+        gpuErrChk(cudaFreeHost(pinned_gwids));
         // destroy the CUDA stream
         gpuErrChk(cudaStreamDestroy(cudaStream));
-#if defined(TRACE_WINDFLOW)
-        // dump log file with statistics
-        stats_record.dump_toFile();
-#endif
     }
 
-    // method to return the number of dropped tuples by this node
-    size_t getNumDroppedTuples() const
+    // method to return the number of ignored tuples by this node
+    size_t getNumIgnoredTuples() const
     {
-        return dropped_tuples;
+        return ignored_tuples;
     }
 
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
     // method to return a copy of the Stats_Record of this node
     Stats_Record get_StatsRecord() const
     {

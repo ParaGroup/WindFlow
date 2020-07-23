@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Test of the MultiPipe construct:
+ *  Test of the MultiPipe construct with KF, count-based windows and DEFAULT mode.
  *  
  *  +-----+   +-----+   +------+   +-----+   +-------+   +-----+
  *  |  S  |   |  F  |   |  FM  |   |  M  |   | KF_CB |   |  S  |
@@ -101,7 +101,7 @@ int main(int argc, char *argv[])
         // prepare the test
         PipeGraph graph("test_kf_cb_gpu_oop");
 #if 0 // the version below is an example using CUDA 11 (now supporting C++17 in host code)
-      	// source
+        // source
         Source_Functor source_functor(stream_len, n_keys);
         Source source = Source_Builder(source_functor).withName("source")
                                 .withParallelism(source_degree)

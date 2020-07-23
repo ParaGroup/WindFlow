@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Test of the MultiPipe construct:
+ *  Test of the MultiPipe construct with KF(PF), time-based windows and DETERMINISTIC mode.
  *  
  *  +------------------------------------------------------------------+
  *  |                                             KF_TB(*)             |

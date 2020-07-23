@@ -873,6 +873,65 @@ public:
     }
 
     /** 
+     *  \brief Check whether the Win_MapReduce has been used in a nested structure
+     *  \return true if the Win_MapReduce has been used in a nested structure
+     */
+    bool isUsed4Nesting() const
+    {
+        return used4Nesting;
+    }
+
+    /** 
+     *  \brief Get the optimization level used to build the Win_MapReduce
+     *  \return adopted utilization level by the Win_MapReduce
+     */ 
+    opt_level_t getOptLevel() const
+    {
+      return opt_level;
+    }
+
+    /** 
+     *  \brief Get the parallelism of the MAP stage
+     *  \return MAé parallelism
+     */ 
+    size_t getMAPParallelism() const
+    {
+      return map_parallelism;
+    }
+
+    /** 
+     *  \brief Get the parallelism of the REDUCE stage
+     *  \return REDUCE parallelism
+     */ 
+    size_t getREDUCEParallelism() const
+    {
+        return reduce_parallelism;
+    }
+
+    /** 
+     *  \brief Get the window type (CB or TB) utilized by the Win_MapReduce
+     *  \return adopted windowing semantics (count-based or time-based)
+     */ 
+    win_type_t getWinType() const
+    {
+        return winType;
+    }
+
+    /** 
+     *  \brief Get the number of ignored tuples by the Win_MapReduce
+     *  \return number of tuples ignored during the processing by the Win_MapReduce
+     */ 
+    size_t getNumIgnoredTuples() const
+    {
+        size_t count = 0;
+        for (auto *w: map_workers) {
+            auto *seq = static_cast<Win_Seq<tuple_t, result_t, wrapper_in_t> *>(w);
+            count += seq->getNumIgnoredTuples();
+        }
+        return count;
+    }
+
+    /** 
      *  \brief Get the name of the Win_MapReduce
      *  \return name of the Win_MapReduce
      */ 
@@ -908,87 +967,97 @@ public:
         return used;
     }
 
-    /** 
-     *  \brief Check whether the Win_MapReduce has been used in a nested structure
-     *  \return true if the Win_MapReduce has been used in a nested structure
-     */
-    bool isUsed4Nesting() const
+#if defined (TRACE_WINDFLOW)
+    /// Dump the log file (JSON format) in the LOG_DIR directory
+    void dump_LogFile() const override
     {
-        return used4Nesting;
-    }
-
-    /** 
-     *  \brief Get the optimization level used to build the Win_MapReduce
-     *  \return adopted utilization level by the Win_MapReduce
-     */ 
-    opt_level_t getOptLevel() const
-    {
-      return opt_level;
-    }
-
-    /** 
-     *  \brief Get the parallelism of the MAP stage
-     *  \return MAé parallelism
-     */ 
-    size_t getMAPParallelism() const
-    {
-      return map_parallelism;
-    }
-
-    /** 
-     *  \brief Get the parallelism of the REDUCE stage
-     *  \return REDUCE parallelism
-     */ 
-    size_t getREDUCEParallelism() const
-    {
-      return reduce_parallelism;
-    }
-
-    /** 
-     *  \brief Get the window type (CB or TB) utilized by the Win_MapReduce
-     *  \return adopted windowing semantics (count-based or time-based)
-     */ 
-    win_type_t getWinType() const
-    {
-        return winType;
-    }
-
-    /** 
-     *  \brief Get the number of dropped tuples by the Win_MapReduce
-     *  \return number of tuples dropped during the processing by the Win_MapReduce
-     */ 
-    size_t getNumDroppedTuples() const
-    {
-        size_t count = 0;
-        for (auto *w: map_workers) {
-            auto *seq = static_cast<Win_Seq<tuple_t, result_t, wrapper_in_t> *>(w);
-            count += seq->getNumDroppedTuples();
-        }
-        return count;
-    }
-
-    /** 
-     *  \brief Get the Stats_Record of each replica within the Win_MapReduce
-     *  \return vector of Stats_Record objects
-     */ 
-    std::vector<Stats_Record> get_StatsRecords() const override
-    {
-#if !defined(TRACE_WINDFLOW)
-        std::cerr << YELLOW << "WindFlow Warning: statistics are not enabled, compile with -DTRACE_WINDFLOW" << DEFAULT_COLOR << std::endl;
-        return {};
+        // create and open the log file in the LOG_DIR directory
+        std::ofstream logfile;
+#if defined (LOG_DIR)
+        std::string log_dir = std::string(STRINGIFY(LOG_DIR));
+        std::string filename = std::string(STRINGIFY(LOG_DIR)) + "/" + std::to_string(getpid()) + "_" + name + ".json";
 #else
-        std::vector<Stats_Record> records;
+        std::string log_dir = std::string("log");
+        std::string filename = "log/" + std::to_string(getpid()) + "_" + name + ".json";
+#endif
+        // create the log directory
+        if (mkdir(log_dir.c_str(), 0777) != 0) {
+            struct stat st;
+            if((stat(log_dir.c_str(), &st) != 0) || !S_ISDIR(st.st_mode)) {
+                std::cerr << RED << "WindFlow Error: directory for log files cannot be created" << DEFAULT_COLOR << std::endl;
+                exit(EXIT_FAILURE);
+            }
+        }
+        logfile.open(filename);
+        // create the rapidjson writer
+        rapidjson::StringBuffer buffer;
+        rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
+        // append the statistics of this operator
+        this->append_Stats(writer);
+        // serialize the object to file
+        logfile << buffer.GetString();
+        logfile.close();
+    }
+
+    // append the statistics of this operator
+    void append_Stats(rapidjson::PrettyWriter<rapidjson::StringBuffer> &writer) const override
+    {
+        // create the header of the JSON file
+        writer.StartObject();
+        writer.Key("Operator_name");
+        writer.String(name.c_str());
+        writer.Key("Operator_type");
+        writer.String("Win_MapReduce");
+        writer.Key("Distribution");
+        writer.String("COMPLEX");
+        writer.Key("MAP_Stage");
+        writer.String("CPU");
+        writer.Key("Window_type");
+        if (winType == CB) {
+            writer.String("count-based");
+        }
+        else {
+            writer.String("time-based");
+            writer.Key("Window_delay");
+            writer.Uint(triggering_delay);  
+        }
+        writer.Key("Window_length");
+        writer.Uint(win_len);
+        writer.Key("Window_slide");
+        writer.Uint(slide_len);
+        writer.Key("Parallelism_MAP");
+        writer.Uint(map_parallelism);
+        writer.Key("Replicas");
+        writer.StartArray();
+        // get statistics from all the replicas of the MAP stage
         for (auto *w: map_workers) {
             auto *seq = static_cast<Win_Seq<tuple_t, result_t, wrapper_in_t> *>(w);
-            records.push_back(seq->get_StatsRecord());
+            Stats_Record record = seq->get_StatsRecord();
+            record.append_Stats(writer);
         }
+        writer.EndArray();
+        writer.Key("REDUCE_Stage");
+        writer.String("CPU");
+        writer.Key("Window_type");
+        writer.String("count-based");
+        writer.Key("Window_length");
+        writer.Uint(map_parallelism);
+        writer.Key("Window_slide");
+        writer.Uint(map_parallelism);
+        writer.Key("Parallelism_REDUCE");
+        writer.Uint(reduce_parallelism);
+        writer.Key("Replicas");
+        writer.StartArray();
+        // get statistics from all the replicas of the REDUCE stage
         for (auto *w: reduce_workers) {
             auto *seq = static_cast<Win_Seq<result_t, result_t> *>(w);
-            records.push_back(seq->get_StatsRecord());
+            Stats_Record record = seq->get_StatsRecord();
+            record.append_Stats(writer);
         }
-        return records;
-#endif      
+        writer.EndArray();      
+        writer.EndObject();     
     }
+#endif
 
     /// deleted constructors/operators
     Win_MapReduce(const Win_MapReduce &) = delete; // copy constructor

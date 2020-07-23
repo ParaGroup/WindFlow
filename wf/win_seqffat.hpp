@@ -48,7 +48,9 @@
 #include<meta.hpp>
 #include<flatfat.hpp>
 #include<meta_gpu.hpp>
-#include<stats_record.hpp>
+#if defined (TRACE_WINDFLOW)
+    #include<stats_record.hpp>
+#endif
 
 namespace wf {
 
@@ -148,10 +150,10 @@ private:
     RuntimeContext context; // RuntimeContext
     WinOperatorConfig config; // configuration structure of the Win_SeqFFAT node
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
-    size_t dropped_tuples; // number of dropped tuples
+    size_t ignored_tuples; // number of ignored tuples
     size_t eos_received; // number of received EOS messages
     bool isRenumbering; // if true, the node assigns increasing identifiers to the input tuples (useful for count-based windows in DEFAULT mode)
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
     Stats_Record stats_record;
     double avg_td_us = 0;
     double avg_ts_us = 0;
@@ -216,7 +218,7 @@ public:
                 config(_config),
                 isRichLift(false),
                 isRichCombine(false),
-                dropped_tuples(0),
+                ignored_tuples(0),
                 eos_received(0),
                 isRenumbering(false)
     {
@@ -246,7 +248,7 @@ public:
                 config(_config),
                 isRichLift(true),
                 isRichCombine(false),
-                dropped_tuples(0),
+                ignored_tuples(0),
                 eos_received(0),
                 isRenumbering(false)
     {
@@ -276,7 +278,7 @@ public:
                 config(_config),
                 isRichLift(false),
                 isRichCombine(true),
-                dropped_tuples(0),
+                ignored_tuples(0),
                 eos_received(0),
                 isRenumbering(false)
     {
@@ -306,7 +308,7 @@ public:
                 config(_config),
                 isRichLift(true),
                 isRichCombine(true),
-                dropped_tuples(0),
+                ignored_tuples(0),
                 eos_received(0),
                 isRenumbering(false)
     {
@@ -316,8 +318,8 @@ public:
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init() override
     {
-#if defined(TRACE_WINDFLOW)
-            stats_record = Stats_Record(name, "replica_" + std::to_string(this->get_my_id()), false);
+#if defined (TRACE_WINDFLOW)
+            stats_record = Stats_Record(name, std::to_string(this->get_my_id()), true, false);
 #endif
         return 0;
     }
@@ -364,9 +366,9 @@ public:
         Key_Descriptor &key_d = (*it).second;
         // check if isRenumbering is enabled (used for count-based windows in DEFAULT mode)
         if (isRenumbering) {
-        	assert(winType == CB);
-        	id = key_d.next_ids++;
-        	t->setControlFields(std::get<0>(t->getControlFields()), id, std::get<2>(t->getControlFields()));
+            assert(winType == CB);
+            id = key_d.next_ids++;
+            t->setControlFields(std::get<0>(t->getControlFields()), id, std::get<2>(t->getControlFields()));
         }
         // gwid of the first window of that key assigned to this Win_SeqFFAT
         uint64_t first_gwid_key = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) * config.n_outer + (config.id_outer - (hashcode % config.n_outer) + config.n_outer) % config.n_outer;
@@ -413,14 +415,14 @@ public:
             // send the window result
             out->setControlFields(std::get<0>(out->getControlFields()), gwid, std::get<2>(out->getControlFields()));
             this->ff_send_out(out);
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
             stats_record.outputs_sent++;
             stats_record.bytes_sent += sizeof(result_t);
 #endif
         }
         // delete the input
         delete t;
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
         endTS = current_time_nsecs();
         endTD = current_time_nsecs();
         double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
@@ -461,9 +463,9 @@ public:
         Key_Descriptor &key_d = (*it).second;
         // compute the identifier of the quantum containing the input tuple
         uint64_t quantum_id = ts / quantum;
-        // check if the tuple must be dropped
+        // check if the tuple must be ignored
         if (quantum_id < key_d.last_quantum) {
-            dropped_tuples++;
+            ignored_tuples++;
             delete t;
             return;
         }
@@ -514,7 +516,7 @@ public:
         acc_results.erase(acc_results.begin(), acc_results.begin() + n_completed);
         // delete the input
         delete t;
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
         endTS = current_time_nsecs();
         endTD = current_time_nsecs();
         double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
@@ -569,7 +571,7 @@ public:
             // send the window result
             out->setControlFields(std::get<0>(out->getControlFields()), gwid, std::get<2>(out->getControlFields()));
             this->ff_send_out(out);
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
             stats_record.outputs_sent++;
             stats_record.bytes_sent += sizeof(result_t);
 #endif
@@ -619,7 +621,7 @@ public:
                 // send the window result
                 out->setControlFields(std::get<0>(out->getControlFields()), gwid, std::get<2>(out->getControlFields()));
                 this->ff_send_out(out);
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
                 stats_record.outputs_sent++;
                 stats_record.bytes_sent += sizeof(result_t);
 #endif
@@ -658,7 +660,7 @@ public:
                 // send the window result
                 out->setControlFields(std::get<0>(out->getControlFields()), gwid, std::get<2>(out->getControlFields()));
                 this->ff_send_out(out);
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
                 stats_record.outputs_sent++;
                 stats_record.bytes_sent += sizeof(result_t);
 #endif
@@ -671,19 +673,15 @@ public:
     {
         // call the closing function
         closing_func(context);
-#if defined(TRACE_WINDFLOW)
-        // dump log file with statistics
-        stats_record.dump_toFile();
-#endif
     }
 
-    // method to return the number of dropped tuples by this node
-    size_t getNumDroppedTuples() const
+    // method to return the number of ignored tuples by this node
+    size_t getNumIgnoredTuples() const
     {
-        return dropped_tuples;
+        return ignored_tuples;
     }
 
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
     // method to return a copy of the Stats_Record of this node
     Stats_Record get_StatsRecord() const
     {

@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Test of the MultiPipe construct:
+ *  Test of the MultiPipe construct with WF(PF), time-based windows and DETERMINISTIC mode.
  *  
  *  +------------------------------------------------------------------+
  *  |                                             WF_TB(*)             |

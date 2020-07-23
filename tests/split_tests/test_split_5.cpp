@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Test 5 of the split of MultiPipe instances:
+ *  Test 5 of the split of MultiPipe instances.
  *  
  *                                                  +---------------------+
  *                                                  |  +-----+   +-----+  |

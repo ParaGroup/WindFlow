@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Test 4 of the merge of MultiPipe instances:
+ *  Test 4 of the merge of MultiPipe instances.
  *  
  *  +-----------+
  *  |  +-----+  |

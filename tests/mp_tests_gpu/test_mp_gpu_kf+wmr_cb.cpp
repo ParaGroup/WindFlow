@@ -15,7 +15,7 @@
  */
 
 /*  
- *  Test of the MultiPipe construct:
+ *  Test of the MultiPipe construct with KF(WMR), count-based windows and DETERMINISTIC mode.
  *  
  *  +-------------------------------------------------------------------+
  *  |                                             KF_CB(*)              |

@@ -117,6 +117,7 @@ private:
     bool isRichWLQ;
     uint64_t win_len;
     uint64_t slide_len;
+    uint64_t pane_len;
     uint64_t triggering_delay;
     size_t plq_parallelism;
     size_t wlq_parallelism;
@@ -172,14 +173,14 @@ private:
             exit(EXIT_FAILURE);
         }
         // compute the pane length (no. of tuples or in time units)
-        uint64_t _pane_len = gcd(_win_len, _slide_len);
+        pane_len = gcd(_win_len, _slide_len);
         // general fastflow pointers to the PLQ and WLQ stages
         ff_node *plq_stage, *wlq_stage;
         // create the first stage PLQ (Pane Level Query)
         if (_plq_parallelism > 1) {
             // configuration structure of the Win_Farm (PLQ)
             WinOperatorConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_func_PLQ, _pane_len, _pane_len, _triggering_delay, _winType, _plq_parallelism, _name + "_plq", _closing_func, true, LEVEL0, configWFPLQ, PLQ);
+            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_func_PLQ, pane_len, pane_len, _triggering_delay, _winType, _plq_parallelism, _name + "_plq", _closing_func, true, LEVEL0, configWFPLQ, PLQ);
             plq_stage = plq_wf;
             for (auto *w: plq_wf->getWorkers()) {
                 plq_workers.push_back(w);
@@ -187,8 +188,8 @@ private:
         }
         else {
             // configuration structure of the Win_Seq (PLQ)
-            WinOperatorConfig configSeqPLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _pane_len);
-            auto *plq_seq = new Win_Seq<tuple_t, result_t, input_t>(_func_PLQ, _pane_len, _pane_len, _triggering_delay, _winType, _name + "_plq", _closing_func, RuntimeContext(1, 0), configSeqPLQ, PLQ);
+            WinOperatorConfig configSeqPLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, pane_len);
+            auto *plq_seq = new Win_Seq<tuple_t, result_t, input_t>(_func_PLQ, pane_len, pane_len, _triggering_delay, _winType, _name + "_plq", _closing_func, RuntimeContext(1, 0), configSeqPLQ, PLQ);
             plq_stage = plq_seq;
             plq_workers.push_back(plq_seq);
         }
@@ -196,7 +197,7 @@ private:
         if (_wlq_parallelism > 1) {
             // configuration structure of the Win_Farm (WLQ)
             WinOperatorConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *wlq_wf = new Win_Farm<result_t, result_t>(_func_WLQ, (_win_len/_pane_len), (_slide_len/_pane_len), 0, CB, _wlq_parallelism, _name + "_wlq", _closing_func, _ordered, LEVEL0, configWFWLQ, WLQ);
+            auto *wlq_wf = new Win_Farm<result_t, result_t>(_func_WLQ, (_win_len/pane_len), (_slide_len/pane_len), 0, CB, _wlq_parallelism, _name + "_wlq", _closing_func, _ordered, LEVEL0, configWFWLQ, WLQ);
             wlq_stage = wlq_wf;
             for (auto *w: wlq_wf->getWorkers()) {
                 wlq_workers.push_back(w);
@@ -204,8 +205,8 @@ private:
         }
         else {
             // configuration structure of the Win_Seq (WLQ)
-            WinOperatorConfig configSeqWLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, (_slide_len/_pane_len));
-            auto *wlq_seq = new Win_Seq<result_t, result_t>(_func_WLQ, (_win_len/_pane_len), (_slide_len/_pane_len), 0, CB, _name + "_wlq", _closing_func, RuntimeContext(1, 0), configSeqWLQ, WLQ);
+            WinOperatorConfig configSeqWLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, (_slide_len/pane_len));
+            auto *wlq_seq = new Win_Seq<result_t, result_t>(_func_WLQ, (_win_len/pane_len), (_slide_len/pane_len), 0, CB, _name + "_wlq", _closing_func, RuntimeContext(1, 0), configSeqWLQ, WLQ);
             wlq_stage = wlq_seq;
             wlq_workers.push_back(wlq_seq);
         }
@@ -883,42 +884,6 @@ public:
     }
 
     /** 
-     *  \brief Get the name of the Pane_Farm
-     *  \return name of the Pane_Farm
-     */ 
-    std::string getName() const override
-    {
-        return name;
-    }
-
-    /** 
-     *  \brief Get the total parallelism within the Pane_Farm
-     *  \return total parallelism within the Pane_Farm
-     */ 
-    size_t getParallelism() const override
-    {
-        return parallelism;
-    }
-
-    /** 
-     *  \brief Return the routing mode of inputs to the Pane_Farm
-     *  \return routing mode (always COMPLEX for the Pane_Farm)
-     */ 
-    routing_modes_t getRoutingMode() const override
-    {
-        return COMPLEX;
-    }
-
-    /** 
-     *  \brief Check whether the Pane_Farm has been used in a MultiPipe
-     *  \return true if the Pane_Farm has been added/chained to an existing MultiPipe
-     */ 
-    bool isUsed() const override
-    {
-        return used;
-    }
-
-    /** 
      *  \brief Check whether the Pane_Farm has been used in a nested structure
      *  \return true if the Pane_Farm has been used in a nested structure
      */
@@ -964,41 +929,144 @@ public:
     }
 
     /** 
-     *  \brief Get the number of dropped tuples by the Pane_Farm
-     *  \return number of tuples dropped during the processing by the Pane_Farm
+     *  \brief Get the number of ignored tuples by the Pane_Farm
+     *  \return number of tuples ignored during the processing by the Pane_Farm
      */ 
-    size_t getNumDroppedTuples() const
+    size_t getNumIgnoredTuples() const
     {
         size_t count = 0;
         for (auto *w: plq_workers) {
             auto *seq = static_cast<Win_Seq<tuple_t, result_t, input_t> *>(w);
-            count += seq->getNumDroppedTuples();
+            count += seq->getNumIgnoredTuples();
         }
         return count;
     }
 
     /** 
-     *  \brief Get the Stats_Record of each replica within the Pane_Farm
-     *  \return vector of Stats_Record objects
+     *  \brief Get the name of the Pane_Farm
+     *  \return name of the Pane_Farm
      */ 
-    std::vector<Stats_Record> get_StatsRecords() const override
+    std::string getName() const override
     {
-#if !defined(TRACE_WINDFLOW)
-        std::cerr << YELLOW << "WindFlow Warning: statistics are not enabled, compile with -DTRACE_WINDFLOW" << DEFAULT_COLOR << std::endl;
-        return {};
+        return name;
+    }
+
+    /** 
+     *  \brief Get the total parallelism within the Pane_Farm
+     *  \return total parallelism within the Pane_Farm
+     */ 
+    size_t getParallelism() const override
+    {
+        return parallelism;
+    }
+
+    /** 
+     *  \brief Return the routing mode of inputs to the Pane_Farm
+     *  \return routing mode (always COMPLEX for the Pane_Farm)
+     */ 
+    routing_modes_t getRoutingMode() const override
+    {
+        return COMPLEX;
+    }
+
+    /** 
+     *  \brief Check whether the Pane_Farm has been used in a MultiPipe
+     *  \return true if the Pane_Farm has been added/chained to an existing MultiPipe
+     */ 
+    bool isUsed() const override
+    {
+        return used;
+    }
+
+#if defined (TRACE_WINDFLOW)
+    /// Dump the log file (JSON format) in the LOG_DIR directory
+    void dump_LogFile() const override
+    {
+        // create and open the log file in the LOG_DIR directory
+        std::ofstream logfile;
+#if defined (LOG_DIR)
+        std::string log_dir = std::string(STRINGIFY(LOG_DIR));
+        std::string filename = std::string(STRINGIFY(LOG_DIR)) + "/" + std::to_string(getpid()) + "_" + name + ".json";
 #else
-        std::vector<Stats_Record> records;
+        std::string log_dir = std::string("log");
+        std::string filename = "log/" + std::to_string(getpid()) + "_" + name + ".json";
+#endif
+        // create the log directory
+        if (mkdir(log_dir.c_str(), 0777) != 0) {
+            struct stat st;
+            if((stat(log_dir.c_str(), &st) != 0) || !S_ISDIR(st.st_mode)) {
+                std::cerr << RED << "WindFlow Error: directory for log files cannot be created" << DEFAULT_COLOR << std::endl;
+                exit(EXIT_FAILURE);
+            }
+        }
+        logfile.open(filename);
+        // create the rapidjson writer
+        rapidjson::StringBuffer buffer;
+        rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
+        // append the statistics of this operator
+        this->append_Stats(writer);
+        // serialize the object to file
+        logfile << buffer.GetString();
+        logfile.close();
+    }
+
+    // append the statistics of this operator
+    void append_Stats(rapidjson::PrettyWriter<rapidjson::StringBuffer> &writer) const override
+    {
+        // create the header of the JSON file
+        writer.StartObject();
+        writer.Key("Operator_name");
+        writer.String(name.c_str());
+        writer.Key("Operator_type");
+        writer.String("Pane_Farm");
+        writer.Key("Distribution");
+        writer.String("COMPLEX");
+        writer.Key("PLQ_Stage");
+        writer.String("CPU");
+        writer.Key("Window_type");
+        if (winType == CB) {
+            writer.String("count-based");
+        }
+        else {
+            writer.String("time-based");
+            writer.Key("Window_delay");
+            writer.Uint(triggering_delay);  
+        }
+        writer.Key("Pane_length");
+        writer.Uint(pane_len);
+        writer.Key("Parallelism_PLQ");
+        writer.Uint(plq_parallelism);
+        writer.Key("Replicas");
+        writer.StartArray();
+        // get statistics from all the replicas of the PLQ stage
         for (auto *w: plq_workers) {
             auto *seq = static_cast<Win_Seq<tuple_t, result_t, input_t> *>(w);
-            records.push_back(seq->get_StatsRecord());
+            Stats_Record record = seq->get_StatsRecord();
+            record.append_Stats(writer);
         }
+        writer.EndArray();
+        writer.Key("WLQ_Stage");
+        writer.String("CPU");
+        writer.Key("Window_type");
+        writer.String("count-based");
+        writer.Key("Window_length");
+        writer.Uint(win_len/pane_len);
+        writer.Key("Window_slide");
+        writer.Uint(slide_len/pane_len);
+        writer.Key("Parallelism_WLQ");
+        writer.Uint(wlq_parallelism);
+        writer.Key("Replicas");
+        writer.StartArray();
+        // get statistics from all the replicas of the WLQ stage
         for (auto *w: wlq_workers) {
             auto *seq = static_cast<Win_Seq<result_t, result_t> *>(w);
-            records.push_back(seq->get_StatsRecord());
+            Stats_Record record = seq->get_StatsRecord();
+            record.append_Stats(writer);
         }
-        return records;
-#endif      
+        writer.EndArray();      
+        writer.EndObject();     
     }
+#endif
 
     /// deleted constructors/operators
     Pane_Farm(const Pane_Farm &) = delete; // copy constructor

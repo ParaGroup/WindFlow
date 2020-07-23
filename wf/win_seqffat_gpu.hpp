@@ -48,7 +48,9 @@
 #include<meta.hpp>
 #include<meta_gpu.hpp>
 #include<flatfat_gpu.hpp>
-#include<stats_record.hpp>
+#if defined (TRACE_WINDFLOW)
+    #include<stats_record.hpp>
+#endif
 
 namespace wf {
 
@@ -104,7 +106,7 @@ private:
                        next_lwid(0),
                        batchedWin(0),
                        num_processed_batches(0)
-        { 
+        {
             pending_tuples.reserve(_batchSize);
         }
 
@@ -135,20 +137,21 @@ private:
     win_type_t winType; // window type (CB or TB)
     std::string name; // string of the unique name of the node
     WinOperatorConfig config; // configuration structure of the Win_SeqFFAT_GPU node
-    std::unordered_map<size_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
+    std::unordered_map<size_t, Key_Descriptor> keyMap; // hash table that maps keys onto descriptors
     size_t batch_len; // length of the micro-batch in terms of no. of windows
-    size_t tuples_per_batch; // number of tuples per batch (only for CB windows)
+    size_t tuples_per_batch; // number of tuples per batch
     bool rebuild; // flag stating whether the FLATFAT_GPU must be built every batch or only updated
     bool isRunningKernel = false; // true if the kernel is running on the GPU, false otherwise
     Key_Descriptor *lastKeyD = nullptr; // pointer to the key descriptor of the running kernel on the GPU
+    size_t ignored_tuples; // number of ignored tuples
+    size_t eos_received; // number of received EOS messages
+    bool isRenumbering; // if true, the node assigns increasing identifiers to the input tuples (useful for count-based windows in DEFAULT mode)
+    // GPU variables
     int gpu_id; // identifier of the chosen GPU device
     size_t n_thread_block; // number of threads per block
     int numSMs; // number of Stream MultiProcessors of the used GPU
     cudaStream_t cudaStream; // CUDA stream used by this Win_SeqFFAT_GPU
-    size_t dropped_tuples; // number of dropped tuples
-    size_t eos_received; // number of received EOS messages
-    bool isRenumbering; // if true, the node assigns increasing identifiers to the input tuples (useful for count-based windows in DEFAULT mode)
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
     Stats_Record stats_record;
     double avg_td_us = 0;
     double avg_ts_us = 0;
@@ -184,16 +187,16 @@ private:
                     slide_len(_slide_len),
                     triggering_delay(_triggering_delay),
                     winType(_winType),
-                    batch_len(_batch_len),
-                    gpu_id(_gpu_id),
-                    n_thread_block(_n_thread_block),
-                    numSMs(0),
-                    rebuild(_rebuild),
                     name(_name),
                     config(_config),
-                    dropped_tuples(0),
+                    batch_len(_batch_len),
+                    rebuild(_rebuild),
+                    ignored_tuples(0),
                     eos_received(0),
-                    isRenumbering(false)
+                    isRenumbering(false),
+                    gpu_id(_gpu_id),
+                    n_thread_block(_n_thread_block),
+                    numSMs(0)
     {
         // check the validity of the windowing parameters
         if (win_len == 0 || slide_len == 0) {
@@ -232,7 +235,7 @@ private:
                 *r = results[i];
                 r->setControlFields(std::get<0>(r->getControlFields()), (lastKeyD->gwids)[i], (lastKeyD->tsWin)[i]);
                 this->ff_send_out(r);
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
                 stats_record.outputs_sent++;
                 stats_record.bytes_sent += sizeof(result_t);
 #endif
@@ -269,7 +272,7 @@ public:
             std::cerr << RED << "WindFlow Error: chosen GPU device is not valid" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        // use the chosen GPU device
+        // use the chosen GPU device by this fastflow thread
         gpuErrChk(cudaSetDevice(gpu_id));
         // get the number of Stream MultiProcessors on the GPU
         gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, gpu_id));
@@ -287,8 +290,8 @@ public:
         gpuErrChk(cudaStreamCreate(&cudaStream));
         // compute the fixed number of tuples per batch (only sliding windows here)
         tuples_per_batch = (batch_len - 1) * slide_len + win_len;
-#if defined(TRACE_WINDFLOW)
-        stats_record = Stats_Record(name, "replica_" + std::to_string(this->get_my_id()), true);
+#if defined (TRACE_WINDFLOW)
+        stats_record = Stats_Record(name, std::to_string(this->get_my_id()), true, true);
 #endif
         return 0;
     }
@@ -296,7 +299,7 @@ public:
     // svc method (utilized by the FastFlow runtime)
     result_t *svc(tuple_t *t) override
     {
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
         startTS = current_time_nsecs();
         if (stats_record.inputs_received == 0) {
             startTD = current_time_nsecs();
@@ -311,7 +314,7 @@ public:
         else {
             svcTBWindows(t);
         }
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
         endTS = current_time_nsecs();
         endTD = current_time_nsecs();
         double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
@@ -337,16 +340,16 @@ public:
         if (it == keyMap.end()) {
             keyMap.insert(std::make_pair(key, Key_Descriptor(winLift_func, winComb_func, tuples_per_batch, batch_len, win_len, slide_len, key, &cudaStream, n_thread_block, numSMs)));
             it = keyMap.find(key);
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
             (((*it).second).fatgpu).set_StatsRecord(&stats_record);
 #endif
         }
         Key_Descriptor &key_d = (*it).second;
         // check if isRenumbering is enabled (used for count-based windows in DEFAULT mode)
         if (isRenumbering) {
-        	assert(winType == CB);
-        	id = key_d.next_ids++;
-        	t->setControlFields(std::get<0>(t->getControlFields()), id, std::get<2>(t->getControlFields()));
+            assert(winType == CB);
+            id = key_d.next_ids++;
+            t->setControlFields(std::get<0>(t->getControlFields()), id, std::get<2>(t->getControlFields()));
         }
         // gwid of the first window of that key assigned to this Win_SeqFFAT_GPU instance
         uint64_t first_gwid_key = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) * config.n_outer + (config.id_outer - (hashcode % config.n_outer) + config.n_outer) % config.n_outer;
@@ -420,16 +423,16 @@ public:
         if (it == keyMap.end()) {
             keyMap.insert(std::make_pair(key, Key_Descriptor(winLift_func, winComb_func, tuples_per_batch, batch_len, win_len, slide_len, key, &cudaStream, n_thread_block, numSMs)));
             it = keyMap.find(key);
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
             (((*it).second).fatgpu).set_StatsRecord(&stats_record);
 #endif
         }
         Key_Descriptor &key_d = (*it).second;
         // compute the identifier of the quantum containing the input tuple
         uint64_t quantum_id = ts / quantum;
-        // check if the tuple must be dropped
+        // check if the tuple must be ignored
         if (quantum_id < key_d.last_quantum) {
-            dropped_tuples++;
+            ignored_tuples++;
             delete t;
             return;
         }
@@ -578,7 +581,7 @@ public:
                 res->setControlFields(key, gwid, std::get<2>(res->getControlFields()));
                 remaining_tuples.erase(remaining_tuples.begin(), remaining_tuples.begin() + slide_len);
                 this->ff_send_out(res);
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
                 stats_record.outputs_sent++;
                 stats_record.bytes_sent += sizeof(result_t);
 #endif
@@ -598,7 +601,7 @@ public:
                 auto lastPos = remaining_tuples.end( ) <= remaining_tuples.begin( ) + slide_len ? remaining_tuples.end( ) : remaining_tuples.begin( ) + slide_len;
                 remaining_tuples.erase(remaining_tuples.begin(), lastPos);
                 this->ff_send_out(res);
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
                 stats_record.outputs_sent++;
                 stats_record.bytes_sent += sizeof(result_t);
 #endif
@@ -642,7 +645,7 @@ public:
                 res->setControlFields(key, gwid, std::get<2>(res->getControlFields()));
                 remaining_tuples.erase(remaining_tuples.begin(), remaining_tuples.begin() + slide_len);
                 this->ff_send_out(res);
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
                 stats_record.outputs_sent++;
                 stats_record.bytes_sent += sizeof(result_t);
 #endif
@@ -662,7 +665,7 @@ public:
                 auto lastPos = remaining_tuples.end( ) <= remaining_tuples.begin() + slide_len ? remaining_tuples.end() : remaining_tuples.begin() + slide_len;
                 remaining_tuples.erase(remaining_tuples.begin(), lastPos);
                 this->ff_send_out(res);
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
                 stats_record.outputs_sent++;
                 stats_record.bytes_sent += sizeof(result_t);
 #endif
@@ -675,19 +678,15 @@ public:
     {
         // destroy the CUDA stream
         gpuErrChk(cudaStreamDestroy(cudaStream));
-#if defined(TRACE_WINDFLOW)
-        // dump log file with statistics
-        stats_record.dump_toFile();
-#endif
     }
 
-    // method to return the number of dropped tuples by this node
-    size_t getNumDroppedTuples() const
+    // method to return the number of ignored tuples by this node
+    size_t getNumIgnoredTuples() const
     {
-        return dropped_tuples;
+        return ignored_tuples;
     }
 
-#if defined(TRACE_WINDFLOW)
+#if defined (TRACE_WINDFLOW)
     // method to return a copy of the Stats_Record of this node
     Stats_Record get_StatsRecord() const
     {

@@ -39,9 +39,6 @@
 #include<errno.h>
 #include<sys/time.h>
 #include<sys/stat.h>
-#ifdef GRAPHVIZ_WINDFLOW
-  #include<graphviz/gvc.h>
-#endif
 
 namespace wf {
 
@@ -83,7 +80,7 @@ inline unsigned long current_time_nsecs()
 #define DEFAULT_CUDA_NUM_THREAD_BLOCK 256
 
 /// supported processing modes of the PipeGraph
-enum class Mode { DEFAULT, DETERMINISTIC };
+enum class Mode { DEFAULT, DETERMINISTIC, PROBABILISTIC };
 
 /// supported window types of window-based operators
 enum win_type_t { CB, TB };
@@ -270,6 +267,16 @@ class MultiPipe;
 
 /// forward declaration of the PipeGraph construct
 class PipeGraph;
+
+//@cond DOXY_IGNORE
+
+// forward declaration of the merge_multipipes_func function
+inline MultiPipe *merge_multipipes_func(PipeGraph *, std::vector<MultiPipe *>);
+
+// forward declaration of the split_multipipe_func function
+inline std::vector<MultiPipe *> split_multipipe_func(PipeGraph *, MultiPipe *);
+
+//@cond DOXY_IGNORE
 
 } // namespace wf
 

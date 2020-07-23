@@ -70,8 +70,7 @@ public:
              iterator_t _last):
              first(_first),
              last(_last),
-             n_size(std::distance(_first, _last))
-    {}
+             n_size(std::distance(_first, _last)) {}
 
     /** 
      *  \brief Return an iterator to the begin of the iterable object
