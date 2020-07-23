@@ -47,7 +47,7 @@ WindFlow makes use of <tt>std::optional</tt> in its source code. So, it is compl
 The examples of the library have been compiled with GNU Compiler Collection (GCC). Tests seem to compile well also using <tt>clang</tt>.
 
 # About the License
-WindFlow and FastFlow are released with the <strong>LGPL-3</strong> license and they are both header-only libraries. So, any developer who wants to use our libraries for her applications must honor Section 3 of the LGPL (she should mention "prominently" that her application uses WindFlow/FastFlow and linking the LGPL text somewhere). Please be careful that, if compiled with the -DTRACE_WINDFLOW macro, WindFlow needs the dynamic libraries of libgraphviz and librapidjson-dev (authors should check the compatibility with their license).
+WindFlow and FastFlow are released with the <strong>LGPL-3</strong> license and they are both header-only libraries. So, any developer who wants to use our libraries for her applications must honor Section 3 of the LGPL (she should mention "prominently" that her application uses WindFlow/FastFlow and linking the LGPL text somewhere). Please be careful that, if compiled with the -DTRACE_WINDFLOW macro, WindFlow needs libgraphviz and librapidjson-dev (authors should check the compatibility with their license).
 
 # Contributors
 The main developer and maintainer of WindFlow is [Gabriele Mencagli](mailto:mencagli@di.unipi.it) (Department of Computer Science, University of Pisa, Italy).
