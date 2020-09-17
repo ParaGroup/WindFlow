@@ -38,7 +38,6 @@
 #include<string>
 #include<ff/node.hpp>
 #include<ff/pipeline.hpp>
-#include<ff/multinode.hpp>
 #include<ff/farm.hpp>
 #include<basic.hpp>
 #include<context.hpp>
@@ -87,7 +86,7 @@ private:
     bool keyed; // flag stating whether the Filter is configured with keyBy or not
     bool used; // true if the Filter has been added/chained in a MultiPipe
     // class Filter_Node
-    class Filter_Node: public ff::ff_minode_t<tuple_t, result_t>
+    class Filter_Node: public ff::ff_node_t<tuple_t, result_t>
     {
 private:
         filter_func_t filter_func; // filter function (with boolean return type)

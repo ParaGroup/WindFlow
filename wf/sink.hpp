@@ -45,7 +45,6 @@
 #include<ff/node.hpp>
 #include<ff/combine.hpp>
 #include<ff/pipeline.hpp>
-#include<ff/multinode.hpp>
 #include<ff/farm.hpp>
 #include<basic.hpp>
 #include<context.hpp>
@@ -90,7 +89,7 @@ private:
     bool keyed; // flag stating whether the Sink is configured with keyBy or not
     bool used; // true if the Sink has been added/chained in a MultiPipe
     // class Sink_Node
-    class Sink_Node: public ff::ff_minode_t<tuple_t>
+    class Sink_Node: public ff::ff_node_t<tuple_t>
     {
     private:
         sink_func_t sink_func; // sink function (receiving a reference to an optional containing the input)

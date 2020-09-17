@@ -268,6 +268,10 @@ private:
                     collector_t *collector = new collector_t(_ordering, atomic_num_dropped);
                     combine_with_firststage(*stage, collector, true); // add the ordering_node / kslack_node
                 }
+                else {
+                    dummy_mi *collector = new dummy_mi();
+                    combine_with_firststage(*stage, collector, true); // dummy multi-input node
+                }
                 first_set.push_back(stage);
             }
             matrioska->add_firstset(first_set, 0, true);
@@ -317,6 +321,10 @@ private:
                 if (mode != Mode::DEFAULT || _ordering == ID) {
                     collector_t *collector = new collector_t(_ordering, atomic_num_dropped);
                     combine_with_firststage(*stage, collector, true); // add the ordering_node / kslack_node
+                }
+                else {
+                    dummy_mi *collector = new dummy_mi();
+                    combine_with_firststage(*stage, collector, true); // dummy multi-input node
                 }
                 first_set.push_back(stage);
             }

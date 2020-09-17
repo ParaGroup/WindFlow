@@ -44,7 +44,6 @@
 #include<unordered_map>
 #include<math.h>
 #include<ff/node.hpp>
-#include<ff/multinode.hpp>
 #include<meta.hpp>
 #include<meta_gpu.hpp>
 #include<flatfat_gpu.hpp>
@@ -56,7 +55,7 @@ namespace wf {
 
 // Win_SeqFFAT_GPU class
 template<typename tuple_t, typename result_t, typename comb_F_t>
-class Win_SeqFFAT_GPU: public ff::ff_minode_t<tuple_t, result_t>
+class Win_SeqFFAT_GPU: public ff::ff_node_t<tuple_t, result_t>
 {
 private:
     // type of the lift function
@@ -541,9 +540,9 @@ public:
     {
         eos_received++;
         // check the number of received EOS messages
-        if ((eos_received != this->get_num_inchannels()) && (this->get_num_inchannels() != 0)) { // workaround due to FastFlow
-            return;
-        }
+        //if ((eos_received != this->get_num_inchannels()) && (this->get_num_inchannels() != 0)) { // workaround due to FastFlow
+        //    return;
+        //}
         // two separate logics depending on the window type
         if (winType == CB) {
             eosnotifyCBWindows(id);
@@ -697,13 +696,13 @@ public:
     // method to start the node execution asynchronously
     int run(bool) override
     {
-        return ff::ff_minode::run();
+        return ff::ff_node::run();
     }
 
     // method to wait the node termination
     int wait() override
     {
-        return ff::ff_minode::wait();
+        return ff::ff_node::wait();
     }
 };
 
