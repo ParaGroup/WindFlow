@@ -1,4 +1,0 @@
-#!/bin/bash
-
-# start WindFlow Dashboard with [INFO] logging level on stdout
-mvn spring-boot:run
