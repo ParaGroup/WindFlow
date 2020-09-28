@@ -32,8 +32,10 @@
  *  
  *  The template parameters tuple_t and result_t must be default constructible, with a copy
  *  constructor and a copy assignment operator, and they must provide and implement the
- *  setControlFields() and getControlFields() methods. The third template argument win_F_t
- *  is the type of the callable object to be used for GPU processing.
+ *  setControlFields() and getControlFields() methods. Furthermore, in order to be copyable
+ *  in a GPU-accessible memory, they must be compliant with the C++ specification for standard
+ *  layout types. The third template argument win_F_t is the type of the callable object to be
+ *  used for GPU processing.
  */ 
 
 #ifndef KEY_FARM_GPU_H
@@ -110,10 +112,10 @@ private:
     // method to optimize the structure of the Key_Farm_GPU operator
     void optimize_KeyFarmGPU(opt_level_t opt)
     {
-        if (opt == LEVEL0) { // no optimization
+        if (opt == opt_level_t::LEVEL0) { // no optimization
             return;
         }
-        else if (opt == LEVEL1) { // optimization level 1
+        else if (opt == opt_level_t::LEVEL1) { // optimization level 1
             remove_internal_collectors(*this); // remove all the default collectors in the Key_Farm_GPU
         }
         else { // optimization level 2
@@ -147,7 +149,7 @@ private:
     // method to set the isRenumbering mode of the internal nodes
     void set_isRenumbering()
     {
-        assert(!isComplex && winType == CB); // only count-based windows without complex nested structures
+        assert(!isComplex && winType == win_type_t::CB); // only count-based windows without complex nested structures
         for (auto *node: kf_workers) {
             win_seq_gpu_t *seq = static_cast<win_seq_gpu_t *>(node);
             seq->isRenumbering = true;
@@ -190,8 +192,8 @@ public:
                  used(false),
                  isComplex(false),
                  outer_opt_level(_opt_level),
-                 inner_opt_level(LEVEL0), // not meaningful
-                 inner_type(SEQ_GPU),
+                 inner_opt_level(opt_level_t::LEVEL0), // not meaningful
+                 inner_type(pattern_t::SEQ_GPU),
                  outer_parallelism(0), // not meaningful
                  inner_parallelism_1(0), // not meaningful
                  inner_parallelism_2(0), // not meaningful
@@ -217,9 +219,9 @@ public:
             exit(EXIT_FAILURE);
         }
         // check the optimization level
-        if (_opt_level != LEVEL0) {
+        if (_opt_level != opt_level_t::LEVEL0) {
             //std::cerr << YELLOW << "WindFlow Warning: optimization level has no effect" << DEFAULT_COLOR << std::endl;
-            outer_opt_level = LEVEL0;
+            outer_opt_level = opt_level_t::LEVEL0;
         }
         // std::vector of Win_Seq_GPU
         std::vector<ff::ff_node *> w(_parallelism);
@@ -273,7 +275,7 @@ public:
                  isComplex(true),
                  outer_opt_level(_opt_level),
                  inner_opt_level(_pf.opt_level),
-                 inner_type(PF_GPU),
+                 inner_type(pattern_t::PF_GPU),
                  outer_parallelism(_num_replicas),
                  inner_parallelism_1(_pf.plq_parallelism),
                  inner_parallelism_2(_pf.wlq_parallelism),
@@ -391,7 +393,7 @@ public:
                  isComplex(true),
                  outer_opt_level(_opt_level),
                  inner_opt_level(_wmr.opt_level),
-                 inner_type(WMR_GPU),
+                 inner_type(pattern_t::WMR_GPU),
                  outer_parallelism(_num_replicas),
                  inner_parallelism_1(_wmr.map_parallelism),
                  inner_parallelism_2(_wmr.reduce_parallelism),
@@ -546,19 +548,19 @@ public:
     size_t getNumIgnoredTuples() const
     {
         size_t count = 0;
-        if (this->getInnerType() == SEQ_GPU) {
+        if (this->getInnerType() == pattern_t::SEQ_GPU) {
             for (auto *w: kf_workers) {
                 auto *seq = static_cast<win_seq_gpu_t *>(w);
                 count += seq->getNumIgnoredTuples();
             }
         }
-        else if (this->getInnerType() == PF_GPU) {
+        else if (this->getInnerType() == pattern_t::PF_GPU) {
             for (auto *w: kf_workers) {
                 auto *pf = static_cast<pane_farm_gpu_t *>(w);
                 count += pf->getNumIgnoredTuples();
             }
         }
-        else if (this->getInnerType() == WMR_GPU) {
+        else if (this->getInnerType() == pattern_t::WMR_GPU) {
             for (auto *w: kf_workers) {
                 auto *wmr = static_cast<win_mapreduce_gpu_t *>(w);
                 count += wmr->getNumIgnoredTuples();
@@ -594,7 +596,7 @@ public:
      */ 
     routing_modes_t getRoutingMode() const override
     {
-        return KEYBY;
+        return routing_modes_t::KEYBY;
     }
 
     /** 
@@ -604,6 +606,35 @@ public:
     bool isUsed() const override
     {
         return used;
+    }
+
+    /** 
+     *  \brief Check whether the operator has been terminated
+     *  \return true if the operator has finished its work
+     */ 
+    virtual bool isTerminated() const override
+    {
+        bool terminated = true;
+        // scan all the replicas to check their termination
+        if (this->getInnerType() == pattern_t::SEQ_GPU) {
+            for (auto *w: kf_workers) {
+                auto *seq = static_cast<win_seq_gpu_t *>(w);
+                terminated = terminated && seq->isTerminated();
+            }
+        }
+        else if (this->getInnerType() == pattern_t::PF_GPU) {
+            for (auto *w: kf_workers) {
+                auto *pf = static_cast<pane_farm_gpu_t *>(w);
+                terminated = terminated && pf->isTerminated();
+            }
+        }
+        else if (this->getInnerType() == pattern_t::WMR_GPU) {
+            for (auto *w: kf_workers) {
+                auto *wmr = static_cast<win_mapreduce_gpu_t *>(w);
+                terminated = terminated && wmr->isTerminated();
+            }
+        }
+        return terminated;
     }
 
 #if defined (TRACE_WINDFLOW)
@@ -649,8 +680,14 @@ public:
         writer.String("Key_Farm_GPU");
         writer.Key("Distribution");
         writer.String("KEYBY");
+        writer.Key("isTerminated");
+        writer.Bool(this->isTerminated());
+        writer.Key("isWindowed");
+        writer.Bool(true);
+        writer.Key("isGPU");
+        writer.Bool(true);
         writer.Key("Window_type");
-        if (winType == CB) {
+        if (winType == win_type_t::CB) {
             writer.String("count-based");
         }
         else {
@@ -667,27 +704,31 @@ public:
         if (!this->isComplexNesting()) {
             writer.Key("Parallelism");
             writer.Uint(parallelism);
+            writer.Key("areNestedOPs");
+            writer.Bool(false);
         }
         else {
             writer.Key("Parallelism");
-            writer.Uint(this->getNumComplexReplicas());         
+            writer.Uint(this->getNumComplexReplicas());
+            writer.Key("areNestedOPs");
+            writer.Bool(true);
         }
         writer.Key("Replicas");
         writer.StartArray();
-        if (this->getInnerType() == SEQ_GPU) {
+        if (this->getInnerType() == pattern_t::SEQ_GPU) {
             for (auto *w: kf_workers) {
                 auto *seq = static_cast<win_seq_gpu_t *>(w);
                 Stats_Record record = seq->get_StatsRecord();
                 record.append_Stats(writer);
             }
         }
-        else if (this->getInnerType() == PF_GPU) {
+        else if (this->getInnerType() == pattern_t::PF_GPU) {
             for (auto *w: kf_workers) {
                 auto *pf = static_cast<pane_farm_gpu_t *>(w);
                 pf->append_Stats(writer);
             }
         }
-        else if (this->getInnerType() == WMR_GPU) {
+        else if (this->getInnerType() == pattern_t::WMR_GPU) {
             for (auto *w: kf_workers) {
                 auto *wmr = static_cast<win_mapreduce_gpu_t *>(w);
                 wmr->append_Stats(writer);

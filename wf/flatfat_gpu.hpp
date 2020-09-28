@@ -81,7 +81,7 @@ __global__ void UpdateTreeLevel_Kernel(comb_F_t winComb_func,
     }
 }
 
-// Parent function (both for the host and on the GPU)
+// function to compute the partent identifier of node pos
 __host__ __device__ int Parent(int pos, int B)
 {
     return (pos >> 1) | B;
@@ -136,16 +136,9 @@ __global__ void ComputeResults_Kernel(comb_F_t winComb_func,
 
 // class FlatFAT_GPU
 template<typename tuple_t, typename result_t, typename comb_F_t>
-class FlatFAT_GPU {
+class FlatFAT_GPU
+{
 private:
-    /* 
-     * Rappresentazione:
-     * 0 radice
-     * [0,batchSize-2] nodi interni
-     * [batchSize-1, 2*batchSize-2] foglie
-     * nodo << 1 + 1 figlio sinistro
-     * nodo << 1 * 2 figlio destro
-     */
     // type of the lift function
     using winLift_func_t = std::function<void(const tuple_t &, result_t &)>;
     tuple_t tmp; // never used
@@ -169,7 +162,7 @@ private:
     // memory arrays allocated in a page-locked manner on the HOST (prefix "pinned" used for them)
     result_t *pinned_buffer = nullptr; // array of generale use
     result_t *pinned_results = nullptr; // array of results to be read from the tree (one per window within a batch)
-    std::vector<result_t> initResults; // vector of the initial results
+    result_t *pinned_init_results = nullptr; // array of initial results
     // GPU variables
     int numSMs = 0; // number of SMs in the GPU
     size_t n_thread_block; // number of threads per block
@@ -222,9 +215,12 @@ public:
         gpuErrChk(cudaMallocHost(&pinned_buffer, treeMemSize));
         // allocate the pinned_results array on HOST
         gpuErrChk(cudaMallocHost(&pinned_results, Nb * sizeof(result_t)));
-        // initialize and register page-locked memory for initResults
-        initResults.resize(Nb, zero);
-        gpuErrChk(cudaHostRegister(initResults.data(), Nb * sizeof(result_t), cudaHostRegisterDefault));
+        // allocate the pinned_init_results array on HOST
+        gpuErrChk(cudaMallocHost(&pinned_init_results, Nb * sizeof(result_t)));
+        // initialize the content of pinned_init_results
+        std::vector<result_t> tmp_vect;
+        tmp_vect.resize(Nb, zero);
+        memcpy(pinned_init_results, tmp_vect.data(), Nb * sizeof(result_t));
     }
 
     // move Constructor
@@ -243,7 +239,6 @@ public:
                 winLift_func(_fatgpu.winLift_func),
                 winComb_func(_fatgpu.winComb_func),
                 zero(_fatgpu.zero),
-                initResults(_fatgpu.initResults),
                 numSMs(_fatgpu.numSMs),
                 n_thread_block(_fatgpu.n_thread_block),
                 cudaStream(_fatgpu.cudaStream)
@@ -256,8 +251,12 @@ public:
         gpuErrChk(cudaMallocHost(&pinned_buffer, treeMemSize));
         // allocate the pinned_results array on HOST
         gpuErrChk(cudaMallocHost(&pinned_results, Nb * sizeof(result_t)));
-        // register page-locked memory for initResults
-        gpuErrChk(cudaHostRegister(initResults.data(), Nb * sizeof(result_t), cudaHostRegisterDefault));
+        // allocate the pinned_init_results array on HOST
+        gpuErrChk(cudaMallocHost(&pinned_init_results, Nb * sizeof(result_t)));
+        // initialize the content of pinned_init_results
+        std::vector<result_t> tmp_vect;
+        tmp_vect.resize(Nb, zero);
+        memcpy(pinned_init_results, tmp_vect.data(), Nb * sizeof(result_t));
     }
 
     // Destructor
@@ -269,8 +268,7 @@ public:
         // deallocate the arrays on HOST
         gpuErrChk(cudaFreeHost(pinned_buffer));
         gpuErrChk(cudaFreeHost(pinned_results));
-        // unregister page-locked memory for initResults
-        gpuErrChk(cudaHostUnregister(initResults.data()));
+        gpuErrChk(cudaFreeHost(pinned_init_results));
     }
 
     // method to build the FlatFAT_GPU tree
@@ -320,7 +318,7 @@ public:
 #if defined (TRACE_WINDFLOW)
         stats_record->bytes_copied_hd += Nb * sizeof(result_t);
 #endif
-        gpuErrChk(cudaMemcpyAsync((void *) gpu_results, (void *) initResults.data(), Nb * sizeof(result_t), cudaMemcpyHostToDevice, *cudaStream));
+        gpuErrChk(cudaMemcpyAsync((void *) gpu_results, (void *) pinned_init_results, Nb * sizeof(result_t), cudaMemcpyHostToDevice, *cudaStream));
         // compute the results of the first batch
         int noBlocks = std::min((int) ceil(Nb / ((double) n_thread_block)), 32 * numSMs); // at most 32 blocks per SM
         // call the kernel
@@ -394,7 +392,7 @@ public:
         stats_record->bytes_copied_hd += Nb * sizeof(result_t);
 #endif
         // copy the initial values in the GPU
-        gpuErrChk(cudaMemcpyAsync((void *) gpu_results, (void *) initResults.data(), Nb * sizeof(result_t), cudaMemcpyHostToDevice, *cudaStream));
+        gpuErrChk(cudaMemcpyAsync((void *) gpu_results, (void *) pinned_init_results, Nb * sizeof(result_t), cudaMemcpyHostToDevice, *cudaStream));
         // compute the results of the batch
         int noBlocks = std::min((int) ceil(Nb / ((double) n_thread_block)), 32 * numSMs); // at most 32 blocks per SM
         // call the kernel

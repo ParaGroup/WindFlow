@@ -24,10 +24,10 @@
  *  @section MultiPipe (Description)
  *  
  *  This file implements the MultiPipe construct used to build a linear pipeline
- *  of streaming operators. Each operator can be composed of several replicas, an
+ *  of streaming operators. Each operator can be composed of several replicas, and
  *  replicas of consecutive operators can communicate through direct of shuffle
  *  connections. In other words, a MultiPipe is a set of parallel pipelines where
- *  operator replicas can be connected to one replica (direct) or to all the replicas
+ *  replicas can be connected to one replica (direct) or to all the replicas
  *  (shuffle) of the next operator in the sequence.
  */ 
 
@@ -226,14 +226,14 @@ private:
         _source.used = true;
 #if defined (TRACE_WINDFLOW)
         // update the graphviz representation
-        gv_add_vertex("Source(" + std::to_string(_source.getFirstSet().size()) + ")", _source.getName(), true, false, NONE);
+        gv_add_vertex("Source (" + std::to_string(_source.getFirstSet().size()) + ")", _source.getName(), true, false, routing_modes_t::NONE);
 #endif
         return *this;
     }
 
     // method to add an operator to the MultiPipe
     template<typename emitter_t, typename collector_t=dummy_mi>
-    void add_operator(ff::ff_farm *_op, routing_modes_t _type, ordering_mode_t _ordering=TS)
+    void add_operator(ff::ff_farm *_op, routing_modes_t _type, ordering_mode_t _ordering=ordering_mode_t::TS)
         {
         // check the Source presence
         if (!has_source) {
@@ -268,10 +268,6 @@ private:
                     collector_t *collector = new collector_t(_ordering, atomic_num_dropped);
                     combine_with_firststage(*stage, collector, true); // add the ordering_node / kslack_node
                 }
-                else {
-                    dummy_mi *collector = new dummy_mi();
-                    combine_with_firststage(*stage, collector, true); // dummy multi-input node
-                }
                 first_set.push_back(stage);
             }
             matrioska->add_firstset(first_set, 0, true);
@@ -293,7 +289,7 @@ private:
         size_t n1 = (last->getFirstSet()).size();
         size_t n2 = (_op->getWorkers()).size();
         // Case 2: direct connection
-        if ((n1 == n2) && (_type == FORWARD) && (!forceShuffling)) {
+        if ((n1 == n2) && (_type == routing_modes_t::FORWARD) && (!forceShuffling)) {
             auto first_set = last->getFirstSet();
             auto worker_set = _op->getWorkers();
             // add the operator's workers to the pipelines in the first set of the matrioska
@@ -318,13 +314,9 @@ private:
             for (size_t i=0; i<n2; i++) {
                 ff::ff_pipeline *stage = new ff::ff_pipeline();
                 stage->add_stage(worker_set[i], false);
-                if (mode != Mode::DEFAULT || _ordering == ID) {
+                if (mode != Mode::DEFAULT || _ordering == ordering_mode_t::ID) {
                     collector_t *collector = new collector_t(_ordering, atomic_num_dropped);
                     combine_with_firststage(*stage, collector, true); // add the ordering_node / kslack_node
-                }
-                else {
-                    dummy_mi *collector = new dummy_mi();
-                    combine_with_firststage(*stage, collector, true); // dummy multi-input node
                 }
                 first_set.push_back(stage);
             }
@@ -556,13 +548,13 @@ private:
         for (auto *vertex: this->gv_last_vertices) {
             Agedge_t *e = agedge(gv_graph, vertex, node, 0, 1);
             // set the label of the edge
-            if (routing_type == FORWARD) {
+            if (routing_type == routing_modes_t::FORWARD) {
                 agset(e, const_cast<char *>("label"), const_cast<char *>("FW"));
             }
-            else if (routing_type == KEYBY) {
+            else if (routing_type == routing_modes_t::KEYBY) {
                 agset(e, const_cast<char *>("label"), const_cast<char *>("KB"));
             }
-            else if (routing_type == COMPLEX) {
+            else if (routing_type == routing_modes_t::COMPLEX) {
                 agset(e, const_cast<char *>("label"), const_cast<char *>("CMX"));
             }
         }
@@ -703,10 +695,10 @@ public:
         }
         // call the generic method to add the operator to the MultiPipe
         if (mode == Mode::DETERMINISTIC) {
-            add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_filter, _filter.getRoutingMode(), TS);
+            add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_filter, _filter.getRoutingMode(), ordering_mode_t::TS);
         }
         else if (mode == Mode::PROBABILISTIC) {
-            add_operator<Standard_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_filter, _filter.getRoutingMode(), TS);
+            add_operator<Standard_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_filter, _filter.getRoutingMode(), ordering_mode_t::TS);
         }
         else {
             add_operator<Standard_Emitter<tuple_t>>(&_filter, _filter.getRoutingMode());
@@ -746,7 +738,7 @@ public:
             exit(EXIT_FAILURE);
         }
         // try to chain the operator with the MultiPipe
-        if (_filter.getRoutingMode() != KEYBY) {
+        if (_filter.getRoutingMode() != routing_modes_t::KEYBY) {
             bool chained = chain_operator<typename Filter<tuple_t, result_t>::Filter_Node>(&_filter);
             if (!chained) {
                 add(_filter);
@@ -793,10 +785,10 @@ public:
         }
         // call the generic method to add the operator to the MultiPipe
         if (mode == Mode::DETERMINISTIC) {
-            add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_map, _map.getRoutingMode(), TS);
+            add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_map, _map.getRoutingMode(), ordering_mode_t::TS);
         }
         else if (mode == Mode::PROBABILISTIC) {
-            add_operator<Standard_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_map, _map.getRoutingMode(), TS);
+            add_operator<Standard_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_map, _map.getRoutingMode(), ordering_mode_t::TS);
         }
         else {
             add_operator<Standard_Emitter<tuple_t>>(&_map, _map.getRoutingMode());
@@ -836,7 +828,7 @@ public:
             exit(EXIT_FAILURE);
         }
         // try to chain the operator with the MultiPipe
-        if (_map.getRoutingMode() != KEYBY) {
+        if (_map.getRoutingMode() != routing_modes_t::KEYBY) {
             bool chained = chain_operator<typename Map<tuple_t, result_t>::Map_Node>(&_map);
             if (!chained) {
                 add(_map);
@@ -883,10 +875,10 @@ public:
         }
         // call the generic method to add the operator
         if (mode == Mode::DETERMINISTIC) {
-            add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_flatmap, _flatmap.getRoutingMode(), TS);
+            add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_flatmap, _flatmap.getRoutingMode(), ordering_mode_t::TS);
         }
         else if (mode == Mode::PROBABILISTIC) {
-            add_operator<Standard_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_flatmap, _flatmap.getRoutingMode(), TS);
+            add_operator<Standard_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_flatmap, _flatmap.getRoutingMode(), ordering_mode_t::TS);
         }
         else {
             add_operator<Standard_Emitter<tuple_t>>(&_flatmap, _flatmap.getRoutingMode());
@@ -925,7 +917,7 @@ public:
             std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the FlatMap operator" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        if (_flatmap.getRoutingMode() != KEYBY) {
+        if (_flatmap.getRoutingMode() != routing_modes_t::KEYBY) {
             bool chained = chain_operator<typename FlatMap<tuple_t, result_t>::FlatMap_Node>(&_flatmap);
             if (!chained) {
                 add(_flatmap);
@@ -972,13 +964,13 @@ public:
         }
         // call the generic method to add the operator to the MultiPipe
         if (mode == Mode::DETERMINISTIC) {
-            add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_acc, KEYBY, TS);
+            add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_acc, routing_modes_t::KEYBY, ordering_mode_t::TS);
         }
         else if (mode == Mode::PROBABILISTIC) {
-            add_operator<Standard_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_acc, KEYBY, TS);
+            add_operator<Standard_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_acc, routing_modes_t::KEYBY, ordering_mode_t::TS);
         }
         else {
-            add_operator<Standard_Emitter<tuple_t>>(&_acc, KEYBY);
+            add_operator<Standard_Emitter<tuple_t>>(&_acc, routing_modes_t::KEYBY);
         }
         // save the new output type from this MultiPipe
         result_t r;
@@ -989,7 +981,7 @@ public:
         listOperators->push_back(std::ref(static_cast<Basic_Operator &>(_acc)));
 #if defined (TRACE_WINDFLOW)
         // update the graphviz representation
-        gv_add_vertex("Accum (" + std::to_string(_acc.getParallelism()) + ")", _acc.getName(), true, false, KEYBY);
+        gv_add_vertex("Accum (" + std::to_string(_acc.getParallelism()) + ")", _acc.getName(), true, false, routing_modes_t::KEYBY);
 #endif
         return *this;
     }
@@ -1008,7 +1000,7 @@ public:
             exit(EXIT_FAILURE);
         }
         // count-based windows with Win_Farm cannot be used in DEFAULT mode
-        if (_wf.getWinType() == CB && mode == Mode::DEFAULT) {
+        if (_wf.getWinType() == win_type_t::CB && mode == Mode::DEFAULT) {
             std::cerr << RED << "WindFlow Error: Win_Farm cannot use count-based windows in DEFAULT mode" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -1022,25 +1014,25 @@ public:
         // check whether the Win_Farm has complex parallel replicas inside
         if (_wf.isComplexNesting()) {
             // check whether internal replicas have been prepared for nesting
-            if (_wf.getOptLevel() != LEVEL2 || _wf.getInnerOptLevel() != LEVEL2) {
+            if (_wf.getOptLevel() != opt_level_t::LEVEL2 || _wf.getInnerOptLevel() != opt_level_t::LEVEL2) {
                 std::cerr << RED << "WindFlow Error: tried a nesting without preparing the inner operator" << DEFAULT_COLOR << std::endl;
                 exit(EXIT_FAILURE);
             }
             else {
                 // inner replica is a Pane_Farm
-                if(_wf.getInnerType() == PF_CPU) {
+                if(_wf.getInnerType() == pattern_t::PF_CPU) {
                     // check the parallelism degree of the PLQ stage
                     if ((_wf.getInnerParallelisms()).first > 1) {
-                        if (_wf.getWinType() == TB) {
+                        if (_wf.getWinType() == win_type_t::TB) {
                             // call the generic method to add the operator to the MultiPipe
                             if (mode == Mode::DETERMINISTIC) {
-                                add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                                add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                             }
                             else if (mode == Mode::PROBABILISTIC) {
-                                add_operator<Tree_Emitter, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                                add_operator<Tree_Emitter, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                             }
                             else {
-                                add_operator<Tree_Emitter>(&_wf, COMPLEX);
+                                add_operator<Tree_Emitter>(&_wf, routing_modes_t::COMPLEX);
                             }
                         }
                         else {
@@ -1048,10 +1040,10 @@ public:
                             _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getNumComplexReplicas() * (_wf.getInnerParallelisms()).first), true);
                             // call the generic method to add the operator to the MultiPipe
                             if (mode == Mode::DETERMINISTIC) {
-                                add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
+                                add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                             }
                             else if (mode == Mode::PROBABILISTIC) {
-                                add_operator<Broadcast_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
+                                add_operator<Broadcast_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                             }
                             else {
                                 abort(); // not supported CB windows in this case
@@ -1059,16 +1051,16 @@ public:
                         }
                     }
                     else {
-                        if (_wf.getWinType() == TB) {
+                        if (_wf.getWinType() == win_type_t::TB) {
                             // call the generic method to add the operator to the MultiPipe
                             if (mode == Mode::DETERMINISTIC) {
-                                add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                                add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                             }
                             else if (mode == Mode::PROBABILISTIC) {
-                                add_operator<WF_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                                add_operator<WF_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                             }
                             else {
-                               add_operator<WF_Emitter<tuple_t>>(&_wf, COMPLEX);
+                               add_operator<WF_Emitter<tuple_t>>(&_wf, routing_modes_t::COMPLEX);
                             }
                         }
                         else {
@@ -1076,10 +1068,10 @@ public:
                             _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getNumComplexReplicas()), true);
                             // call the generic method to add the operator to the MultiPipe
                             if (mode == Mode::DETERMINISTIC) {
-                                add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
+                                add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                             }
                             else if (mode == Mode::PROBABILISTIC) {
-                                add_operator<Broadcast_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
+                                add_operator<Broadcast_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                             }
                             else {
                                 abort(); // not supported CB windows in this case
@@ -1088,21 +1080,21 @@ public:
                     }
 #if defined (TRACE_WINDFLOW)
                     // update the graphviz representation
-                    gv_add_vertex("WF[PF(" + std::to_string(_wf.getInnerParallelisms().first) + "," + std::to_string(_wf.getInnerParallelisms().second) + "), " + std::to_string(_wf.getNumComplexReplicas()) + "]", _wf.getName(), true, true, COMPLEX);
+                    gv_add_vertex("WF[PF(" + std::to_string(_wf.getInnerParallelisms().first) + "," + std::to_string(_wf.getInnerParallelisms().second) + "), " + std::to_string(_wf.getNumComplexReplicas()) + "]", _wf.getName(), true, true, routing_modes_t::COMPLEX);
 #endif
                 }
                 // inner replica is a Win_MapReduce
-                else if(_wf.getInnerType() == WMR_CPU) {
-                    if (_wf.getWinType() == TB) {
+                else if(_wf.getInnerType() == pattern_t::WMR_CPU) {
+                    if (_wf.getWinType() == win_type_t::TB) {
                         // call the generic method to add the operator to the MultiPipe
                         if (mode == Mode::DETERMINISTIC) {
-                            add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                            add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                         }
                         else if (mode == Mode::PROBABILISTIC) {
-                            add_operator<Tree_Emitter, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                            add_operator<Tree_Emitter, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                         }
                         else {
-                            add_operator<Tree_Emitter>(&_wf, COMPLEX);
+                            add_operator<Tree_Emitter>(&_wf, routing_modes_t::COMPLEX);
                         }
                     }
                     else {
@@ -1121,10 +1113,10 @@ public:
                         }
                         // call the generic method to add the operator to the MultiPipe
                         if (mode == Mode::DETERMINISTIC) {
-                            add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
+                            add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                         }
                         else if (mode == Mode::PROBABILISTIC) {
-                            add_operator<Broadcast_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
+                            add_operator<Broadcast_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                         }
                         else {
                             abort(); // not supported CB windows in this case
@@ -1132,7 +1124,7 @@ public:
                     }
 #if defined (TRACE_WINDFLOW)
                     // update the graphviz representation
-                    gv_add_vertex("WF[WMR(" + std::to_string(_wf.getInnerParallelisms().first) + "," + std::to_string(_wf.getInnerParallelisms().second) + "), " + std::to_string(_wf.getNumComplexReplicas()) + "]", _wf.getName(), true, true, COMPLEX);
+                    gv_add_vertex("WF[WMR(" + std::to_string(_wf.getInnerParallelisms().first) + "," + std::to_string(_wf.getInnerParallelisms().second) + "), " + std::to_string(_wf.getNumComplexReplicas()) + "]", _wf.getName(), true, true, routing_modes_t::COMPLEX);
 #endif
                 }
                 forceShuffling = true;
@@ -1140,16 +1132,16 @@ public:
         }
         // case with Win_Seq replicas inside
         else {
-            if (_wf.getWinType() == TB) {
+            if (_wf.getWinType() == win_type_t::TB) {
                 // call the generic method to add the operator to the MultiPipe
                 if (mode == Mode::DETERMINISTIC) {
-                    add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                    add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                 }
                 else if (mode == Mode::PROBABILISTIC) {
-                    add_operator<WF_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                    add_operator<WF_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                 }
                 else {
-                    add_operator<WF_Emitter<tuple_t>>(&_wf, COMPLEX);
+                    add_operator<WF_Emitter<tuple_t>>(&_wf, routing_modes_t::COMPLEX);
                 }
             }
             else {
@@ -1157,10 +1149,10 @@ public:
                 _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getParallelism()), true);
                 // call the generic method to add the operator to the MultiPipe
                 if (mode == Mode::DETERMINISTIC) {
-                    add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
+                    add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                 }
                 else if (mode == Mode::PROBABILISTIC) {
-                    add_operator<Broadcast_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
+                    add_operator<Broadcast_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                 }
                 else {
                     abort(); // not supported CB windows in this case
@@ -1168,7 +1160,7 @@ public:
             }
 #if defined (TRACE_WINDFLOW)
             // update the graphviz representation
-            gv_add_vertex("WF (" + std::to_string(_wf.getParallelism()) + ")", _wf.getName(), true, false, COMPLEX);
+            gv_add_vertex("WF (" + std::to_string(_wf.getParallelism()) + ")", _wf.getName(), true, false, routing_modes_t::COMPLEX);
 #endif
         }
         // save the new output type from this MultiPipe
@@ -1195,7 +1187,7 @@ public:
             exit(EXIT_FAILURE);
         }
         // count-based windows with Win_Farm_GPU cannot be used in DEFAULT mode
-        if (_wf.getWinType() == CB && mode == Mode::DEFAULT) {
+        if (_wf.getWinType() == win_type_t::CB && mode == Mode::DEFAULT) {
             std::cerr << RED << "WindFlow Error: Win_Farm_GPU cannot use count-based windows in DEFAULT mode" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -1209,25 +1201,25 @@ public:
         // check whether the Win_Farm_GPU has complex parallel replicas inside
         if (_wf.isComplexNesting()) {
             // check whether internal replicas have been prepared for nesting
-            if (_wf.getOptLevel() != LEVEL2 || _wf.getInnerOptLevel() != LEVEL2) {
+            if (_wf.getOptLevel() != opt_level_t::LEVEL2 || _wf.getInnerOptLevel() != opt_level_t::LEVEL2) {
                 std::cerr << RED << "WindFlow Error: tried a nesting without preparing the inner operator" << DEFAULT_COLOR << std::endl;
                 exit(EXIT_FAILURE);
             }
             else {
                 // inner replica is a Pane_Farm_GPU
-                if(_wf.getInnerType() == PF_GPU) {
+                if(_wf.getInnerType() == pattern_t::PF_GPU) {
                     // check the parallelism degree of the PLQ stage
                     if ((_wf.getInnerParallelisms()).first > 1) {
-                        if (_wf.getWinType() == TB) {
+                        if (_wf.getWinType() == win_type_t::TB) {
                             // call the generic method to add the operator to the MultiPipe
                             if (mode == Mode::DETERMINISTIC) {
-                                add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                                add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                             }
                             else if (mode == Mode::PROBABILISTIC) {
-                                add_operator<Tree_Emitter, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                                add_operator<Tree_Emitter, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                             }
                             else {
-                                add_operator<Tree_Emitter>(&_wf, COMPLEX);
+                                add_operator<Tree_Emitter>(&_wf, routing_modes_t::COMPLEX);
                             }
                         }
                         else {
@@ -1235,10 +1227,10 @@ public:
                             _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getNumComplexReplicas() * (_wf.getInnerParallelisms()).first), true);
                             // call the generic method to add the operator to the MultiPipe
                             if (mode == Mode::DETERMINISTIC) {
-                                add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
+                                add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                             }
                             else if (mode == Mode::PROBABILISTIC) {
-                                add_operator<Broadcast_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
+                                add_operator<Broadcast_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                             }
                             else {
                                 abort(); // not supported CB windows in this case
@@ -1246,16 +1238,16 @@ public:
                         }
                     }
                     else {
-                        if (_wf.getWinType() == TB) {
+                        if (_wf.getWinType() == win_type_t::TB) {
                             // call the generic method to add the operator to the MultiPipe
                             if (mode == Mode::DETERMINISTIC) {
-                                add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                                add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                             }
                             else if (mode == Mode::PROBABILISTIC) {
-                                 add_operator<WF_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                                 add_operator<WF_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                             }
                             else {
-                                add_operator<WF_Emitter<tuple_t>>(&_wf, COMPLEX);
+                                add_operator<WF_Emitter<tuple_t>>(&_wf, routing_modes_t::COMPLEX);
                             }
                         }
                         else {
@@ -1263,10 +1255,10 @@ public:
                             _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getNumComplexReplicas()), true);
                             // call the generic method to add the operator to the MultiPipe
                             if (mode == Mode::DETERMINISTIC) {
-                                add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
+                                add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                             }
                             else if (mode == Mode::PROBABILISTIC) {
-                                add_operator<Broadcast_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
+                                add_operator<Broadcast_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                             }
                             else {
                                 abort(); // not supported CB windows in this case
@@ -1275,21 +1267,21 @@ public:
                     }
 #if defined (TRACE_WINDFLOW)
                     // update the graphviz representation
-                    gv_add_vertex("WF_GPU[PF_GPU(" + std::to_string(_wf.getInnerParallelisms().first) + "," + std::to_string(_wf.getInnerParallelisms().second) + "), " + std::to_string(_wf.getNumComplexReplicas()) + "]", _wf.getName(), false, true, COMPLEX);
+                    gv_add_vertex("WF_GPU[PF_GPU(" + std::to_string(_wf.getInnerParallelisms().first) + "," + std::to_string(_wf.getInnerParallelisms().second) + "), " + std::to_string(_wf.getNumComplexReplicas()) + "]", _wf.getName(), false, true, routing_modes_t::COMPLEX);
 #endif
                 }
                 // inner replica is a Win_MapReduce_GPU
-                else if(_wf.getInnerType() == WMR_GPU) {
-                    if (_wf.getWinType() == TB) {
+                else if(_wf.getInnerType() == pattern_t::WMR_GPU) {
+                    if (_wf.getWinType() == win_type_t::TB) {
                         // call the generic method to add the operator to the MultiPipe
                         if (mode == Mode::DETERMINISTIC) {
-                            add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                            add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                         }
                         else if (mode == Mode::PROBABILISTIC) {
-                            add_operator<Tree_Emitter, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                            add_operator<Tree_Emitter, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                         }
                         else {
-                            add_operator<Tree_Emitter>(&_wf, COMPLEX);
+                            add_operator<Tree_Emitter>(&_wf, routing_modes_t::COMPLEX);
                         }
                     }
                     else {
@@ -1308,10 +1300,10 @@ public:
                         }
                         // call the generic method to add the operator to the MultiPipe
                         if (mode == Mode::DETERMINISTIC) {
-                            add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
+                            add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                         }
                         else if (mode == Mode::PROBABILISTIC) {
-                            add_operator<Broadcast_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
+                            add_operator<Broadcast_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                         }
                         else {
                             abort(); // not supported CB windows in this case
@@ -1319,7 +1311,7 @@ public:
                     }
 #if defined (TRACE_WINDFLOW)
                     // update the graphviz representation
-                    gv_add_vertex("WF_GPU[WMR_GPU(" + std::to_string(_wf.getInnerParallelisms().first) + "," + std::to_string(_wf.getInnerParallelisms().second) + "), " + std::to_string(_wf.getNumComplexReplicas()) + "]", _wf.getName(), false, true, COMPLEX);
+                    gv_add_vertex("WF_GPU[WMR_GPU(" + std::to_string(_wf.getInnerParallelisms().first) + "," + std::to_string(_wf.getInnerParallelisms().second) + "), " + std::to_string(_wf.getNumComplexReplicas()) + "]", _wf.getName(), false, true, routing_modes_t::COMPLEX);
 #endif
                 }
                 forceShuffling = true;
@@ -1327,16 +1319,16 @@ public:
         }
         // case with Win_Seq_GPU replicas inside
         else {
-            if (_wf.getWinType() == TB) {
+            if (_wf.getWinType() == win_type_t::TB) {
                 // call the generic method to add the operator to the MultiPipe
                 if (mode == Mode::DETERMINISTIC) {
-                    add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                    add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                 }
                 else if (mode == Mode::PROBABILISTIC) {
-                    add_operator<WF_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS);
+                    add_operator<WF_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                 }
                 else {
-                    add_operator<WF_Emitter<tuple_t>>(&_wf, COMPLEX);
+                    add_operator<WF_Emitter<tuple_t>>(&_wf, routing_modes_t::COMPLEX);
                 }
             }
             else {
@@ -1344,10 +1336,10 @@ public:
                 _wf.change_emitter(new Broadcast_Emitter<tuple_t>(_wf.getParallelism()), true);
                 // call the generic method to add the operator to the MultiPipe
                 if (mode == Mode::DETERMINISTIC) {
-                    add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
+                    add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                 }
                 else if (mode == Mode::PROBABILISTIC) {
-                    add_operator<Broadcast_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, COMPLEX, TS_RENUMBERING);
+                    add_operator<Broadcast_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_wf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                 }
                 else {
                     abort(); // not supported CB windows in this case
@@ -1355,7 +1347,7 @@ public:
             }
 #if defined (TRACE_WINDFLOW)
             // update the graphviz representation
-            gv_add_vertex("WF_GPU (" + std::to_string(_wf.getParallelism()) + ")", _wf.getName(), false, false, COMPLEX);
+            gv_add_vertex("WF_GPU (" + std::to_string(_wf.getParallelism()) + ")", _wf.getName(), false, false, routing_modes_t::COMPLEX);
 #endif
         }
         // save the new output type from this MultiPipe
@@ -1382,7 +1374,7 @@ public:
             exit(EXIT_FAILURE);
         }
         // count-based windows and DEFAULT mode possible only without complex nested structures
-        if (_kf.getWinType() == CB && mode == Mode::DEFAULT) {
+        if (_kf.getWinType() == win_type_t::CB && mode == Mode::DEFAULT) {
             if (!_kf.isComplexNesting()) {
                 // set the isRenumbering mode of the input operator
                 _kf.set_isRenumbering();
@@ -1402,25 +1394,25 @@ public:
         // check whether the Key_Farm has complex parallel replicas inside
         if (_kf.isComplexNesting()) {
             // check whether internal replicas have been prepared for nesting
-            if (_kf.getOptLevel() != LEVEL2 || _kf.getInnerOptLevel() != LEVEL2) {
+            if (_kf.getOptLevel() != opt_level_t::LEVEL2 || _kf.getInnerOptLevel() != opt_level_t::LEVEL2) {
                 std::cerr << RED << "WindFlow Error: tried a nesting without preparing the inner operator" << DEFAULT_COLOR << std::endl;
                 exit(EXIT_FAILURE);
             }
             else {
                 // inner replica is a Pane_Farm
-                if(_kf.getInnerType() == PF_CPU) {
+                if(_kf.getInnerType() == pattern_t::PF_CPU) {
                     // check the parallelism of the PLQ stage
                     if ((_kf.getInnerParallelisms()).first > 1) {
-                        if (_kf.getWinType() == TB) {
+                        if (_kf.getWinType() == win_type_t::TB) {
                             // call the generic method to add the operator to the MultiPipe
                             if (mode == Mode::DETERMINISTIC) {
-                                add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS);
+                                add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                             }
                             else if (mode == Mode::PROBABILISTIC) {
-                                add_operator<Tree_Emitter, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS);
+                                add_operator<Tree_Emitter, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                             }
                             else {
-                                add_operator<Tree_Emitter>(&_kf, COMPLEX);
+                                add_operator<Tree_Emitter>(&_kf, routing_modes_t::COMPLEX);
                             }
                         }
                         else {
@@ -1438,10 +1430,10 @@ public:
                             _kf.change_emitter(new_emitter, true);
                             // call the generic method to add the operator to the MultiPipe
                             if (mode == Mode::DETERMINISTIC) {
-                                add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS_RENUMBERING);
+                                add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                             }
                             else if (mode == Mode::PROBABILISTIC) {
-                                add_operator<Tree_Emitter, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS_RENUMBERING);
+                                add_operator<Tree_Emitter, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                             }
                             else {
                                 abort(); // not supported CB windows in this case
@@ -1450,23 +1442,23 @@ public:
                     }
                     else {
                         // call the generic method to add the operator to the MultiPipe
-                        if (_kf.getWinType() == TB) {
+                        if (_kf.getWinType() == win_type_t::TB) {
                             if (mode == Mode::DETERMINISTIC) {
-                                add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, TS);
+                                add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                             }
                             else if (mode == Mode::PROBABILISTIC) {
-                                add_operator<KF_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_kf, COMPLEX, TS);
+                                add_operator<KF_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                             }
                             else {
-                                add_operator<KF_Emitter<tuple_t>>(&_kf, COMPLEX);
+                                add_operator<KF_Emitter<tuple_t>>(&_kf, routing_modes_t::COMPLEX);
                             }
                         }
                         else {
                             if (mode == Mode::DETERMINISTIC) {
-                                add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, TS_RENUMBERING);
+                                add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                             }
                             else if (mode == Mode::PROBABILISTIC) {
-                                add_operator<KF_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_kf, COMPLEX, TS_RENUMBERING);
+                                add_operator<KF_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                             }
                             else {
                                 abort(); // not supported CB windows in this case
@@ -1475,21 +1467,21 @@ public:
                     }
 #if defined (TRACE_WINDFLOW)
                     // update the graphviz representation
-                    gv_add_vertex("KF[PF(" + std::to_string(_kf.getInnerParallelisms().first) + "," + std::to_string(_kf.getInnerParallelisms().second) + "), " + std::to_string(_kf.getNumComplexReplicas()) + "]", _kf.getName(), true, true, KEYBY);
+                    gv_add_vertex("KF[PF(" + std::to_string(_kf.getInnerParallelisms().first) + "," + std::to_string(_kf.getInnerParallelisms().second) + "), " + std::to_string(_kf.getNumComplexReplicas()) + "]", _kf.getName(), true, true, routing_modes_t::KEYBY);
 #endif
                 }
                 // inner replica is a Win_MapReduce
-                else if(_kf.getInnerType() == WMR_CPU) {
-                    if (_kf.getWinType() == TB) {
+                else if(_kf.getInnerType() == pattern_t::WMR_CPU) {
+                    if (_kf.getWinType() == win_type_t::TB) {
                         // call the generic method to add the operator to the MultiPipe
                         if (mode == Mode::DETERMINISTIC) {
-                            add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS);
+                            add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                         }
                         else if (mode == Mode::PROBABILISTIC) {
-                            add_operator<Tree_Emitter, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS);
+                            add_operator<Tree_Emitter, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                         }
                         else {
-                            add_operator<Tree_Emitter>(&_kf, COMPLEX);
+                            add_operator<Tree_Emitter>(&_kf, routing_modes_t::COMPLEX);
                         }
                     }
                     else {
@@ -1517,10 +1509,10 @@ public:
                         }
                         // call the generic method to add the operator to the MultiPipe
                         if (mode == Mode::DETERMINISTIC) {
-                            add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS_RENUMBERING);
+                            add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                         }
                         else if (mode == Mode::PROBABILISTIC) {
-                            add_operator<Tree_Emitter, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS_RENUMBERING);
+                            add_operator<Tree_Emitter, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                         }
                         else {
                             abort(); // not supported CB windows in this case
@@ -1528,7 +1520,7 @@ public:
                     }
 #if defined (TRACE_WINDFLOW)
                     // update the graphviz representation
-                    gv_add_vertex("KF[WMR(" + std::to_string(_kf.getInnerParallelisms().first) + "," + std::to_string(_kf.getInnerParallelisms().second) + "), " + std::to_string(_kf.getNumComplexReplicas()) + "]", _kf.getName(), true, true, KEYBY);
+                    gv_add_vertex("KF[WMR(" + std::to_string(_kf.getInnerParallelisms().first) + "," + std::to_string(_kf.getInnerParallelisms().second) + "), " + std::to_string(_kf.getNumComplexReplicas()) + "]", _kf.getName(), true, true, routing_modes_t::KEYBY);
 #endif
                 }
                 forceShuffling = true;
@@ -1537,31 +1529,31 @@ public:
         // case with Win_Seq replicas inside
         else {
             // call the generic method to add the operator to the MultiPipe
-            if (_kf.getWinType() == TB) {
+            if (_kf.getWinType() == win_type_t::TB) {
                 if (mode == Mode::DETERMINISTIC) {
-                    add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, TS);
+                    add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                 }
                 else if (mode == Mode::PROBABILISTIC) {
-                    add_operator<KF_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_kf, COMPLEX, TS);
+                    add_operator<KF_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                 }
                 else {
-                    add_operator<KF_Emitter<tuple_t>>(&_kf, COMPLEX);
+                    add_operator<KF_Emitter<tuple_t>>(&_kf, routing_modes_t::COMPLEX);
                 }
             }
             else {
                 if (mode == Mode::DETERMINISTIC) {
-                    add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, TS_RENUMBERING);
+                    add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                 }
                 else if (mode == Mode::PROBABILISTIC) {
-                    add_operator<KF_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_kf, COMPLEX, TS_RENUMBERING);
+                    add_operator<KF_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                 }
                 else {
-                    add_operator<KF_Emitter<tuple_t>>(&_kf, COMPLEX);
+                    add_operator<KF_Emitter<tuple_t>>(&_kf, routing_modes_t::COMPLEX);
                 }
             }
 #if defined (TRACE_WINDFLOW)
             // update the graphviz representation
-            gv_add_vertex("KF (" + std::to_string(_kf.getParallelism()) + ")", _kf.getName(), true, false, KEYBY);
+            gv_add_vertex("KF (" + std::to_string(_kf.getParallelism()) + ")", _kf.getName(), true, false, routing_modes_t::KEYBY);
 #endif
         }
         // save the new output type from this MultiPipe
@@ -1588,7 +1580,7 @@ public:
             exit(EXIT_FAILURE);
         }
         // count-based windows and DEFAULT mode possible only without complex nested structures
-        if (_kf.getWinType() == CB && mode == Mode::DEFAULT) {
+        if (_kf.getWinType() == win_type_t::CB && mode == Mode::DEFAULT) {
             if (!_kf.isComplexNesting()) {
                 // set the isRenumbering mode of the input operator
                 _kf.set_isRenumbering();
@@ -1608,25 +1600,25 @@ public:
         // check whether the Key_Farm_GPU has complex parallel replicas inside
         if (_kf.isComplexNesting()) {
             // check whether internal replicas have been prepared for nesting
-            if (_kf.getOptLevel() != LEVEL2 || _kf.getInnerOptLevel() != LEVEL2) {
+            if (_kf.getOptLevel() != opt_level_t::LEVEL2 || _kf.getInnerOptLevel() != opt_level_t::LEVEL2) {
                 std::cerr << RED << "WindFlow Error: tried a nesting without preparing the inner operator" << DEFAULT_COLOR << std::endl;
                 exit(EXIT_FAILURE);
             }
             else {
                 // inner replica is a Pane_Farm_GPU
-                if(_kf.getInnerType() == PF_GPU) {
+                if(_kf.getInnerType() == pattern_t::PF_GPU) {
                     // check the parallelism degree of the PLQ stage
                     if ((_kf.getInnerParallelisms()).first > 1) {
-                        if (_kf.getWinType() == TB) {
+                        if (_kf.getWinType() == win_type_t::TB) {
                             // call the generic method to add the operator to the MultiPipe
                             if (mode == Mode::DETERMINISTIC) {
-                                add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS);
+                                add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                             }
                             else if (mode == Mode::PROBABILISTIC) {
-                                add_operator<Tree_Emitter, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS);
+                                add_operator<Tree_Emitter, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                             }
                             else {
-                                add_operator<Tree_Emitter>(&_kf, COMPLEX);
+                                add_operator<Tree_Emitter>(&_kf, routing_modes_t::COMPLEX);
                             }
                         }
                         else {
@@ -1644,10 +1636,10 @@ public:
                             _kf.change_emitter(new_emitter, true);
                             // call the generic method to add the operator to the MultiPipe
                             if (mode == Mode::DETERMINISTIC) {
-                                add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS_RENUMBERING);
+                                add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                             }
                             else if (mode == Mode::PROBABILISTIC) {
-                                add_operator<Tree_Emitter, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS_RENUMBERING);
+                                add_operator<Tree_Emitter, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                             }
                             else {
                                 abort(); // not supported CB windows in this case
@@ -1656,23 +1648,23 @@ public:
                     }
                     else {
                         // call the generic method to add the operator to the MultiPipe
-                        if (_kf.getWinType() == TB) {
+                        if (_kf.getWinType() == win_type_t::TB) {
                             if (mode == Mode::DETERMINISTIC) {
-                                add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, TS);
+                                add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                             }
                             else if (mode == Mode::PROBABILISTIC) {
-                                add_operator<KF_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_kf, COMPLEX, TS);
+                                add_operator<KF_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                             }
                             else {
-                                add_operator<KF_Emitter<tuple_t>>(&_kf, COMPLEX);
+                                add_operator<KF_Emitter<tuple_t>>(&_kf, routing_modes_t::COMPLEX);
                             }
                         }
                         else {
                             if (mode == Mode::DETERMINISTIC) {
-                                add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, TS_RENUMBERING);
+                                add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                             }
                             else if (mode == Mode::PROBABILISTIC) {
-                                add_operator<KF_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_kf, COMPLEX, TS_RENUMBERING);
+                                add_operator<KF_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                             }
                             else {
                                 abort(); // not supported CB windows in this case
@@ -1681,21 +1673,21 @@ public:
                     }
 #if defined (TRACE_WINDFLOW)
                     // update the graphviz representation
-                    gv_add_vertex("KF_GPU[PF_GPU(" + std::to_string(_kf.getInnerParallelisms().first) + "," + std::to_string(_kf.getInnerParallelisms().second) + "), " + std::to_string(_kf.getNumComplexReplicas()) + "]", _kf.getName(), false, true, KEYBY);
+                    gv_add_vertex("KF_GPU[PF_GPU(" + std::to_string(_kf.getInnerParallelisms().first) + "," + std::to_string(_kf.getInnerParallelisms().second) + "), " + std::to_string(_kf.getNumComplexReplicas()) + "]", _kf.getName(), false, true, routing_modes_t::KEYBY);
 #endif
                 }
                 // inner replica is a Win_MapReduce_GPU
-                else if(_kf.getInnerType() == WMR_GPU) {
-                    if (_kf.getWinType() == TB) {
+                else if(_kf.getInnerType() == pattern_t::WMR_GPU) {
+                    if (_kf.getWinType() == win_type_t::TB) {
                         // call the generic method to add the operator to the MultiPipe
                         if (mode == Mode::DETERMINISTIC) {
-                            add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS);
+                            add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                         }
                         else if (mode == Mode::PROBABILISTIC) {
-                            add_operator<Tree_Emitter, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS);
+                            add_operator<Tree_Emitter, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                         }
                         else {
-                            add_operator<Tree_Emitter>(&_kf, COMPLEX);
+                            add_operator<Tree_Emitter>(&_kf, routing_modes_t::COMPLEX);
                         }
                     }
                     else {
@@ -1722,10 +1714,10 @@ public:
                         }
                         // call the generic method to add the operator to the MultiPipe
                         if (mode == Mode::DETERMINISTIC) {
-                            add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS_RENUMBERING);
+                            add_operator<Tree_Emitter, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                         }
                         else if (mode == Mode::PROBABILISTIC) {
-                            add_operator<Tree_Emitter, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, COMPLEX, TS_RENUMBERING);
+                            add_operator<Tree_Emitter, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                         }
                         else {
                             abort(); // not supported CB windows in this case
@@ -1733,7 +1725,7 @@ public:
                     }
 #if defined (TRACE_WINDFLOW)
                     // update the graphviz representation
-                    gv_add_vertex("KF_GPU[WMR_GPU(" + std::to_string(_kf.getInnerParallelisms().first) + "," + std::to_string(_kf.getInnerParallelisms().second) + "), " + std::to_string(_kf.getNumComplexReplicas()) + "]", _kf.getName(), false, true, KEYBY);
+                    gv_add_vertex("KF_GPU[WMR_GPU(" + std::to_string(_kf.getInnerParallelisms().first) + "," + std::to_string(_kf.getInnerParallelisms().second) + "), " + std::to_string(_kf.getNumComplexReplicas()) + "]", _kf.getName(), false, true, routing_modes_t::KEYBY);
 #endif
                 }
                 forceShuffling = true;
@@ -1742,31 +1734,31 @@ public:
         // case with Win_Seq_GPU replicas inside
         else {
             // call the generic method to add the operator to the MultiPipe
-            if (_kf.getWinType() == TB) {
+            if (_kf.getWinType() == win_type_t::TB) {
                 if (mode == Mode::DETERMINISTIC) {
-                    add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, TS);
+                    add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                 }
                 else if (mode == Mode::PROBABILISTIC) {
-                    add_operator<KF_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_kf, COMPLEX, TS);
+                    add_operator<KF_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                 } 
                 else {
-                    add_operator<KF_Emitter<tuple_t>>(&_kf, COMPLEX);
+                    add_operator<KF_Emitter<tuple_t>>(&_kf, routing_modes_t::COMPLEX);
                 }
             }
             else {
                 if (mode == Mode::DETERMINISTIC) {
-                    add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, COMPLEX, TS_RENUMBERING);
+                    add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                 }
                 else if (mode == Mode::PROBABILISTIC) {
-                    add_operator<KF_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_kf, COMPLEX, TS_RENUMBERING);
+                    add_operator<KF_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_kf, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                 }
                 else {
-                    add_operator<KF_Emitter<tuple_t>>(&_kf, COMPLEX);
+                    add_operator<KF_Emitter<tuple_t>>(&_kf, routing_modes_t::COMPLEX);
                 }
             }
 #if defined (TRACE_WINDFLOW)
             // update the graphviz representation
-            gv_add_vertex("KF_GPU (" + std::to_string(_kf.getParallelism()) + ")", _kf.getName(), false, false, KEYBY);
+            gv_add_vertex("KF_GPU (" + std::to_string(_kf.getParallelism()) + ")", _kf.getName(), false, false, routing_modes_t::KEYBY);
 #endif
         }
         // save the new output type from this MultiPipe
@@ -1793,7 +1785,7 @@ public:
             exit(EXIT_FAILURE);
         }
         // prepare the operator for count-based windows
-        if (_kff.getWinType() == CB) {
+        if (_kff.getWinType() == win_type_t::CB) {
             // set the isRenumbering mode of the input operator
             _kff.set_isRenumbering();
         }
@@ -1805,26 +1797,26 @@ public:
             exit(EXIT_FAILURE);
         }
         // call the generic method to add the operator to the MultiPipe
-        if (_kff.getWinType() == TB) {
+        if (_kff.getWinType() == win_type_t::TB) {
             if (mode == Mode::DETERMINISTIC) {
-                add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kff, COMPLEX, TS);
+                add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kff, routing_modes_t::COMPLEX, ordering_mode_t::TS);
             }
             else if (mode == Mode::PROBABILISTIC) {
-                add_operator<KF_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_kff, COMPLEX, TS);
+                add_operator<KF_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_kff, routing_modes_t::COMPLEX, ordering_mode_t::TS);
             }
             else {
-                add_operator<KF_Emitter<tuple_t>>(&_kff, COMPLEX);
+                add_operator<KF_Emitter<tuple_t>>(&_kff, routing_modes_t::COMPLEX);
             }
         }
         else {
             if (mode == Mode::DETERMINISTIC) {
-                add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kff, COMPLEX, TS_RENUMBERING);
+                add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kff, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
             }
             else if (mode == Mode::PROBABILISTIC) {
-                add_operator<KF_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_kff, COMPLEX, TS_RENUMBERING);
+                add_operator<KF_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_kff, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
             }
             else {
-                add_operator<KF_Emitter<tuple_t>>(&_kff, COMPLEX);
+                add_operator<KF_Emitter<tuple_t>>(&_kff, routing_modes_t::COMPLEX);
             }
         }
         // save the new output type from this MultiPipe
@@ -1836,7 +1828,7 @@ public:
         listOperators->push_back(std::ref(static_cast<Basic_Operator &>(_kff)));
 #if defined (TRACE_WINDFLOW)
         // update the graphviz representation
-        gv_add_vertex("KFF (" + std::to_string(_kff.getParallelism()) + ")", _kff.getName(), true, false, KEYBY);
+        gv_add_vertex("KFF (" + std::to_string(_kff.getParallelism()) + ")", _kff.getName(), true, false, routing_modes_t::KEYBY);
 #endif
         return *this;
     }
@@ -1855,7 +1847,7 @@ public:
             exit(EXIT_FAILURE);
         }
         // prepare the operator for count-based windows
-        if (_kff.getWinType() == CB) {
+        if (_kff.getWinType() == win_type_t::CB) {
             // set the isRenumbering mode of the input operator
             _kff.set_isRenumbering();
         }
@@ -1867,26 +1859,26 @@ public:
             exit(EXIT_FAILURE);
         }
         // call the generic method to add the operator to the MultiPipe
-        if (_kff.getWinType() == TB) {
+        if (_kff.getWinType() == win_type_t::TB) {
             if (mode == Mode::DETERMINISTIC) {
-                add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kff, COMPLEX, TS);
+                add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kff, routing_modes_t::COMPLEX, ordering_mode_t::TS);
             }
             else if (mode == Mode::PROBABILISTIC) {
-                add_operator<KF_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_kff, COMPLEX, TS);
+                add_operator<KF_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_kff, routing_modes_t::COMPLEX, ordering_mode_t::TS);
             }
             else {
-                add_operator<KF_Emitter<tuple_t>>(&_kff, COMPLEX);
+                add_operator<KF_Emitter<tuple_t>>(&_kff, routing_modes_t::COMPLEX);
             }
         }
         else {
             if (mode == Mode::DETERMINISTIC) {
-                add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kff, COMPLEX, TS_RENUMBERING);
+                add_operator<KF_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_kff, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
             }
             else if (mode == Mode::PROBABILISTIC) {
-                add_operator<KF_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_kff, COMPLEX, TS_RENUMBERING);
+                add_operator<KF_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_kff, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
             }
             else {
-                add_operator<KF_Emitter<tuple_t>>(&_kff, COMPLEX);
+                add_operator<KF_Emitter<tuple_t>>(&_kff, routing_modes_t::COMPLEX);
             } 
         }
         // save the new output type from this MultiPipe
@@ -1898,7 +1890,7 @@ public:
         listOperators->push_back(std::ref(static_cast<Basic_Operator &>(_kff)));
 #if defined (TRACE_WINDFLOW)
         // update the graphviz representation
-        gv_add_vertex("KFF_GPU (" + std::to_string(_kff.getParallelism()) + ")", _kff.getName(), false, false, KEYBY);
+        gv_add_vertex("KFF_GPU (" + std::to_string(_kff.getParallelism()) + ")", _kff.getName(), false, false, routing_modes_t::KEYBY);
 #endif
         return *this;
     }
@@ -1917,7 +1909,7 @@ public:
             exit(EXIT_FAILURE);
         }
         // count-based windows are not possible in DEFAULT mode
-        if (_pf.getWinType() == CB && mode == Mode::DEFAULT) {
+        if (_pf.getWinType() == win_type_t::CB && mode == Mode::DEFAULT) {
             std::cerr << RED << "WindFlow Error: Pane_Farm cannot be used with count-based windows in DEFAULT mode" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -1929,7 +1921,7 @@ public:
             exit(EXIT_FAILURE);
         }
         // check whether the Pane_Farm has been prepared to be nested
-        if (_pf.getOptLevel() != LEVEL0) {
+        if (_pf.getOptLevel() != opt_level_t::LEVEL0) {
             std::cerr << RED << "WindFlow Error: Pane_Farm has been prepared for nesting, it cannot be added directly to a MultiPipe" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -1947,23 +1939,23 @@ public:
             plq->cleanup_emitter(true);
             plq->cleanup_workers(false);
             // call the generic method to add the operator (PLQ stage) to the MultiPipe
-            if (_pf.getWinType() == TB) {
+            if (_pf.getWinType() == win_type_t::TB) {
                 if (mode == Mode::DETERMINISTIC) {
-                    add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(plq, COMPLEX, TS);
+                    add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(plq, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                 }
                 else if (mode == Mode::PROBABILISTIC) {
-                    add_operator<Standard_Emitter<tuple_t>, KSlack_Node<tuple_t>>(plq, COMPLEX, TS);
+                    add_operator<Standard_Emitter<tuple_t>, KSlack_Node<tuple_t>>(plq, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                 }
                 else {
-                    add_operator<Standard_Emitter<tuple_t>>(plq, COMPLEX);
+                    add_operator<Standard_Emitter<tuple_t>>(plq, routing_modes_t::COMPLEX);
                 }
             }
             else {
                 if (mode == Mode::DETERMINISTIC) {
-                    add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(plq, COMPLEX, TS_RENUMBERING);
+                    add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(plq, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                 }
                 else if (mode == Mode::PROBABILISTIC) {
-                    add_operator<Standard_Emitter<tuple_t>, KSlack_Node<tuple_t>>(plq, COMPLEX, TS_RENUMBERING);
+                    add_operator<Standard_Emitter<tuple_t>, KSlack_Node<tuple_t>>(plq, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                 }
                 else {
                     abort(); // not supported CB windows in this case
@@ -1974,16 +1966,16 @@ public:
         else {
             plq = static_cast<ff::ff_farm *>(stages[0]);
             // check the type of the windows
-            if (_pf.getWinType() == TB) { // time-based windows
+            if (_pf.getWinType() == win_type_t::TB) { // time-based windows
                 // call the generic method to add the operator (PLQ stage) to the MultiPipe
                 if (mode == Mode::DETERMINISTIC) {
-                    add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, COMPLEX, TS);
+                    add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                 }
                 else if (mode == Mode::PROBABILISTIC) {
-                    add_operator<WF_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, COMPLEX, TS);
+                    add_operator<WF_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                 }
                 else {
-                    add_operator<WF_Emitter<tuple_t>>(plq, COMPLEX);
+                    add_operator<WF_Emitter<tuple_t>>(plq, routing_modes_t::COMPLEX);
                 }
             }
             else {
@@ -1992,10 +1984,10 @@ public:
                 plq->change_emitter(new Broadcast_Emitter<tuple_t>(n_plq), true);
                 // call the generic method to add the operator
                 if (mode == Mode::DETERMINISTIC) {
-                    add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, COMPLEX, TS_RENUMBERING);
+                    add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                 }
                 else if (mode == Mode::PROBABILISTIC) {
-                    add_operator<Broadcast_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, COMPLEX, TS_RENUMBERING);
+                    add_operator<Broadcast_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                 }
                 else {
                     abort(); // not supported CB windows in this case
@@ -2014,13 +2006,13 @@ public:
             wlq->cleanup_emitter(true);
             wlq->cleanup_workers(false);
             // call the generic method to add the operator (WLQ stage) to the MultiPipe
-            add_operator<Standard_Emitter<result_t>, Ordering_Node<result_t>>(wlq, COMPLEX, ID);
+            add_operator<Standard_Emitter<result_t>, Ordering_Node<result_t>>(wlq, routing_modes_t::COMPLEX, ordering_mode_t::ID);
             delete wlq;
         }
         else {
             wlq = static_cast<ff::ff_farm *>(stages[1]);
             // call the generic method to add the operator (WLQ stage) to the MultiPipe
-            add_operator<WF_Emitter<result_t>, Ordering_Node<result_t, wrapper_tuple_t<result_t>>>(wlq, COMPLEX, ID);
+            add_operator<WF_Emitter<result_t>, Ordering_Node<result_t, wrapper_tuple_t<result_t>>>(wlq, routing_modes_t::COMPLEX, ordering_mode_t::ID);
         }
         // save the new output type from this MultiPipe
         result_t r;
@@ -2031,7 +2023,7 @@ public:
         listOperators->push_back(std::ref(static_cast<Basic_Operator &>(_pf)));
 #if defined (TRACE_WINDFLOW)
         // update the graphviz representation
-        gv_add_vertex("PF (" + std::to_string(_pf.getPLQParallelism()) + "," + std::to_string(_pf.getWLQParallelism()) + ")", _pf.getName(), true, false, COMPLEX);
+        gv_add_vertex("PF (" + std::to_string(_pf.getPLQParallelism()) + "," + std::to_string(_pf.getWLQParallelism()) + ")", _pf.getName(), true, false, routing_modes_t::COMPLEX);
 #endif
         return *this;
     }
@@ -2050,7 +2042,7 @@ public:
             exit(EXIT_FAILURE);
         }
         // count-based windows are not possible in DEFAULT mode
-        if (_pf.getWinType() == CB && mode == Mode::DEFAULT) {
+        if (_pf.getWinType() == win_type_t::CB && mode == Mode::DEFAULT) {
             std::cerr << RED << "WindFlow Error: Pane_Farm_GPU cannot use count-based windows in DEFAULT mode" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -2062,7 +2054,7 @@ public:
             exit(EXIT_FAILURE);
         }
         // check whether the Pane_Farm_GPU has been prepared to be nested
-        if (_pf.getOptLevel() != LEVEL0) {
+        if (_pf.getOptLevel() != opt_level_t::LEVEL0) {
             std::cerr << RED << "WindFlow Error: Pane_Farm_GPU has been prepared for nesting, it cannot be added directly to a MultiPipe" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -2080,23 +2072,23 @@ public:
             plq->cleanup_emitter(true);
             plq->cleanup_workers(false);
             // call the generic method to add the operator (PLQ stage) to the MultiPipe
-            if (_pf.getWinType() == TB) {
+            if (_pf.getWinType() == win_type_t::TB) {
                 if (mode == Mode::DETERMINISTIC) {
-                    add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(plq, COMPLEX, TS);
+                    add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(plq, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                 }
                 else if (mode == Mode::PROBABILISTIC) {
-                    add_operator<Standard_Emitter<tuple_t>, KSlack_Node<tuple_t>>(plq, COMPLEX, TS);
+                    add_operator<Standard_Emitter<tuple_t>, KSlack_Node<tuple_t>>(plq, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                 }
                 else {
-                    add_operator<Standard_Emitter<tuple_t>>(plq, COMPLEX);
+                    add_operator<Standard_Emitter<tuple_t>>(plq, routing_modes_t::COMPLEX);
                 }
             }
             else {
                 if (mode == Mode::DETERMINISTIC) {
-                    add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(plq, COMPLEX, TS_RENUMBERING);
+                    add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(plq, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                 }
                 else if (mode == Mode::PROBABILISTIC) {
-                    add_operator<Standard_Emitter<tuple_t>, KSlack_Node<tuple_t>>(plq, COMPLEX, TS_RENUMBERING);
+                    add_operator<Standard_Emitter<tuple_t>, KSlack_Node<tuple_t>>(plq, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                 }
                 else {
                     abort(); // not supported CB windows in this case
@@ -2107,16 +2099,16 @@ public:
         else {
             plq = static_cast<ff::ff_farm *>(stages[0]);
             // check the type of the windows
-            if (_pf.getWinType() == TB) { // time-based windows
+            if (_pf.getWinType() == win_type_t::TB) { // time-based windows
                 // call the generic method to add the operator (PLQ stage) to the MultiPipe
                 if (mode == Mode::DETERMINISTIC) {
-                    add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, COMPLEX, TS);
+                    add_operator<WF_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                 }
                 else if (mode == Mode::PROBABILISTIC) {
-                    add_operator<WF_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, COMPLEX, TS);
+                    add_operator<WF_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, routing_modes_t::COMPLEX, ordering_mode_t::TS);
                 }
                 else {
-                    add_operator<WF_Emitter<tuple_t>>(plq, COMPLEX);
+                    add_operator<WF_Emitter<tuple_t>>(plq, routing_modes_t::COMPLEX);
                 }
             }
             else {
@@ -2125,10 +2117,10 @@ public:
                 plq->change_emitter(new Broadcast_Emitter<tuple_t>(n_plq), true);
                 // call the generic method to add the operator
                 if (mode == Mode::DETERMINISTIC) {
-                    add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, COMPLEX, TS_RENUMBERING);
+                    add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                 }
                 else if (mode == Mode::PROBABILISTIC) {
-                    add_operator<Broadcast_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, COMPLEX, TS_RENUMBERING);
+                    add_operator<Broadcast_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(plq, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
                 }
                 else {
                     abort(); // not supported CB windows in this case
@@ -2147,13 +2139,13 @@ public:
             wlq->cleanup_emitter(true);
             wlq->cleanup_workers(false);
             // call the generic method to add the operator (WLQ stage) to the MultiPipe
-            add_operator<Standard_Emitter<result_t>, Ordering_Node<result_t>>(wlq, COMPLEX, ID);
+            add_operator<Standard_Emitter<result_t>, Ordering_Node<result_t>>(wlq, routing_modes_t::COMPLEX, ordering_mode_t::ID);
             delete wlq;
         }
         else {
             wlq = static_cast<ff::ff_farm *>(stages[1]);
             // call the generic method to add the operator (WLQ stage) to the MultiPipe
-            add_operator<WF_Emitter<result_t>, Ordering_Node<result_t, wrapper_tuple_t<result_t>>>(wlq, COMPLEX, ID);
+            add_operator<WF_Emitter<result_t>, Ordering_Node<result_t, wrapper_tuple_t<result_t>>>(wlq, routing_modes_t::COMPLEX, ordering_mode_t::ID);
         }
         // save the new output type from this MultiPipe
         result_t r;
@@ -2164,7 +2156,7 @@ public:
         listOperators->push_back(std::ref(static_cast<Basic_Operator &>(_pf)));
 #if defined (TRACE_WINDFLOW)
         // update the graphviz representation
-        gv_add_vertex("PF_GPU (" + std::to_string(_pf.getPLQParallelism()) + "," + std::to_string(_pf.getWLQParallelism()) + ")", _pf.getName(), false, false, COMPLEX);
+        gv_add_vertex("PF_GPU (" + std::to_string(_pf.getPLQParallelism()) + "," + std::to_string(_pf.getWLQParallelism()) + ")", _pf.getName(), false, false, routing_modes_t::COMPLEX);
 #endif
         return *this;
     }
@@ -2183,7 +2175,7 @@ public:
             exit(EXIT_FAILURE);
         }
         // count-based windows are not possible in DEFAULT mode
-        if (_wmr.getWinType() == CB && mode == Mode::DEFAULT) {
+        if (_wmr.getWinType() == win_type_t::CB && mode == Mode::DEFAULT) {
             std::cerr << RED << "WindFlow Error: Win_MapReduce cannot use count-based windows in DEFAULT mode" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -2195,7 +2187,7 @@ public:
             exit(EXIT_FAILURE);
         }
         // check whether the Win_MapReduce has been prepared to be nested
-        if (_wmr.getOptLevel() != LEVEL0) {
+        if (_wmr.getOptLevel() != opt_level_t::LEVEL0) {
             std::cerr << RED << "WindFlow Error: Win_MapReduce has been prepared for nesting, it cannot be added directly to a MultiPipe" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -2204,16 +2196,16 @@ public:
         const ff::svector<ff::ff_node *> &stages = pipe->getStages();
         ff::ff_farm *map = static_cast<ff::ff_farm *>(stages[0]);
         // check the type of the windows
-        if (_wmr.getWinType() == TB) { // time-based windows
+        if (_wmr.getWinType() == win_type_t::TB) { // time-based windows
             // call the generic method to add the operator (MAP stage) to the MultiPipe
             if (mode == Mode::DETERMINISTIC) {
-                add_operator<WinMap_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(map, COMPLEX, TS);
+                add_operator<WinMap_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(map, routing_modes_t::COMPLEX, ordering_mode_t::TS);
             }
             else if (mode == Mode::PROBABILISTIC) {
-                add_operator<WinMap_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(map, COMPLEX, TS);
+                add_operator<WinMap_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(map, routing_modes_t::COMPLEX, ordering_mode_t::TS);
             }
             else {
-                add_operator<WinMap_Emitter<tuple_t>>(map, COMPLEX);
+                add_operator<WinMap_Emitter<tuple_t>>(map, routing_modes_t::COMPLEX);
             }
         }
         else {
@@ -2233,10 +2225,10 @@ public:
             new_map->cleanup_workers(false);
             // call the generic method to add the operator (MAP stage) to the MultiPipe
             if (mode == Mode::DETERMINISTIC) {
-                add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(new_map, COMPLEX, TS_RENUMBERING);
+                add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(new_map, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
             }
             else if (mode == Mode::PROBABILISTIC) {
-                add_operator<Broadcast_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(new_map, COMPLEX, TS_RENUMBERING);
+                add_operator<Broadcast_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(new_map, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
             }
             else {
                 abort(); // not supported CB windows in this case
@@ -2256,13 +2248,13 @@ public:
             reduce->cleanup_emitter(true);
             reduce->cleanup_workers(false);
             // call the generic method to add the operator (REDUCE stage) to the MultiPipe
-            add_operator<Standard_Emitter<result_t>, Ordering_Node<result_t>>(reduce, COMPLEX, ID);
+            add_operator<Standard_Emitter<result_t>, Ordering_Node<result_t>>(reduce, routing_modes_t::COMPLEX, ordering_mode_t::ID);
             delete reduce;
         }
         else {
             reduce = static_cast<ff::ff_farm *>(stages[1]);
             // call the generic method to add the operator (REDUCE stage) to the MultiPipe
-            add_operator<WF_Emitter<result_t>, Ordering_Node<result_t, wrapper_tuple_t<result_t>>>(reduce, COMPLEX, ID);
+            add_operator<WF_Emitter<result_t>, Ordering_Node<result_t, wrapper_tuple_t<result_t>>>(reduce, routing_modes_t::COMPLEX, ordering_mode_t::ID);
         }
         // save the new output type from this MultiPipe
         result_t r;
@@ -2273,7 +2265,7 @@ public:
         listOperators->push_back(std::ref(static_cast<Basic_Operator &>(_wmr)));
 #if defined (TRACE_WINDFLOW)
         // update the graphviz representation
-        gv_add_vertex("WMR (" + std::to_string(_wmr.getMAPParallelism()) + "," + std::to_string(_wmr.getREDUCEParallelism()) + ")", _wmr.getName(), true, false, COMPLEX);
+        gv_add_vertex("WMR (" + std::to_string(_wmr.getMAPParallelism()) + "," + std::to_string(_wmr.getREDUCEParallelism()) + ")", _wmr.getName(), true, false, routing_modes_t::COMPLEX);
 #endif
         return *this;
     }
@@ -2292,7 +2284,7 @@ public:
             exit(EXIT_FAILURE);
         }
         // count-based windows are not possible in DEFAULT mode
-        if (_wmr.getWinType() == CB && mode == Mode::DEFAULT) {
+        if (_wmr.getWinType() == win_type_t::CB && mode == Mode::DEFAULT) {
             std::cerr << RED << "WindFlow Error: Win_MapReduce_GPU cannot use count-based windows in DEFAULT mode" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -2304,7 +2296,7 @@ public:
             exit(EXIT_FAILURE);
         }
         // check whether the Win_MapReduce_GPU has been prepared to be nested
-        if (_wmr.getOptLevel() != LEVEL0) {
+        if (_wmr.getOptLevel() != opt_level_t::LEVEL0) {
             std::cerr << RED << "WindFlow Error: Win_MapReduce_GPU has been prepared for nesting, it cannot be added directly to a MultiPipe" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -2313,16 +2305,16 @@ public:
         const ff::svector<ff::ff_node *> &stages = pipe->getStages();
         ff::ff_farm *map = static_cast<ff::ff_farm *>(stages[0]);
         // check the type of the windows
-        if (_wmr.getWinType() == TB) { // time-based windows
+        if (_wmr.getWinType() == win_type_t::TB) { // time-based windows
             // call the generic method to add the operator (MAP stage) to the MultiPipe
             if (mode == Mode::DETERMINISTIC) {
-                add_operator<WinMap_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(map, COMPLEX, TS);
+                add_operator<WinMap_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(map, routing_modes_t::COMPLEX, ordering_mode_t::TS);
             }
             else if (mode == Mode::PROBABILISTIC) {
-                add_operator<WinMap_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(map, COMPLEX, TS);
+                add_operator<WinMap_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(map, routing_modes_t::COMPLEX, ordering_mode_t::TS);
             }
             else {
-                add_operator<WinMap_Emitter<tuple_t>>(map, COMPLEX);
+                add_operator<WinMap_Emitter<tuple_t>>(map, routing_modes_t::COMPLEX);
             }
         }
         else {
@@ -2342,10 +2334,10 @@ public:
             new_map->cleanup_workers(false);
             // call the generic method to add the operator (MAP stage) to the MultiPipe
             if (mode == Mode::DETERMINISTIC) {
-                add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(new_map, COMPLEX, TS_RENUMBERING);
+                add_operator<Broadcast_Emitter<tuple_t>, Ordering_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(new_map, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
             }
             else if (mode == Mode::PROBABILISTIC) {
-                add_operator<Broadcast_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(new_map, COMPLEX, TS_RENUMBERING);
+                add_operator<Broadcast_Emitter<tuple_t>, KSlack_Node<tuple_t, wrapper_tuple_t<tuple_t>>>(new_map, routing_modes_t::COMPLEX, ordering_mode_t::TS_RENUMBERING);
             }
             else {
                 abort(); // not supported CB windows in this case
@@ -2365,13 +2357,13 @@ public:
             reduce->cleanup_emitter(true);
             reduce->cleanup_workers(false);
             // call the generic method to add the operator (REDUCE stage) to the MultiPipe
-            add_operator<Standard_Emitter<result_t>, Ordering_Node<result_t>>(reduce, COMPLEX, ID);
+            add_operator<Standard_Emitter<result_t>, Ordering_Node<result_t>>(reduce, routing_modes_t::COMPLEX, ordering_mode_t::ID);
             delete reduce;
         }
         else {
             reduce = static_cast<ff::ff_farm *>(stages[1]);
             // call the generic method to add the operator (REDUCE stage) to the MultiPipe
-            add_operator<WF_Emitter<result_t>, Ordering_Node<result_t, wrapper_tuple_t<result_t>>>(reduce, COMPLEX, ID);
+            add_operator<WF_Emitter<result_t>, Ordering_Node<result_t, wrapper_tuple_t<result_t>>>(reduce, routing_modes_t::COMPLEX, ordering_mode_t::ID);
         }
         // save the new output type from this MultiPipe
         result_t r;
@@ -2382,7 +2374,7 @@ public:
         listOperators->push_back(std::ref(static_cast<Basic_Operator &>(_wmr)));
 #if defined (TRACE_WINDFLOW)
         // update the graphviz representation
-        gv_add_vertex("WMR_GPU (" + std::to_string(_wmr.getMAPParallelism()) + "," + std::to_string(_wmr.getREDUCEParallelism()) + ")", _wmr.getName(), false, false, COMPLEX);
+        gv_add_vertex("WMR_GPU (" + std::to_string(_wmr.getMAPParallelism()) + "," + std::to_string(_wmr.getREDUCEParallelism()) + ")", _wmr.getName(), false, false, routing_modes_t::COMPLEX);
 #endif
         return *this;
     }
@@ -2409,10 +2401,10 @@ public:
         }
         // call the generic method to add the operator to the MultiPipe
         if (mode == Mode::DETERMINISTIC) {
-            add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_sink, _sink.getRoutingMode(), TS);
+            add_operator<Standard_Emitter<tuple_t>, Ordering_Node<tuple_t>>(&_sink, _sink.getRoutingMode(), ordering_mode_t::TS);
         }
         else if (mode == Mode::PROBABILISTIC) {
-            add_operator<Standard_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_sink, _sink.getRoutingMode(), TS);
+            add_operator<Standard_Emitter<tuple_t>, KSlack_Node<tuple_t>>(&_sink, _sink.getRoutingMode(), ordering_mode_t::TS);
         }
         else {
             add_operator<Standard_Emitter<tuple_t>>(&_sink, _sink.getRoutingMode());
@@ -2452,7 +2444,7 @@ public:
             exit(EXIT_FAILURE);
         }
         // try to chain the Sink with the MultiPipe
-        if (_sink.getRoutingMode() != KEYBY) {
+        if (_sink.getRoutingMode() != routing_modes_t::KEYBY) {
             bool chained = chain_operator<typename Sink<tuple_t>::Sink_Node>(&_sink);
             if (!chained) {
                 return add_sink(_sink);

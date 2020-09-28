@@ -140,8 +140,8 @@ private:
              used(false),
              isComplex(false),
              outer_opt_level(_opt_level),
-             inner_opt_level(LEVEL0), // not meaningful
-             inner_type(SEQ_CPU),
+             inner_opt_level(opt_level_t::LEVEL0), // not meaningful
+             inner_type(pattern_t::SEQ_CPU),
              outer_parallelism(0), // not meaningful
              inner_parallelism_1(0), // not meaningful
              inner_parallelism_2(0), // not meaningful
@@ -161,9 +161,9 @@ private:
             exit(EXIT_FAILURE);
         }
         // check the optimization level
-        if (_opt_level != LEVEL0) {
+        if (_opt_level != opt_level_t::LEVEL0) {
             //std::cerr << YELLOW << "WindFlow Warning: optimization level has no effect" << DEFAULT_COLOR << std::endl;
-            outer_opt_level = LEVEL0;
+            outer_opt_level = opt_level_t::LEVEL0;
         }
         // std::vector of Win_Seq
         std::vector<ff_node *> w;
@@ -193,10 +193,10 @@ private:
     // method to optimize the structure of the Win_Farm operator
     void optimize_WinFarm(opt_level_t opt)
     {
-        if (opt == LEVEL0) { // no optimization
+        if (opt == opt_level_t::LEVEL0) { // no optimization
             return;
         }
-        else if (opt == LEVEL1) { // optimization level 1
+        else if (opt == opt_level_t::LEVEL1) { // optimization level 1
             remove_internal_collectors(*this); // remove all the default collectors in the Win_Farm
         }
         else { // optimization level 2
@@ -253,7 +253,7 @@ public:
              closing_func_t _closing_func,
              bool _ordered,
              opt_level_t _opt_level):
-             Win_Farm(_win_func, _win_len, _slide_len, _triggering_delay, _winType, _parallelism, _name, _closing_func, _ordered, _opt_level, WinOperatorConfig(0, 1, _slide_len, 0, 1, _slide_len), SEQ) {}
+             Win_Farm(_win_func, _win_len, _slide_len, _triggering_delay, _winType, _parallelism, _name, _closing_func, _ordered, _opt_level, WinOperatorConfig(0, 1, _slide_len, 0, 1, _slide_len), role_t::SEQ) {}
 
     /** 
      *  \brief Constructor II (Nesting with Pane_Farm)
@@ -285,7 +285,7 @@ public:
              isComplex(true),
              outer_opt_level(_opt_level),
              inner_opt_level(_pf.opt_level),
-             inner_type(PF_CPU),
+             inner_type(pattern_t::PF_CPU),
              outer_parallelism(_num_replicas),
              inner_parallelism_1(_pf.plq_parallelism),
              inner_parallelism_2(_pf.wlq_parallelism),
@@ -362,7 +362,7 @@ public:
         }
         ff::ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
-        ff::ff_farm::add_emitter(new wf_emitter_t(_winType, _win_len, _slide_len, _num_replicas, 0, 1, _slide_len, SEQ));
+        ff::ff_farm::add_emitter(new wf_emitter_t(_winType, _win_len, _slide_len, _num_replicas, 0, 1, _slide_len, role_t::SEQ));
         if (_ordered) {
             ff::ff_farm::add_collector(new wf_collector_t());
         }
@@ -405,7 +405,7 @@ public:
              isComplex(true),
              outer_opt_level(_opt_level),
              inner_opt_level(_wmr.opt_level),
-             inner_type(WMR_CPU),
+             inner_type(pattern_t::WMR_CPU),
              outer_parallelism(_num_replicas),
              inner_parallelism_1(_wmr.map_parallelism),
              inner_parallelism_2(_wmr.reduce_parallelism),
@@ -482,7 +482,7 @@ public:
         }
         ff::ff_farm::add_workers(w);
         // create the Emitter and Collector nodes
-        ff::ff_farm::add_emitter(new wf_emitter_t(_winType, _win_len, _slide_len, _num_replicas, 0, 1, _slide_len, SEQ));
+        ff::ff_farm::add_emitter(new wf_emitter_t(_winType, _win_len, _slide_len, _num_replicas, 0, 1, _slide_len, role_t::SEQ));
         if (_ordered) {
             ff::ff_farm::add_collector(new wf_collector_t());
         }
@@ -568,19 +568,19 @@ public:
     size_t getNumIgnoredTuples() const
     {
         size_t count = 0;
-        if (this->getInnerType() == SEQ_CPU) {
+        if (this->getInnerType() == pattern_t::SEQ_CPU) {
             for (auto *w: wf_workers) {
                 auto *seq = static_cast<win_seq_t *>(w);
                 count += seq->getNumIgnoredTuples();
             }
         }
-        else if (this->getInnerType() == PF_CPU) {
+        else if (this->getInnerType() == pattern_t::PF_CPU) {
             for (auto *w: wf_workers) {
                 auto *pf = static_cast<panewrap_farm_t *>(w);
                 count += pf->getNumIgnoredTuples();
             }
         }
-        else if (this->getInnerType() == WMR_CPU) {
+        else if (this->getInnerType() == pattern_t::WMR_CPU) {
             for (auto *w: wf_workers) {
                 auto *wmr = static_cast<winwrap_map_t *>(w);
                 count += wmr->getNumIgnoredTuples();
@@ -616,7 +616,7 @@ public:
      */ 
     routing_modes_t getRoutingMode() const override
     {
-        return COMPLEX;
+        return routing_modes_t::COMPLEX;
     }
 
     /** 
@@ -626,6 +626,35 @@ public:
     bool isUsed() const override
     {
         return used;
+    }
+
+    /** 
+     *  \brief Check whether the operator has been terminated
+     *  \return true if the operator has finished its work
+     */ 
+    virtual bool isTerminated() const override
+    {
+        bool terminated = true;
+        // scan all the replicas to check their termination
+        if (this->getInnerType() == pattern_t::SEQ_CPU) {
+            for (auto *w: wf_workers) {
+                auto *seq = static_cast<win_seq_t *>(w);
+                terminated = terminated && seq->isTerminated();
+            }
+        }
+        else if (this->getInnerType() == pattern_t::PF_CPU) {
+            for (auto *w: wf_workers) {
+                auto *pf = static_cast<panewrap_farm_t *>(w);
+                terminated = terminated && pf->isTerminated();
+            }
+        }
+        else if (this->getInnerType() == pattern_t::WMR_CPU) {
+            for (auto *w: wf_workers) {
+                auto *wmr = static_cast<winwrap_map_t *>(w);
+                terminated = terminated && wmr->isTerminated();
+            }
+        }
+        return terminated;
     }
 
 #if defined (TRACE_WINDFLOW)
@@ -671,8 +700,14 @@ public:
         writer.String("Win_Farm");
         writer.Key("Distribution");
         writer.String("COMPLEX");
+        writer.Key("isTerminated");
+        writer.Bool(this->isTerminated());
+        writer.Key("isWindowed");
+        writer.Bool(true);
+        writer.Key("isGPU");
+        writer.Bool(false);
         writer.Key("Window_type");
-        if (winType == CB) {
+        if (winType == win_type_t::CB) {
             writer.String("count-based");
         }
         else {
@@ -687,27 +722,31 @@ public:
         if (!this->isComplexNesting()) {
             writer.Key("Parallelism");
             writer.Uint(parallelism);
+            writer.Key("areNestedOPs");
+            writer.Bool(false);
         }
         else {
             writer.Key("Parallelism");
-            writer.Uint(this->getNumComplexReplicas());         
+            writer.Uint(this->getNumComplexReplicas());
+            writer.Key("areNestedOPs");
+            writer.Bool(true);
         }
         writer.Key("Replicas");
         writer.StartArray();
-        if (this->getInnerType() == SEQ_CPU) {
+        if (this->getInnerType() == pattern_t::SEQ_CPU) {
             for (auto *w: wf_workers) {
                 auto *seq = static_cast<win_seq_t *>(w);
                 Stats_Record record = seq->get_StatsRecord();
                 record.append_Stats(writer);
             }
         }
-        else if (this->getInnerType() == PF_CPU) {
+        else if (this->getInnerType() == pattern_t::PF_CPU) {
             for (auto *w: wf_workers) {
                 auto *pf = static_cast<panewrap_farm_t *>(w);
                 pf->append_Stats(writer);
             }
         }
-        else if (this->getInnerType() == WMR_CPU) {
+        else if (this->getInnerType() == pattern_t::WMR_CPU) {
             for (auto *w: wf_workers) {
                 auto *wmr = static_cast<winwrap_map_t *>(w);
                 wmr->append_Stats(writer);

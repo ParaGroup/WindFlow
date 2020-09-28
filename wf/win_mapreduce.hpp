@@ -184,7 +184,7 @@ private:
             for (size_t i = 0; i < _map_parallelism; i++) {
                 // configuration structure of the Win_Seq (MAP)
                 WinOperatorConfig configSeqMAP(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _slide_len);
-                auto *seq = new Win_Seq<tuple_t, result_t, wrapper_in_t>(_func_MAP, _win_len, _slide_len, _triggering_delay, _winType, _name + "_map", _closing_func, RuntimeContext(_map_parallelism, i), configSeqMAP, MAP);
+                auto *seq = new Win_Seq<tuple_t, result_t, wrapper_in_t>(_func_MAP, _win_len, _slide_len, _triggering_delay, _winType, _name + "_map", _closing_func, RuntimeContext(_map_parallelism, i), configSeqMAP, role_t::MAP);
                 seq->setMapIndexes(i, _map_parallelism);
                 w[i] = seq;
                 map_workers.push_back(seq);
@@ -199,7 +199,7 @@ private:
         else {
             // configuration structure of the Win_Seq (MAP)
             WinOperatorConfig configSeqMAP(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _slide_len);
-            auto *seq_map = new Win_Seq<tuple_t, result_t, wrapper_in_t>(_func_MAP, _win_len, _slide_len, _triggering_delay, _winType, _name + "_map", _closing_func, RuntimeContext(1, 0), configSeqMAP, MAP);
+            auto *seq_map = new Win_Seq<tuple_t, result_t, wrapper_in_t>(_func_MAP, _win_len, _slide_len, _triggering_delay, _winType, _name + "_map", _closing_func, RuntimeContext(1, 0), configSeqMAP, role_t::MAP);
             seq_map->setMapIndexes(0, 1);
             map_stage = seq_map;
             map_workers.push_back(seq_map);
@@ -208,7 +208,7 @@ private:
         if (_reduce_parallelism > 1) {
             // configuration structure of the Win_Farm (REDUCE)
             WinOperatorConfig configWFREDUCE(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *farm_reduce = new Win_Farm<result_t, result_t>(_func_REDUCE, _map_parallelism, _map_parallelism, 0, CB, _reduce_parallelism, _name + "_reduce", _closing_func, _ordered, LEVEL0, configWFREDUCE, REDUCE);
+            auto *farm_reduce = new Win_Farm<result_t, result_t>(_func_REDUCE, _map_parallelism, _map_parallelism, 0, win_type_t::CB, _reduce_parallelism, _name + "_reduce", _closing_func, _ordered, opt_level_t::LEVEL0, configWFREDUCE, role_t::REDUCE);
             reduce_stage = farm_reduce;
             for (auto *w: farm_reduce->getWorkers()) {
                 reduce_workers.push_back(w);
@@ -217,7 +217,7 @@ private:
         else {
             // configuration structure of the Win_Seq (REDUCE)
             WinOperatorConfig configSeqREDUCE(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, _map_parallelism);
-            auto *seq_reduce = new Win_Seq<result_t, result_t>(_func_REDUCE, _map_parallelism, _map_parallelism, 0, CB, _name + "_reduce", _closing_func, RuntimeContext(1, 0), configSeqREDUCE, REDUCE);
+            auto *seq_reduce = new Win_Seq<result_t, result_t>(_func_REDUCE, _map_parallelism, _map_parallelism, 0, win_type_t::CB, _name + "_reduce", _closing_func, RuntimeContext(1, 0), configSeqREDUCE, role_t::REDUCE);
             reduce_stage = seq_reduce;
             reduce_workers.push_back(seq_reduce);
         }
@@ -232,14 +232,14 @@ private:
     // method to optimize the structure of the Win_MapReduce operator
     const ff::ff_pipeline optimize_WinMapReduce(ff_node *map, ff_node *reduce, opt_level_t opt)
     {
-        if (opt == LEVEL0) { // no optimization
+        if (opt == opt_level_t::LEVEL0) { // no optimization
             ff::ff_pipeline pipe;
             pipe.add_stage(map);
             pipe.add_stage(reduce);
             pipe.cleanup_nodes();
             return pipe;
         }
-        else if (opt == LEVEL1) { // optimization level 1
+        else if (opt == opt_level_t::LEVEL1) { // optimization level 1
             return combine_nodes_in_pipeline(*map, *reduce, true, true);
         }
         else { // optimization level 2
@@ -955,7 +955,7 @@ public:
      */ 
     routing_modes_t getRoutingMode() const override
     {
-        return COMPLEX;
+        return routing_modes_t::COMPLEX;
     }
 
     /** 
@@ -965,6 +965,25 @@ public:
     bool isUsed() const override
     {
         return used;
+    }
+
+    /** 
+     *  \brief Check whether the operator has been terminated
+     *  \return true if the operator has finished its work
+     */ 
+    virtual bool isTerminated() const override
+    {
+        bool terminated = true;
+        // scan all the replicas to check their termination
+        for (auto *w: map_workers) {
+            auto *seq = static_cast<Win_Seq<tuple_t, result_t, wrapper_in_t> *>(w);
+            terminated = terminated && seq->isTerminated();
+        }
+        for (auto *w: reduce_workers) {
+            auto *seq = static_cast<Win_Seq<result_t, result_t> *>(w);
+            terminated = terminated && seq->isTerminated();
+        }
+        return terminated;
     }
 
 #if defined (TRACE_WINDFLOW)
@@ -1010,10 +1029,14 @@ public:
         writer.String("Win_MapReduce");
         writer.Key("Distribution");
         writer.String("COMPLEX");
-        writer.Key("MAP_Stage");
-        writer.String("CPU");
-        writer.Key("Window_type");
-        if (winType == CB) {
+        writer.Key("isTerminated");
+        writer.Bool(this->isTerminated());
+        writer.Key("isGPU_1");
+        writer.Bool(false);
+        writer.Key("Name_Stage_1");
+        writer.String("MAP");
+        writer.Key("Window_type_1");
+        if (winType == win_type_t::CB) {
             writer.String("count-based");
         }
         else {
@@ -1021,13 +1044,13 @@ public:
             writer.Key("Window_delay");
             writer.Uint(triggering_delay);  
         }
-        writer.Key("Window_length");
+        writer.Key("Window_length_1");
         writer.Uint(win_len);
-        writer.Key("Window_slide");
+        writer.Key("Window_slide_1");
         writer.Uint(slide_len);
-        writer.Key("Parallelism_MAP");
+        writer.Key("Parallelism_1");
         writer.Uint(map_parallelism);
-        writer.Key("Replicas");
+        writer.Key("Replicas_1");
         writer.StartArray();
         // get statistics from all the replicas of the MAP stage
         for (auto *w: map_workers) {
@@ -1036,17 +1059,19 @@ public:
             record.append_Stats(writer);
         }
         writer.EndArray();
-        writer.Key("REDUCE_Stage");
-        writer.String("CPU");
-        writer.Key("Window_type");
+        writer.Key("isGPU_2");
+        writer.Bool(false);
+        writer.Key("Name_Stage_2");
+        writer.String("REDUCE");
+        writer.Key("Window_type_2");
         writer.String("count-based");
-        writer.Key("Window_length");
+        writer.Key("Window_length_2");
         writer.Uint(map_parallelism);
-        writer.Key("Window_slide");
+        writer.Key("Window_slide_2");
         writer.Uint(map_parallelism);
-        writer.Key("Parallelism_REDUCE");
+        writer.Key("Parallelism_2");
         writer.Uint(reduce_parallelism);
-        writer.Key("Replicas");
+        writer.Key("Replicas_2");
         writer.StartArray();
         // get statistics from all the replicas of the REDUCE stage
         for (auto *w: reduce_workers) {

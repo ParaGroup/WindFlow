@@ -162,13 +162,16 @@ int main(int argc, char *argv[])
         pipe1.chain(map1);
         // split
         pipe1.split([](const tuple_t &t) {
-            if (t.value % 2)
+            if (t.value % 2 == 0) {
                 return 0;
+            }
             else {
-                if (t.value % 3 == 0)
+                if (t.value % 3 == 0) {
                     return 1;
-                else
+                }
+                else {
                     return 2;
+                }
             }
         }, 3);
         // prepare the second MultiPipe

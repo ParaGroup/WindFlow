@@ -16,7 +16,8 @@
 
 /*  
  *  This test runs the graph below one time with a random number of replicas for each
- *  operator. It generates the tracing log files of the WindFlow library.
+ *  operator. It generates the tracing log files of the WindFlow library and interacts
+ *  with the WindFlow Web Dashboard.
  *  
  *                                +---------------------+
  *                                |  +-----+   +-----+  |
@@ -133,7 +134,7 @@ int main(int argc, char *argv[])
     check_degree += map5_degree;
     check_degree++;
     // prepare the test
-    PipeGraph graph("test_diagram");
+    PipeGraph graph("test_tracing");
     // prepare the first MultiPipe
     // source
     Source_Positive_Functor source_functor_positive(stream_len, n_keys);
@@ -210,7 +211,7 @@ int main(int argc, char *argv[])
     pipe4.chain_sink(sink1);
     // split
     pipe3.split([](const tuple_t &t) {
-        if (t.value % 6)
+        if (t.value % 7)
             return 0;
         else {
             return 1;

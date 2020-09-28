@@ -140,10 +140,12 @@ int main(int argc, char *argv[])
         MultiPipe &pipe1 = graph.add_source(source);
         // split
         pipe1.split([](const tuple_t &t) {
-            if (t.value % 2 == 0)
+            if (t.value % 2 == 0) {
                 return 0;
-            else
+            }
+            else {
                 return 1;
+            }
         }, 2);
         // prepare the second MultiPipe
         MultiPipe &pipe2 = pipe1.select(0);

@@ -93,6 +93,7 @@ private:
         bool isEND; // flag stating whether the Source_Node has completed to generate items
         Shipper<tuple_t> *shipper = nullptr; // shipper object used for the delivery of results (single-loop version)
         RuntimeContext context; // RuntimeContext
+        bool terminated; // true if the replica has finished its work
 #if defined (TRACE_WINDFLOW)
         Stats_Record stats_record;
         double avg_td_us = 0;
@@ -109,12 +110,13 @@ private:
                     RuntimeContext _context,
                     closing_func_t _closing_func):
                     source_func_item(_source_func_item),
+                    closing_func(_closing_func),
                     name(_name),
                     isItemized(true),
                     isRich(false),
                     isEND(false),
                     context(_context),
-                    closing_func(_closing_func) {}
+                    terminated(false) {}
 
         // Constructor II
         Source_Node(rich_source_item_func_t _rich_source_func_item,
@@ -122,12 +124,13 @@ private:
                     RuntimeContext _context,
                     closing_func_t _closing_func):
                     rich_source_func_item(_rich_source_func_item),
+                    closing_func(_closing_func),
                     name(_name),
                     isItemized(true),
                     isRich(true),
                     isEND(false), 
                     context(_context),
-                    closing_func(_closing_func) {}
+                    terminated(false) {}
 
         // Constructor III
         Source_Node(source_loop_func_t _source_func_loop,
@@ -135,12 +138,13 @@ private:
                     RuntimeContext _context,
                     closing_func_t _closing_func):
                     source_func_loop(_source_func_loop),
+                    closing_func(_closing_func),
                     name(_name),
                     isItemized(false),
                     isRich(false),
                     isEND(false),
                     context(_context),
-                    closing_func(_closing_func) {}
+                    terminated(false) {}
 
         // Constructor IV
         Source_Node(rich_source_loop_func_t _rich_source_func_loop,
@@ -148,12 +152,13 @@ private:
                     RuntimeContext _context,
                     closing_func_t _closing_func):
                     rich_source_func_loop(_rich_source_func_loop),
+                    closing_func(_closing_func),
                     name(_name),
                     isItemized(false),
                     isRich(true),
                     isEND(false),
                     context(_context),
-                    closing_func(_closing_func) {}
+                    terminated(false) {}
 
         // svc_init method (utilized by the FastFlow runtime)
         int svc_init() override
@@ -179,6 +184,10 @@ private:
             // itemized version
             if (isItemized) {
                 if (isEND) {
+                    terminated = true;
+#if defined (TRACE_WINDFLOW)
+                    stats_record.set_Terminated();
+#endif
                     return this->EOS;
                 }
                 else {
@@ -209,6 +218,10 @@ private:
             // single-loop version
             else {
                 if (isEND) {
+                    terminated = true;
+#if defined (TRACE_WINDFLOW)
+                    stats_record.set_Terminated();
+#endif
                     return this->EOS;
                 }
                 else {
@@ -245,6 +258,12 @@ private:
             closing_func(context);
             // delete the shipper object used by this replica
             delete shipper;
+        }
+
+        // method the check the termination of the replica
+        bool isTerminated() const
+        {
+            return terminated;
         }
 
 #if defined (TRACE_WINDFLOW)
@@ -317,7 +336,7 @@ public:
      */ 
     routing_modes_t getRoutingMode() const override
     {
-        return NONE;
+        return routing_modes_t::NONE;
     }
 
     /** 
@@ -327,6 +346,21 @@ public:
     bool isUsed() const override
     {
         return used;
+    }
+
+    /** 
+     *  \brief Check whether the operator has been terminated
+     *  \return true if the operator has finished its work
+     */ 
+    virtual bool isTerminated() const override
+    {
+        bool terminated = true;
+        // scan all the replicas to check their termination
+        for(auto *w: this->getFirstSet()) {
+            auto *node = static_cast<Source_Node *>(w);
+            terminated = terminated && node->isTerminated(); 
+        }
+        return terminated;
     }
 
 #if defined (TRACE_WINDFLOW)
@@ -372,6 +406,12 @@ public:
         writer.String("Source");
         writer.Key("Distribution");
         writer.String("NONE");
+        writer.Key("isTerminated");
+        writer.Bool(this->isTerminated());
+        writer.Key("isWindowed");
+        writer.Bool(false);
+        writer.Key("isGPU");
+        writer.Bool(false);
         writer.Key("Parallelism");
         writer.Uint(parallelism);
         writer.Key("Replicas");

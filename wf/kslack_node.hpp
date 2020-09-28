@@ -21,13 +21,12 @@
  *  
  *  @brief Node used for reordering data items in a probabilistic manner
  *  
- *  @section KSLACK_NODE (Description)
+ *  @section KSlack_Node (Description)
  *  
  *  The node has multiple input streams. It receives data items that are buffered
- *  in an internal queue. Data items are dequeued from the queue and emitted in
+ *  into an internal queue. Data items are dequeued from the queue and emitted in
  *  increasing ordering of timestamp. To enforce this ordering, the node can drop
- *  inputs. It is possible to configure the amount of inputs that can be dropped to
- *  achieve acceptable trade-offs between latency and amount of dropped inputs.
+ *  inputs.
  */ 
 
 #ifndef KSLACK_NODE_H
@@ -80,13 +79,15 @@ private:
         }
     };
     Comparator comparator;
+    long dropped_sample = 0; // number of dropped inputs during the last sample
     long dropped_inputs = 0; // number of dropped inputs during the whole processing
     long received_inputs = 0; // number of received inputs during the whole processing
     uint64_t last_timestamp = 0; // timestamp of the last input emitted by this node
     size_t eos_received; // number of received EOS messages
     ordering_mode_t mode; // ordering mode supported by the KSlack_Node (TS or TS_RENUMBERING)
-    std::atomic<unsigned long> *atomic_num_dropped; // pointer to the atomic counter with the total number of dropped tuples by the whole operator
+    std::atomic<unsigned long> *atomic_num_dropped; // pointer to the atomic counter with the total number of dropped tuples
     std::unordered_map<key_t, long> keyMap; // hash table to map keys onto progressive counters
+    volatile long last_update_atomic_usec; // time of the last update of the atomic counter
 
     // method to insert a new input into the buffer
     bool insertInput(input_t *wt)
@@ -141,13 +142,13 @@ private:
     input_t *extractInput()
     {
         if (!toEmit) {
-            return NULL;
+            return nullptr;
         }
         else if (first == last) {
             // remove the emitted inputs from the buffer
             bufferedInputs.erase(bufferedInputs.begin(), last);
             toEmit = false;
-            return NULL;
+            return nullptr;
         }
         else {
             input_t *wt = *first;
@@ -165,12 +166,13 @@ private:
 
 public:
     // Constructor
-    KSlack_Node(ordering_mode_t _mode=TS, std::atomic<unsigned long> *_atomic_num_dropped=nullptr):
+    KSlack_Node(ordering_mode_t _mode=ordering_mode_t::TS, std::atomic<unsigned long> *_atomic_num_dropped=nullptr):
                 eos_received(0),
                 mode(_mode),
                 atomic_num_dropped(_atomic_num_dropped)
     {
-        assert(mode != ID);
+        assert(mode != ordering_mode_t::ID);
+        last_update_atomic_usec = current_time_usecs();
     }
 
     // svc_init method (utilized by the FastFlow runtime)
@@ -186,18 +188,20 @@ public:
         received_inputs++;
         // extract tuples from the buffer (likely in order)
         input_t *input = this->extractInput();
-        while (input != NULL) {
+        while (input != nullptr) {
             tuple_t *t = extractTuple<tuple_t, input_t>(input);
             // if the input is not emitted in order we drop it
             if (std::get<2>(t->getControlFields()) < last_timestamp) {
                 dropped_inputs++;
+                dropped_sample++;
+                updateAtomicDroppedCounter();
                 // delete the input to be dropped
                 deleteTuple<tuple_t, input_t>(input);
             }
             // otherwise, we can send the input
             else {
                 last_timestamp = std::get<2>(t->getControlFields());
-                if (mode == TS_RENUMBERING) {
+                if (mode == ordering_mode_t::TS_RENUMBERING) {
                     auto key = std::get<0>(t->getControlFields()); // key
                     // initialize the corresponding counter
                     auto it = keyMap.find(key);
@@ -235,17 +239,19 @@ public:
             // prepare the buffer to be flushed
             this->prepareToFlush();
             input_t *input = this->extractInput();
-            while (input != NULL) {
+            while (input != nullptr) {
                 tuple_t *t = extractTuple<tuple_t, input_t>(input);
                 // if the input is not emitted in order we discard it
                 if (std::get<2>(t->getControlFields()) < last_timestamp) {
                     dropped_inputs++;
+                    dropped_sample++;
+                    updateAtomicDroppedCounter();
                     // delete the input to be dropped
                     deleteTuple<tuple_t, input_t>(input);
                 }
                 else {
                     last_timestamp = std::get<2>(t->getControlFields());
-                    if (mode == TS_RENUMBERING) {
+                    if (mode == ordering_mode_t::TS_RENUMBERING) {
                         auto key = std::get<0>(t->getControlFields()); // key
                         // initialize the corresponding counter
                         auto it = keyMap.find(key);
@@ -275,7 +281,18 @@ public:
     void svc_end() override
     {
         // update the number of dropped tuples by the whole operator
-        (*atomic_num_dropped) += dropped_inputs;
+        (*atomic_num_dropped) += dropped_sample;
+    }
+
+    // method to check whether the atomic counter must be updated
+    void updateAtomicDroppedCounter()
+    {
+        // if we have to update the atomic counter
+        if (current_time_usecs() - last_update_atomic_usec >= DEFAULT_UPDATE_INTERVAL_USEC) {
+            (*atomic_num_dropped) += dropped_sample;
+            last_update_atomic_usec = current_time_usecs();
+            dropped_sample = 0;
+        }
     }
 };
 

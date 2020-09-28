@@ -39,7 +39,7 @@ namespace wf {
 // struct of the dummy multi-input node
 struct dummy_mi: ff::ff_minode
 {
-    dummy_mi(ordering_mode_t _mode=TS, std::atomic<unsigned long> *atomic_num_dropped=nullptr) {}
+    dummy_mi(ordering_mode_t _mode=ordering_mode_t::TS, std::atomic<unsigned long> *atomic_num_dropped=nullptr) {}
 
     void *svc(void *in) override
     {

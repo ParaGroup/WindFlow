@@ -45,6 +45,7 @@
 #include<ff/node.hpp>
 #include<ff/combine.hpp>
 #include<ff/pipeline.hpp>
+#include<ff/multinode.hpp>
 #include<ff/farm.hpp>
 #include<basic.hpp>
 #include<context.hpp>
@@ -89,7 +90,7 @@ private:
     bool keyed; // flag stating whether the Sink is configured with keyBy or not
     bool used; // true if the Sink has been added/chained in a MultiPipe
     // class Sink_Node
-    class Sink_Node: public ff::ff_node_t<tuple_t>
+    class Sink_Node: public ff::ff_minode_t<tuple_t>
     {
     private:
         sink_func_t sink_func; // sink function (receiving a reference to an optional containing the input)
@@ -101,6 +102,8 @@ private:
         bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
         bool isRef; // flag stating whether the function to be used receives an optional containing the input (by value) o a reference wrapper to it
         RuntimeContext context; // RuntimeContext
+        size_t eos_received; // number of received EOS messages
+        bool terminated; // true if the replica has finished its work
 #if defined (TRACE_WINDFLOW)
         Stats_Record stats_record;
         double avg_td_us = 0;
@@ -115,11 +118,13 @@ private:
                   RuntimeContext _context,
                   closing_func_t _closing_func):
                   sink_func(_sink_func),
+                  closing_func(_closing_func),
                   name(_name),
                   isRich(false),
                   isRef(false),
                   context(_context),
-                  closing_func(_closing_func) {}
+                  eos_received(0),
+                  terminated(false) {}
 
         // Constructor II
         Sink_Node(rich_sink_func_t _rich_sink_func,
@@ -127,11 +132,13 @@ private:
                   RuntimeContext _context,
                   closing_func_t _closing_func):
                   rich_sink_func(_rich_sink_func),
+                  closing_func(_closing_func),
                   name(_name),
                   isRich(true),
                   isRef(false),
                   context(_context),
-                  closing_func(_closing_func) {}
+                  eos_received(0),
+                  terminated(false) {}
 
         // Constructor III
         Sink_Node(sink_func_ref_t _sink_func_ref,
@@ -139,11 +146,13 @@ private:
                   RuntimeContext _context,
                   closing_func_t _closing_func):
                   sink_func_ref(_sink_func_ref),
+                  closing_func(_closing_func),
                   name(_name),
                   isRich(false),
                   isRef(true),
                   context(_context),
-                  closing_func(_closing_func) {}
+                  eos_received(0),
+                  terminated(false) {}
 
         // Constructor IV
         Sink_Node(rich_sink_func_ref_t _rich_sink_func_ref,
@@ -151,11 +160,13 @@ private:
                   RuntimeContext _context,
                   closing_func_t _closing_func):
                   rich_sink_func_ref(_rich_sink_func_ref),
+                  closing_func(_closing_func),
                   name(_name),
                   isRich(true),
                   isRef(true),
                   context(_context),
-                  closing_func(_closing_func) {}
+                  eos_received(0),
+                  terminated(false) {}
 
         // svc_init method (utilized by the FastFlow runtime)
         int svc_init() override
@@ -215,6 +226,20 @@ private:
             return this->GO_ON;
         }
 
+        // method to manage the EOS (utilized by the FastFlow runtime)
+        void eosnotify(ssize_t id) override
+        {
+            eos_received++;
+            // check the number of received EOS messages
+            if ((eos_received != this->get_num_inchannels()) && (this->get_num_inchannels() != 0)) { // workaround due to FastFlow
+                return;
+            }
+            terminated = true;
+#if defined (TRACE_WINDFLOW)
+            stats_record.set_Terminated();
+#endif
+        }
+
         // svc_end method (utilized by the FastFlow runtime)
         void svc_end() override
         {
@@ -242,6 +267,12 @@ private:
             }
             // call the closing function
             closing_func(context);
+        }
+
+        // method the check the termination of the replica
+        bool isTerminated() const
+        {
+            return terminated;
         }
 
 #if defined (TRACE_WINDFLOW)
@@ -360,10 +391,10 @@ public:
     routing_modes_t getRoutingMode() const override
     {
         if (keyed) {
-            return KEYBY;
+            return routing_modes_t::KEYBY;
         }
         else {
-            return FORWARD;
+            return routing_modes_t::FORWARD;
         }
     }
 
@@ -374,6 +405,21 @@ public:
     bool isUsed() const override
     {
         return used;
+    }
+
+    /** 
+     *  \brief Check whether the operator has been terminated
+     *  \return true if the operator has finished its work
+     */ 
+    virtual bool isTerminated() const override
+    {
+        bool terminated = true;
+        // scan all the replicas to check their termination
+        for(auto *w: sink_workers) {
+            auto *node = static_cast<Sink_Node *>(w);
+            terminated = terminated && node->isTerminated(); 
+        }
+        return terminated;
     }
 
 #if defined (TRACE_WINDFLOW)
@@ -419,6 +465,12 @@ public:
         writer.String("Sink");
         writer.Key("Distribution");
         writer.String(keyed ? "KEYBY" : "FORWARD");
+        writer.Key("isTerminated");
+        writer.Bool(this->isTerminated());
+        writer.Key("isWindowed");
+        writer.Bool(false);
+        writer.Key("isGPU");
+        writer.Bool(false);
         writer.Key("Parallelism");
         writer.Uint(parallelism);
         writer.Key("Replicas");

@@ -43,6 +43,7 @@
 #include<unordered_map>
 #include<math.h>
 #include<ff/node.hpp>
+#include<ff/multinode.hpp>
 #include<basic.hpp>
 #include<meta.hpp>
 #include<flatfat.hpp>
@@ -55,7 +56,7 @@ namespace wf {
 
 // Win_SeqFFAT class
 template<typename tuple_t, typename result_t>
-class Win_SeqFFAT: public ff::ff_node_t<tuple_t, result_t>
+class Win_SeqFFAT: public ff::ff_minode_t<tuple_t, result_t>
 {
 public:
     // type of the lift function
@@ -151,6 +152,7 @@ private:
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     size_t ignored_tuples; // number of ignored tuples
     size_t eos_received; // number of received EOS messages
+    bool terminated; // true if the replica has finished its work
     bool isRenumbering; // if true, the node assigns increasing identifiers to the input tuples (useful for count-based windows in DEFAULT mode)
 #if defined (TRACE_WINDFLOW)
     Stats_Record stats_record;
@@ -183,7 +185,7 @@ private:
             exit(EXIT_FAILURE);
         }
         // set the quantum value (for time-based windows only)
-        if (winType == TB) {
+        if (winType == win_type_t::TB) {
             quantum = gcd(win_len, slide_len);
             win_len = win_len / quantum;
             slide_len = slide_len / quantum;
@@ -219,6 +221,7 @@ public:
                 isRichCombine(false),
                 ignored_tuples(0),
                 eos_received(0),
+                terminated(false),
                 isRenumbering(false)
     {
         init();
@@ -249,6 +252,7 @@ public:
                 isRichCombine(false),
                 ignored_tuples(0),
                 eos_received(0),
+                terminated(false),
                 isRenumbering(false)
     {
         init();
@@ -279,6 +283,7 @@ public:
                 isRichCombine(true),
                 ignored_tuples(0),
                 eos_received(0),
+                terminated(false),
                 isRenumbering(false)
     {
         init();
@@ -309,6 +314,7 @@ public:
                 isRichCombine(true),
                 ignored_tuples(0),
                 eos_received(0),
+                terminated(false),
                 isRenumbering(false)
     {
         init();
@@ -318,26 +324,13 @@ public:
     int svc_init() override
     {
 #if defined (TRACE_WINDFLOW)
-            stats_record = Stats_Record(name, std::to_string(this->get_my_id()), true, false);
+        stats_record = Stats_Record(name, std::to_string(this->get_my_id()), true, false);
 #endif
         return 0;
     }
 
     // svc method (utilized by the FastFlow runtime)
     result_t *svc(tuple_t *t) override
-    {
-        // two separate logics depending on the window type
-        if (winType == CB) {
-            svcCBWindows(t);
-        }
-        else {
-            svcTBWindows(t);
-        }
-        return this->GO_ON;
-    }
-
-    // processing logic with count-based windows
-    void svcCBWindows(tuple_t *t)
     {
 #if defined (TRACE_WINDFLOW)
         startTS = current_time_nsecs();
@@ -347,6 +340,30 @@ public:
         stats_record.inputs_received++;
         stats_record.bytes_received += sizeof(tuple_t);
 #endif
+        // two separate logics depending on the window type
+        if (winType == win_type_t::CB) {
+            svcCBWindows(t);
+        }
+        else {
+            svcTBWindows(t);
+        }
+#if defined (TRACE_WINDFLOW)
+        endTS = current_time_nsecs();
+        endTD = current_time_nsecs();
+        double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
+        avg_ts_us += (1.0 / stats_record.inputs_received) * (elapsedTS_us - avg_ts_us);
+        double elapsedTD_us = ((double) (endTD - startTD)) / 1000;
+        avg_td_us += (1.0 / stats_record.inputs_received) * (elapsedTD_us - avg_td_us);
+        stats_record.service_time = std::chrono::duration<double, std::micro>(avg_ts_us);
+        stats_record.eff_service_time = std::chrono::duration<double, std::micro>(avg_td_us);
+        startTD = current_time_nsecs();
+#endif
+        return this->GO_ON;
+    }
+
+    // processing logic with count-based windows
+    void svcCBWindows(tuple_t *t)
+    {
         // extract the key and id fields from the input tuple
         auto key = std::get<0>(t->getControlFields()); // key
         size_t hashcode = std::hash<decltype(key)>()(key); // compute the hashcode of the key
@@ -365,11 +382,11 @@ public:
         Key_Descriptor &key_d = (*it).second;
         // check if isRenumbering is enabled (used for count-based windows in DEFAULT mode)
         if (isRenumbering) {
-            assert(winType == CB);
+            assert(winType == win_type_t::CB);
             id = key_d.next_ids++;
             t->setControlFields(std::get<0>(t->getControlFields()), id, std::get<2>(t->getControlFields()));
         }
-        // gwid of the first window of that key assigned to this Win_SeqFFAT
+        // gwid of the first window of that key assigned to this Win_SeqFFAT node
         uint64_t first_gwid_key = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) * config.n_outer + (config.id_outer - (hashcode % config.n_outer) + config.n_outer) % config.n_outer;
         key_d.rcv_counter++;
         key_d.slide_counter++;
@@ -421,30 +438,11 @@ public:
         }
         // delete the input
         delete t;
-#if defined (TRACE_WINDFLOW)
-        endTS = current_time_nsecs();
-        endTD = current_time_nsecs();
-        double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
-        avg_ts_us += (1.0 / stats_record.inputs_received) * (elapsedTS_us - avg_ts_us);
-        double elapsedTD_us = ((double) (endTD - startTD)) / 1000;
-        avg_td_us += (1.0 / stats_record.inputs_received) * (elapsedTD_us - avg_td_us);
-        stats_record.service_time = std::chrono::duration<double, std::micro>(avg_ts_us);
-        stats_record.eff_service_time = std::chrono::duration<double, std::micro>(avg_td_us);
-        startTD = current_time_nsecs();
-#endif
     }
 
     // processing logic with time-based windows
     void svcTBWindows(tuple_t *t)
     {
-#if defined (TRACE_WINDFLOW)
-        startTS = current_time_nsecs();
-        if (stats_record.inputs_received == 0) {
-            startTD = current_time_nsecs();
-        }
-        stats_record.inputs_received++;
-        stats_record.bytes_received += sizeof(tuple_t);
-#endif
         // extract the key and timestamp fields from the input tuple
         auto key = std::get<0>(t->getControlFields()); // key
         uint64_t ts = std::get<2>(t->getControlFields()); // timestamp
@@ -464,6 +462,9 @@ public:
         uint64_t quantum_id = ts / quantum;
         // check if the tuple must be ignored
         if (quantum_id < key_d.last_quantum) {
+#if defined (TRACE_WINDFLOW)
+            stats_record.inputs_ignored++;
+#endif
             ignored_tuples++;
             delete t;
             return;
@@ -515,17 +516,6 @@ public:
         acc_results.erase(acc_results.begin(), acc_results.begin() + n_completed);
         // delete the input
         delete t;
-#if defined (TRACE_WINDFLOW)
-        endTS = current_time_nsecs();
-        endTD = current_time_nsecs();
-        double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
-        avg_ts_us += (1.0 / stats_record.inputs_received) * (elapsedTS_us - avg_ts_us);
-        double elapsedTD_us = ((double) (endTD - startTD)) / 1000;
-        avg_td_us += (1.0 / stats_record.inputs_received) * (elapsedTD_us - avg_td_us);
-        stats_record.service_time = std::chrono::duration<double, std::micro>(avg_ts_us);
-        stats_record.eff_service_time = std::chrono::duration<double, std::micro>(avg_td_us);
-        startTD = current_time_nsecs();
-#endif
     }
 
     // process a window (for time-based logic)
@@ -534,7 +524,7 @@ public:
         auto key = std::get<0>(r.getControlFields()); // key
         uint64_t id = std::get<1>(r.getControlFields()); // identifier
         size_t hashcode = std::hash<decltype(key)>()(key); // compute the hashcode of the key
-        // gwid of the first window of that key assigned to this Win_SeqFFAT
+        // gwid of the first window of that key assigned to this Win_SeqFFAT node
         uint64_t first_gwid_key = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) * config.n_outer + (config.id_outer - (hashcode % config.n_outer) + config.n_outer) % config.n_outer;
         (key_d.pending_tuples).push_back(r);
         key_d.ts_rcv_counter++;
@@ -582,16 +572,20 @@ public:
     {
         eos_received++;
         // check the number of received EOS messages
-        //if ((eos_received != this->get_num_inchannels()) && (this->get_num_inchannels() != 0)) { // workaround due to FastFlow
-        //    return;
-        //}
+        if ((eos_received != this->get_num_inchannels()) && (this->get_num_inchannels() != 0)) { // workaround due to FastFlow
+            return;
+        }
         // two separate logics depending on the window type
-        if (winType == CB) {
+        if (winType == win_type_t::CB) {
             eosnotifyCBWindows(id);
         }
         else {
             eosnotifyTBWindows(id);
         }
+        terminated = true;
+#if defined (TRACE_WINDFLOW)
+        stats_record.set_Terminated();
+#endif
     }
 
     // eosnotify with count-based windows
@@ -680,6 +674,12 @@ public:
         return ignored_tuples;
     }
 
+    // method the check the termination of the replica
+    bool isTerminated() const
+    {
+        return terminated;
+    }
+
 #if defined (TRACE_WINDFLOW)
     // method to return a copy of the Stats_Record of this node
     Stats_Record get_StatsRecord() const
@@ -691,13 +691,13 @@ public:
     // method to start the node execution asynchronously
     int run(bool) override
     {
-        return ff::ff_node::run();
+        return ff::ff_minode::run();
     }
 
     // method to wait the node termination
     int wait() override
     {
-        return ff::ff_node::wait();
+        return ff::ff_minode::wait();
     }
 };
 

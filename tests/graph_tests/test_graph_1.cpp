@@ -154,10 +154,12 @@ int main(int argc, char *argv[])
         pipe3.chain(filter);
         // split
         pipe3.split([](const tuple_t &t) {
-            if (t.value >= 0)
+            if (t.value >= 0) {
                 return 0;
-            else
+            }
+            else {
                 return 1;
+            }
         }, 2);
         // prepare the fourth MultiPipe
         MultiPipe &pipe4 = pipe3.select(0);

@@ -98,7 +98,7 @@ private:
     // method to set the isRenumbering mode of the internal nodes
     void set_isRenumbering()
     {
-        assert(winType == CB); // only count-based windows
+        assert(winType == win_type_t::CB); // only count-based windows
         for (auto *node: this->getWorkers()) {
             win_seqffat_t *seq = static_cast<win_seqffat_t *>(node);
             seq->isRenumbering = true;
@@ -218,7 +218,7 @@ public:
      */ 
     routing_modes_t getRoutingMode() const override
     {
-        return KEYBY;
+        return routing_modes_t::KEYBY;
     }
 
     /** 
@@ -228,6 +228,21 @@ public:
     bool isUsed() const override
     {
         return used;
+    }
+
+    /** 
+     *  \brief Check whether the operator has been terminated
+     *  \return true if the operator has finished its work
+     */ 
+    virtual bool isTerminated() const override
+    {
+        bool terminated = true;
+        // scan all the replicas to check their termination
+        for(auto *w: this->getWorkers()) {
+            auto *seq = static_cast<win_seqffat_t *>(w);
+            terminated = terminated && seq->isTerminated();
+        }
+        return terminated;
     }
 
 #if defined (TRACE_WINDFLOW)
@@ -273,8 +288,14 @@ public:
         writer.String("Key_FFAT");
         writer.Key("Distribution");
         writer.String("KEYBY");
+        writer.Key("isTerminated");
+        writer.Bool(this->isTerminated());
+        writer.Key("isWindowed");
+        writer.Bool(true);
+        writer.Key("isGPU");
+        writer.Bool(false);
         writer.Key("Window_type");
-        if (winType == CB) {
+        if (winType == win_type_t::CB) {
             writer.String("count-based");
         }
         else {

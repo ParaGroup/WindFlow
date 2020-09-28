@@ -38,6 +38,7 @@
 #include<string>
 #include<ff/node.hpp>
 #include<ff/pipeline.hpp>
+#include<ff/multinode.hpp>
 #include<ff/farm.hpp>
 #include<basic.hpp>
 #include<context.hpp>
@@ -82,7 +83,7 @@ private:
     bool keyed; // flag stating whether the Map is configured with keyBy or not
     bool used; // true if the Map has been added/chained in a MultiPipe
     // class Map_Node
-    class Map_Node: public ff::ff_node_t<tuple_t, result_t>
+    class Map_Node: public ff::ff_minode_t<tuple_t, result_t>
     {
 private:
         map_func_ip_t func_ip; // in-place map function
@@ -94,6 +95,8 @@ private:
         bool isIP; // flag stating if the in-place map function should be used (otherwise the not in-place version)
         bool isRich; // flag stating whether the function to be used is rich (i.e. it receives the RuntimeContext object)
         RuntimeContext context; // RuntimeContext
+        size_t eos_received; // number of received EOS messages
+        bool terminated; // true if the replica has finished its work
 #if defined (TRACE_WINDFLOW)
         Stats_Record stats_record;
         double avg_td_us = 0;
@@ -109,11 +112,13 @@ public:
                  RuntimeContext _context,
                  closing_func_t _closing_func):
                  func_ip(_func),
+                 closing_func(_closing_func),
                  name(_name),
                  isIP(true),
                  isRich(false),
                  context(_context),
-                 closing_func(_closing_func) {}
+                 eos_received(0),
+                 terminated(false) {}
 
         // Constructor II
         template<typename T=std::string>
@@ -122,11 +127,13 @@ public:
                  RuntimeContext _context,
                  closing_func_t _closing_func):
                  rich_func_ip(_func),
+                 closing_func(_closing_func),
                  name(_name),
                  isIP(true),
                  isRich(true),
                  context(_context),
-                 closing_func(_closing_func) {}
+                 eos_received(0),
+                 terminated(false) {}
 
         // Constructor III
         template<typename T=std::string>
@@ -135,11 +142,13 @@ public:
                  RuntimeContext _context,
                  closing_func_t _closing_func):
                  func_nip(_func),
+                 closing_func(_closing_func),
                  name(_name),
                  isIP(false),
                  isRich(false),
                  context(_context),
-                 closing_func(_closing_func) {}
+                 eos_received(0),
+                 terminated(false) {}
 
         // Constructor IV
         template<typename T=std::string>
@@ -148,11 +157,13 @@ public:
                  RuntimeContext _context,
                  closing_func_t _closing_func):
                  rich_func_nip(_func),
+                 closing_func(_closing_func),
                  name(_name),
                  isIP(false),
                  isRich(true),
                  context(_context),
-                 closing_func(_closing_func) {}
+                 eos_received(0),
+                 terminated(false) {}
 
         // svc_init method (utilized by the FastFlow runtime)
         int svc_init() override
@@ -211,11 +222,31 @@ public:
             return r;
         }
 
+        // method to manage the EOS (utilized by the FastFlow runtime)
+        void eosnotify(ssize_t id) override
+        {
+            eos_received++;
+            // check the number of received EOS messages
+            if ((eos_received != this->get_num_inchannels()) && (this->get_num_inchannels() != 0)) { // workaround due to FastFlow
+                return;
+            }
+            terminated = true;
+#if defined (TRACE_WINDFLOW)
+            stats_record.set_Terminated();
+#endif
+        }
+
         // svc_end method (utilized by the FastFlow runtime)
         void svc_end() override
         {
             // call the closing function
             closing_func(context);
+        }
+
+        // method the check the termination of the replica
+        bool isTerminated() const
+        {
+            return terminated;
         }
 
 #if defined (TRACE_WINDFLOW)
@@ -333,10 +364,10 @@ public:
     routing_modes_t getRoutingMode() const override
     {
         if (keyed) {
-            return KEYBY;
+            return routing_modes_t::KEYBY;
         }
         else {
-            return FORWARD;
+            return routing_modes_t::FORWARD;
         }
     }
 
@@ -347,6 +378,21 @@ public:
     bool isUsed() const override
     {
         return used;
+    }
+
+    /** 
+     *  \brief Check whether the operator has been terminated
+     *  \return true if the operator has finished its work
+     */ 
+    virtual bool isTerminated() const override
+    {
+        bool terminated = true;
+        // scan all the replicas to check their termination
+        for(auto *w: this->getWorkers()) {
+            auto *node = static_cast<Map_Node *>(w);
+            terminated = terminated && node->isTerminated(); 
+        }
+        return terminated;
     }
 
 #if defined (TRACE_WINDFLOW)
@@ -392,6 +438,12 @@ public:
         writer.String("Map");
         writer.Key("Distribution");
         writer.String(keyed ? "KEYBY" : "FORWARD");
+        writer.Key("isTerminated");
+        writer.Bool(this->isTerminated());
+        writer.Key("isWindowed");
+        writer.Bool(false);
+        writer.Key("isGPU");
+        writer.Bool(false);
         writer.Key("Parallelism");
         writer.Uint(parallelism);
         writer.Key("Replicas");

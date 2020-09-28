@@ -23,7 +23,7 @@
  *  
  *  @section First General Header File of the WindFlow Library
  *  
- *  General header file to be included in any WindFlow program.
+ *  General header file to be included by any WindFlow program.
  */ 
 
 #ifndef WINDFLOW_H
@@ -37,13 +37,14 @@
 #include<filter.hpp>
 #include<flatmap.hpp>
 #include<accumulator.hpp>
-#include<win_seq.hpp>
-#include<win_seqffat.hpp>
 #include<win_farm.hpp>
 #include<key_farm.hpp>
 #include<key_ffat.hpp>
 #include<pane_farm.hpp>
 #include<win_mapreduce.hpp>
+#if defined (TRACE_WINDFLOW)
+    #include<monitoring.hpp>
+#endif
 #include<multipipe.hpp>
 #include<pipegraph.hpp>
 #include<sink.hpp>

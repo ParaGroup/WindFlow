@@ -180,7 +180,7 @@ private:
         if (_plq_parallelism > 1) {
             // configuration structure of the Win_Farm (PLQ)
             WinOperatorConfig configWFPLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_func_PLQ, pane_len, pane_len, _triggering_delay, _winType, _plq_parallelism, _name + "_plq", _closing_func, true, LEVEL0, configWFPLQ, PLQ);
+            auto *plq_wf = new Win_Farm<tuple_t, result_t, input_t>(_func_PLQ, pane_len, pane_len, _triggering_delay, _winType, _plq_parallelism, _name + "_plq", _closing_func, true, opt_level_t::LEVEL0, configWFPLQ, role_t::PLQ);
             plq_stage = plq_wf;
             for (auto *w: plq_wf->getWorkers()) {
                 plq_workers.push_back(w);
@@ -189,7 +189,7 @@ private:
         else {
             // configuration structure of the Win_Seq (PLQ)
             WinOperatorConfig configSeqPLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, pane_len);
-            auto *plq_seq = new Win_Seq<tuple_t, result_t, input_t>(_func_PLQ, pane_len, pane_len, _triggering_delay, _winType, _name + "_plq", _closing_func, RuntimeContext(1, 0), configSeqPLQ, PLQ);
+            auto *plq_seq = new Win_Seq<tuple_t, result_t, input_t>(_func_PLQ, pane_len, pane_len, _triggering_delay, _winType, _name + "_plq", _closing_func, RuntimeContext(1, 0), configSeqPLQ, role_t::PLQ);
             plq_stage = plq_seq;
             plq_workers.push_back(plq_seq);
         }
@@ -197,7 +197,7 @@ private:
         if (_wlq_parallelism > 1) {
             // configuration structure of the Win_Farm (WLQ)
             WinOperatorConfig configWFWLQ(_config.id_outer, _config.n_outer, _config.slide_outer, _config.id_inner, _config.n_inner, _config.slide_inner);
-            auto *wlq_wf = new Win_Farm<result_t, result_t>(_func_WLQ, (_win_len/pane_len), (_slide_len/pane_len), 0, CB, _wlq_parallelism, _name + "_wlq", _closing_func, _ordered, LEVEL0, configWFWLQ, WLQ);
+            auto *wlq_wf = new Win_Farm<result_t, result_t>(_func_WLQ, (_win_len/pane_len), (_slide_len/pane_len), 0, win_type_t::CB, _wlq_parallelism, _name + "_wlq", _closing_func, _ordered, opt_level_t::LEVEL0, configWFWLQ, role_t::WLQ);
             wlq_stage = wlq_wf;
             for (auto *w: wlq_wf->getWorkers()) {
                 wlq_workers.push_back(w);
@@ -206,7 +206,7 @@ private:
         else {
             // configuration structure of the Win_Seq (WLQ)
             WinOperatorConfig configSeqWLQ(_config.id_inner, _config.n_inner, _config.slide_inner, 0, 1, (_slide_len/pane_len));
-            auto *wlq_seq = new Win_Seq<result_t, result_t>(_func_WLQ, (_win_len/pane_len), (_slide_len/pane_len), 0, CB, _name + "_wlq", _closing_func, RuntimeContext(1, 0), configSeqWLQ, WLQ);
+            auto *wlq_seq = new Win_Seq<result_t, result_t>(_func_WLQ, (_win_len/pane_len), (_slide_len/pane_len), 0, win_type_t::CB, _name + "_wlq", _closing_func, RuntimeContext(1, 0), configSeqWLQ, role_t::WLQ);
             wlq_stage = wlq_seq;
             wlq_workers.push_back(wlq_seq);
         }
@@ -221,14 +221,14 @@ private:
     // method to optimize the structure of the Pane_Farm operator
     const ff::ff_pipeline optimize_PaneFarm(ff_node *plq, ff_node *wlq, opt_level_t opt)
     {
-        if (opt == LEVEL0) { // no optimization
+        if (opt == opt_level_t::LEVEL0) { // no optimization
             ff::ff_pipeline pipe;
             pipe.add_stage(plq);
             pipe.add_stage(wlq);
             pipe.cleanup_nodes();
             return pipe;
         }
-        else if (opt == LEVEL1) { // optimization level 1
+        else if (opt == opt_level_t::LEVEL1) { // optimization level 1
             if (plq_parallelism == 1 && wlq_parallelism == 1) {
                 ff::ff_pipeline pipe;
                 pipe.add_stage(new ff::ff_comb(plq, wlq, true, true));
@@ -253,7 +253,7 @@ private:
                 ff::ff_farm *farm_wlq = static_cast<ff::ff_farm *>(wlq);
                 emitter_wlq_t *emitter_wlq = static_cast<emitter_wlq_t *>(farm_wlq->getEmitter());
                 farm_wlq->cleanup_emitter(false);
-                Ordering_Node<result_t, wrapper_tuple_t<result_t>> *buf_node = new Ordering_Node<result_t, wrapper_tuple_t<result_t>>(ID);   
+                Ordering_Node<result_t, wrapper_tuple_t<result_t>> *buf_node = new Ordering_Node<result_t, wrapper_tuple_t<result_t>>(ordering_mode_t::ID);   
                 const ff::ff_pipeline result = combine_farms(*farm_plq, emitter_wlq, *farm_wlq, buf_node, false);
                 delete farm_plq;
                 delete farm_wlq;
@@ -966,7 +966,7 @@ public:
      */ 
     routing_modes_t getRoutingMode() const override
     {
-        return COMPLEX;
+        return routing_modes_t::COMPLEX;
     }
 
     /** 
@@ -976,6 +976,25 @@ public:
     bool isUsed() const override
     {
         return used;
+    }
+
+    /** 
+     *  \brief Check whether the operator has been terminated
+     *  \return true if the operator has finished its work
+     */ 
+    virtual bool isTerminated() const override
+    {
+        bool terminated = true;
+        // scan all the replicas to check their termination
+        for (auto *w: plq_workers) {
+            auto *seq = static_cast<Win_Seq<tuple_t, result_t, input_t> *>(w);
+            terminated = terminated && seq->isTerminated();
+        }
+        for (auto *w: wlq_workers) {
+            auto *seq = static_cast<Win_Seq<result_t, result_t> *>(w);
+            terminated = terminated && seq->isTerminated();
+        }
+        return terminated;
     }
 
 #if defined (TRACE_WINDFLOW)
@@ -1021,10 +1040,14 @@ public:
         writer.String("Pane_Farm");
         writer.Key("Distribution");
         writer.String("COMPLEX");
-        writer.Key("PLQ_Stage");
-        writer.String("CPU");
-        writer.Key("Window_type");
-        if (winType == CB) {
+        writer.Key("isTerminated");
+        writer.Bool(this->isTerminated());
+        writer.Key("isGPU_1");
+        writer.Bool(false);
+        writer.Key("Name_Stage_1");
+        writer.String("PLQ");
+        writer.Key("Window_type_1");
+        if (winType == win_type_t::CB) {
             writer.String("count-based");
         }
         else {
@@ -1032,11 +1055,13 @@ public:
             writer.Key("Window_delay");
             writer.Uint(triggering_delay);  
         }
-        writer.Key("Pane_length");
+        writer.Key("Window_length_1");
         writer.Uint(pane_len);
-        writer.Key("Parallelism_PLQ");
+        writer.Key("Window_slide_1");
+        writer.Uint(pane_len);
+        writer.Key("Parallelism_1");
         writer.Uint(plq_parallelism);
-        writer.Key("Replicas");
+        writer.Key("Replicas_1");
         writer.StartArray();
         // get statistics from all the replicas of the PLQ stage
         for (auto *w: plq_workers) {
@@ -1045,17 +1070,19 @@ public:
             record.append_Stats(writer);
         }
         writer.EndArray();
-        writer.Key("WLQ_Stage");
-        writer.String("CPU");
-        writer.Key("Window_type");
+        writer.Key("isGPU_2");
+        writer.Bool(false);
+        writer.Key("Name_Stage_2");
+        writer.String("WLQ");
+        writer.Key("Window_type_2");
         writer.String("count-based");
-        writer.Key("Window_length");
+        writer.Key("Window_length_2");
         writer.Uint(win_len/pane_len);
-        writer.Key("Window_slide");
+        writer.Key("Window_slide_2");
         writer.Uint(slide_len/pane_len);
-        writer.Key("Parallelism_WLQ");
+        writer.Key("Parallelism_2");
         writer.Uint(wlq_parallelism);
-        writer.Key("Replicas");
+        writer.Key("Replicas_2");
         writer.StartArray();
         // get statistics from all the replicas of the WLQ stage
         for (auto *w: wlq_workers) {

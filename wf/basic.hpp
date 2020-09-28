@@ -79,20 +79,23 @@ inline unsigned long current_time_nsecs()
 /// default number of threads per block used by GPU window-based operators
 #define DEFAULT_CUDA_NUM_THREAD_BLOCK 256
 
+/// default interval time to update the atomic counter of dropped tuples
+#define DEFAULT_UPDATE_INTERVAL_USEC 100000
+
 /// supported processing modes of the PipeGraph
 enum class Mode { DEFAULT, DETERMINISTIC, PROBABILISTIC };
 
 /// supported window types of window-based operators
-enum win_type_t { CB, TB };
+enum class win_type_t { CB, TB };
 
 /// supported optimization levels of window-based operators
-enum opt_level_t { LEVEL0, LEVEL1, LEVEL2 };
+enum class opt_level_t { LEVEL0, LEVEL1, LEVEL2 };
 
 /// enumeration of the routing modes of inputs to operator replicas
-enum routing_modes_t { NONE, FORWARD, KEYBY, COMPLEX };
+enum class routing_modes_t { NONE, FORWARD, KEYBY, COMPLEX };
 
 /// existing types of window-based operators in the library
-enum pattern_t { SEQ_CPU, SEQ_GPU, KF_CPU, KFF_CPU, KF_GPU, KFF_GPU, WF_CPU, WF_GPU, PF_CPU, PF_GPU, WMR_CPU, WMR_GPU };
+enum class pattern_t { SEQ_CPU, SEQ_GPU, KF_CPU, KFF_CPU, KF_GPU, KFF_GPU, WF_CPU, WF_GPU, PF_CPU, PF_GPU, WMR_CPU, WMR_GPU };
 
 //@cond DOXY_IGNORE
 
@@ -120,13 +123,13 @@ inline void gpuAssert(cudaError_t code,
 #define XSTRINGIFY(x) #x
 
 // supported window events
-enum win_event_t { OLD, IN, DELAYED, FIRED, BATCHED };
+enum class win_event_t { OLD, IN, DELAYED, FIRED, BATCHED };
 
 // supported ordering modes
-enum ordering_mode_t { ID, TS, TS_RENUMBERING };
+enum class ordering_mode_t { ID, TS, TS_RENUMBERING };
 
 // supported roles of the Win_Seq/Win_Seq_GPU operators
-enum role_t { SEQ, PLQ, WLQ, MAP, REDUCE };
+enum class role_t { SEQ, PLQ, WLQ, MAP, REDUCE };
 
 // macros for the linux terminal colors
 #define DEFAULT_COLOR   "\033[0m"
@@ -231,31 +234,31 @@ template<typename tuple_t, typename result_t, typename input_t=tuple_t>
 class Win_MapReduce;
 
 /// forward declaration of the Win_Seq_GPU operator
-template<typename tuple_t, typename result_t, typename fun_t, typename input_t=tuple_t>
+template<typename tuple_t, typename result_t, typename win_F_t, typename input_t=tuple_t>
 class Win_Seq_GPU;
 
 /// forward declaration of the Win_SeqFFAT_GPU operator
-template<typename tuple_t, typename result_t, typename fun_t>
+template<typename tuple_t, typename result_t, typename comb_F_t>
 class Win_SeqFFAT_GPU;
 
 /// forward declaration of the Win_Farm_GPU operator
-template<typename tuple_t, typename result_t, typename fun_t, typename input_t=tuple_t>
+template<typename tuple_t, typename result_t, typename win_F_t, typename input_t=tuple_t>
 class Win_Farm_GPU;
 
 /// forward declaration of the Key_Farm_GPU operator
-template<typename tuple_t, typename result_t, typename fun_t, typename input_t=tuple_t>
+template<typename tuple_t, typename result_t, typename win_F_t, typename input_t=tuple_t>
 class Key_Farm_GPU;
 
 /// forward declaration of the Key_FFAT_GPU operator
-template<typename tuple_t, typename result_t, typename fun_t>
+template<typename tuple_t, typename result_t, typename comb_F_t>
 class Key_FFAT_GPU;
 
 /// forward declaration of the Pane_Farm_GPU operator
-template<typename tuple_t, typename result_t, typename fun_t, typename input_t=tuple_t>
+template<typename tuple_t, typename result_t, typename F_t, typename input_t=tuple_t>
 class Pane_Farm_GPU;
 
 /// forward declaration of the Win_MapReduce_GPU operator
-template<typename tuple_t, typename result_t, typename fun_t, typename input_t=tuple_t>
+template<typename tuple_t, typename result_t, typename F_t, typename input_t=tuple_t>
 class Win_MapReduce_GPU;
 
 /// forward declaration of the Sink operator
@@ -275,6 +278,20 @@ inline MultiPipe *merge_multipipes_func(PipeGraph *, std::vector<MultiPipe *>);
 
 // forward declaration of the split_multipipe_func function
 inline std::vector<MultiPipe *> split_multipipe_func(PipeGraph *, MultiPipe *);
+
+#if defined (TRACE_WINDFLOW)
+    /// forward declaration of the MonitoringThread class
+    class MonitoringThread;
+
+    // forward declaration of the is_ended_func function
+    inline bool is_ended_func(PipeGraph *graph);
+
+    // forward declaration of the get_diagram function
+    inline std::string get_diagram(PipeGraph *graph);
+
+    // forward declaration of the get_stats_report function
+    inline std::string get_stats_report(PipeGraph *graph);
+#endif
 
 //@cond DOXY_IGNORE
 

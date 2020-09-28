@@ -21,7 +21,7 @@
  *  
  *  @brief Abstract class of the generic operator in WindFlow
  *  
- *  @section Basic_Operator (Description)
+ *  @section Basic Operator (Description)
  *  
  *  Abstract class of the generic operator in WindFlow. All the operators
  *  in the library extend this abstract class.
@@ -42,9 +42,9 @@ namespace wf {
 /** 
  *  \class Basic_Operator
  *  
- *  \brief Base class of a generic operator in WindFlow
+ *  \brief Abstract base class of a generic operator in WindFlow
  *  
- *  Base class extended by all the operators in the library.
+ *  Abstract base class extended by all the operators in the library.
  */ 
 class Basic_Operator
 {
@@ -56,8 +56,8 @@ public:
     virtual std::string getName() const = 0;
 
     /** 
-     *  \brief Get the total parallelism within the operator
-     *  \return total parallelism within the operator
+     *  \brief Get the total parallelism of the operator
+     *  \return total parallelism of the operator
      */ 
     virtual size_t getParallelism() const = 0;
 
@@ -72,6 +72,12 @@ public:
      *  \return true if the operator has been added/chained to an existing MultiPipe
      */ 
     virtual bool isUsed() const = 0;
+
+    /** 
+     *  \brief Check whether the operator has been terminated
+     *  \return true if the operator has finished its work
+     */ 
+    virtual bool isTerminated() const = 0;
 
 #if defined (TRACE_WINDFLOW)
     /// Dump the log file (JSON format) in the LOG_DIR directory

@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# start WindFlow Dashboard with [DEBUG] logging level on stdout
+mvn spring-boot:run -Dspring-boot.run.arguments=--logging.level.com.server.CustomServer.ServerWF=DEBUG

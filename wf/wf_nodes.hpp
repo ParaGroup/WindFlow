@@ -114,7 +114,7 @@ public:
         tuple_t *t = extractTuple<tuple_t, input_t>(wt);
         auto key = std::get<0>(t->getControlFields()); // key
         size_t hashcode = std::hash<decltype(key)>()(key); // compute the hashcode of the key
-        uint64_t id = (winType == CB) ? std::get<1>(t->getControlFields()) : std::get<2>(t->getControlFields()); // identifier or timestamp
+        uint64_t id = (winType == win_type_t::CB) ? std::get<1>(t->getControlFields()) : std::get<2>(t->getControlFields()); // identifier or timestamp
         // access the descriptor of the input key
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
@@ -131,7 +131,7 @@ public:
         else {
             key_d.rcv_counter++;
             // get the id/timestamp of current last_tuple
-            uint64_t last_id = (winType == CB) ? std::get<1>((key_d.last_tuple).getControlFields()) : std::get<2>((key_d.last_tuple).getControlFields());
+            uint64_t last_id = (winType == win_type_t::CB) ? std::get<1>((key_d.last_tuple).getControlFields()) : std::get<2>((key_d.last_tuple).getControlFields());
             if (id > last_id) {
                 key_d.last_tuple = *t;
             }
@@ -146,7 +146,7 @@ public:
         // initial identifer/timestamp of the keyed sub-stream arriving at this Win_Farm
         uint64_t initial_id = first_gwid_key * slide_outer;
         // special cases: role is WLQ or REDUCE
-        if (role == WLQ || role == REDUCE)
+        if (role == role_t::WLQ || role == role_t::REDUCE)
             initial_id = 0;
         // if the id/timestamp of the tuple is smaller than the initial one, it must be discarded
         if (id < initial_id) {

@@ -24,8 +24,7 @@
  *  @section Statistics Record (Description)
  *  
  *  This file implements the record of statistics gathered by a specific
- *  replica of an operator within a WindFlow application. The file is in
- *  JSON format.
+ *  replica of an operator within a WindFlow application.
  */ 
 
 #ifndef STATS_RECORD_H
@@ -63,6 +62,8 @@ public:
     std::string nameReplica; // name of the replica
     std::string start_time_string; // starting date and time of the replica
     std::chrono::time_point<std::chrono::system_clock> start_time; // starting time of the replica
+    std::chrono::time_point<std::chrono::system_clock> end_time; // ending time of the replica
+    bool terminated; // true if the replica has finished its processing
     uint64_t inputs_received = 0; // inputs received by the replica
     uint64_t inputs_ignored = 0; // number of ignored inputs
     uint64_t bytes_received = 0; // bytes received by the replica
@@ -84,6 +85,8 @@ public:
         nameReplica = "N/A";
         start_time_string = return_current_time_and_date();
         start_time = std::chrono::system_clock::now();
+        terminated = false;
+        isWinOP = false;
         isGPUReplica = false;
     }
 
@@ -94,6 +97,7 @@ public:
                  bool _isGPUReplica):
                  nameOP(_nameOP),
                  nameReplica(_nameReplica),
+                 terminated(false),
                  isWinOP(_isWinOP),
                  isGPUReplica(_isGPUReplica)
     {
@@ -101,30 +105,46 @@ public:
         start_time = std::chrono::system_clock::now();
     }
 
-    // Method to append the statistics of the operator replica (JSON format)
+    // method to mark the replica as terminated
+    void set_Terminated()
+    {
+        terminated = true;
+        // save the termination time
+        end_time = std::chrono::system_clock::now();
+    }
+
+    // method to append the statistics of the operator replica (in JSON format)
     void append_Stats(rapidjson::PrettyWriter<rapidjson::StringBuffer> &writer)
     {
-        // get the ending time of this replica
-        auto end_time = std::chrono::system_clock::now();
-        // compute the execution length
-        std::chrono::duration<double> elapsed_seconds = end_time - start_time;
         // append the statistics of this operator replica
         writer.StartObject();
         writer.Key("Replica_id");
         writer.String(nameReplica.c_str());
         writer.Key("Starting_time");
         writer.String(start_time_string.c_str());
+        // compute the execution length
+        std::chrono::duration<double> elapsed_seconds;
+        if (!terminated) {
+            // get the current time
+            auto curr_time = std::chrono::system_clock::now();
+            elapsed_seconds = curr_time - start_time;
+        }
+        else {
+            elapsed_seconds = end_time - start_time;
+        }
         writer.Key("Running_time_sec");
         writer.Double(elapsed_seconds.count());
+        writer.Key("isTerminated");
+        writer.Bool(terminated);
         writer.Key("Inputs_received");
         writer.Uint64(inputs_received);
+        writer.Key("Bytes_received");
+        writer.Uint64(bytes_received);
         if (isWinOP) {
             writer.Key("Inputs_ingored");
             writer.Uint64(inputs_ignored);
         }
-        writer.Key("Bytes_received");
-        writer.Uint64(bytes_received);
-        writer.Key("Ouputs_sent");
+        writer.Key("Outputs_sent");
         writer.Uint64(outputs_sent);
         writer.Key("Bytes_sent");
         writer.Uint64(bytes_sent);

@@ -188,7 +188,7 @@ public:
     // operator()
     void operator()(tuple_t &t)
     {
-        t.value = t.value * 2;
+        t.value = t.value;
     }
 };
 

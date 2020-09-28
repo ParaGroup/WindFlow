@@ -49,7 +49,8 @@ namespace wf {
 
 // class FlatFAT
 template<typename tuple_t, typename result_t>
-class FlatFAT {
+class FlatFAT
+{
 private:
     // type of the combine function
     using winComb_func_t = std::function<void(const result_t &, const result_t &, result_t &)>;

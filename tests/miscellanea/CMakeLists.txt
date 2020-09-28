@@ -5,7 +5,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -finline-functions")
 
 # macros to be provided to the compiler
-add_definitions(-DFF_BOUNDED_BUFFER -DGRAPHVIZ_WINDFLOW)
+add_definitions(-DFF_BOUNDED_BUFFER -DTRACE_WINDFLOW)
 
 # header files of WindFlow and of FastFlow
 include_directories(../../wf ${ff_root_dir})

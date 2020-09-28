@@ -41,6 +41,7 @@
 #include<unordered_map>
 #include<math.h>
 #include<ff/node.hpp>
+#include<ff/multinode.hpp>
 #include<meta.hpp>
 #include<window.hpp>
 #include<context.hpp>
@@ -54,7 +55,7 @@ namespace wf {
 
 // Win_Seq class
 template<typename tuple_t, typename result_t, typename input_t>
-class Win_Seq: public ff::ff_node_t<input_t, result_t>
+class Win_Seq: public ff::ff_minode_t<input_t, result_t>
 {
 public:
     // type of the non-incremental window processing function
@@ -139,11 +140,12 @@ private:
     bool isRich; // flag stating whether the function to be used is rich
     RuntimeContext context; // RuntimeContext
     WinOperatorConfig config; // configuration structure of the Win_Seq node
-    role_t role; // role of the Win_Seq
+    role_t role; // role of the Win_Seq node
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     std::pair<size_t, size_t> map_indexes = std::make_pair(0, 1); // indexes useful is the role is MAP
     size_t ignored_tuples; // number of ignored tuples
     size_t eos_received; // number of received EOS messages
+    bool terminated; // true if the replica has finished its work
     bool isRenumbering; // if true, the node assigns increasing identifiers to the input tuples (useful for count-based windows in DEFAULT mode)
 #if defined (TRACE_WINDFLOW)
     Stats_Record stats_record;
@@ -161,7 +163,7 @@ private:
             exit(EXIT_FAILURE);
         }
         // define the compare function depending on the window type
-        if (winType == CB) {
+        if (winType == win_type_t::CB) {
             compare_func = [](const tuple_t &t1, const tuple_t &t2) {
                 return std::get<1>(t1.getControlFields()) < std::get<1>(t2.getControlFields());
             };
@@ -205,6 +207,7 @@ public:
             isRich(false),
             ignored_tuples(0),
             eos_received(0),
+            terminated(false),
             isRenumbering(false)
     {
         init();
@@ -235,6 +238,7 @@ public:
             isRich(true),
             ignored_tuples(0),
             eos_received(0),
+            terminated(false),
             isRenumbering(false)
     {
         init();
@@ -265,6 +269,7 @@ public:
             isRich(false),
             ignored_tuples(0),
             eos_received(0),
+            terminated(false),
             isRenumbering(false)
     {
         init();
@@ -295,6 +300,7 @@ public:
             isRich(true),
             ignored_tuples(0),
             eos_received(0),
+            terminated(false),
             isRenumbering(false)
     {
         init();
@@ -324,38 +330,52 @@ public:
         tuple_t *t = extractTuple<tuple_t, input_t>(wt);
         auto key = std::get<0>(t->getControlFields()); // key
         size_t hashcode = std::hash<decltype(key)>()(key); // compute the hashcode of the key
-        uint64_t id = (winType == CB) ? std::get<1>(t->getControlFields()) : std::get<2>(t->getControlFields()); // identifier or timestamp
+        uint64_t id = (winType == win_type_t::CB) ? std::get<1>(t->getControlFields()) : std::get<2>(t->getControlFields()); // identifier or timestamp
         // access the descriptor of the input key
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
             // create the descriptor of that key
-            keyMap.insert(std::make_pair(key, Key_Descriptor(compare_func, role == MAP ? map_indexes.first : 0)));
+            keyMap.insert(std::make_pair(key, Key_Descriptor(compare_func, role == role_t::MAP ? map_indexes.first : 0)));
             it = keyMap.find(key);
         }
         Key_Descriptor &key_d = (*it).second;
         // check if isRenumbering is enabled (used for count-based windows in DEFAULT mode)
         if (isRenumbering) {
-            assert(winType == CB);
+            assert(winType == win_type_t::CB);
             id = key_d.next_ids++;
             t->setControlFields(std::get<0>(t->getControlFields()), id, std::get<2>(t->getControlFields()));
         }
-        // gwid of the first window of that key assigned to this Win_Seq
+        // gwid of the first window of that key assigned to this Win_Seq node
         uint64_t first_gwid_key = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) * config.n_outer + (config.id_outer - (hashcode % config.n_outer) + config.n_outer) % config.n_outer;
-        // initial identifer/timestamp of the keyed sub-stream arriving at this Win_Seq
+        // initial identifer/timestamp of the keyed sub-stream arriving at this Win_Seq node
         uint64_t initial_outer = ((config.id_outer - (hashcode % config.n_outer) + config.n_outer) % config.n_outer) * config.slide_outer;
         uint64_t initial_inner = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) * config.slide_inner;
         uint64_t initial_id = initial_outer + initial_inner;
         // special cases: if role is WLQ or REDUCE
-        if (role == WLQ || role == REDUCE) {
+        if (role == role_t::WLQ || role == role_t::REDUCE) {
             initial_id = initial_inner;
         }
         // check if the tuple must be ignored
         uint64_t min_boundary = (key_d.last_lwid >= 0) ? win_len + (key_d.last_lwid  * slide_len) : 0;
         if (id < initial_id + min_boundary) {
             if (key_d.last_lwid >= 0) {
+#if defined (TRACE_WINDFLOW)
+                stats_record.inputs_ignored++;
+#endif
                 ignored_tuples++;
             }
             deleteTuple<tuple_t, input_t>(wt);
+#if defined (TRACE_WINDFLOW)
+            endTS = current_time_nsecs();
+            endTD = current_time_nsecs();
+            double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
+            avg_ts_us += (1.0 / stats_record.inputs_received) * (elapsedTS_us - avg_ts_us);
+            double elapsedTD_us = ((double) (endTD - startTD)) / 1000;
+            avg_td_us += (1.0 / stats_record.inputs_received) * (elapsedTD_us - avg_td_us);
+            stats_record.service_time = std::chrono::duration<double, std::micro>(avg_ts_us);
+            stats_record.eff_service_time = std::chrono::duration<double, std::micro>(avg_td_us);
+            startTD = current_time_nsecs();
+#endif  
             return this->GO_ON;
         }
         // determine the local identifier of the last window containing t
@@ -368,12 +388,23 @@ public:
         else {
             uint64_t n = floor((double) (id-initial_id) / slide_len);
             last_w = n;
-            // if the tuple does not belong to at least one window assigned to this Win_Seq
+            // if the tuple does not belong to at least one window assigned to this Win_Seq node
             if ((id-initial_id < n*(slide_len)) || (id-initial_id >= (n*slide_len)+win_len)) {
                 // if it is not an EOS marker, we delete the tuple immediately
                 if (!isEOSMarker<tuple_t, input_t>(*wt)) {
                     // delete the received tuple
                     deleteTuple<tuple_t, input_t>(wt);
+#if defined (TRACE_WINDFLOW)
+                    endTS = current_time_nsecs();
+                    endTD = current_time_nsecs();
+                    double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
+                    avg_ts_us += (1.0 / stats_record.inputs_received) * (elapsedTS_us - avg_ts_us);
+                    double elapsedTD_us = ((double) (endTD - startTD)) / 1000;
+                    avg_td_us += (1.0 / stats_record.inputs_received) * (elapsedTD_us - avg_td_us);
+                    stats_record.service_time = std::chrono::duration<double, std::micro>(avg_ts_us);
+                    stats_record.eff_service_time = std::chrono::duration<double, std::micro>(avg_td_us);
+                    startTD = current_time_nsecs();
+#endif
                     return this->GO_ON;
                 }
             }
@@ -387,11 +418,11 @@ public:
         for (long lwid = key_d.next_lwid; lwid <= last_w; lwid++) {
             // translate the lwid into the corresponding gwid
             uint64_t gwid = first_gwid_key + (lwid * config.n_outer * config.n_inner);
-            if (winType == CB) {
-                wins.push_back(win_t(key, lwid, gwid, Triggerer_CB(win_len, slide_len, lwid, initial_id), CB, win_len, slide_len));
+            if (winType == win_type_t::CB) {
+                wins.push_back(win_t(key, lwid, gwid, Triggerer_CB(win_len, slide_len, lwid, initial_id), win_type_t::CB, win_len, slide_len));
             }
             else {
-                wins.push_back(win_t(key, lwid, gwid, Triggerer_TB(win_len, slide_len, lwid, initial_id, triggering_delay), TB, win_len, slide_len));
+                wins.push_back(win_t(key, lwid, gwid, Triggerer_TB(win_len, slide_len, lwid, initial_id, triggering_delay), win_type_t::TB, win_len, slide_len));
             }
             key_d.next_lwid++;
         }
@@ -400,7 +431,7 @@ public:
         for (auto &win: wins) {
             // evaluate the status of the window given the input tuple *t
             win_event_t event = win.onTuple(*t);
-            if (event == IN) { // *t is within the window
+            if (event == win_event_t::IN) { // *t is within the window
                 if (!isNIC && !isEOSMarker<tuple_t, input_t>(*wt)) {
                     // incremental query -> call rich_/winupdate_func
                     if (!isRich) {
@@ -411,7 +442,7 @@ public:
                     }
                 }
             }
-            else if (event == FIRED) { // window is fired
+            else if (event == win_event_t::FIRED) { // window is fired
                 // acquire from the archive the optionals to the first and the last tuple of the window
                 std::optional<tuple_t> t_s = win.getFirstTuple();
                 std::optional<tuple_t> t_e = win.getLastTuple();
@@ -445,11 +476,11 @@ public:
                 // send the result of the fired window
                 result_t *out = new result_t(win.getResult());
                 // special cases: role is PLQ or MAP
-                if (role == MAP) {
+                if (role == role_t::MAP) {
                     out->setControlFields(key, key_d.emit_counter, std::get<2>(out->getControlFields()));
                     key_d.emit_counter += map_indexes.second;
                 }
-                else if (role == PLQ) {
+                else if (role == role_t::PLQ) {
                     uint64_t new_id = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) + (key_d.emit_counter * config.n_inner);
                     out->setControlFields(key, new_id, std::get<2>(out->getControlFields()));
                     key_d.emit_counter++;
@@ -484,9 +515,9 @@ public:
     {
         eos_received++;
         // check the number of received EOS messages
-        //if ((eos_received != this->get_num_inchannels()) && (this->get_num_inchannels() != 0)) { // workaround due to FastFlow
-        //    return;
-        //}
+        if ((eos_received != this->get_num_inchannels()) && (this->get_num_inchannels() != 0)) { // workaround due to FastFlow
+            return;
+        }
         // iterate over all the keys
         for (auto &k: keyMap) {
             auto &wins = (k.second).wins;
@@ -524,11 +555,11 @@ public:
                 // send the result of the window
                 result_t *out = new result_t(win.getResult());
                 // special cases: role is PLQ or MAP
-                if (role == MAP) {
+                if (role == role_t::MAP) {
                     out->setControlFields(k.first, (k.second).emit_counter, std::get<2>(out->getControlFields()));
                     (k.second).emit_counter += map_indexes.second;
                 }
-                else if (role == PLQ) {
+                else if (role == role_t::PLQ) {
                     size_t hashcode = std::hash<key_t>()(k.first); // compute the hashcode of the key
                     uint64_t new_id = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) + ((k.second).emit_counter * config.n_inner);
                     out->setControlFields(k.first, new_id, std::get<2>(out->getControlFields()));
@@ -541,6 +572,10 @@ public:
 #endif
             }
         }
+        terminated = true;
+#if defined (TRACE_WINDFLOW)
+        stats_record.set_Terminated();
+#endif
     }
 
     // svc_end method (utilized by the FastFlow runtime)
@@ -556,6 +591,12 @@ public:
         return ignored_tuples;
     }
 
+    // method the check the termination of the replica
+    bool isTerminated() const
+    {
+        return terminated;
+    }
+
 #if defined (TRACE_WINDFLOW)
     // method to return a copy of the Stats_Record of this node
     Stats_Record get_StatsRecord() const
@@ -567,13 +608,13 @@ public:
     // method to start the node execution asynchronously
     int run(bool) override
     {
-        return ff::ff_node::run();
+        return ff::ff_minode::run();
     }
 
     // method to wait the node termination
     int wait() override
     {
-        return ff::ff_node::wait();
+        return ff::ff_minode::wait();
     }
 };
 

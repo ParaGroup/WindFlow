@@ -62,8 +62,8 @@ private:
         bool operator() (input_t *wA, input_t *wB) {
             tuple_t *A = extractTuple<tuple_t, input_t>(wA);
             tuple_t *B = extractTuple<tuple_t, input_t>(wB);
-            uint64_t id_A = (mode == ID) ? std::get<1>(A->getControlFields()) : std::get<2>(A->getControlFields());
-            uint64_t id_B = (mode == ID) ? std::get<1>(B->getControlFields()) : std::get<2>(B->getControlFields());
+            uint64_t id_A = (mode == ordering_mode_t::ID) ? std::get<1>(A->getControlFields()) : std::get<2>(A->getControlFields());
+            uint64_t id_B = (mode == ordering_mode_t::ID) ? std::get<1>(B->getControlFields()) : std::get<2>(B->getControlFields());
             if (id_A > id_B) {
                 return true;
             }
@@ -103,7 +103,7 @@ private:
 
 public:
     // Constructor
-    Ordering_Node(ordering_mode_t _mode=ID, std::atomic<unsigned long> *_atomic_num_dropped=nullptr):
+    Ordering_Node(ordering_mode_t _mode=ordering_mode_t::ID, std::atomic<unsigned long> *_atomic_num_dropped=nullptr):
                   eos_received(0),
                   mode(_mode),
                   globalQueue(Comparator(_mode)) {}
@@ -123,7 +123,7 @@ public:
         // extract the key and id/ts from the input tuple
         tuple_t *r = extractTuple<tuple_t, input_t>(wr);
         auto key = std::get<0>(r->getControlFields()); // key
-        uint64_t wid = (mode == ID) ? std::get<1>(r->getControlFields()) : std::get<2>(r->getControlFields()); // identifier/timestamp
+        uint64_t wid = (mode == ordering_mode_t::ID) ? std::get<1>(r->getControlFields()) : std::get<2>(r->getControlFields()); // identifier/timestamp
         // find the corresponding key descriptor
         auto it = keyMap.find(key);
         if (it == keyMap.end()) {
@@ -139,7 +139,7 @@ public:
         }
         else if (isEOSMarker<tuple_t, input_t>(*wr)) {
             tuple_t *tmp = extractTuple<tuple_t, input_t>(key_d.eos_marker);
-            uint64_t tmp_id = (mode == ID) ? std::get<1>(tmp->getControlFields()) : std::get<2>(tmp->getControlFields());
+            uint64_t tmp_id = (mode == ordering_mode_t::ID) ? std::get<1>(tmp->getControlFields()) : std::get<2>(tmp->getControlFields());
             if (wid > tmp_id) {
                 deleteTuple<tuple_t, input_t>(key_d.eos_marker);
                 key_d.eos_marker = wr;
@@ -151,8 +151,8 @@ public:
         // get the index of the source's stream
         size_t source_id = this->get_channel_id();
         uint64_t min_id = 0;
-        auto &queue = (mode == ID) ? key_d.queue : globalQueue;
-        if (mode == ID) { // ordering on a key-basis
+        auto &queue = (mode == ordering_mode_t::ID) ? key_d.queue : globalQueue;
+        if (mode == ordering_mode_t::ID) { // ordering on a key-basis
             key_d.maxs[source_id] = wid;
             min_id = *(std::min_element((key_d.maxs).begin(), (key_d.maxs).end()));
         }
@@ -167,14 +167,14 @@ public:
             // emit all the buffered tuples with identifier/timestamp lower or equal than min_i
             input_t *wnext = queue.top();
             tuple_t *next = extractTuple<tuple_t, input_t>(wnext);
-            uint64_t id = (mode == ID) ? std::get<1>(next->getControlFields()) : std::get<2>(next->getControlFields());
+            uint64_t id = (mode == ordering_mode_t::ID) ? std::get<1>(next->getControlFields()) : std::get<2>(next->getControlFields());
             if (id > min_id)
                 break;
             else {
                 // deque the tuple
                 queue.pop();
                 // emit the tuple
-                if (mode == TS_RENUMBERING) { // check if renumbering is required
+                if (mode == ordering_mode_t::TS_RENUMBERING) { // check if renumbering is required
                     tuple_t *copy = new tuple_t(*next); // copy of the tuple
                     deleteTuple<tuple_t, input_t>(wnext);
                     auto tmp_key = std::get<0>(copy->getControlFields());
@@ -200,14 +200,14 @@ public:
         if (eos_received != this->get_num_inchannels()) {
             return;
         }
-        if (mode != ID) {
+        if (mode != ordering_mode_t::ID) {
             while (!globalQueue.empty()) {
                 // extract the next tuple
                 input_t *wnext = globalQueue.top();
                 tuple_t *next = extractTuple<tuple_t, input_t>(wnext);
                 globalQueue.pop();
                 // emit the tuple
-                if (mode == TS_RENUMBERING) { // check if renumbering is required
+                if (mode == ordering_mode_t::TS_RENUMBERING) { // check if renumbering is required
                     tuple_t *copy = new tuple_t(*next); // copy of the tuple
                     deleteTuple<tuple_t, input_t>(wnext);
                     auto key = std::get<0>(copy->getControlFields());
@@ -226,7 +226,7 @@ public:
                 auto &key_d = (k.second);
                 // send the most recent EOS marker of this key (if it exists)
                 if(key_d.eos_marker != nullptr) {
-                    if (mode == TS_RENUMBERING) { // check if renumbering is required
+                    if (mode == ordering_mode_t::TS_RENUMBERING) { // check if renumbering is required
                         tuple_t *next = extractTuple<tuple_t, input_t>(key_d.eos_marker);
                         tuple_t *copy = new tuple_t(*next); // copy of the tuple
                         deleteTuple<tuple_t, input_t>(key_d.eos_marker);
@@ -251,7 +251,7 @@ public:
                     tuple_t *next = extractTuple<tuple_t, input_t>(wnext);
                     (key_d.queue).pop();
                     // emit the tuple
-                    if (mode == TS_RENUMBERING) { // check if renumbering is required
+                    if (mode == ordering_mode_t::TS_RENUMBERING) { // check if renumbering is required
                         tuple_t *copy = new tuple_t(*next); // copy of the tuple
                         deleteTuple<tuple_t, input_t>(wnext);
                         copy->setControlFields(key, key_d.emit_counter++, std::get<2>(copy->getControlFields()));
@@ -264,7 +264,7 @@ public:
                 }
                 // send the most recent EOS marker of this key (if it exists)
                 if(key_d.eos_marker != nullptr) {
-                    if (mode == TS_RENUMBERING) { // check if renumbering is required
+                    if (mode == ordering_mode_t::TS_RENUMBERING) { // check if renumbering is required
                         tuple_t *next = extractTuple<tuple_t, input_t>(key_d.eos_marker);
                         tuple_t *copy = new tuple_t(*next); // copy of the tuple
                         deleteTuple<tuple_t, input_t>(key_d.eos_marker);

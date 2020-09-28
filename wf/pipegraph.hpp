@@ -23,8 +23,8 @@
  *  
  *  @section PipeGraph (Description)
  *  
- *  This file implements the PipeGraph, the "streaming environment" to be used to
- *  create MultiPipe instances with different sources. To run the application the
+ *  This file implements the PipeGraph, the "streaming environment" used to create
+ *  several MultiPipe instances with different sources. To run the application the
  *  users have to run the PipeGraph object.
  */ 
 
@@ -36,6 +36,7 @@
 #include<string>
 #include<vector>
 #include<random>
+#include<thread>
 #include<typeinfo>
 #include<algorithm>
 #include<math.h>
@@ -97,13 +98,14 @@ private:
     AppNode *root; // pointer to the root of the Application Tree
     std::vector<MultiPipe *> toBeDeteled; // vector of MultiPipe instances to be deleted
     Mode mode; // processing mode of the PipeGraph
-    bool isStarted; // flag stating whether the PipeGraph has already been started
-    bool isEnded; // flag stating whether the PipeGraph has completed its processing
+    bool started; // flag stating whether the PipeGraph has already been started
+    bool ended; // flag stating whether the PipeGraph has completed its processing
     std::vector<std::reference_wrapper<Basic_Operator>> listOperators;// sequence of operators that have been added/chained within this PipeGraph
     std::atomic<unsigned long> atomic_num_dropped;
 #if defined (TRACE_WINDFLOW)
     GVC_t *gvc; // pointer to the GVC environment
     Agraph_t *gv_graph; // pointer to the graphviz representation of the PipeGraph
+    std::thread mt_thread; // object representing the monitoring thread
 #endif
 
     // method to find the AppNode containing the MultiPipe _mp in the tree rooted at _node
@@ -510,8 +512,8 @@ public:
     PipeGraph(std::string _name, Mode _mode=Mode::DEFAULT):
               name(_name),
               mode(_mode),
-              isStarted(false),
-              isEnded(false),
+              started(false),
+              ended(false),
               root(new AppNode()),
               atomic_num_dropped(0)
     {
@@ -544,8 +546,8 @@ public:
         // delete the Application Tree
         delete_AppNodes(root);
 #if defined (TRACE_WINDFLOW)
-        gvFreeLayout(this->gvc, this->gv_graph); // free the layout
         agclose(this->gv_graph); // free the graph structures
+        gvFreeLayout(this->gvc, this->gv_graph); // free the layout
 #endif
     }
 
@@ -592,18 +594,18 @@ public:
      */ 
     int start()
     {
-        // check if the PipeGraph has already been started
-        if (this->isStarted) {
-            std::cerr << RED << "WindFlow Error: PipeGraph [" << name << "] has already been started and cannot be run again" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        else {
-            this->isStarted = true;
-        }
         // check if there is something to run
         if ((root->children).size() == 0) {
             std::cerr << RED << "WindFlow Error: PipeGraph [" << name << "] is empty, nothing to run" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
+        }
+        // check if the PipeGraph has already been started
+        if (this->started) {
+            std::cerr << RED << "WindFlow Error: PipeGraph [" << name << "] has already been started and cannot be run again" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        else {
+            this->started = true;
         }
         // get the number of threads
         size_t count_threads = this->getNumThreads();
@@ -633,11 +635,14 @@ public:
 #else
         std::cout << "--> Pinning of threads " << RED << "disabled" << DEFAULT_COLOR << std::endl;
 #endif
-#if defined (TRACE_WINDFLOW)
-        std::cout << "--> WindFlow tracing " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
-#endif
 #if defined (TRACE_FASTFLOW)
         std::cout << "--> FastFlow tracing " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
+#endif
+#if defined (TRACE_WINDFLOW)
+        std::cout << "--> WindFlow tracing " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
+        // start the monitoring thread connecting with the Web DashBoard
+        MonitoringThread mt(this);
+        mt_thread = std::thread(mt);
 #endif
         // run all the topmost MultiPipe instances
         for (auto *an: root->children) {
@@ -656,12 +661,12 @@ public:
     int wait_end()
     {
         // check if the PipeGraph has already been started
-        if (!this->isStarted) {
+        if (!this->started) {
             std::cerr << RED << "WindFlow Error: PipeGraph [" << name << "] is not started yet" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         // check if the PipeGraph processing is over
-        if (this->isEnded) {
+        if (this->ended) {
             std::cerr << RED << "WindFlow Error: PipeGraph [" << name << "] processing already complete" << DEFAULT_COLOR << std::endl;
             return 0;
         }
@@ -673,9 +678,9 @@ public:
                 return status;
             }
         }
-        std::cout << GREEN << "WindFlow Status Message: PipeGraph [" << name << "] executed successfully" << DEFAULT_COLOR << std::endl;
+        this->ended = true;
         // handling windflow statistics (if enabled)
-#if defined TRACE_WINDFLOW
+#if defined (TRACE_WINDFLOW)
 #if defined (LOG_DIR)
         std::string ff_trace_file = std::string(STRINGIFY(LOG_DIR)) + "/" + this->name;
         std::string ff_trace_dir = std::string(STRINGIFY(LOG_DIR));
@@ -687,17 +692,20 @@ public:
         if (mkdir(ff_trace_dir.c_str(), 0777) != 0) {
             struct stat st;
             if((stat(ff_trace_dir.c_str(), &st) != 0) || !S_ISDIR(st.st_mode)) {
-                std::cerr << RED << "WindFlow Error: directory for dumping FastFlow's log files cannot be created" << DEFAULT_COLOR << std::endl;
+                std::cerr << RED << "WindFlow Error: directory for dumping FastFlow log files cannot be created" << DEFAULT_COLOR << std::endl;
                 exit(EXIT_FAILURE);
             }
         }
-        gvLayout(this->gvc, this->gv_graph, const_cast<char *>("dot")); // set the layout to dot
-        std::string name_dot = ff_trace_file + ".gv";
+        // dump the diagram representing the PipeGraph (in a pdf file)
+        gvLayout(this->gvc, this->gv_graph, const_cast<char *>("dot")); // set the layout to DOT
         std::string name_pdf = ff_trace_file + ".pdf";
-        std::string name_json = ff_trace_file + ".json";
-        gvRenderFilename(this->gvc, this->gv_graph, const_cast<char *>("dot"), const_cast<char *>(name_dot.c_str())); // generate the dot file
         gvRenderFilename(this->gvc, this->gv_graph, const_cast<char *>("pdf"), const_cast<char *>(name_pdf.c_str())); // generate the pdf file
-        gvRenderFilename(this->gvc, this->gv_graph, const_cast<char *>("json"), const_cast<char *>(name_json.c_str())); // generate the json file
+        // wait for the monitoring thread
+        mt_thread.join();
+        // print log files of all the operators
+        for (auto &op: listOperators) {
+            (op.get()).dump_LogFile();
+        }
 #endif
         // handling fastflow statistics (if enabled)
 #if defined (TRACE_FASTFLOW)
@@ -712,7 +720,7 @@ public:
         if (mkdir(ff_trace_dir.c_str(), 0777) != 0) {
             struct stat st;
             if((stat(ff_trace_dir.c_str(), &st) != 0) || !S_ISDIR(st.st_mode)) {
-                std::cerr << RED << "WindFlow Error: directory for dumping FastFlow's log files cannot be created" << DEFAULT_COLOR << std::endl;
+                std::cerr << RED << "WindFlow Error: directory for dumping FastFlow log files cannot be created" << DEFAULT_COLOR << std::endl;
                 exit(EXIT_FAILURE);
             }
         }
@@ -723,13 +731,7 @@ public:
         }
         tracefile.close();
 #endif
-        this->isEnded = true;
-#if defined (TRACE_WINDFLOW)
-        // print log files of all the operators
-        for (auto &op: listOperators) {
-            (op.get()).dump_LogFile();
-        }
-#endif
+        std::cout << GREEN << "WindFlow Status Message: PipeGraph [" << name << "] executed successfully" << DEFAULT_COLOR << std::endl;
         return 0;
     }
 
@@ -763,11 +765,29 @@ public:
         return atomic_num_dropped.load();
     }
 
+    /** 
+     *  \brief Check whether the PipeGraph has been started
+     *  \return true if the PipeGraph has been started, false otherwise
+     */ 
+    bool isStarted()
+    {
+        return started;
+    }
+
+    /** 
+     *  \brief Check whether the PipeGraph execution has finished
+     *  \return true if the PipeGraph execution has finished, false otherwise
+     */ 
+    bool isEnded()
+    {
+        return ended;
+    }
+
 #if defined (TRACE_WINDFLOW)
     /** 
      *  \brief Method returning a string with the statistics of the whole PipeGraph (in JSON format)
      *  \return string with the statistics
-     */
+     */ 
     std::string generate_JSONStats() const
     {
         // create the rapidjson writer.
@@ -789,8 +809,34 @@ public:
             mode_string = "DEFAULT";
         }
         writer.String(mode_string.c_str());
+        writer.Key("Backpressure");
+#if defined FF_BOUNDED_BUFFER
+        writer.String("ON");
+#else
+        writer.String("OFF");
+#endif
+        writer.Key("Non_blocking");
+#if defined BLOCKING_MODE
+        writer.String("OFF");
+#else
+        writer.String("ON");
+#endif
+        writer.Key("Thread_pinning");
+#if defined NO_DEFAULT_MAPPING
+        writer.String("OFF");
+#else
+        writer.String("ON");
+#endif
+        writer.Key("Dropped_tuples");
+        writer.Uint64(this->get_NumDroppedTuples());
         writer.Key("Operator_number");
         writer.Uint(listOperators.size());
+        writer.Key("Thread_number");
+        writer.Uint(this->getNumThreads());
+        double vss, rss;
+        get_MemUsage(vss, rss);
+        writer.Key("rss_size_kb");
+        writer.Double(rss);
         writer.Key("Operators");
         writer.StartArray();
         // get statistics from all the replicas of the operator
@@ -802,6 +848,22 @@ public:
         // serialize the object to file
         std::string json_stats(buffer.GetString());
         return json_stats;
+    }
+
+    /** 
+     *  \brief Method returning a string representing the PipeGraph diagram (in SVG format)
+     *  \return string representing the PipeGraph diagram
+     */ 
+    std::string generate_SVGDiagram()
+    {
+        gvLayout(this->gvc, this->gv_graph, const_cast<char *>("dot")); // set the layout to DOT
+        char *result;
+        unsigned int length;
+        // create the SVG representation of the PipeGraph
+        gvRenderData(this->gvc, this->gv_graph, const_cast<char *>("svg"), &result, &length);
+        std::string svg_str(result);
+        gvFreeRenderData(result);
+        return svg_str;
     }
 #endif
 
@@ -825,6 +887,26 @@ inline std::vector<MultiPipe *> split_multipipe_func(PipeGraph *graph, MultiPipe
 {
     return graph->execute_Split(_mp);
 }
+
+#if defined (TRACE_WINDFLOW)
+    // implementation of the is_ended_func function
+    inline bool is_ended_func(PipeGraph *graph)
+    {
+        return graph->isEnded();
+    }
+
+    // implementation of the get_diagram function
+    inline std::string get_diagram(PipeGraph *graph)
+    {
+        return graph->generate_SVGDiagram();
+    }
+
+    // implementation of the get_stats_report function
+    inline std::string get_stats_report(PipeGraph *graph)
+    {
+        return graph->generate_JSONStats();
+    }
+#endif
 
 //@endcond
 

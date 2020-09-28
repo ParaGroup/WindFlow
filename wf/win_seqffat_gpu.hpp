@@ -29,9 +29,12 @@
  *  a CPU core and offloads on the GPU the parallel processing of the windows within
  *  the same batch. The algorithm is the one implemented by the FlatFAT_GPU.
  *  
- *  The template parameters tuple_t and result_t must be default constructible, with
- *  a copy Constructor and a copy assignment operator, and they must provide and implement
- *  the setControlFields() and getControlFields() methods.
+ *  The template parameters tuple_t and result_t must be default constructible, with a copy
+ *  constructor and a copy assignment operator, and they must provide and implement the
+ *  setControlFields() and getControlFields() methods. Furthermore, in order to be copyable
+ *  in a GPU-accessible memory, they must be compliant with the C++ specification for standard
+ *  layout types. The third template argument comb_F_t is the type of the callable object to be
+ *  used for GPU processing.
  */ 
 
 #ifndef WIN_SEQFFAT_GPU_H
@@ -44,6 +47,7 @@
 #include<unordered_map>
 #include<math.h>
 #include<ff/node.hpp>
+#include<ff/multinode.hpp>
 #include<meta.hpp>
 #include<meta_gpu.hpp>
 #include<flatfat_gpu.hpp>
@@ -55,9 +59,13 @@ namespace wf {
 
 // Win_SeqFFAT_GPU class
 template<typename tuple_t, typename result_t, typename comb_F_t>
-class Win_SeqFFAT_GPU: public ff::ff_node_t<tuple_t, result_t>
+class Win_SeqFFAT_GPU: public ff::ff_minode_t<tuple_t, result_t>
 {
 private:
+    static_assert(std::is_standard_layout<tuple_t>::value,
+        "WindFlow Compilation Error - input type of a GPU operator is not a standard_layout type:\n");
+    static_assert(std::is_standard_layout<result_t>::value,
+        "WindFlow Compilation Error - output type of a GPU operator is not a standard_layout type:\n");
     // type of the lift function
     using winLift_func_t = std::function<void(const tuple_t &, result_t &)>;
     tuple_t tmp; // never used
@@ -144,12 +152,13 @@ private:
     Key_Descriptor *lastKeyD = nullptr; // pointer to the key descriptor of the running kernel on the GPU
     size_t ignored_tuples; // number of ignored tuples
     size_t eos_received; // number of received EOS messages
+    bool terminated; // true if the replica has finished its work
     bool isRenumbering; // if true, the node assigns increasing identifiers to the input tuples (useful for count-based windows in DEFAULT mode)
     // GPU variables
     int gpu_id; // identifier of the chosen GPU device
     size_t n_thread_block; // number of threads per block
     int numSMs; // number of Stream MultiProcessors of the used GPU
-    cudaStream_t cudaStream; // CUDA stream used by this Win_SeqFFAT_GPU
+    cudaStream_t cudaStream; // CUDA stream used by this Win_SeqFFAT_GPU node
 #if defined (TRACE_WINDFLOW)
     Stats_Record stats_record;
     double avg_td_us = 0;
@@ -192,6 +201,7 @@ private:
                     rebuild(_rebuild),
                     ignored_tuples(0),
                     eos_received(0),
+                    terminated(false),
                     isRenumbering(false),
                     gpu_id(_gpu_id),
                     n_thread_block(_n_thread_block),
@@ -213,7 +223,7 @@ private:
             exit(EXIT_FAILURE);
         }
         // set the quantum value (for time-based windows only)
-        if (winType == TB) {
+        if (winType == win_type_t::TB) {
             quantum = gcd(win_len, slide_len);
             win_len = win_len / quantum;
             slide_len = slide_len / quantum;
@@ -307,7 +317,7 @@ public:
         stats_record.bytes_received += sizeof(tuple_t);
 #endif
         // two separate logics depending on the window type
-        if (winType == CB) {
+        if (winType == win_type_t::CB) {
             svcCBWindows(t);
         }
         else {
@@ -346,11 +356,11 @@ public:
         Key_Descriptor &key_d = (*it).second;
         // check if isRenumbering is enabled (used for count-based windows in DEFAULT mode)
         if (isRenumbering) {
-            assert(winType == CB);
+            assert(winType == win_type_t::CB);
             id = key_d.next_ids++;
             t->setControlFields(std::get<0>(t->getControlFields()), id, std::get<2>(t->getControlFields()));
         }
-        // gwid of the first window of that key assigned to this Win_SeqFFAT_GPU instance
+        // gwid of the first window of that key assigned to this Win_SeqFFAT_GPU node
         uint64_t first_gwid_key = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) * config.n_outer + (config.id_outer - (hashcode % config.n_outer) + config.n_outer) % config.n_outer;
         key_d.rcv_counter++;
         key_d.slide_counter++;
@@ -431,6 +441,9 @@ public:
         uint64_t quantum_id = ts / quantum;
         // check if the tuple must be ignored
         if (quantum_id < key_d.last_quantum) {
+#if defined (TRACE_WINDFLOW)
+            stats_record.inputs_ignored++;
+#endif
             ignored_tuples++;
             delete t;
             return;
@@ -480,7 +493,7 @@ public:
         auto key = std::get<0>(r.getControlFields()); // key
         uint64_t id = std::get<1>(r.getControlFields()); // identifier
         size_t hashcode = std::hash<decltype(key)>()(key); // compute the hashcode of the key
-        // gwid of the first window of that key assigned to this Win_SeqFFAT_GPU
+        // gwid of the first window of that key assigned to this Win_SeqFFAT_GPU node
         uint64_t first_gwid_key = ((config.id_inner - (hashcode % config.n_inner) + config.n_inner) % config.n_inner) * config.n_outer + (config.id_outer - (hashcode % config.n_outer) + config.n_outer) % config.n_outer;
         (key_d.pending_tuples).push_back(r);
         key_d.ts_rcv_counter++;
@@ -540,16 +553,20 @@ public:
     {
         eos_received++;
         // check the number of received EOS messages
-        //if ((eos_received != this->get_num_inchannels()) && (this->get_num_inchannels() != 0)) { // workaround due to FastFlow
-        //    return;
-        //}
+        if ((eos_received != this->get_num_inchannels()) && (this->get_num_inchannels() != 0)) { // workaround due to FastFlow
+            return;
+        }
         // two separate logics depending on the window type
-        if (winType == CB) {
+        if (winType == win_type_t::CB) {
             eosnotifyCBWindows(id);
         }
         else {
             eosnotifyTBWindows(id);
         }
+        terminated = true;
+#if defined (TRACE_WINDFLOW)
+        stats_record.set_Terminated();
+#endif
     }
 
     // eosnotify with count-based windows
@@ -685,6 +702,12 @@ public:
         return ignored_tuples;
     }
 
+    // method the check the termination of the replica
+    bool isTerminated() const
+    {
+        return terminated;
+    }
+
 #if defined (TRACE_WINDFLOW)
     // method to return a copy of the Stats_Record of this node
     Stats_Record get_StatsRecord() const
@@ -696,13 +719,13 @@ public:
     // method to start the node execution asynchronously
     int run(bool) override
     {
-        return ff::ff_node::run();
+        return ff::ff_minode::run();
     }
 
     // method to wait the node termination
     int wait() override
     {
-        return ff::ff_node::wait();
+        return ff::ff_minode::wait();
     }
 };
 

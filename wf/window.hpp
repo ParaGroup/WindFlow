@@ -68,13 +68,13 @@ public:
     win_event_t operator()(uint64_t _id) const
     {
         if (_id < initial_id + lwid * slide_len) {
-            return OLD;
+            return win_event_t::OLD;
         }
         else if (_id <= (win_len + lwid * slide_len - 1) + initial_id) {
-            return IN;
+            return win_event_t::IN;
         }
         else {
-            return FIRED;
+            return win_event_t::FIRED;
         }
     }
 };
@@ -106,16 +106,16 @@ public:
     win_event_t operator()(uint64_t _ts) const
     {
         if (_ts < starting_ts + lwid * slide_len) {
-            return OLD;
+            return win_event_t::OLD;
         }
         else if (_ts < (win_len + lwid * slide_len) + starting_ts) {
-            return IN;
+            return win_event_t::IN;
         }
         else if (_ts < (win_len + lwid * slide_len) + starting_ts + triggering_delay) {
-            return DELAYED;
+            return win_event_t::DELAYED;
         }
         else {
-            return FIRED;
+            return win_event_t::FIRED;
         }
     }
 };
@@ -159,7 +159,7 @@ public:
            batched(false)
     {
         // initialize the key, gwid and timestamp of the window result
-        if (winType == CB) {
+        if (winType == win_type_t::CB) {
             result.setControlFields(_key, _gwid, 0);
         }
         else {
@@ -187,13 +187,13 @@ public:
     {
         // the window has been batched, doing nothing
         if (batched) {
-            return BATCHED;
+            return win_event_t::BATCHED;
         }
-        if (winType == CB) { // count-based windows (the stream is assumed to be received ordered by identifiers, not necessarily by timestamps!)
+        if (winType == win_type_t::CB) { // count-based windows (the stream is assumed to be received ordered by identifiers, not necessarily by timestamps!)
             uint64_t id = std::get<1>(_t.getControlFields()); // id of the input tuple
             // evaluate the triggerer
             win_event_t event = triggerer(id);
-            if (event == IN) {
+            if (event == win_event_t::IN) {
                 no_tuples++;
                 if (!firstTuple) {
                     firstTuple = std::make_optional(_t); // save this tuple
@@ -209,7 +209,7 @@ public:
                     }
                 }
             }
-            else if (event == FIRED) {
+            else if (event == win_event_t::FIRED) {
                 if (!lastTuple) {
                     lastTuple = std::make_optional(_t); // save the first tuple returning FIRED
                 }
@@ -223,7 +223,7 @@ public:
             uint64_t ts = std::get<2>(_t.getControlFields()); // timestamp of the input tuple
             // evaluate the triggerer
             win_event_t event = triggerer(ts);
-            if (event == IN) {
+            if (event == win_event_t::IN) {
                 no_tuples++;
                 if (!firstTuple) {
                     firstTuple = std::make_optional(_t); // save this tuple
@@ -235,7 +235,7 @@ public:
                     }
                 }
             }
-            else if (event == DELAYED || event == FIRED) {
+            else if (event == win_event_t::DELAYED || event == win_event_t::FIRED) {
                 if (!lastTuple) {
                     lastTuple = std::make_optional(_t); // save this tuple
                 }
