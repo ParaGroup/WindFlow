@@ -11,6 +11,7 @@
   <link href="vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
   <!-- Custom styles for this template -->
   <link href="css/scrolling-nav.css" rel="stylesheet">
+  <link href="css/prism.css" rel="stylesheet" />
 </head>
 
 <body id="page-top">
@@ -36,13 +37,13 @@
             <a class="nav-link js-scroll-trigger" href="dashboard.html">Dashboard</a>
           </li>
           <li class="nav-item">
-            <a class="nav-link js-scroll-trigger" href="#Performance">Performance</a>
+            <a class="nav-link js-scroll-trigger" href="performance.html">Performance</a>
           </li>
           <li class="nav-item">
             <a class="nav-link js-scroll-trigger" href="https://github.com/ParaGroup/WindFlow.git">Download</a>
           </li>
           <li class="nav-item">
-            <a class="nav-link js-scroll-trigger" href="credits.html">Credits</a>
+            <a class="nav-link js-scroll-trigger" href="#Credits">Credits</a>
           </li>
         </ul>
       </div>
@@ -56,12 +57,22 @@
     </div>
   </header>
 
-  <section id="Performance">
+  <section id="Web Dashboard">
     <div class="container">
       <div class="row">
         <div class="col-lg-8 mx-auto">
-          <h1>Performance</h1>
-          <p class="lead">This section will be added soon!</p>
+          <h1>Web Dashboard</h1>
+          <p class="lead">Starting from the release <code>2.8.8</code>, the library has its own <code>Web Dashboard</code> that can be used to monitor and profile the performance of running WindFlow applications. Information related to how to start and configure the dashboard can be found in the GitHub <a href="https://github.com/ParaGroup/WindFlow">readme</a> of the library.</p>
+          <p class="lead">Once running, the dashboard opens a REST server on a port (<code>8080</code> by default) of the machine. To avoid performance conflicts between the dashboard threads and the ones of the running WindFlow applications, the dashboard can be executed on a different machine with respect to the ones used to run the WindFlow applications to be monitored.</p>
+          <p class="lead"> Below, it is shown the main web page of the dashboard, with the summary of the monitored applications (running, terminated or interrupted for any reason). In the figure below, the dashboard is clean, without any previously running application.</p>
+          <p class="lead"><div class="oversizedImage"><img src="imgs/screenshot-1.png" width="160%" align="middle"/></div></p>
+          <p class="lead">The second screenshot shows the dashboard reporting one running application. The application is the test under the folder <tt>tests/miscellanea/test_tracing.cpp</tt> compiled with the required <code>TRACE_WINDFLOW</code> macro.</p>
+          <p class="lead"><div class="oversizedImage"><img src="imgs/screenshot-2.png" width="160%" align="middle"/></div></p>
+          <p class="lead">The user can inspect the statistics of each running operators and of each of its internal replicas. Statistics are updated every second, and report the number of received/transmitted inputs/outputs, processing time, and so forth. Figure below shows the report page of the application.</p>
+          <p class="lead"><div class="oversizedImage"><img src="imgs/screenshot-3.png" width="160%" align="middle"/></div></p>
+          <p class="lead">The last screenshot below shows the report of statistics opened for one operator and the historical statistics (input and output rate per second over the whole execution) for a different operator opened in the same web page.</p>
+          <p class="lead"><div class="oversizedImage"><img src="imgs/screenshot-4.png" width="160%" align="middle"/></div></p>
+          <p class="lead">The Web Dashboard aims at being a useful tool for developers of WindFlow applications, because it helps in understanding what are the performance bottlenecks of the application and to profile its execution throughout the execution.</p>
         </div>
       </div>
     </div>
