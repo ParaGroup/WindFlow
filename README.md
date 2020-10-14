@@ -47,7 +47,7 @@ WindFlow makes use of <tt>std::optional</tt> in its source code. So, it is compl
 Tests seem to compile well also using <tt>clang</tt>.
 
 # Web Dashboard
-From the release <tt>2.8.8</tt>, WindFlow has its own Web Dashboard used to monitor and profile the execution of WindFlow applications. The dashboard code is in the sub-folder <tt>WINDFLOW_ROOT/dashboard</tt>. It is a java package based on Spring (for the Web Server) and programmed using React for the front-end. To start the Web Dashboard use the following commands:
+From the release <tt>2.8.8</tt>, WindFlow has its own Web Dashboard used to monitor and profile the execution of WindFlow applications. The dashboard code is in the sub-folder <tt>WINDFLOW_ROOT/dashboard</tt>. It is a java package (requiring at least <tt>Java 11</tt>) based on Spring (for the Web Server) and programmed using React for the front-end. To start the Web Dashboard use the following commands:
 ```
     cd <WINDFLOW_ROOT>/dashboard/Server
     mvn spring-boot:run
