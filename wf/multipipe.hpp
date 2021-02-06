@@ -419,13 +419,13 @@ private:
             }
             // Case 1.2 (at least two nested Matrioska)
             else {
-                last->cleanup_firstset(false);
                 auto first_set_last = last->getFirstSet();
+				last->remove_from_cleanuplist(first_set_last);
                 std::vector<ff::ff_node *> second_set_secondToLast;
                 for (size_t i=0; i<first_set_last.size(); i++) {
                     second_set_secondToLast.push_back(first_set_last[i]);
                 }
-                secondToLast->change_secondset(second_set_secondToLast, true);
+                secondToLast->change_secondset(second_set_secondToLast, true, true);
                 delete last;
                 last = secondToLast;
                 secondToLast = nullptr;
