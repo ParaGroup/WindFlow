@@ -32,6 +32,7 @@ foreach(testsourcefile ${SOURCES})
     string(REPLACE ".cpp" "" testname ${barename})
     add_executable(${testname} ${testsourcefile})
     set_property(SOURCE ${testsourcefile} PROPERTY LANGUAGE CUDA)
-    set_property(TARGET ${testname} PROPERTY CUDA_ARCHITECTURES 35)
+    # change the statement below to express specific CUDA architectures to be used
+	set_property(TARGET ${testname} PROPERTY CUDA_ARCHITECTURES OFF)
     add_dependencies(win_tests_gpu ${testname})
 endforeach(testsourcefile ${SOURCES})
