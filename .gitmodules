@@ -1,0 +1,4 @@
+[submodule "Dashboard-2.x"]
+	path = Dashboard-2.x
+	url = https://github.com/ParaGroup/WindFlow_Dashboard.git
+	branch = vers2.x
