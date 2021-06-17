@@ -46,8 +46,8 @@ FLATMAP
 void(const tuple_t &, Shipper<result_t> &);
 void(const tuple_t &, Shipper<result_t> &, RuntimeContext &);
 
-ACCUMULATOR
------------
+REDUCE
+------
 void(const tuple_t &, result_t &);
 void(const tuple_t &, result_t &, RuntimeContext &);
 

@@ -1,6 +1,6 @@
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0)
 [![release](https://img.shields.io/github/release/paragroup/windflow.svg)](https://github.com/paragroup/windflow/releases/latest)
-[![Hits](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2FParaGroup%2FWindFlow&count_bg=%2379C83D&title_bg=%23555555&icon=&icon_color=%232F84E1&title=hits&edge_flat=false)](https://hits.seeyoufarm.com)
+[![HitCount](http://hits.dwyl.io/paragroup/windflow.svg)](http://hits.dwyl.io/paragroup/windflow)
 [![Say Thanks!](https://img.shields.io/badge/Say%20Thanks-!-1EAEDB.svg)](https://saythanks.io/to/mencagli@di.unipi.it)
 [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://paypal.me/GabrieleMencagli)
 
@@ -19,14 +19,14 @@ The library needs the following dependencies:
 * <strong>CUDA</strong> (for using operators targeting GPUs) with support for C++17 (CUDA >= 11)
 * <strong>libtbb-dev</strong> for using efficient concurrent containers needed by the operators targeting GPUs
 * <strong>FastFlow</strong> version >= 3.0 (https://github.com/fastflow/fastflow)
-* <strong>libgraphviz-dev</strong> and <strong>rapidjson-dev</strong> (when compiling with -DTRACE_WINDFLOW to report statistics and using the Web Dashboard)
+* <strong>libgraphviz-dev</strong> and <strong>rapidjson-dev</strong> (when compiling with -DWF_TRACING_ENABLED to report statistics and using the Web Dashboard)
 * <strong>doxygen</strong> (to generate the documentation)
 
 After downloading FastFlow, the user needs to properly configure the library for the underlying multi-core environment. By default, FastFlow pins its threads onto the cores of the machine. To be sure of the ordering of cores, and to place communicating threads on sibling cores, it is important to run the script <strong>"mapping_string.sh"</strong> in the folder <tt>fastflow/ff</tt> before compiling any code using WindFlow.
 
 # Macros
 WindFlow, and its underlying level FastFlow, come with some important macros that can be used during compilation to enable specific behaviors:
-* <strong>-DTRACE_WINDFLOW</strong> -> enables tracing (logging) at the WindFlow level (operator replicas), and allows WindFlow applications to continuously report statistics to a Web Dashboard (which is a separate sub-project). Outputs are also written in log files at the end of the processing
+* <strong>-DWF_TRACING_ENABLED</strong> -> enables tracing (logging) at the WindFlow level (operator replicas), and allows WindFlow applications to continuously report statistics to a Web Dashboard (which is a separate sub-project). Outputs are also written in log files at the end of the processing
 * <strong>-DTRACE_FASTFLOW</strong> -> enables tracing (logging) at the FastFlow level (raw threads and FastFlow nodes). Outputs are written in log files at the end of the processing
 * <strong>-DFF_BOUNDED_BUFFER</strong> -> enables the use of bounded lock-free queues for pointer passing between threads. Otherwise, queues are unbounded (no backpressure mechanism)
 * <strong>-DDEFAULT_BUFFER_CAPACITY=VALUE</strong> -> set the size of the lock-free queues capacity in terms of pointers to objects. The default size of the queues is of 2048 entries. We suggest users to greatly reduce this size in applications using operators targeting GPUs (e.g., using sizes between 16 to 128 depending on the size of the input tuples and the batch size used)
@@ -52,7 +52,7 @@ WindFlow has its own Web Dashboard used to monitoring and profiling the executio
 ```
 The web server listens on the default port <tt>8080</tt> of the machine. To change the port, and some other configuration settings, users can modify the configuration file <tt>WINDFLOW_ROOT/dashboard/Server/src/main/resources/application.properties</tt> for the Spring server (e.g., the HTTP port for connecting from a browser), and the file <tt>WINDFLOW_ROOT/dashboard/Server/src/main/java/com/server/CustomServer/Configuration/config.json</tt> for the internal server receiving reports of statistics from the connected WindFlow applications (e.g., the port used by WindFlow applications to report statistics to the dashboard).
 
-WindFlow applications compiled with the macro <strong>-DTRACE_WINDFLOW</strong> try to connect to the Web Dashboard and report statistics to it every second. By default, the applications assume that the dashboard is running on the local machine. To change the hostname and port number used to connect to the dashboard, developers should compile the WindFlow application with the macros <strong>DASHBOARD_MACHINE=hostname/ip_addr</strong> and <strong>DASHBOARD_PORT=port_number</strong>.
+WindFlow applications compiled with the macro <strong>-DWF_TRACING_ENABLED</strong> try to connect to the Web Dashboard and report statistics to it every second. By default, the applications assume that the dashboard is running on the local machine. To change the hostname and port number used to connect to the dashboard, developers should compile the WindFlow application with the macros <strong>WF_DASHBOARD_MACHINE=hostname/ip_addr</strong> and <strong>WF_DASHBOARD_PORT=port_number</strong>.
 
 # About the License
 WindFlow and FastFlow are released with the <strong>LGPL-3</strong> license and they are both header-only libraries. Programmers should check the licenses of the other libraries used as dependencies.
