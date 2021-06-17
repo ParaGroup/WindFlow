@@ -18,12 +18,12 @@
  *  @file    monitoring.hpp
  *  @author  Gabriele Mencagli
  *  
- *  @brief Monitoring thread used with the macro TRACE_WINDFLOW enabled
+ *  @brief Monitoring thread used with the macro WF_TRACING_ENABLED enabled
  *  
  *  @section Monitoring Thread (Description)
  *  
  *  This file implements the monitoring thread used by the WindFlow library with the
- *  TRACE_WINDFLOW macro enabled. The thread allows the PipeGraph to connect with a
+ *  WF_TRACING_ENABLED macro enabled. The thread allows the PipeGraph to connect with a
  *  Web DashBoard showing the application statistics through a REST web server.
  */ 
 
@@ -175,18 +175,18 @@ public:
     {
         assert(graph != nullptr);
         const uint64_t DASHBOARD_SAMPLE_RATE_USEC = 1000000;
-#if (!defined(DASHBOARD_MACHINE) and !defined(DASHBOARD_PORT))
+#if (!defined(WF_DASHBOARD_MACHINE) and !defined(WF_DASHBOARD_PORT))
         std::string dashboard_machine = "localhost";
         int dashboard_port = 20207;
-#elif (defined(DASHBOARD_MACHINE) and !defined(DASHBOARD_PORT))
-        std::string dashboard_machine = STRINGIFY(DASHBOARD_MACHINE);
+#elif (defined(WF_DASHBOARD_MACHINE) and !defined(WF_DASHBOARD_PORT))
+        std::string dashboard_machine = STRINGIFY(WF_DASHBOARD_MACHINE);
         int dashboard_port = 20207;
-#elif (!defined(DASHBOARD_MACHINE) and defined(DASHBOARD_PORT))
+#elif (!defined(WF_DASHBOARD_MACHINE) and defined(WF_DASHBOARD_PORT))
         std::string dashboard_machine = "localhost";
-        int dashboard_port = DASHBOARD_PORT;
-#elif (defined(DASHBOARD_MACHINE) and defined(DASHBOARD_PORT))
-        std::string dashboard_machine = STRINGIFY(DASHBOARD_MACHINE);
-        int dashboard_port = DASHBOARD_PORT;
+        int dashboard_port = WF_DASHBOARD_PORT;
+#elif (defined(WF_DASHBOARD_MACHINE) and defined(WF_DASHBOARD_PORT))
+        std::string dashboard_machine = STRINGIFY(WF_DASHBOARD_MACHINE);
+        int dashboard_port = WF_DASHBOARD_PORT;
 #endif
         if ((s = socket_connect(dashboard_machine.c_str(), dashboard_port)) < 0) { // connect to the Web DashBoard
             std::cout << "       * Monitoring thread switched off " << std::endl;

@@ -36,7 +36,7 @@
 #include<context.hpp>
 #include<batch_t.hpp>
 #include<single_t.hpp>
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     #include<stats_record.hpp>
 #endif
 #include<basic_emitter.hpp>
@@ -69,7 +69,7 @@ private:
     uint64_t last_time_punct; // last time used to send punctuations
     Execution_Mode_t execution_mode; // execution mode of the FlatMap replica
     uint64_t empty_rounds; // number of "consecutive" flatmap executions without produced outputs
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     Stats_Record stats_record;
     double avg_td_us = 0;
     double avg_ts_us = 0;
@@ -106,7 +106,7 @@ public:
         if (_other.shipper != nullptr) {
             shipper = new Shipper<decltype(get_result_t_FlatMap(func))>(*_other.shipper); // create a copy of the shipper
             shipper->node = this; // change the node referred by the shipper
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             shipper->setStatsRecord(&stats_record); // change the Stats_Record referred by the shipper
 #endif
         }
@@ -129,7 +129,7 @@ public:
         shipper = std::exchange(_other.shipper, nullptr);
         if (shipper != nullptr) {
             shipper->node = this; // change the node referred by the shipper
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             shipper->setStatsRecord(&stats_record); // change the Stats_Record referred by the shipper
 #endif
         }
@@ -159,7 +159,7 @@ public:
             if (_other.shipper != nullptr) {
                 shipper = new Shipper<decltype(get_result_t_FlatMap(func))>(*_other.shipper); // create a copy of the shipper
                 shipper->node = this; // change the node referred by the shipper
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
                 shipper->setStatsRecord(&stats_record); // change the Stats_Record referred by the shipper
 #endif
             }
@@ -187,7 +187,7 @@ public:
         shipper = std::exchange(_other.shipper, nullptr);
         if (shipper != nullptr) {
             shipper->node = this; // change the node referred by the shipper
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             shipper->setStatsRecord(&stats_record); // change the Stats_Record referred by the shipper
 #endif
         }
@@ -198,7 +198,7 @@ public:
     // svc_init (utilized by the FastFlow runtime)
     int svc_init() override
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = Stats_Record(opName, std::to_string(context.getReplicaIndex()), false, false);
 #endif
         last_time_punct = current_time_usecs();
@@ -208,7 +208,7 @@ public:
     // svc (utilized by the FastFlow runtime)
     void *svc(void *_in) override
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         startTS = current_time_nsecs();
         if (stats_record.inputs_received == 0) {
             startTD = current_time_nsecs();
@@ -221,7 +221,7 @@ public:
                 deleteBatch_t(batch_input); // delete the input batch
                 return this->GO_ON;
             }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             stats_record.inputs_received += batch_input->getSize();
             stats_record.bytes_received += batch_input->getSize() * sizeof(tuple_t);
 #endif
@@ -237,14 +237,14 @@ public:
                 deleteSingle_t(input); // delete the input Single_t
                 return this->GO_ON;
             }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             stats_record.inputs_received++;
             stats_record.bytes_received += sizeof(tuple_t);
 #endif
             process_input(input->tuple, input->getTimestamp(), input->getWatermark(context.getReplicaIndex()));
             deleteSingle_t(input); // delete the input Single_t
         }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         endTS = current_time_nsecs();
         endTD = current_time_nsecs();
         double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
@@ -278,8 +278,8 @@ public:
         else {
             empty_rounds = 0;
         }
-        if ((execution_mode == Execution_Mode_t::DEFAULT) && (empty_rounds % DEFAULT_WM_AMOUNT == 0)) { // punctuaction auto-generation logic
-            if (current_time_usecs() - last_time_punct >= DEFAULT_WM_INTERVAL_USEC) {
+        if ((execution_mode == Execution_Mode_t::DEFAULT) && (empty_rounds % WF_DEFAULT_WM_AMOUNT == 0)) { // punctuaction auto-generation logic
+            if (current_time_usecs() - last_time_punct >= WF_DEFAULT_WM_INTERVAL_USEC) {
                 (shipper->emitter)->generate_punctuation(_watermark, this); // generation of a new punctuation
                 last_time_punct = current_time_usecs();
             }
@@ -291,7 +291,7 @@ public:
     {
         shipper->flush(); // call the flush of the shipper
         terminated = true;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record.setTerminated();
 #endif
     }
@@ -315,7 +315,7 @@ public:
             delete shipper;
         }
         shipper = new Shipper<decltype(get_result_t_FlatMap(func))>(_emitter, this); // create the shipper
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         shipper->setStatsRecord(&stats_record);
 #endif
     }
@@ -332,7 +332,7 @@ public:
         execution_mode = _execution_mode;
     }
 
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     // Get a copy of the Stats_Record of the FlatMap replica
     Stats_Record getStatsRecord() const
     {
@@ -407,7 +407,7 @@ private:
         return key_extr;
     }
 
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     // Dump the log file (JSON format) of statistics of the FlatMap
     void dumpStats() const override
     {

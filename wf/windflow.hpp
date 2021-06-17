@@ -1,4 +1,4 @@
-/******************************************************************************
+/******************************************************************************s
  *  This program is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU Lesser General Public License version 3 as
  *  published by the Free Software Foundation.
@@ -41,7 +41,7 @@
 #include<paned_windows.hpp>
 #include<mapreduce_windows.hpp>
 #include<ffat_aggregator.hpp>
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     #include<monitoring.hpp>
 #endif
 #include<pipegraph.hpp>

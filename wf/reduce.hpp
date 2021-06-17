@@ -36,7 +36,7 @@
 #include<context.hpp>
 #include<batch_t.hpp>
 #include<single_t.hpp>
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     #include<stats_record.hpp>
 #endif
 #include<basic_emitter.hpp>
@@ -71,7 +71,7 @@ private:
     std::unordered_map<key_t, state_t> keyMap; // hashtable mapping key values onto the corresponding state objects
     state_t initial_state; // initial state to be copied for each new key
     Execution_Mode_t execution_mode; // execution mode of the Reduce replica
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     Stats_Record stats_record;
     double avg_td_us = 0;
     double avg_ts_us = 0;
@@ -116,7 +116,7 @@ public:
         else {
             emitter = (_other.emitter)->clone(); // clone the emitter if it exists
         }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = _other.stats_record;
 #endif
     }
@@ -135,7 +135,7 @@ public:
                    initial_state(std::move(initial_state)),
                    execution_mode(_other.execution_mode)
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = std::move(_other.stats_record);
 #endif
     }
@@ -171,7 +171,7 @@ public:
             keyMap = _other.keyMap;
             initial_state = _other.initial_state;
             execution_mode = _other.execution_mode;     
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             stats_record = _other.stats_record;
 #endif
         }
@@ -195,7 +195,7 @@ public:
         keyMap = std::move(_other.keyMap);
         initial_state = std::move(initial_state);
         execution_mode = _other.execution_mode;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = std::move(_other.stats_record);
 #endif
         return *this;
@@ -204,7 +204,7 @@ public:
     // svc_init (utilized by the FastFlow runtime)
     int svc_init() override
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = Stats_Record(opName, std::to_string(context.getReplicaIndex()), false, false);
 #endif
         return 0;
@@ -213,7 +213,7 @@ public:
     // svc (utilized by the FastFlow runtime)
     void *svc(void *_in) override
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         startTS = current_time_nsecs();
         if (stats_record.inputs_received == 0) {
             startTD = current_time_nsecs();
@@ -226,7 +226,7 @@ public:
                 deleteBatch_t(batch_input); // delete the punctuaton
                 return this->GO_ON;
             }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             stats_record.inputs_received += batch_input->getSize();
             stats_record.bytes_received += batch_input->getSize() * sizeof(tuple_t);
             stats_record.outputs_sent += batch_input->getSize();
@@ -244,7 +244,7 @@ public:
                 deleteSingle_t(input); // delete the punctuaton
                 return this->GO_ON;
             }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             stats_record.inputs_received++;
             stats_record.bytes_received += sizeof(tuple_t);
             stats_record.outputs_sent++;
@@ -253,7 +253,7 @@ public:
             process_input(input->tuple, input->getTimestamp(), input->getWatermark(context.getReplicaIndex()));
             deleteSingle_t(input); // delete the input Single_t
         }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         endTS = current_time_nsecs();
         endTD = current_time_nsecs();
         double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
@@ -294,7 +294,7 @@ public:
     {
         emitter->flush(this); // call the flush of the emitter
         terminated = true;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record.setTerminated();
 #endif
     }
@@ -329,7 +329,7 @@ public:
         execution_mode = _execution_mode;
     }
 
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     // Get a copy of the Stats_Record of the Reduce replica
     Stats_Record getStatsRecord() const
     {
@@ -404,7 +404,7 @@ private:
         return key_extr;
     }
 
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     // Dump the log file (JSON format) of statistics of the Reduce
     void dumpStats() const override
     {

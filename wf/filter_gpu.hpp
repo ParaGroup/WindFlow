@@ -30,6 +30,14 @@
 #ifndef FILTER_GPU_H
 #define FILTER_GPU_H
 
+// Required to compile with Clang and CUDA < 11
+#if (__clang__) and (__CUDACC_VER_MAJOR__ < 11)
+    #define THRUST_CUB_NS_PREFIX namespace thrust::cuda_cub {
+    #define THRUST_CUB_NS_POSTFIX }
+    #include<thrust/system/cuda/detail/cub/util_debug.cuh>
+    using namespace thrust::cuda_cub::cub;
+#endif
+
 /// includes
 #include<string>
 #include<functional>
@@ -41,7 +49,7 @@
 #include<basic_emitter.hpp>
 #include<basic_operator.hpp>
 #include<thrust_allocator.hpp>
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     #include<stats_record.hpp>
 #endif
 
@@ -172,7 +180,7 @@ private:
     Execution_Mode_t execution_mode; // execution mode of the Filter_GPU replica
     size_t dropped_inputs; // number of "consecutive" dropped inputs
     uint64_t last_time_punct; // last time used to send punctuations
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     Stats_Record stats_record;
     double avg_td_us = 0;
     double avg_ts_us = 0;
@@ -199,10 +207,14 @@ public:
                       execution_mode(Execution_Mode_t::DEFAULT),
                       dropped_inputs(0)
     {
-        gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0)); // GPU 0
-        gpuErrChk(cudaDeviceGetAttribute(&max_threads_per_sm, cudaDevAttrMaxThreadsPerMultiProcessor, 0)); // GPU 0
-        gpuErrChk(cudaDeviceGetAttribute(&max_blocks_per_sm, cudaDevAttrMaxBlocksPerMultiprocessor, 0)); // GPU 0
-        gpuErrChk(cudaDeviceGetAttribute(&threads_per_warp, cudaDevAttrWarpSize, 0)); // GPU 0
+        gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0));
+        gpuErrChk(cudaDeviceGetAttribute(&max_threads_per_sm, cudaDevAttrMaxThreadsPerMultiProcessor, 0));
+#if (__CUDACC_VER_MAJOR__ >= 11)
+        gpuErrChk(cudaDeviceGetAttribute(&max_blocks_per_sm, cudaDevAttrMaxBlocksPerMultiprocessor, 0));
+#else
+        max_blocks_per_sm = WF_GPU_MAX_BLOCKS_PER_SM;
+#endif
+        gpuErrChk(cudaDeviceGetAttribute(&threads_per_warp, cudaDevAttrWarpSize, 0));
     }
 
     // Copy Constructor
@@ -229,7 +241,7 @@ public:
         else {
             emitter = (_other.emitter)->clone(); // clone the emitter if it exists
         }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = _other.stats_record;
 #endif
     }
@@ -253,7 +265,7 @@ public:
                       execution_mode(_other.execution_mode),
                       dropped_inputs(_other.dropped_inputs)
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = std::move(_other.stats_record);
 #endif
     }
@@ -314,7 +326,7 @@ public:
             threads_per_warp = _other.threads_per_warp;
             execution_mode = _other.execution_mode;
             dropped_inputs = _other.dropped_inputs;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             stats_record = _other.stats_record;
 #endif
         }
@@ -351,7 +363,7 @@ public:
         threads_per_warp = _other.threads_per_warp;
         execution_mode = _other.execution_mode;
         dropped_inputs = _other.dropped_inputs;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = std::move(_other.stats_record);
 #endif
     }
@@ -359,7 +371,7 @@ public:
     // svc_init (utilized by the FastFlow runtime)
     int svc_init() override
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = Stats_Record(opName, std::to_string(id_replica), false, true);
 #endif
         last_time_punct = current_time_usecs();
@@ -369,7 +381,7 @@ public:
     // svc (utilized by the FastFlow runtime)
     void *svc(void *_in) override
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         startTS = current_time_nsecs();
         if (stats_record.inputs_received == 0) {
             startTD = current_time_nsecs();
@@ -382,7 +394,7 @@ public:
             deleteBatch_t(input); // delete the punctuation
             return this->GO_ON;
         }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record.inputs_received += input->size;
         stats_record.bytes_received += input->size * sizeof(tuple_t);
 #endif
@@ -396,7 +408,7 @@ public:
         for (size_t i=0; i<input->num_dist_keys; i++) { // prepare the states
             auto it = keymap->find(dist_keys[i]);
             if (it == keymap->end()) {
-                wrapper_state_t<decltype(get_state_t_FilterGPU(func))> newstate(input->cudaStream);
+                wrapper_state_t<decltype(get_state_t_FilterGPU(func))> newstate;
                 auto res = keymap->insert(std::move(std::make_pair(dist_keys[i], std::move(newstate))));
                 records[id_r]->state_ptrs_cpu[i] = ((*(res.first)).second).state_gpu;
             }
@@ -428,7 +440,7 @@ public:
         gpuErrChk(cudaLaunchHostFunc(input->cudaStream, unlock_callback_filter, (void *) spinlock));
         batch_tobe_sent = input;
         id_r = (id_r + 1) % 2;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         endTS = current_time_nsecs();
         endTD = current_time_nsecs();
         double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
@@ -448,7 +460,7 @@ public:
         sendPreviousBatch(); // send previous batch (if any)
         emitter->flush(this); // call the flush of the emitter
         terminated = true;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record.setTerminated();
 #endif
     }
@@ -465,7 +477,7 @@ public:
             auto pred = [] __device__ (bool x) { return x; };
             auto end = thrust::copy_if(thrust::cuda::par(alloc).on(batch_tobe_sent->cudaStream), th_data_gpu, th_data_gpu + batch_tobe_sent->size, th_flags_gpu, th_new_data_gpu, pred);
             batch_tobe_sent->size = end - th_new_data_gpu; // change the new size of the batch after filtering
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             stats_record.outputs_sent += batch_tobe_sent->size;
             stats_record.bytes_sent += batch_tobe_sent->size * sizeof(tuple_t);
 #endif
@@ -474,8 +486,8 @@ public:
             if (batch_tobe_sent->size == 0) { // if the batch is now empty, it is destroyed
                 dropped_inputs++;
                 if (_autoPunc) {
-                    if ((execution_mode == Execution_Mode_t::DEFAULT) && (dropped_inputs % DEFAULT_WM_AMOUNT == 0)) { // punctuaction auto-generation logic
-                        if (current_time_usecs() - last_time_punct >= DEFAULT_WM_INTERVAL_USEC) {
+                    if ((execution_mode == Execution_Mode_t::DEFAULT) && (dropped_inputs % WF_DEFAULT_WM_AMOUNT == 0)) { // punctuaction auto-generation logic
+                        if (current_time_usecs() - last_time_punct >= WF_DEFAULT_WM_INTERVAL_USEC) {
                             emitter->generate_punctuation(batch_tobe_sent->getWatermark(id_replica), this); // generation of a new punctuation
                             last_time_punct = current_time_usecs();
                         }
@@ -512,7 +524,7 @@ public:
         execution_mode = _execution_mode;
     }
 
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     // Get a copy of the Stats_Record of the Filter_GPU replica
     Stats_Record getStatsRecord() const
     {
@@ -575,7 +587,7 @@ private:
     Execution_Mode_t execution_mode; // execution mode of the Filter_GPU replica
     size_t dropped_inputs; // number of "consecutive" dropped inputs
     uint64_t last_time_punct; // last time used to send punctuations
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     Stats_Record stats_record;
     double avg_td_us = 0;
     double avg_ts_us = 0;
@@ -597,10 +609,14 @@ public:
                    execution_mode(Execution_Mode_t::DEFAULT),
                    dropped_inputs(0)
     {
-        gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0)); // GPU 0
-        gpuErrChk(cudaDeviceGetAttribute(&max_threads_per_sm, cudaDevAttrMaxThreadsPerMultiProcessor, 0)); // GPU 0
-        gpuErrChk(cudaDeviceGetAttribute(&max_blocks_per_sm, cudaDevAttrMaxBlocksPerMultiprocessor, 0)); // GPU 0
-        gpuErrChk(cudaDeviceGetAttribute(&threads_per_warp, cudaDevAttrWarpSize, 0)); // GPU 0
+        gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0));
+        gpuErrChk(cudaDeviceGetAttribute(&max_threads_per_sm, cudaDevAttrMaxThreadsPerMultiProcessor, 0));
+#if (__CUDACC_VER_MAJOR__ >= 11)
+        gpuErrChk(cudaDeviceGetAttribute(&max_blocks_per_sm, cudaDevAttrMaxBlocksPerMultiprocessor, 0));
+#else
+        max_blocks_per_sm = WF_GPU_MAX_BLOCKS_PER_SM;
+#endif
+        gpuErrChk(cudaDeviceGetAttribute(&threads_per_warp, cudaDevAttrWarpSize, 0));
     }
 
     // Copy Constructor
@@ -624,7 +640,7 @@ public:
         else {
             emitter = (_other.emitter)->clone(); // clone the emitter if it exists
         }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = _other.stats_record;
 #endif
     }
@@ -645,7 +661,7 @@ public:
                    execution_mode(_other.execution_mode),
                    dropped_inputs(_other.dropped_inputs)
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = std::move(_other.stats_record);
 #endif
     }
@@ -693,7 +709,7 @@ public:
             threads_per_warp = _other.threads_per_warp;
             execution_mode = _other.execution_mode;
             dropped_inputs = _other.dropped_inputs;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             stats_record = _other.stats_record;
 #endif
         }
@@ -724,7 +740,7 @@ public:
         threads_per_warp = _other.threads_per_warp;
         execution_mode = _other.execution_mode;
         dropped_inputs = _other.dropped_inputs;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = std::move(_other.stats_record);
 #endif
     }
@@ -732,7 +748,7 @@ public:
     // svc_init (utilized by the FastFlow runtime)
     int svc_init() override
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = Stats_Record(opName, std::to_string(id_replica), false, true);
 #endif
         last_time_punct = current_time_usecs();
@@ -742,7 +758,7 @@ public:
     // svc (utilized by the FastFlow runtime)
     void *svc(void *_in) override
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         startTS = current_time_nsecs();
         if (stats_record.inputs_received == 0) {
             startTD = current_time_nsecs();
@@ -754,7 +770,7 @@ public:
             deleteBatch_t(input); // delete the punctuation
             return this->GO_ON;
         }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record.inputs_received += input->size;
         stats_record.bytes_received += input->size * sizeof(tuple_t);
 #endif
@@ -786,7 +802,7 @@ public:
         auto pred = [] __device__ (bool x) { return x; };
         auto end = thrust::copy_if(thrust::cuda::par(alloc).on(input->cudaStream), th_data_gpu, th_data_gpu + input->size, th_flags_gpu, th_new_data_gpu, pred);
         input->size = end - th_new_data_gpu; // change the new size of the batch after filtering
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record.outputs_sent += input->size;
         stats_record.bytes_sent += input->size * sizeof(tuple_t);
 #endif
@@ -794,8 +810,8 @@ public:
         gpuErrChk(cudaStreamSynchronize(input->cudaStream));
         if (input->size == 0) { // if the batch is now empty, it is destroyed
             dropped_inputs++;
-            if ((execution_mode == Execution_Mode_t::DEFAULT) && (dropped_inputs % DEFAULT_WM_AMOUNT == 0)) { // punctuaction auto-generation logic
-                if (current_time_usecs() - last_time_punct >= DEFAULT_WM_INTERVAL_USEC) {
+            if ((execution_mode == Execution_Mode_t::DEFAULT) && (dropped_inputs % WF_DEFAULT_WM_AMOUNT == 0)) { // punctuaction auto-generation logic
+                if (current_time_usecs() - last_time_punct >= WF_DEFAULT_WM_INTERVAL_USEC) {
                     emitter->generate_punctuation(input->getWatermark(id_replica), this); // generation of a new punctuation
                     last_time_punct = current_time_usecs();
                 }
@@ -807,7 +823,7 @@ public:
             dropped_inputs = 0;
         }
         id_r = (id_r + 1) % 2;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         endTS = current_time_nsecs();
         endTD = current_time_nsecs();
         double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
@@ -826,7 +842,7 @@ public:
     {
         emitter->flush(this); // call the flush of the emitter
         terminated = true;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record.setTerminated();
 #endif
     }
@@ -852,7 +868,7 @@ public:
         execution_mode = _execution_mode;
     }
 
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     // Get a copy of the Stats_Record of the Filter_GPU replica
     Stats_Record getStatsRecord() const
     {
@@ -922,7 +938,7 @@ private:
         return key_extr;
     }
 
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     // Dump the log file (JSON format) of statistics of the Filter_GPU
     void dumpStats() const override
     {

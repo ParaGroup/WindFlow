@@ -147,7 +147,7 @@ private:
     // Check whether the atomic counter must be updated
     void updateAtomicDroppedCounter()
     {
-        if (current_time_usecs() - last_update_atomic_usec >= DEFAULT_DROP_INTERVAL_USEC) { // if we have to update the atomic counter
+        if (current_time_usecs() - last_update_atomic_usec >= WF_DEFAULT_DROP_INTERVAL_USEC) { // if we have to update the atomic counter
             (*atomic_num_dropped) += dropped_sample;
             last_update_atomic_usec = current_time_usecs();
             dropped_sample = 0;

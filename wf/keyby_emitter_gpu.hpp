@@ -29,6 +29,14 @@
 #ifndef KB_EMITTER_GPU_H
 #define KB_EMITTER_GPU_H
 
+// Required to compile with Clang and CUDA < 11
+#if (__clang__) and (__CUDACC_VER_MAJOR__ < 11)
+    #define THRUST_CUB_NS_PREFIX namespace thrust::cuda_cub {
+    #define THRUST_CUB_NS_POSTFIX }
+    #include<thrust/system/cuda/detail/cub/util_debug.cuh>
+    using namespace thrust::cuda_cub::cub;
+#endif
+
 // includes
 #include<unordered_map>
 #include<single_t.hpp>
@@ -206,7 +214,11 @@ public:
         queue = new ff::MPMC_Ptr_Queue();
         queue->init(DEFAULT_BUFFER_CAPACITY);
         gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0));
+#if (__CUDACC_VER_MAJOR__ >= 11)
         gpuErrChk(cudaDeviceGetAttribute(&max_blocks_per_sm, cudaDevAttrMaxBlocksPerMultiprocessor, 0));
+#else
+        max_blocks_per_sm = WF_GPU_MAX_BLOCKS_PER_SM;
+#endif
     }
 
     // Copy Constructor
@@ -572,22 +584,22 @@ public:
             gpuErrChk(cudaMalloc(&(dist_keys_gpu[id_r]), sizeof(key_t) * _output->original_size));
             gpuErrChk(cudaMalloc(&(sequence_gpu[id_r]), sizeof(int) * _output->original_size));
         }
-        int num_blocks = std::min((int) ceil(((double) _output->size) / DEFAULT_THREADS_PER_BLOCK), numSMs * max_blocks_per_sm);
+        int num_blocks = std::min((int) ceil(((double) _output->size) / WF_DEFAULT_THREADS_PER_BLOCK), numSMs * max_blocks_per_sm);
         Extract_Dests_Kernel<key_extractor_func_t, decltype(get_tuple_t_KeyExtrGPU(key_extr)), decltype(get_key_t_KeyExtrGPU(key_extr))>
-                            <<<num_blocks, DEFAULT_THREADS_PER_BLOCK, 0, _output->cudaStream>>>(_output->data_gpu,
-                                                                                                keys_gpu[id_r],
-                                                                                                sequence_gpu[id_r],
-                                                                                                _output->size,
-                                                                                                key_extr);
+                            <<<num_blocks, WF_DEFAULT_THREADS_PER_BLOCK, 0, _output->cudaStream>>>(_output->data_gpu,
+                                                                                                   keys_gpu[id_r],
+                                                                                                   sequence_gpu[id_r],
+                                                                                                   _output->size,
+                                                                                                   key_extr);
         gpuErrChk(cudaPeekAtLastError());
         thrust::device_ptr<decltype(get_key_t_KeyExtrGPU(key_extr))> th_keys_gpu = thrust::device_pointer_cast(keys_gpu[id_r]);
         thrust::device_ptr<int> th_sequence_gpu = thrust::device_pointer_cast(sequence_gpu[id_r]);
         thrust::sort_by_key(thrust::cuda::par(alloc).on(_output->cudaStream), th_keys_gpu, th_keys_gpu + _output->size, th_sequence_gpu);
         Compute_Mapping_Kernel<decltype(get_key_t_KeyExtrGPU(key_extr))>
-                              <<<num_blocks, DEFAULT_THREADS_PER_BLOCK, 0, _output->cudaStream>>>(keys_gpu[id_r],
-                                                                                                  sequence_gpu[id_r],
-                                                                                                  _output->map_idxs_gpu,
-                                                                                                  _output->size);
+                              <<<num_blocks, WF_DEFAULT_THREADS_PER_BLOCK, 0, _output->cudaStream>>>(keys_gpu[id_r],
+                                                                                                     sequence_gpu[id_r],
+                                                                                                     _output->map_idxs_gpu,
+                                                                                                     _output->size);
         gpuErrChk(cudaPeekAtLastError());
         thrust::device_ptr<decltype(get_key_t_KeyExtrGPU(key_extr))> th_dist_keys_gpu = thrust::device_pointer_cast(dist_keys_gpu[id_r]);
         thrust::device_ptr<int> th_start_idxs_gpu = thrust::device_pointer_cast(_output->start_idxs_gpu);
@@ -644,7 +656,6 @@ public:
             }
             Batch_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))> *output_casted = reinterpret_cast<Batch_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))> *>(_output);
             deleteBatch_t(output_casted);
-            // sent_batches++; // <-- do not decomment this!!!
         }
     }
 

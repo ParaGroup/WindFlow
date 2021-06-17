@@ -35,7 +35,7 @@
 #include<functional>
 #include<pthread.h>
 #include<batch_gpu_t.hpp>
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     #include<stats_record.hpp>
 #endif
 #include<basic_emitter.hpp>
@@ -154,7 +154,7 @@ private:
     int max_blocks_per_sm; // maximum number of blocks resident on each Stream Multiprocessor of the GPU
     int threads_per_warp; // number of threads per warp of the GPU
     Execution_Mode_t execution_mode; // execution mode of the Map_GPU replica
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     Stats_Record stats_record;
     double avg_td_us = 0;
     double avg_ts_us = 0;
@@ -182,7 +182,11 @@ public:
     {
         gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0));
         gpuErrChk(cudaDeviceGetAttribute(&max_threads_per_sm, cudaDevAttrMaxThreadsPerMultiProcessor, 0));
+#if (__CUDACC_VER_MAJOR__ >= 11)
         gpuErrChk(cudaDeviceGetAttribute(&max_blocks_per_sm, cudaDevAttrMaxBlocksPerMultiprocessor, 0));
+#else
+        max_blocks_per_sm = WF_GPU_MAX_BLOCKS_PER_SM;
+#endif
         gpuErrChk(cudaDeviceGetAttribute(&threads_per_warp, cudaDevAttrWarpSize, 0));
     }
 
@@ -209,7 +213,7 @@ public:
         else {
             emitter = (_other.emitter)->clone(); // clone the emitter if it exists
         }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = _other.stats_record;
 #endif
     }
@@ -232,7 +236,7 @@ public:
                    threads_per_warp(_other.threads_per_warp),
                    execution_mode(_other.execution_mode)
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = std::move(_other.stats_record);
 #endif
     }
@@ -290,7 +294,7 @@ public:
             max_blocks_per_sm = _other.max_blocks_per_sm;
             threads_per_warp = _other.threads_per_warp;
             execution_mode = _other.execution_mode;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             stats_record = _other.stats_record;
 #endif
         }
@@ -326,7 +330,7 @@ public:
         max_blocks_per_sm = _other.max_blocks_per_sm;
         threads_per_warp = _other.threads_per_warp;
         execution_mode = _other.execution_mode;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = std::move(_other.stats_record);
 #endif
     }
@@ -334,7 +338,7 @@ public:
     // svc_init (utilized by the FastFlow runtime)
     int svc_init() override
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = Stats_Record(opName, std::to_string(id_replica), false, true);
 #endif
         return 0;
@@ -343,7 +347,7 @@ public:
     // svc (utilized by the FastFlow runtime)
     void *svc(void *_in) override
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         startTS = current_time_nsecs();
         if (stats_record.inputs_received == 0) {
             startTD = current_time_nsecs();
@@ -360,7 +364,7 @@ public:
             deleteBatch_t(input); // delete the punctuation
             return this->GO_ON;
         }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record.inputs_received += input->size;
         stats_record.bytes_received += input->size * sizeof(tuple_t);
         stats_record.outputs_sent += input->size;
@@ -377,7 +381,7 @@ public:
             auto key = dist_keys[i];
             auto it = keymap->find(key);
             if (it == keymap->end()) {
-                wrapper_state_t<decltype(get_state_t_MapGPU(func))> newstate(input->cudaStream);
+                wrapper_state_t<decltype(get_state_t_MapGPU(func))> newstate;
                 auto res = keymap->insert(std::move(std::make_pair(key, std::move(newstate))));
                 records[id_r]->state_ptrs_cpu[i] = ((*(res.first)).second).state_gpu;
             }
@@ -411,7 +415,7 @@ public:
         gpuErrChk(cudaLaunchHostFunc(input->cudaStream, unlock_callback_map, (void *) spinlock));
         batch_tobe_sent = input;
         id_r = (id_r + 1) % 2;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         endTS = current_time_nsecs();
         endTD = current_time_nsecs();
         double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
@@ -435,7 +439,7 @@ public:
         }
         emitter->flush(this); // call the flush of the emitter
         terminated = true;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record.setTerminated();
 #endif
     }
@@ -461,7 +465,7 @@ public:
         execution_mode = _execution_mode;
     }
 
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     // Get a copy of the Stats_Record of the Map_GPU replica
     Stats_Record getStatsRecord() const
     {
@@ -486,7 +490,7 @@ private:
     int max_blocks_per_sm; // maximum number of blocks resident on each Stream Multiprocessor of the GPU
     int threads_per_warp; // number of threads per warp of the GPU
     Execution_Mode_t execution_mode; // execution mode of the Map_GPU replica
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     Stats_Record stats_record;
     double avg_td_us = 0;
     double avg_ts_us = 0;
@@ -505,10 +509,14 @@ public:
                    emitter(nullptr),
                    execution_mode(Execution_Mode_t::DEFAULT)
     {
-        gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0)); // GPU 0
-        gpuErrChk(cudaDeviceGetAttribute(&max_threads_per_sm, cudaDevAttrMaxThreadsPerMultiProcessor, 0)); // GPU 0
-        gpuErrChk(cudaDeviceGetAttribute(&max_blocks_per_sm, cudaDevAttrMaxBlocksPerMultiprocessor, 0)); // GPU 0
-        gpuErrChk(cudaDeviceGetAttribute(&threads_per_warp, cudaDevAttrWarpSize, 0)); // GPU 0
+        gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0));
+        gpuErrChk(cudaDeviceGetAttribute(&max_threads_per_sm, cudaDevAttrMaxThreadsPerMultiProcessor, 0));
+#if (__CUDACC_VER_MAJOR__ >= 11)
+        gpuErrChk(cudaDeviceGetAttribute(&max_blocks_per_sm, cudaDevAttrMaxBlocksPerMultiprocessor, 0));
+#else
+        max_blocks_per_sm = WF_GPU_MAX_BLOCKS_PER_SM;
+#endif
+        gpuErrChk(cudaDeviceGetAttribute(&threads_per_warp, cudaDevAttrWarpSize, 0));
     }
 
     // Copy Constructor
@@ -529,7 +537,7 @@ public:
         else {
             emitter = (_other.emitter)->clone(); // clone the emitter if it exists
         }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = _other.stats_record;
 #endif
     }
@@ -547,7 +555,7 @@ public:
                    threads_per_warp(_other.threads_per_warp),
                    execution_mode(_other.execution_mode)
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = std::move(_other.stats_record);
 #endif
     }
@@ -582,7 +590,7 @@ public:
             max_blocks_per_sm = _other.max_blocks_per_sm;
             threads_per_warp = _other.threads_per_warp;
             execution_mode = _other.execution_mode;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             stats_record = _other.stats_record;
 #endif
         }
@@ -605,7 +613,7 @@ public:
         max_blocks_per_sm = _other.max_blocks_per_sm;
         threads_per_warp = _other.threads_per_warp;
         execution_mode = _other.execution_mode;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = std::move(_other.stats_record);
 #endif
     }
@@ -613,7 +621,7 @@ public:
     // svc_init (utilized by the FastFlow runtime)
     int svc_init() override
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = Stats_Record(opName, std::to_string(id_replica), false, true);
 #endif
         return 0;
@@ -622,7 +630,7 @@ public:
     // svc (utilized by the FastFlow runtime)
     void *svc(void *_in) override
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         startTS = current_time_nsecs();
         if (stats_record.inputs_received == 0) {
             startTD = current_time_nsecs();
@@ -634,7 +642,7 @@ public:
             deleteBatch_t(input); // delete the punctuation
             return this->GO_ON;
         }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record.inputs_received += input->size;
         stats_record.bytes_received += input->size * sizeof(tuple_t);
         stats_record.outputs_sent += input->size;
@@ -656,7 +664,7 @@ public:
         gpuErrChk(cudaPeekAtLastError());
         gpuErrChk(cudaStreamSynchronize(input->cudaStream));
         emitter->emit_inplace(input, this); // send the output batch once computed
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         endTS = current_time_nsecs();
         endTD = current_time_nsecs();
         double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
@@ -675,7 +683,7 @@ public:
     {
         emitter->flush(this); // call the flush of the emitter
         terminated = true;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record.setTerminated();
 #endif
     }
@@ -701,7 +709,7 @@ public:
         execution_mode = _execution_mode;
     }
 
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     // Get a copy of the Stats_Record of the Map_GPU replica
     Stats_Record getStatsRecord() const
     {
@@ -770,7 +778,7 @@ private:
         return key_extr;
     }
 
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     // Dump the log file (JSON format) of statistics of the Map_GPU
     void dumpStats() const override
     {

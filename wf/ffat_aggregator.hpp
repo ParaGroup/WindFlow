@@ -34,7 +34,7 @@
 #include<functional>
 #include<context.hpp>
 #include<single_t.hpp>
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     #include<stats_record.hpp>
 #endif
 #include<ffat_replica.hpp>
@@ -111,7 +111,7 @@ private:
         return key_extr;
     }
 
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     // Dump the log file (JSON format) of statistics of the FFAT_Aggregator
     void dumpStats() const override
     {

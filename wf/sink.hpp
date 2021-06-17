@@ -34,7 +34,7 @@
 #include<context.hpp>
 #include<batch_t.hpp>
 #include<single_t.hpp>
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     #include<stats_record.hpp>
 #endif
 #include<basic_emitter.hpp>
@@ -65,7 +65,7 @@ private:
     std::function<void(RuntimeContext &)> closing_func; // closing functional logic used by the Sink replica
     bool terminated; // true if the Sink replica has finished its work
     Execution_Mode_t execution_mode; // execution mode of the Sink replica
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     Stats_Record stats_record;
     double avg_td_us = 0;
     double avg_ts_us = 0;
@@ -89,7 +89,7 @@ public:
     // svc_init (utilized by the FastFlow runtime)
     int svc_init() override
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = Stats_Record(opName, std::to_string(context.getReplicaIndex()), false, false);
 #endif
         return 0;
@@ -98,7 +98,7 @@ public:
     // svc (utilized by the FastFlow runtime)
     void *svc(void *_in) override
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         startTS = current_time_nsecs();
         if (stats_record.inputs_received == 0) {
             startTD = current_time_nsecs();
@@ -110,7 +110,7 @@ public:
                 deleteBatch_t(batch_input); // delete the punctuation
                 return this->GO_ON;
             }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             stats_record.inputs_received += batch_input->getSize();
             stats_record.bytes_received += batch_input->getSize() * sizeof(tuple_t);
 #endif
@@ -125,14 +125,14 @@ public:
                 deleteSingle_t(input); // delete the punctuation
                 return this->GO_ON;
             }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             stats_record.inputs_received++;
             stats_record.bytes_received += sizeof(tuple_t);
 #endif
             process_input(input->tuple, input->getTimestamp(), input->getWatermark(context.getReplicaIndex()));
             deleteSingle_t(input); // delete the input Single_t
         }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         endTS = current_time_nsecs();
         endTD = current_time_nsecs();
         double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
@@ -176,7 +176,7 @@ public:
     void eosnotify(ssize_t id) override
     {
         terminated = true;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record.setTerminated();
 #endif
     }
@@ -222,7 +222,7 @@ public:
         execution_mode = _execution_mode;
     }
 
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     // Get a copy of the Stats_Record of the Sink replica
     Stats_Record getStatsRecord() const
     {
@@ -292,7 +292,7 @@ private:
         return key_extr;
     }
 
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     // Dump the log file (JSON format) of statistics of the Sink
     void dumpStats() const override
     {

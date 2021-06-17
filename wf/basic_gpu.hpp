@@ -37,8 +37,13 @@
 
 namespace wf {
 
+/// Macro WF_GPU_MAX_BLOCKS_PER_SM with default value of 32
+#if !defined (WF_GPU_MAX_BLOCKS_PER_SM)
+    #define WF_GPU_MAX_BLOCKS_PER_SM 32
+#endif
+
 /// Macro with the default number of threads per block
-#define DEFAULT_THREADS_PER_BLOCK 256
+#define WF_DEFAULT_THREADS_PER_BLOCK 256
 
 /// Forward declaration of the Map_GPU operator
 template<typename mapgpu_func_t, typename key_extractor_func_t>
@@ -94,8 +99,7 @@ struct batch_item_gpu_t
     uint64_t timestamp;
 
     // Constructor
-    __host__ __device__ batch_item_gpu_t():
-                                         timestamp(0) {}
+    __host__ __device__ batch_item_gpu_t(): timestamp(0) {}
 };
 
 // CUDA Kernel: Build_State_Kernel
@@ -105,6 +109,16 @@ __global__ void Build_State_Kernel(state_t *state_gpu)
     int id = threadIdx.x + blockIdx.x * blockDim.x; // id of the thread in the kernel
     if (id == 0) {
         new (state_gpu) state_t(); // placement new with default constructor
+    }
+}
+
+// CUDA Kernel: Copy_State_Kernel
+template<typename state_t>
+__global__ void Copy_State_Kernel(state_t *state_gpu_1, state_t *state_gpu_2)
+{
+    int id = threadIdx.x + blockIdx.x * blockDim.x; // id of the thread in the kernel
+    if (id == 0) {
+        new (state_gpu_1) state_t(*state_gpu_2); // placement new with copy constructor
     }
 }
 
@@ -125,12 +139,21 @@ struct wrapper_state_t
     state_t *state_gpu; // pointer to the keyed state on GPU
 
     // Constructor
-    wrapper_state_t(cudaStream_t &stream)
+    wrapper_state_t()
     {
         gpuErrChk(cudaMalloc(&state_gpu, sizeof(state_t)));
-        Build_State_Kernel<<<1, DEFAULT_THREADS_PER_BLOCK, 0, stream>>>(state_gpu);
+        Build_State_Kernel<<<1, WF_DEFAULT_THREADS_PER_BLOCK>>>(state_gpu); // use the default CUDA stream
         gpuErrChk(cudaPeekAtLastError());
-        gpuErrChk(cudaStreamSynchronize(stream));
+        gpuErrChk(cudaDeviceSynchronize());
+    }
+
+    // Copy Constructor
+    wrapper_state_t(const wrapper_state_t &_other)
+    {
+        gpuErrChk(cudaMalloc(&state_gpu, sizeof(state_t)));
+        Copy_State_Kernel<<<1, WF_DEFAULT_THREADS_PER_BLOCK>>>(state_gpu, _other.state_gpu); // use the default CUDA stream
+        gpuErrChk(cudaPeekAtLastError());
+        gpuErrChk(cudaDeviceSynchronize());
     }
 
     // Move Constructor
@@ -141,11 +164,27 @@ struct wrapper_state_t
     ~wrapper_state_t()
     {
         if (state_gpu != nullptr) {
-            Destroy_State_Kernel<<<1, DEFAULT_THREADS_PER_BLOCK, 0>>>(state_gpu); // use the default CUDA stream!
+            Destroy_State_Kernel<<<1, WF_DEFAULT_THREADS_PER_BLOCK, 0>>>(state_gpu); // use the default CUDA stream
             gpuErrChk(cudaPeekAtLastError());
             gpuErrChk(cudaDeviceSynchronize());
             gpuErrChk(cudaFree(state_gpu));
         }
+    }
+
+    // Copy Assignment Operator
+    wrapper_state_t &operator=(const wrapper_state_t &_other)
+    {
+        if (state_gpu != nullptr) {
+            Destroy_State_Kernel<<<1, WF_DEFAULT_THREADS_PER_BLOCK, 0>>>(state_gpu); // use the default CUDA stream
+            gpuErrChk(cudaPeekAtLastError());
+            gpuErrChk(cudaDeviceSynchronize());
+            gpuErrChk(cudaFree(state_gpu));
+        }
+        gpuErrChk(cudaMalloc(&state_gpu, sizeof(state_t)));
+        Copy_State_Kernel<<<1, WF_DEFAULT_THREADS_PER_BLOCK>>>(state_gpu, _other.state_gpu); // use the default CUDA stream
+        gpuErrChk(cudaPeekAtLastError());
+        gpuErrChk(cudaDeviceSynchronize());
+        return *this;
     }
 
     // Move Assignment Operator
@@ -154,9 +193,6 @@ struct wrapper_state_t
         state_gpu = std::exchange(_other.state_gpu, nullptr);
         return *this;
     }
-
-    wrapper_state_t(const wrapper_state_t &) = delete; ///< Copy constructor is deleted
-    wrapper_state_t &operator=(const wrapper_state_t &) = delete; ///< Copy assignment operator is deleted
 };
 
 //@endcond

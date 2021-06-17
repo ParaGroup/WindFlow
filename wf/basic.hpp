@@ -68,16 +68,16 @@ inline uint64_t current_time_nsecs()
 }
 
 /// Default capacity of vectors used internally by the library
-#define DEFAULT_VECTOR_CAPACITY 500
+#define WF_DEFAULT_VECTOR_CAPACITY 500
 
 /// Default interval time to update the atomic counter of dropped tuples
-#define DEFAULT_DROP_INTERVAL_USEC 100000
+#define WF_DEFAULT_DROP_INTERVAL_USEC 100000
 
 /// Default interval time to generate punctuations conveying watermarks
-#define DEFAULT_WM_INTERVAL_USEC 1000
+#define WF_DEFAULT_WM_INTERVAL_USEC 1000
 
 /// Default number of inputs to generate punctuations coveying watermarks
-#define DEFAULT_WM_AMOUNT 100
+#define WF_DEFAULT_WM_AMOUNT 100
 
 /// Supported execution modes of the PipeGraph
 enum class Execution_Mode_t { DEFAULT, DETERMINISTIC, PROBABILISTIC };
@@ -184,7 +184,7 @@ inline MultiPipe *merge_multipipes_func(PipeGraph *, std::vector<MultiPipe *>);
 // Forward declaration of the split_multipipe_func function
 inline std::vector<MultiPipe *> split_multipipe_func(PipeGraph *, MultiPipe *);
 
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     // Forward declaration of the MonitoringThread class
     class MonitoringThread;
 

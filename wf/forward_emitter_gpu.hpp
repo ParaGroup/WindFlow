@@ -22,7 +22,8 @@
  *  
  *  @section Forward_Emitter_GPU (Description)
  *  
- *  The emitter is capable of receiving/sending batches from/to GPU operators.
+ *  The emitter is capable of receiving/sending batches from/to GPU operators by
+ *  implementing the forward distribution.
  */ 
 
 #ifndef FW_EMITTER_GPU_H
@@ -328,7 +329,6 @@ public:
             output_queue.push_back(std::make_pair(_output, idx_dest));
             idx_dest = (idx_dest + 1) % num_dests;
         }
-        sent_batches++;
     }
 
     // Routing GPU->CPU
@@ -344,7 +344,6 @@ public:
             output_queue.push_back(std::make_pair(_output, idx_dest));
             idx_dest = (idx_dest + 1) % num_dests;
         }
-        sent_batches++;
     }
 
     // Punctuation generation method

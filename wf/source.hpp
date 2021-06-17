@@ -33,7 +33,7 @@
 #include<functional>
 #include<context.hpp>
 #include<source_shipper.hpp>
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     #include<stats_record.hpp>
 #endif
 #include<basic_emitter.hpp>
@@ -63,7 +63,7 @@ private:
     Execution_Mode_t execution_mode;// execution mode of the Source replica
     Time_Policy_t time_policy; // time policy of the Source replica
     Source_Shipper<result_t> *shipper; // pointer to the shipper object used by the Source replica to send outputs
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     Stats_Record stats_record;
 #endif
 
@@ -95,7 +95,7 @@ public:
         if (_other.shipper != nullptr) {
             shipper = new Source_Shipper<decltype(get_result_t_Source(func))>(*(_other.shipper));
             shipper->node = this; // change the node referred by the shipper
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             shipper->setStatsRecord(&stats_record); // change the Stats_Record referred by the shipper
 #endif
         }
@@ -117,7 +117,7 @@ public:
         shipper = std::exchange(_other.shipper, nullptr);
         if (shipper != nullptr) {
             shipper->node = this; // change the node referred by the shipper
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             shipper->setStatsRecord(&stats_record); // change the Stats_Record referred by the shipper
 #endif
         }
@@ -148,7 +148,7 @@ public:
             if (_other.shipper != nullptr) {
                 shipper = new Source_Shipper<decltype(get_result_t_Source(func))>(*(_other.shipper));
                 shipper->node = this; // change the node referred by the shipper
-    #if defined (TRACE_WINDFLOW)
+    #if defined (WF_TRACING_ENABLED)
                 shipper->setStatsRecord(&stats_record); // change the Stats_Record referred by the shipper
     #endif
             }
@@ -175,7 +175,7 @@ public:
         shipper = std::exchange(_other.shipper, nullptr);
         if (shipper != nullptr) {
             shipper->node = this; // change the node referred by the shipper
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             shipper->setStatsRecord(&stats_record); // change the Stats_Record referred by the shipper
 #endif
         }
@@ -184,7 +184,7 @@ public:
     // svc_init (utilized by the FastFlow runtime)
     int svc_init() override
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = Stats_Record(opName, std::to_string(context.getReplicaIndex()), false, false);
 #endif
         shipper->setInitialTime(current_time_usecs()); // set the initial time
@@ -202,7 +202,7 @@ public:
         }
         shipper->flush(); // call the flush of the shipper
         terminated = true;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record.setTerminated();
 #endif
         return this->EOS; // end-of-stream
@@ -223,7 +223,7 @@ public:
         }
         shipper = new Source_Shipper<decltype(get_result_t_Source(func))>(_emitter, this, execution_mode, time_policy); // create the shipper
         shipper->setInitialTime(current_time_usecs()); // set the initial time
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         shipper->setStatsRecord(&stats_record);
 #endif
     }
@@ -245,7 +245,7 @@ public:
         }
     }
 
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     // Get a copy of the Stats_Record of the Source replica
     Stats_Record getStatsRecord() const
     {
@@ -310,7 +310,7 @@ private:
         }
     }
 
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     // Dump the log file (JSON format) of statistics of the Source
     void dumpStats() const override
     {

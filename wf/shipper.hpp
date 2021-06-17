@@ -32,7 +32,7 @@
 /// includes
 #include<ff/multinode.hpp>
 #include<single_t.hpp>
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     #include<stats_record.hpp>
 #endif
 #include<basic_emitter.hpp>
@@ -57,7 +57,7 @@ private:
     uint64_t num_delivered; // counter of the delivered results
     uint64_t timestamp; // timestamp to be used for sending messages
     uint64_t watermark; // watermark to be used for sending messages
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     Stats_Record *stats_record = nullptr;
 
     // Set the pointer to the Stats_Record object
@@ -89,7 +89,7 @@ private:
         else {
             emitter = nullptr;
         }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = _other.stats_record;
 #endif
     }
@@ -102,7 +102,7 @@ private:
             timestamp(_other.timestamp),
             watermark(_other.watermark)
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = std::exchange(_other.stats_record, nullptr);
 #endif
     }
@@ -132,7 +132,7 @@ private:
             num_delivered = _other.num_delivered;
             timestamp = _other.timestamp;
             watermark = _other.watermark;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             stats_record = _other.stats_record;
 #endif
         }
@@ -150,7 +150,7 @@ private:
         num_delivered = _other.num_delivered;
         timestamp = _other.timestamp;
         watermark = _other.watermark;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = std::exchange(_other.stats_record, nullptr);
 #endif
         return *this;
@@ -184,7 +184,7 @@ public:
         result_t copy_result = _r; // copy of the result to be delivered
         emitter->emit(&copy_result, 0, timestamp, watermark, node);
         num_delivered++;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         assert(stats_record != nullptr);
         stats_record->outputs_sent++;
         stats_record->bytes_sent += sizeof(result_t);
@@ -200,7 +200,7 @@ public:
     {
         emitter->emit(&_r, 0, timestamp, watermark, node);
         num_delivered++;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         assert(stats_record != nullptr);
         stats_record->outputs_sent++;
         stats_record->bytes_sent += sizeof(result_t);

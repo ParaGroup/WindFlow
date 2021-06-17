@@ -264,7 +264,7 @@ public:
     void routing(Single_t<tuple_t> *_output,
                  ff::ff_monode *_node)
     {
-        if ((execution_mode == Execution_Mode_t::DEFAULT) && (received_inputs % DEFAULT_WM_AMOUNT == 0)) { // check the punctuation auto-generation logic every DEFAULT_WM_AMOUNT received inputs
+        if ((execution_mode == Execution_Mode_t::DEFAULT) && (received_inputs % WF_DEFAULT_WM_AMOUNT == 0)) { // check the punctuation auto-generation logic every WF_DEFAULT_WM_AMOUNT received inputs
             autogeneration_punctuation(_output->getWatermark(), _node);
         }
         auto key = key_extr(_output->tuple); // extract the key attribute of the tuple
@@ -288,7 +288,7 @@ public:
                          uint64_t _watermark,
                          ff::ff_monode *_node)
     {
-        if ((execution_mode == Execution_Mode_t::DEFAULT) && (received_inputs % DEFAULT_WM_AMOUNT == 0)) { // check the punctuation generation logic every DEFAULT_WM_AMOUNT received inputs
+        if ((execution_mode == Execution_Mode_t::DEFAULT) && (received_inputs % WF_DEFAULT_WM_AMOUNT == 0)) { // check the punctuation generation logic every WF_DEFAULT_WM_AMOUNT received inputs
             autogeneration_punctuation(_watermark, _node);
         }
         auto key = key_extr(_tuple); // extract the key attribute of the tuple
@@ -317,7 +317,7 @@ public:
     void autogeneration_punctuation(uint64_t _watermark,
                                     ff::ff_monode *_node)
     {
-        if (current_time_usecs() - last_time_punct >= DEFAULT_WM_INTERVAL_USEC) { // check the end of the sample
+        if (current_time_usecs() - last_time_punct >= WF_DEFAULT_WM_INTERVAL_USEC) { // check the end of the sample
             std::vector<int> idxs;
             /* Select the destinations that must receive the punctuation. They are:
              * 1- the ones that have not received any input by the emitter in the last sample

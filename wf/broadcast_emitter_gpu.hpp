@@ -22,7 +22,8 @@
  *  
  *  @section Broadcast_Emitter_GPU (Description)
  *  
- *  The emitter is capable of receiving/sending batches from/to GPU operators.
+ *  The emitter is capable of receiving/sending batches from/to GPU operators by
+ *  implementing the broadcast distribution.
  */ 
 
 #ifndef BD_EMITTER_GPU_H

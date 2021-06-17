@@ -33,7 +33,7 @@
 #include<vector>
 #include<basic.hpp>
 #include<basic_emitter.hpp>
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     #include<stats_record.hpp>
     #include<rapidjson/prettywriter.h>
 #endif
@@ -62,7 +62,7 @@ private:
     // Check whether the operator has terminated
     virtual bool isTerminated() const = 0;
 
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     // Dump the log file (JSON format) of statistics of the operator
     virtual void dumpStats() const = 0;
 

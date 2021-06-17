@@ -33,7 +33,7 @@
 /// includes
 #include<map>
 #include<ff/ff.hpp>
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     #include<graphviz/gvc.h>
     #include<rapidjson/prettywriter.h>
 #endif
@@ -110,7 +110,7 @@ private:
     MultiPipe *splittingParent = nullptr; // pointer to the parent MultiPipe (meaningful if fromSplitting is true)
     size_t lastParallelism; // parallelism of the last operator added to the MultiPipe (0 if not defined)
     std::string outputType; // string representing the type of the outputs from this MultiPipe (the empty string "" means not defined yet)
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     Agraph_t *gv_graph = nullptr; // pointer to the graphviz representation of the PipeGraph
     std::vector<std::string> gv_last_typeOPs; // list of the last chained operator types
     std::vector<std::string> gv_last_nameOPs; // list of the last chained operator names
@@ -217,7 +217,7 @@ private:
                 combine_with_firststage(*stage, collector, true); // combine with the Watermark_Collector
             }
             else {
-                abort(); // <-- this case is not possible!
+                abort(); // case not possible
             }
             result.push_back(stage);
         }
@@ -278,6 +278,9 @@ private:
             else { // BD
                 return new Broadcast_Emitter_GPU<decltype(_key_extr), true, false>(_key_extr, _num_dests);
             }
+        }
+        else {
+            return nullptr;
         }
     }
 
@@ -366,7 +369,7 @@ private:
         globalOpList->push_back(copied_source); // add the copied operator to global list
         using result_t = decltype(get_result_t_Source(copied_source->func)); // extracting the result_t type
         outputType = TypeName<result_t>::getName(); // save the type of result_t as a string
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         // update the graphviz representation
         gv_add_vertex("Source (" + std::to_string((copied_source->replicas).size()) + ")", copied_source->getName(), true, false, Routing_Mode_t::NONE);
 #endif
@@ -656,7 +659,7 @@ private:
         }
     }
 
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     // Add a new operator to the graphviz representation
     void gv_add_vertex(std::string typeOP,
                        std::string nameOP,
@@ -851,7 +854,7 @@ public:
         }
         outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
         add_operator(*copied_filter, ordering_mode_t::TS);
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         gv_add_vertex("Filter (" + std::to_string(copied_filter->getParallelism()) + ")", copied_filter->getName(), true, false, copied_filter->getInputRoutingMode());
 #endif
         localOpList.push_back(copied_filter); // add the copied operator to local list
@@ -884,12 +887,12 @@ public:
         outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
         bool isChained = chain_operator(*copied_filter, ordering_mode_t::TS); // try to chain the operator (otherwise, it is added)
         if (isChained) {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             gv_chain_vertex("Filter (" + std::to_string(copied_filter->getParallelism()) + ")", copied_filter->getName());
 #endif
         }
         else {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             gv_add_vertex("Filter (" + std::to_string(copied_filter->getParallelism()) + ")", copied_filter->getName(), true, false, copied_filter->getInputRoutingMode());
 #endif
         }
@@ -921,7 +924,7 @@ public:
         }
         outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
         add_operator(*copied_map, ordering_mode_t::TS);
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         gv_add_vertex("Map (" + std::to_string(copied_map->getParallelism()) + ")", copied_map->getName(), true, false, copied_map->getInputRoutingMode());
 #endif
         localOpList.push_back(copied_map); // add the copied operator to local list
@@ -954,12 +957,12 @@ public:
         outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
         bool isChained = chain_operator(*copied_map, ordering_mode_t::TS); // try to chain the operator (otherwise, it is added)
         if (isChained) {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             gv_chain_vertex("Map (" + std::to_string(copied_map->getParallelism()) + ")", copied_map->getName());
 #endif
         }
         else {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             gv_add_vertex("Map (" + std::to_string(copied_map->getParallelism()) + ")", copied_map->getName(), true, false, copied_map->getInputRoutingMode());
 #endif
         }
@@ -991,7 +994,7 @@ public:
         }
         outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
         add_operator(*copied_flatmap, ordering_mode_t::TS);
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         gv_add_vertex("FlatMap (" + std::to_string(copied_flatmap->getParallelism()) + ")", copied_flatmap->getName(), true, false, copied_flatmap->getInputRoutingMode());
 #endif
         localOpList.push_back(copied_flatmap); // add the copied operator to local list
@@ -1024,12 +1027,12 @@ public:
         outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
         bool isChained = chain_operator(*copied_flatmap, ordering_mode_t::TS); // try to chain the operator (otherwise, it is added)
         if (isChained) {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             gv_chain_vertex("FlatMap (" + std::to_string(copied_flatmap->getParallelism()) + ")", copied_flatmap->getName());
 #endif
         }
         else {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             gv_add_vertex("FlatMap (" + std::to_string(copied_flatmap->getParallelism()) + ")", copied_flatmap->getName(), true, false, copied_flatmap->getInputRoutingMode());
 #endif
         }
@@ -1061,7 +1064,7 @@ public:
         }
         outputType = TypeName<state_t>::getName(); // save the new output type from this MultiPipe
         add_operator(*copied_reduce, ordering_mode_t::TS);
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         gv_add_vertex("Reduce (" + std::to_string(copied_reduce->getParallelism()) + ")", copied_reduce->getName(), true, false, copied_reduce->getInputRoutingMode());
 #endif
         localOpList.push_back(copied_reduce); // add the copied operator to local list
@@ -1092,7 +1095,7 @@ public:
         }
         outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
         add_operator(*copied_kwins, ordering_mode_t::TS);
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         gv_add_vertex("Keyed_Windows (" + std::to_string(copied_kwins->getParallelism()) + ")", copied_kwins->getName(), true, false, copied_kwins->getInputRoutingMode());
 #endif
         localOpList.push_back(copied_kwins); // add the copied operator to local list
@@ -1128,7 +1131,7 @@ public:
         }
         outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
         add_operator(*copied_pwins, ordering_mode_t::TS);
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         gv_add_vertex("Parallel_Windows (" + std::to_string(copied_pwins->getParallelism()) + ")", copied_pwins->getName(), true, false, copied_pwins->getInputRoutingMode());
 #endif
         localOpList.push_back(copied_pwins); // add the copied operator to local list
@@ -1173,7 +1176,7 @@ public:
         add_operator(*wlq, ordering_mode_t::ID);
         localOpList.push_back(wlq); // add the WLQ sub-operator to local list
         globalOpList->push_back(wlq); // add the WLQ sub-operator to global list
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         gv_add_vertex("Paned_Windows (" + std::to_string(_pan_wins.plq_parallelism) + "," + std::to_string(_pan_wins.wlq_parallelism) + ")", _pan_wins.getName(), false, false, _pan_wins.getInputRoutingMode());
 #endif
         return *this;
@@ -1216,7 +1219,7 @@ public:
         add_operator(*reduce, ordering_mode_t::ID);
         localOpList.push_back(reduce); // add the WLQ sub-operator to local list
         globalOpList->push_back(reduce); // add the WLQ sub-operator to global list
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         gv_add_vertex("MapReduce_Windows (" + std::to_string(_mr_wins.map_parallelism) + "," + std::to_string(_mr_wins.reduce_parallelism) + ")", _mr_wins.getName(), false, false, _mr_wins.getInputRoutingMode());
 #endif
         return *this;
@@ -1245,7 +1248,7 @@ public:
         }
         outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
         add_operator(*copied_ffatagg, ordering_mode_t::TS);
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         gv_add_vertex("FFAT_Aggregator (" + std::to_string(copied_ffatagg->getParallelism()) + ")", copied_ffatagg->getName(), true, false, copied_ffatagg->getInputRoutingMode());
 #endif
         localOpList.push_back(copied_ffatagg); // add the copied operator to local list
@@ -1275,7 +1278,7 @@ public:
             exit(EXIT_FAILURE);
         }
         add_operator<decltype(*copied_mapgpu), true>(*copied_mapgpu, ordering_mode_t::TS);
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         gv_add_vertex("Map_GPU (" + std::to_string(copied_mapgpu->getParallelism()) + ")", copied_mapgpu->getName(), false, false, copied_mapgpu->getInputRoutingMode());
 #endif
         localOpList.push_back(copied_mapgpu); // add the copied operator to local list
@@ -1306,12 +1309,12 @@ public:
         }
         bool isChained = chain_operator<decltype(*copied_mapgpu), true>(*copied_mapgpu, ordering_mode_t::TS); // try to chain the operator (otherwise, it is added)
         if (isChained) {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             gv_chain_vertex("Map_GPU (" + std::to_string(copied_mapgpu->getParallelism()) + ")", copied_mapgpu->getName());
 #endif
         }
         else {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             gv_add_vertex("Map_GPU (" + std::to_string(copied_mapgpu->getParallelism()) + ")", copied_mapgpu->getName(), false, false, copied_mapgpu->getInputRoutingMode());
 #endif
         }
@@ -1341,7 +1344,7 @@ public:
             exit(EXIT_FAILURE);
         }
         add_operator<decltype(*copied_filtergpu), true>(*copied_filtergpu, ordering_mode_t::TS);
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         gv_add_vertex("Filter_GPU (" + std::to_string(copied_filtergpu->getParallelism()) + ")", copied_filtergpu->getName(), false, false, copied_filtergpu->getInputRoutingMode());
 #endif
         localOpList.push_back(copied_filtergpu); // add the copied operator to local list
@@ -1372,12 +1375,12 @@ public:
         }
         bool isChained = chain_operator<decltype(*copied_filtergpu), true>(*copied_filtergpu, ordering_mode_t::TS); // try to chain the operator (otherwise, it is added)
         if (isChained) {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             gv_chain_vertex("Filter_GPU (" + std::to_string(copied_filtergpu->getParallelism()) + ")", copied_filtergpu->getName());
 #endif
         }
         else {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             gv_add_vertex("Filter_GPU (" + std::to_string(copied_filtergpu->getParallelism()) + ")", copied_filtergpu->getName(), false, false, copied_filtergpu->getInputRoutingMode());
 #endif
         }
@@ -1404,7 +1407,7 @@ public:
             exit(EXIT_FAILURE);
         }
         add_operator(*copied_sink, ordering_mode_t::TS);
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         gv_add_vertex("Sink (" + std::to_string(copied_sink->getParallelism()) + ")", copied_sink->getName(), true, false, copied_sink->getInputRoutingMode());
 #endif
         localOpList.push_back(copied_sink); // add the copied operator to local list
@@ -1432,12 +1435,12 @@ public:
         }
         bool isChained = chain_operator(*copied_sink, ordering_mode_t::TS); // try to chain the operator (otherwise, it is added)
         if (isChained) {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             gv_chain_vertex("Sink (" + std::to_string(copied_sink->getParallelism()) + ")", copied_sink->getName());
 #endif
         }
         else {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             gv_add_vertex("Sink (" + std::to_string(copied_sink->getParallelism()) + ")", copied_sink->getName(), true, false, copied_sink->getInputRoutingMode());
 #endif
         }
@@ -1479,7 +1482,7 @@ public:
         }
         MultiPipe *mergedMP = merge_multipipes_func(graph, mergeSet); // execute the merge through the PipeGraph
         mergedMP->outputType = mergeSet[0]->outputType; // set the output type of the merged MultiPipe
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         for (auto *mp: mergeSet) {
             (mergedMP->gv_last_vertices).insert((mergedMP->gv_last_vertices).end(), (mp->gv_last_vertices).begin(), (mp->gv_last_vertices).end());
         }
@@ -1525,7 +1528,7 @@ public:
             exit(EXIT_FAILURE);
         }
         splittingChildren = split_multipipe_func(graph, this); // execute the merge through the PipeGraph
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         for (auto *mp: this->splittingChildren) {
             mp->gv_last_vertices = this->gv_last_vertices;
         }
@@ -1569,7 +1572,7 @@ public:
             exit(EXIT_FAILURE);
         }
         splittingChildren = split_multipipe_func(graph, this); // execute the merge through the PipeGraph
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         for (auto *mp: this->splittingChildren) {
             mp->gv_last_vertices = this->gv_last_vertices;
         }

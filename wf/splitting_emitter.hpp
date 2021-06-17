@@ -221,7 +221,7 @@ public:
     {
         assert(num_dests == _node->get_num_outchannels());
         auto dests = callSplittingFunction(splitting_func, _tuple);
-        if ((execution_mode == Execution_Mode_t::DEFAULT) && (received_inputs % DEFAULT_WM_AMOUNT == 0)) { // check the punctuation generation logic every 100 received inputs
+        if ((execution_mode == Execution_Mode_t::DEFAULT) && (received_inputs % WF_DEFAULT_WM_AMOUNT == 0)) { // check the punctuation generation logic every 100 received inputs
             autogeneration_punctuation(_watermark, _node);
         }
         if (dests.size() == 0) { // the input must be dropped (like in a filter)
@@ -254,7 +254,7 @@ public:
     void autogeneration_punctuation(uint64_t _watermark,
                                     ff::ff_monode *_node)
     {
-        if (current_time_usecs() - last_time_punct >= DEFAULT_WM_INTERVAL_USEC) { // check the end of the sample
+        if (current_time_usecs() - last_time_punct >= WF_DEFAULT_WM_INTERVAL_USEC) { // check the end of the sample
             std::vector<int> idxs;
             // Select the destinations (MultiPipes) that must receive the punctuation
             for (size_t i=0; i<num_dest_mps; i++) {

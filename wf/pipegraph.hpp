@@ -32,7 +32,7 @@
 #include<random>
 #include<thread>
 #include<multipipe.hpp>
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     #include<monitoring.hpp>
 #endif
 
@@ -83,7 +83,7 @@ private:
     bool ended; // flag stating if the PipeGraph has completed its processing
     std::vector<Basic_Operator *> globalOpList; // vector containing pointers to of all the operators in the PipeGraph
     std::atomic<unsigned long> atomic_num_dropped; // atomic counters of the number of dropped tuples
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     GVC_t *gvc; // pointer to the GVC environment
     Agraph_t *gv_graph; // pointer to the graphviz representation of the PipeGraph
     std::thread mt_thread; // object representing the monitoring thread
@@ -268,7 +268,7 @@ private:
         std::vector<ff::ff_node *> second_set;
         for (size_t i=0; i<_mp->splittingBranches; i++) {
             MultiPipe *split_mp = new MultiPipe(this, execution_mode, time_policy, &atomic_num_dropped, &globalOpList);
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             split_mp->gv_graph = gv_graph;
 #endif
             split_mp->outputType = _mp->outputType;
@@ -301,7 +301,7 @@ private:
                 std::vector<MultiPipe *> mp_v;
                 mp_v.push_back(mp);
                 MultiPipe *mergedMP = new MultiPipe(this, mp_v, execution_mode, time_policy, &atomic_num_dropped, &globalOpList); // create the new MultiPipe, the result of the self-merge
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
                 mergedMP->gv_graph = gv_graph;
 #endif
                 mergedMP->outputType = _toBeMerged[0]->outputType;
@@ -352,7 +352,7 @@ private:
                     rightMergedMPs.push_back(an->mp);
                 }
                 MultiPipe *mergedMP = new MultiPipe(this, rightMergedMPs, execution_mode, time_policy, &atomic_num_dropped, &globalOpList); // create the new MultiPipe, the result of the merge
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
                 mergedMP->gv_graph = gv_graph;
 #endif
                 mergedMP->outputType = _toBeMerged[0]->outputType;
@@ -394,7 +394,7 @@ private:
                     rightMergedMPs.push_back((parent_node->children)[idx]->mp);
                 }
                 MultiPipe *mergedMP = new MultiPipe(this, rightMergedMPs, execution_mode, time_policy, &atomic_num_dropped, &globalOpList); // if we reach this point the merge is possible -> we create the new MultiPipe
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
                 mergedMP->gv_graph = gv_graph;
 #endif
                 mergedMP->outputType = _toBeMerged[0]->outputType;
@@ -449,7 +449,7 @@ private:
         }
     }
 
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     // Get a string with the statistics of the whole PipeGraph (in JSON format)
     std::string generateJSONStats() const
     {
@@ -542,7 +542,7 @@ public:
               root(new AppNode()),
               atomic_num_dropped(0)
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         gvc = gvContext(); // set up a graphviz context
         gv_graph = agopen(const_cast<char *>(name.c_str()), Agdirected, 0); // create the graphviz representation
         agattr(gv_graph, AGRAPH, const_cast<char *>("rankdir"), const_cast<char *>("LR")); // direction left to right
@@ -568,7 +568,7 @@ public:
             delete mp;
         }
         delete_AppNodes(root); // delete the Application Tree
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         agclose(this->gv_graph); // free the graph structures
         gvFreeLayout(this->gvc, this->gv_graph); // free the layout
 #endif
@@ -583,7 +583,7 @@ public:
     MultiPipe &add_source(const Source<source_func_t> &_source)
     {
         MultiPipe *mp = new MultiPipe(this, execution_mode, time_policy, &atomic_num_dropped, &globalOpList); // create an empty MultiPipe
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         mp->gv_graph = gv_graph;
 #endif
         mp->add_source(_source); // add the Source to the MultiPipe
@@ -657,7 +657,7 @@ public:
 #if defined (TRACE_FASTFLOW)
         std::cout << "--> FastFlow tracing " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
 #endif
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         std::cout << "--> WindFlow tracing " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
         MonitoringThread mt(this); // start the monitoring thread connecting with the Web DashBoard
         mt_thread = std::thread(mt);
@@ -693,7 +693,7 @@ public:
             }
         }
         ended = true;
-#if defined (TRACE_WINDFLOW) // handling windflow statistics (if enabled)
+#if defined (WF_TRACING_ENABLED) // handling windflow statistics (if enabled)
 #if defined (LOG_DIR)
         std::string ff_trace_file = std::string(STRINGIFY(LOG_DIR)) + "/" + this->name;
         std::string ff_trace_dir = std::string(STRINGIFY(LOG_DIR));
@@ -803,7 +803,7 @@ inline std::vector<MultiPipe *> split_multipipe_func(PipeGraph *graph,
     return graph->execute_Split(_mp);
 }
 
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     // Implementation of the is_ended_func function
     inline bool is_ended_func(PipeGraph *graph)
     {

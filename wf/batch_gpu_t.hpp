@@ -208,10 +208,17 @@ inline Batch_GPU_t<tuple_t> *allocateBatch_GPU_t(size_t _requested_size,
             return batch_input;
         }
         else { // recycling a previous batch
-            assert(_requested_size == batch_input->original_size); // sanity check
-            batch_input->reset();
-            batch_input->size = _requested_size; // useless
-            return batch_input;
+            if (_requested_size <= batch_input->original_size) {
+                batch_input->reset();
+                batch_input->size = _requested_size;
+                return batch_input;
+            }
+            else {
+                delete batch_input;
+                batch_input = new Batch_GPU_t<tuple_t>(_requested_size);
+                batch_input->queue = _queue;
+                return batch_input;
+            }
         }
     }
     else { // create a new batch

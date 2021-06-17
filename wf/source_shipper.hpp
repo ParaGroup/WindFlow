@@ -33,7 +33,7 @@
 #include<ff/multinode.hpp>
 #include<basic.hpp>
 #include<single_t.hpp>
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     #include<stats_record.hpp>
 #endif
 #include<basic_emitter.hpp>
@@ -61,7 +61,7 @@ private:
     uint64_t max_timestamp; // maximum timestamp emitted by the source so far
     uint64_t watermark; // watermark to be used for sending the next output
     uint64_t initial_time_us = 0; // initial time in usec
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     Stats_Record *stats_record = nullptr;
     double avg_ts_us = 0;
     double avg_td_us = 0;
@@ -96,7 +96,7 @@ private:
         else {
             emitter = nullptr;
         }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = _other.stats_record;
 #endif
     }
@@ -111,7 +111,7 @@ private:
                    max_timestamp(_other.max_timestamp),
                    watermark(_other.watermark)
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = std::exchange(_other.stats_record, nullptr);
 #endif
     }
@@ -143,7 +143,7 @@ private:
             num_delivered = _other.num_delivered;
             max_timestamp = _other.max_timestamp;
             watermark = _other.watermark;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             stats_record = _other.stats_record;
 #endif
         }
@@ -163,7 +163,7 @@ private:
         num_delivered = _other.num_delivered;
         max_timestamp = _other.max_timestamp;
         watermark = _other.watermark;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = std::exchange(_other.stats_record, nullptr);
 #endif
         return *this;
@@ -183,7 +183,7 @@ private:
         time_policy = _time_policy;
     }
 
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     // Set the pointer to the Stats_Record object
     void setStatsRecord(Stats_Record *_stats_record)
     {
@@ -209,7 +209,7 @@ public:
      */ 
     void push(const result_t &_r)
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         if (stats_record->outputs_sent == 0) {
             startTD = current_time_nsecs();
         }
@@ -224,12 +224,12 @@ public:
             watermark = timestamp; // watermarks equal to timestamps in case of DEFAULT mode
         }
         result_t copy_result = _r; // copy the result to be delivered
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         volatile uint64_t time_send = current_time_nsecs();
 #endif
         emitter->emit(&copy_result, 0, timestamp, watermark, node);
         num_delivered++;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record->outputs_sent++;
         stats_record->bytes_sent += sizeof(result_t);
         endTD = current_time_nsecs();
@@ -250,7 +250,7 @@ public:
      */ 
     void push(result_t &&_r)
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         if (stats_record->outputs_sent == 0) {
             startTD = current_time_nsecs();
         }
@@ -264,12 +264,12 @@ public:
         if (execution_mode == Execution_Mode_t::DEFAULT) {
             watermark = timestamp; // watermarks equal to timestamps in case of DEFAULT mode
         }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         volatile uint64_t time_send = current_time_nsecs();
 #endif
         emitter->emit(&_r, 0, timestamp, watermark, node);
         num_delivered++;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record->outputs_sent++;
         stats_record->bytes_sent += sizeof(result_t);
         endTD = current_time_nsecs();
@@ -292,7 +292,7 @@ public:
     void pushWithTimestamp(const result_t &_r,
                            uint64_t _ts)
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         if (stats_record->outputs_sent == 0) {
             startTD = current_time_nsecs();
         }
@@ -309,12 +309,12 @@ public:
             exit(EXIT_FAILURE);
         }
         result_t copy_result = _r; // copy the result to be delivered
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         volatile uint64_t time_send = current_time_nsecs();
 #endif
         emitter->emit(&copy_result, 0, _ts, watermark, node);
         num_delivered++;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record->outputs_sent++;
         stats_record->bytes_sent += sizeof(result_t);
         endTD = current_time_nsecs();
@@ -337,7 +337,7 @@ public:
     void pushWithTimestamp(result_t &&_r,
                            uint64_t _ts)
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         if (stats_record->outputs_sent == 0) {
             startTD = current_time_nsecs();
         }
@@ -353,12 +353,12 @@ public:
             std::cerr << RED << "WindFlow Error: user-defined timestamps must be monotonically increasing in DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         volatile uint64_t time_send = current_time_nsecs();
 #endif
         emitter->emit(&_r, 0, _ts, watermark, node);
         num_delivered++;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record->outputs_sent++;
         stats_record->bytes_sent += sizeof(result_t);
         endTD = current_time_nsecs();

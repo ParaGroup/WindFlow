@@ -39,7 +39,7 @@
 #include<batch_t.hpp>
 #include<single_t.hpp>
 #include<iterable.hpp>
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     #include<stats_record.hpp>
 #endif
 #include<basic_emitter.hpp>
@@ -91,7 +91,7 @@ private:
                        last_lwid(-1),
                        next_input_id(0)
         {
-            wins.reserve(DEFAULT_VECTOR_CAPACITY);
+            wins.reserve(WF_DEFAULT_VECTOR_CAPACITY);
         }
     };
     std::string opName; // name of the window-based operator containing the replica
@@ -113,7 +113,7 @@ private:
     size_t ignored_tuples; // number of ignored tuples
     Execution_Mode_t execution_mode; // execution mode of the Window_Replica
     uint64_t last_time; // last received timestamp or watermark
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     Stats_Record stats_record;
     double avg_td_us = 0;
     double avg_ts_us = 0;
@@ -192,7 +192,7 @@ public:
         else {
             emitter = (_other.emitter)->clone(); // clone the emitter if it exists
         }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = _other.stats_record;
 #endif
     }
@@ -221,7 +221,7 @@ public:
                    execution_mode(_other.execution_mode),
                    last_time(_other.last_time)
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = std::move(_other.stats_record);
 #endif
     }
@@ -267,7 +267,7 @@ public:
             ignored_tuples = _other.ignored_tuples;
             execution_mode = _other.execution_mode;
             last_time = _other.last_time; 
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             stats_record = _other.stats_record;
 #endif
         }
@@ -301,7 +301,7 @@ public:
         ignored_tuples = _other.ignored_tuples;
         execution_mode = _other.execution_mode;
         last_time = _other.last_time;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record = std::move(_other.stats_record);
 #endif
         return *this;
@@ -310,7 +310,7 @@ public:
     // svc_init method (utilized by the FastFlow runtime)
     int svc_init() override
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             stats_record = Stats_Record(opName, std::to_string(context.getReplicaIndex()), true, false);
 #endif
         return 0;
@@ -319,7 +319,7 @@ public:
     // svc (utilized by the FastFlow runtime)
     void *svc(void *_in) override
     {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         startTS = current_time_nsecs();
         if (stats_record.inputs_received == 0) {
             startTD = current_time_nsecs();
@@ -336,7 +336,7 @@ public:
                 deleteBatch_t(batch_input); // delete the punctuation
                 return this->GO_ON;
             }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             stats_record.inputs_received += batch_input->getSize();
             stats_record.bytes_received += batch_input->getSize() * sizeof(tuple_t);
 #endif
@@ -357,7 +357,7 @@ public:
                 deleteSingle_t(input); // delete the punctuation
                 return this->GO_ON;
             }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
             stats_record.inputs_received++;
             stats_record.bytes_received += sizeof(tuple_t);
 #endif
@@ -374,7 +374,7 @@ public:
             }
             deleteSingle_t(input); // delete the input Single_t
         }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         endTS = current_time_nsecs();
         endTD = current_time_nsecs();
         double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
@@ -420,7 +420,7 @@ public:
         uint64_t min_boundary = (key_d.last_lwid >= 0) ? win_len + (key_d.last_lwid  * slide_len) : 0; // if the tuple is related to a closed window -> IGNORED
         if (index < initial_index + min_boundary) {
             if (key_d.last_lwid >= 0) {
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
                 stats_record.inputs_ignored++;
 #endif
                 ignored_tuples++;
@@ -506,7 +506,7 @@ public:
                     else { // standard case
                         emitter->emit(&(win.getResult()), 0, used_ts, used_wm, this);
                     }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
                     stats_record.outputs_sent++;
                     stats_record.bytes_sent += sizeof(result_t);
 #endif
@@ -562,7 +562,7 @@ public:
                 else { // standard case
                     emitter->emit(&(win.getResult()), 0, last_time+1, used_wm, this);
                 }
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
                 stats_record.outputs_sent++;
                 stats_record.bytes_sent += sizeof(result_t);
 #endif
@@ -570,7 +570,7 @@ public:
         }
         emitter->flush(this); // call the flush of the emitter
         terminated = true;
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
         stats_record.setTerminated();
 #endif
     }
@@ -611,7 +611,7 @@ public:
         return ignored_tuples;
     }
 
-#if defined (TRACE_WINDFLOW)
+#if defined (WF_TRACING_ENABLED)
     // Get a copy of the Stats_Record of the Window_Replica
     Stats_Record getStatsRecord() const
     {

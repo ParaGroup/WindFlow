@@ -8,7 +8,7 @@ set(CMAKE_CUDA_FLAGS_DEBUG "-w --expt-extended-lambda --expt-relaxed-constexpr -
 set(CMAKE_CUDA_FLAGS_RELEASE "-w --expt-extended-lambda --expt-relaxed-constexpr -O3 -Wno-deprecated-gpu-targets")
 
 # macros to be provided to the compiler
-add_definitions(-DFF_BOUNDED_BUFFER -DDEFAULT_BUFFER_CAPACITY=16 -DTRACE_WINDFLOW)
+add_definitions(-DFF_BOUNDED_BUFFER -DDEFAULT_BUFFER_CAPACITY=16 -DWF_TRACING_ENABLED)
 
 # header files of WindFlow and of FastFlow
 include_directories(../../wf ${ff_root_dir} ${TBB_TBB_INCLUDE_DIR})
