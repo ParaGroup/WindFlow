@@ -60,16 +60,16 @@ WindFlow and FastFlow are released with the <strong>LGPL-3</strong> license and 
 # Cite our Work
 In order to cite our work, we kindly ask interested people to use the following reference:
 ```
- @article{9408386,
-  author={Mencagli, Gabriele and Torquati, Massimo and Cardaci, Andrea and Fais, Alessandra and Rinaldi, Luca and Danelutto, Marco},
-  journal={IEEE Transactions on Parallel and Distributed Systems},
-  title={WindFlow: High-Speed Continuous Stream Processing with Parallel Building Blocks},
-  year={2021},
-  volume={},
-  number={},
-  pages={1-1},
-  doi={10.1109/TPDS.2021.3073970}
- }
+@article{WF_Paper,
+ author={Mencagli, Gabriele and Torquati, Massimo and Cardaci, Andrea and Fais, Alessandra and Rinaldi, Luca and Danelutto, Marco},
+ journal={IEEE Transactions on Parallel and Distributed Systems}, 
+ title={WindFlow: High-Speed Continuous Stream Processing With Parallel Building Blocks}, 
+ year={2021},
+ volume={32},
+ number={11},
+ pages={2748-2763},
+ doi={10.1109/TPDS.2021.3073970}
+}
 ```
 
 # Contributors
