@@ -1388,6 +1388,37 @@ public:
         globalOpList->push_back(copied_filtergpu); // add the copied operator to global list
         return *this;
     }
+
+    /** 
+     *  \brief Add a FFAT_Aggregator_GPU operator to the MultiPipe
+     *  \param _ffatagg_gpu the FFAT_Aggregator_GPU operator to be added
+     *  \return a reference to the modified MultiPipe
+     */ 
+    template<typename liftgpu_func_t, typename combgpu_func_t, typename key_extractor_func_t>
+    MultiPipe &add(const FFAT_Aggregator_GPU<liftgpu_func_t, combgpu_func_t, key_extractor_func_t> &_ffatagg_gpu)
+    {
+        if (execution_mode != Execution_Mode_t::DEFAULT) {
+            std::cerr << RED << "WindFlow Error: FFAT_Aggregator_GPU can be used in DEFAULT mode only" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        auto *copied_ffatagg_gpu = new FFAT_Aggregator_GPU(_ffatagg_gpu); // create a copy of the operator
+        copied_ffatagg_gpu->setExecutionMode(execution_mode); // set the execution mode of the operator
+        using tuple_t = decltype(get_tuple_t_Lift(copied_ffatagg_gpu->lift_func)); // extracting the tuple_t type and checking the admissible signatures
+        using result_t = decltype(get_tuple_t_CombGPU(copied_ffatagg_gpu->comb_func)); // extracting the result_t type and checking the admissible signatures
+        std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
+        if (!outputType.empty() && outputType.compare(opInType) != 0) {
+            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the FFAT_Aggregator_GPU operator" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
+        add_operator(*copied_ffatagg_gpu, ordering_mode_t::TS);
+#if defined (WF_TRACING_ENABLED)
+        gv_add_vertex("FFAT_Aggregator_GPU (" + std::to_string(copied_ffatagg_gpu->getParallelism()) + ")", copied_ffatagg_gpu->getName(), true, false, copied_ffatagg_gpu->getInputRoutingMode());
+#endif
+        localOpList.push_back(copied_ffatagg_gpu); // add the copied operator to local list
+        globalOpList->push_back(copied_ffatagg_gpu); // add the copied operator to global list
+        return *this;
+    }
 #endif
 
     /** 

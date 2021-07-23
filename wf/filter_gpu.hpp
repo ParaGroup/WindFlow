@@ -40,7 +40,6 @@
 
 /// includes
 #include<string>
-#include<functional>
 #include<pthread.h>
 #include<thrust/copy.h>
 #include<thrust/device_ptr.h>
@@ -1033,7 +1032,7 @@ public:
         else { // stateful case
             auto *keymap = new tbb::concurrent_unordered_map<decltype(get_key_t_KeyExtrGPU(key_extr)), wrapper_state_t<decltype(get_state_t_FilterGPU(func))>>();
             auto *spinlock = new pthread_spinlock_t();
-            pthread_spin_init(spinlock, 0);
+            pthread_spin_init(spinlock, 0); // spinlock initialization
             for (size_t i=0; i<parallelism; i++) { // create the internal replicas of the Filter_GPU
                 replicas.push_back(new FilterGPU_Replica<filtergpu_func_t, decltype(get_key_t_KeyExtrGPU(key_extr))>(_func, i, name, keymap, spinlock));
             }
@@ -1054,7 +1053,7 @@ public:
         if constexpr(!std::is_same<decltype(get_key_t_KeyExtrGPU(key_extr)), empty_key_t>::value) { // stateful case
             auto *keymap = new tbb::concurrent_unordered_map<decltype(get_key_t_KeyExtrGPU(key_extr)), wrapper_state_t<decltype(get_state_t_FilterGPU(func))>>();
             auto *spinlock = new pthread_spinlock_t();
-            pthread_spin_init(spinlock, 0);
+            pthread_spin_init(spinlock, 0); // spinlock initialization
             for (auto *r: replicas) {
                 r->spinlock = spinlock;
                 r->keymap = keymap;
@@ -1089,7 +1088,7 @@ public:
             if constexpr(!std::is_same<decltype(get_key_t_KeyExtrGPU(key_extr)), empty_key_t>::value) { // stateful case
                 auto *keymap = new tbb::concurrent_unordered_map<decltype(get_key_t_KeyExtrGPU(key_extr)), wrapper_state_t<decltype(get_state_t_FilterGPU(func))>>();
                 auto *spinlock = new pthread_spinlock_t();
-                pthread_spin_init(spinlock, 0);
+                pthread_spin_init(spinlock, 0); // spinlock initialization
                 for (auto *r: replicas) {
                     r->spinlock = spinlock;
                     r->keymap = keymap;

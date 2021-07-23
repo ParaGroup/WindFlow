@@ -53,6 +53,10 @@ class Map_GPU;
 template<typename filtergpu_func_t, typename key_extractor_func_t>
 class Filter_GPU;
 
+/// Forward declaration of the FFAT_Aggregator_GPU operator
+template<typename liftgpu_func_t, typename combgpu_func_t, typename key_extractor_func_t>
+class FFAT_Aggregator_GPU;
+
 //@cond DOXY_IGNORE
 
 // Compute the next power of two greater than a 32-bit integer
@@ -194,6 +198,21 @@ struct wrapper_state_t
         return *this;
     }
 };
+
+// Function to create a window result on GPU
+template<typename result_t, typename key_t>
+__device__ inline result_t create_win_result_t_gpu(key_t _key,
+                                                   uint64_t _id=0)
+{
+    if constexpr (std::is_same<key_t, empty_key_t>::value) { // case without key
+        result_t res(_id); // constructor with id parameter
+        return res;
+    }
+    else { // case with key
+        result_t res(_key, _id); // constructor with key and id parameters
+        return res;
+    }
+}
 
 //@endcond
 

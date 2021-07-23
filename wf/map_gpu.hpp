@@ -32,7 +32,6 @@
 
 /// includes
 #include<string>
-#include<functional>
 #include<pthread.h>
 #include<batch_gpu_t.hpp>
 #if defined (WF_TRACING_ENABLED)
@@ -147,7 +146,7 @@ private:
         }
     };
     Batch_GPU_t<tuple_t> *batch_tobe_sent; // pointer to the output batch to be sent
-    std::vector<record_t *> records; // vector of pointers to record structures used circularly)
+    std::vector<record_t *> records; // vector of pointers to record structures (used circularly)
     size_t id_r; // identifier used for overlapping purposes
     int numSMs; // number of Stream Multiprocessor of the GPU
     int max_threads_per_sm; // maximum number of threads resident on each Stream Multiprocessor of the GPU
@@ -662,7 +661,7 @@ public:
                                                                                                         num_active_thread_per_warp,
                                                                                                         func);
         gpuErrChk(cudaPeekAtLastError());
-        gpuErrChk(cudaStreamSynchronize(input->cudaStream));
+        gpuErrChk(cudaStreamSynchronize(input->cudaStream)); // <-- I think that this one is not really needed!
         emitter->emit_inplace(input, this); // send the output batch once computed
 #if defined (WF_TRACING_ENABLED)
         endTS = current_time_nsecs();
@@ -873,7 +872,7 @@ public:
         else { // stateful case
             auto *keymap = new tbb::concurrent_unordered_map<decltype(get_key_t_KeyExtrGPU(key_extr)), wrapper_state_t<decltype(get_state_t_MapGPU(func))>>();
             auto *spinlock = new pthread_spinlock_t();
-            pthread_spin_init(spinlock, 0);
+            pthread_spin_init(spinlock, 0); // spinlock initialization
             for (size_t i=0; i<parallelism; i++) { // create the internal replicas of the Map_GPU
                 replicas.push_back(new MapGPU_Replica<mapgpu_func_t, decltype(get_key_t_KeyExtrGPU(key_extr))>(_func, i, name, keymap, spinlock));
             }
@@ -894,7 +893,7 @@ public:
         if constexpr(!std::is_same<decltype(get_key_t_KeyExtrGPU(key_extr)), empty_key_t>::value) { // stateful case
             auto *keymap = new tbb::concurrent_unordered_map<decltype(get_key_t_KeyExtrGPU(key_extr)), wrapper_state_t<decltype(get_state_t_MapGPU(func))>>();
             auto *spinlock = new pthread_spinlock_t();
-            pthread_spin_init(spinlock, 0);
+            pthread_spin_init(spinlock, 0); // spinlock initialization
             for (auto *r: replicas) {
                 r->spinlock = spinlock;
                 r->keymap = keymap;
@@ -929,7 +928,7 @@ public:
             if constexpr(!std::is_same<decltype(get_key_t_KeyExtrGPU(key_extr)), empty_key_t>::value) { // stateful case
                 auto *keymap = new tbb::concurrent_unordered_map<decltype(get_key_t_KeyExtrGPU(key_extr)), wrapper_state_t<decltype(get_state_t_MapGPU(func))>>();
                 auto *spinlock = new pthread_spinlock_t();
-                pthread_spin_init(spinlock, 0);
+                pthread_spin_init(spinlock, 0); // spinlock initialization
                 for (auto *r: replicas) {
                     r->spinlock = spinlock;
                     r->keymap = keymap;

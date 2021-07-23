@@ -18,13 +18,13 @@
  *  Test of the Keyed_Windows operator with time-based windows. This test
  *  also includes some basic GPU operators.
  *  
- * +-------------------------------------------------------------------------+
- * |  +-----+     +-----+     +-----+     +-----+     +-------+     +-----+  |
- * |  |  S  |     |  F  |     |  M  |     |  M  |     | KW_TB |     |  S  |  |
- * |  | CPU +---->+ CPU +---->+ GPU +---->+ GPU +---->+  CPU  +---->+ CPU |  |
- * |  | (*) |     | (*) |     | (*) |     | (*) |     |  (*)  |     | (*) |  |
- * |  +-----+     +-----+     +-----+     +-----+     +-------+     +-----+  |
- * +-------------------------------------------------------------------------+
+ *  +-------------------------------------------------------------------------+
+ *  |  +-----+     +-----+     +-----+     +-----+     +-------+     +-----+  |
+ *  |  |  S  |     |  F  |     |  M  |     |  M  |     | KW_TB |     |  S  |  |
+ *  |  | CPU +---->+ CPU +---->+ GPU +---->+ GPU +---->+  CPU  +---->+ CPU |  |
+ *  |  | (*) |     | (*) |     | (*) |     | (*) |     |  (*)  |     | (*) |  |
+ *  |  +-----+     +-----+     +-----+     +-----+     +-------+     +-----+  |
+ *  +-------------------------------------------------------------------------+
  */ 
 
 // includes
@@ -122,13 +122,13 @@ int main(int argc, char *argv[])
                             .withOutputBatchSize(dist_b(rng))
                             .build();
         mp.chain(filter);
-        Map_Functor map_functor1;
+        Map_Functor_GPU map_functor1;
         Map_GPU mapgpu1 = MapGPU_Builder(map_functor1)
                             .withName("mapgpu1")
                             .withParallelism(map1_degree)
                             .build();
         mp.chain(mapgpu1);
-        Map_Functor_KB map_functor_gpu2;
+        Map_Functor_GPU_KB map_functor_gpu2;
         Map_GPU mapgpu2 = MapGPU_Builder(map_functor_gpu2)
                                 .withName("mapgpu2")
                                 .withParallelism(map2_degree)

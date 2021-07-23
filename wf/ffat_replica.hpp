@@ -577,7 +577,7 @@ public:
                 result_t out = fat.getResult(gwid); // get a copy of the result of the fired window
                 fat.remove(slide_len); // purge the tuples in the last slide from FlatFAT
                 uint64_t used_wm = (execution_mode != Execution_Mode_t::DEFAULT) ? 0 : last_time;
-                emitter->emit(&out, 0, last_time+1, used_wm, this);
+                emitter->emit(&out, 0, last_time, used_wm, this);
 #if defined (WF_TRACING_ENABLED)
                 stats_record.outputs_sent++;
                 stats_record.bytes_sent += sizeof(result_t);
@@ -596,8 +596,8 @@ public:
             auto &fat = key_d.fat;
             auto &acc_results = key_d.acc_results;
             for (size_t i=0; i<acc_results.size(); i++) { // add all the accumulated results
-                uint64_t wid = (execution_mode != Execution_Mode_t::DEFAULT) ? 0 : last_time;
-                processCompleteTBWindows(key_d, acc_results[i], key, last_time+1, wid);
+                uint64_t used_wm = (execution_mode != Execution_Mode_t::DEFAULT) ? 0 : last_time;
+                processCompleteTBWindows(key_d, acc_results[i], key, last_time, used_wm);
                 key_d.last_quantum++;
             }
             fat.insert(key_d.pending_tuples); // add all the pending tuples to the FlatFAT
@@ -608,7 +608,7 @@ public:
                 result_t out = fat.getResult(gwid); // get a copy the result of the fired window
                 fat.remove(slide_len); // purge the tuples from Flat FAT
                 uint64_t used_wm = (execution_mode != Execution_Mode_t::DEFAULT) ? 0 : last_time;
-                emitter->emit(&out, 0, last_time+1, used_wm, this);
+                emitter->emit(&out, 0, last_time, used_wm, this);
 #if defined (WF_TRACING_ENABLED)
                 stats_record.outputs_sent++;
                 stats_record.bytes_sent += sizeof(result_t);

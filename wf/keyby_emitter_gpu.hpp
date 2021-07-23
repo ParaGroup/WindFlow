@@ -94,7 +94,7 @@ private:
     using tuple_t = decltype(get_tuple_t_KeyExtrGPU(key_extr)); // extracting the tuple_t type and checking the admissible signatures
     using key_t = decltype(get_key_t_KeyExtrGPU(key_extr)); // extracting the key_t type and checking the admissible signatures
     size_t num_dests; // number of destinations connected in output to the emitter
-    ssize_t size; // size of the batches to be produced by the emitter (-1 if the emitter explicitly receives batches to be forwared at it is)
+    ssize_t size; // size of the batches to be produced by the emitter (-1 if the emitter explicitly receives batches to be forwared as they are)
     size_t idx_dest; // identifier of the next destination to be used (meaningful if useTreeMode is true)
     bool useTreeMode; // true if the emitter is used in tree-based mode
     std::vector<std::pair<void *, size_t>> output_queue; // vector of pairs (messages and destination identifiers)
@@ -141,7 +141,7 @@ private:
     };
     std::vector<record_kb_t *> records_kb; // vector of pointers to record_kb_t structures (used circularly)
     Batch_GPU_t<tuple_t> *batch_tobe_sent; // pointer to the output batch to be sent
-    std::vector<Batch_CPU_t<tuple_t> *> bouts_cpu; // vector of pointers to CPU batches
+    std::vector<Batch_CPU_t<tuple_t> *> bouts_cpu; // vector of pointers to CPU batches to be sent
     std::vector<key_t *> keys_gpu; // vector of pointers to GPU arrays of keys (used circularly)
     std::vector<key_t *> dist_keys_gpu; // vector of pointers to GPU arrays of distinct keys (used circularly)
     std::vector<int *> sequence_gpu; // vector of pointers to GPU arrays of progressive indexes (used circularly)
@@ -621,7 +621,7 @@ public:
                  ff::ff_monode *_node,
                  bool _inPlace=false)
     {
-        _output->transfer2CPU(); // transfer of GPU data to a host memory array
+        _output->transfer2CPU(); // transferring the batch items to a host pinned memory array
         if (num_dests == 1) { // optimized case of one destination only -> the input batch is delivered as it is
             if (!useTreeMode) { // real send
                 _node->ff_send_out(_output);
@@ -721,7 +721,7 @@ public:
                     output_queue.push_back(std::make_pair(punc, i));
                 }
             }
-        }       
+        }
     }
 
     // Flushing function of the emitter

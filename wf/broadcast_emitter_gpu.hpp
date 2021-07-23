@@ -174,7 +174,7 @@ public:
         (_output->delete_counter).fetch_add(num_dests-1);
         assert((_output->watermarks).size() == 1);
         (_output->watermarks).insert((_output->watermarks).end(), num_dests-1, (_output->watermarks)[0]); // copy the watermark (having one per destination)
-        _output->transfer2CPU(); // transfer of GPU data to a host memory array
+        _output->transfer2CPU(); // transferring the batch items to a host pinned memory array
         for (size_t i=0; i<num_dests; i++) {
             if (!useTreeMode) { // real send
                 _node->ff_send_out_to(_output, i);

@@ -45,7 +45,7 @@ private:
     using compare_func_t = std::function<bool(const wrapper_t &, const wrapper_t &)>; // function type to compare two wrapped tuples
     using iterator_t = typename std::deque<wrapper_t>::iterator; // iterator type
     compare_func_t lessThan; // function to compare two wrapped tuples
-    std::deque<wrapper_t> archive; // container implementing the ordered archive of wrapped tuples
+    std::deque<wrapper_t> archive; // container implementing the ordered archive of wrapped tuples. Replace it with another STL container (e.g., a list) should work without issues...
 
 public:
     // Constructor

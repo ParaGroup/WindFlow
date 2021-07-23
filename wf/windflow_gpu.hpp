@@ -33,5 +33,6 @@
 #include<builders_gpu.hpp>
 #include<map_gpu.hpp>
 #include<filter_gpu.hpp>
+#include<ffat_aggregator_gpu.hpp>
 
 #endif

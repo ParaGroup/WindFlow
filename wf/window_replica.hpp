@@ -550,17 +550,17 @@ public:
                 }
                 uint64_t used_wm = (execution_mode != Execution_Mode_t::DEFAULT) ? 0 : last_time;
                 if (role == role_t::MAP) { // special case: role is MAP
-                    emitter->emit(&(win.getResult()), key_d.next_res_id, last_time+1, used_wm, this);
+                    emitter->emit(&(win.getResult()), key_d.next_res_id, last_time, used_wm, this);
                     key_d.next_res_id += map_indexes.second;
                 }
                 else if (role == role_t::PLQ) { // special case: role is PLQ
                     size_t hashcode = std::hash<typename std::remove_const<decltype(k.first)>::type>()(k.first); // compute the hashcode of the key
                     uint64_t new_id = ((id_inner - (hashcode % num_inner) + num_inner) % num_inner) + (key_d.next_res_id * num_inner);
-                    emitter->emit(&(win.getResult()), new_id, last_time+1, used_wm, this);
+                    emitter->emit(&(win.getResult()), new_id, last_time, used_wm, this);
                     key_d.next_res_id++;
                 }
                 else { // standard case
-                    emitter->emit(&(win.getResult()), 0, last_time+1, used_wm, this);
+                    emitter->emit(&(win.getResult()), 0, last_time, used_wm, this);
                 }
 #if defined (WF_TRACING_ENABLED)
                 stats_record.outputs_sent++;

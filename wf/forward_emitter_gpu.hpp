@@ -44,7 +44,7 @@ private:
     key_extractor_func_t key_extr; // functional logic to extract the key attribute from the tuple_t
     using tuple_t = decltype(get_tuple_t_KeyExtrGPU(key_extr)); // extracting the tuple_t type and checking the admissible signatures
     size_t num_dests; // number of destinations connected in output to the emitter
-    ssize_t size; // size of the batches to be produced by the emitter (-1 if the emitter explicitly receives batches to be forwared at it is)
+    ssize_t size; // size of the batches to be produced by the emitter (-1 if the emitter explicitly receives batches to be forwared as they are)
     size_t idx_dest; // identifier of the next destination to be used (meaningful if useTreeMode is true)
     bool useTreeMode; // true if the emitter is used in tree-based mode
     std::vector<std::pair<void *, size_t>> output_queue; // vector of pairs (messages and destination identifiers)
@@ -336,7 +336,7 @@ public:
     void routing(typename std::enable_if<b1 && !b2, Batch_GPU_t<tuple_t>>::type *_output,
                  ff::ff_monode *_node)
     {
-        _output->transfer2CPU(); // transfer of GPU data to a host memory array
+        _output->transfer2CPU(); // transferring the batch items to a host pinned memory array
         if (!useTreeMode) { // real send
             _node->ff_send_out(_output);
         }

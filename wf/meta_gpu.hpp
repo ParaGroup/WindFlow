@@ -161,6 +161,33 @@ decltype(get_state_t_FilterGPU(&F_t::operator())) get_state_t_FilterGPU(F_t);
 
 std::false_type get_state_t_FilterGPU(...); // black hole
 /*****************************************************************************************************************************/
+
+/**************************************************** WINDOWED OPERATORS *****************************************************/
+// declaration of functions to extract the tuple type from the signature of the combine function
+template<typename F_t, typename Arg> // combine function
+Arg get_tuple_t_CombGPU(void (F_t::*)(const Arg&, const Arg&, Arg&) const);
+
+template<typename F_t, typename Arg> // combine function
+Arg get_tuple_t_CombGPU(void (F_t::*)(const Arg&, const Arg&, Arg&));
+
+// template<typename Arg> // combine function
+// Arg get_tuple_t_CombGPU(void (*)(const Arg&, const Arg&, Arg&));
+
+template<typename F_t, typename Arg> // combine riched function
+Arg get_tuple_t_CombGPU(void (F_t::*)(const Arg&, const Arg&, Arg&, RuntimeContext&) const);
+
+template<typename F_t, typename Arg> // combine riched function
+Arg get_tuple_t_CombGPU(void (F_t::*)(const Arg&, const Arg&, Arg&, RuntimeContext&));
+
+// template<typename Arg> // combine riched function
+// Arg get_tuple_t_CombGPU(void (*)(const Arg&, const Arg&, Arg&, RuntimeContext&));
+
+template<typename F_t>
+decltype(get_tuple_t_Comb(&F_t::operator())) get_tuple_t_CombGPU(F_t);
+
+std::false_type get_tuple_t_CombGPU(...); // black hole
+/*****************************************************************************************************************************/
+
 } // namespace wf
 
 #endif

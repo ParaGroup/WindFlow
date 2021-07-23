@@ -103,7 +103,7 @@ public:
     /** 
      *  \brief Set the output batch size of the Source
      *  
-     *  \param _outputBatchSize number of inputs per batch (zero means no batching)
+     *  \param _outputBatchSize number of outputs per batch (zero means no batching)
      *  \return a reference to the builder object
      */ 
     Source_Builder<source_func_t> &withOutputBatchSize(size_t _outputBatchSize)
@@ -249,7 +249,7 @@ public:
     /** 
      *  \brief Set the output batch size of the Filter
      *  
-     *  \param _outputBatchSize number of inputs per batch (zero means no batching)
+     *  \param _outputBatchSize number of outputs per batch (zero means no batching)
      *  \return a reference to the builder object
      */ 
     Filter_Builder<filter_func_t, key_t> &withOutputBatchSize(size_t _outputBatchSize)
@@ -399,7 +399,7 @@ public:
     /** 
      *  \brief Set the output batch size of the Map
      *  
-     *  \param _outputBatchSize number of inputs per batch (zero means no batching)
+     *  \param _outputBatchSize number of outputs per batch (zero means no batching)
      *  \return a reference to the builder object
      */ 
     Map_Builder<map_func_t, key_t> &withOutputBatchSize(size_t _outputBatchSize)
@@ -547,7 +547,7 @@ public:
     /** 
      *  \brief Set the output batch size of the FlatMap
      *  
-     *  \param _outputBatchSize number of inputs per batch (zero means no batching)
+     *  \param _outputBatchSize number of outputs per batch (zero means no batching)
      *  \return a reference to the builder object
      */ 
     FlatMap_Builder<flatmap_func_t, key_t> &withOutputBatchSize(size_t _outputBatchSize)
@@ -696,7 +696,7 @@ public:
     /** 
      *  \brief Set the output batch size of the Reduce
      *  
-     *  \param _outputBatchSize number of inputs per batch (zero means no batching)
+     *  \param _outputBatchSize number of outputs per batch (zero means no batching)
      *  \return a reference to the builder object
      */ 
     Reduce_Builder<reduce_func_t, key_t> &withOutputBatchSize(size_t _outputBatchSize)
@@ -868,7 +868,7 @@ public:
     /** 
      *  \brief Set the output batch size of the Keyed_Windows
      *  
-     *  \param _outputBatchSize number of inputs per batch (zero means no batching)
+     *  \param _outputBatchSize number of outputs per batch (zero means no batching)
      *  \return a reference to the builder object
      */ 
     Keyed_Windows_Builder<win_func_t, key_t> &withOutputBatchSize(size_t _outputBatchSize)
@@ -1087,7 +1087,7 @@ public:
     /** 
      *  \brief Set the output batch size of the Parallel_Windows
      *  
-     *  \param _outputBatchSize number of inputs per batch (zero means no batching)
+     *  \param _outputBatchSize number of outputs per batch (zero means no batching)
      *  \return a reference to the builder object
      */ 
     Parallel_Windows_Builder<win_func_t, key_t> &withOutputBatchSize(size_t _outputBatchSize)
@@ -1316,7 +1316,7 @@ public:
     /** 
      *  \brief Set the output batch size of the Paned_Windows
      *  
-     *  \param _outputBatchSize number of inputs per batch (zero means no batching)
+     *  \param _outputBatchSize number of outputs per batch (zero means no batching)
      *  \return a reference to the builder object
      */ 
     Paned_Windows_Builder<plq_func_t, wlq_func_t, key_t> &withOutputBatchSize(size_t _outputBatchSize)
@@ -1551,7 +1551,7 @@ public:
     /** 
      *  \brief Set the output batch size of the MapReduce_Windows
      *  
-     *  \param _outputBatchSize number of inputs per batch (zero means no batching)
+     *  \param _outputBatchSize number of outputs per batch (zero means no batching)
      *  \return a reference to the builder object
      */ 
     MapReduce_Windows_Builder<map_func_t, reduce_func_t, key_t> &withOutputBatchSize(size_t _outputBatchSize)
@@ -1711,7 +1711,8 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _func functional logic of the FFAT_Aggregator (a function or a callable type)
+     *  \param _lift_func lift functional logic of the FFAT_Aggregator (a function or a callable type)
+     *  \param _comb_func combine functional logic of the FFAT_Aggregator (a function or a callable type)
      */ 
     FFAT_Aggregator_Builder(lift_func_t _lift_func,
                             comb_func_t _comb_func):
@@ -1782,7 +1783,7 @@ public:
     /** 
      *  \brief Set the output batch size of the FFAT_Aggregator
      *  
-     *  \param _outputBatchSize number of inputs per batch (zero means no batching)
+     *  \param _outputBatchSize number of outputs per batch (zero means no batching)
      *  \return a reference to the builder object
      */ 
     FFAT_Aggregator_Builder<lift_func_t, comb_func_t, key_t> &withOutputBatchSize(size_t _outputBatchSize)

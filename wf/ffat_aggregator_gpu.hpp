@@ -15,62 +15,60 @@
  */
 
 /** 
- *  @file    ffat_aggregator.hpp
+ *  @file    ffat_aggregator_gpu.hpp
  *  @author  Gabriele Mencagli
  *  
- *  @brief FFAT_Aggregator supporting associative windowed queries
+ *  @brief FFAT_Aggregator_GPU supporting associative windowed queries on GPU
  *  
- *  @section FFAT_Aggregator (Description)
+ *  @section FFAT_Aggregator_GPU (Description)
  *  
- *  This file implements the FFAT_Aggregator operator able to execute associative windowed
- *  queries using the FlatFAT algorithm.
+ *  This file implements the FFAT_Aggregator_GPU operator able to execute associative windowed
+ *  queries on GPU using a GPU-based variant of the FlatFAT algorithm.
  */ 
 
-#ifndef FFAT_AGGREGATOR_H
-#define FFAT_AGGREGATOR_H
+#ifndef FFAT_AGGREGATOR_GPU_H
+#define FFAT_AGGREGATOR_GPU_H
 
 /// includes
 #include<string>
-#include<functional>
-#include<context.hpp>
-#include<single_t.hpp>
 #if defined (WF_TRACING_ENABLED)
     #include<stats_record.hpp>
 #endif
-#include<ffat_replica.hpp>
 #include<basic_emitter.hpp>
 #include<basic_operator.hpp>
+#include<ffat_replica_gpu.hpp>
 
 namespace wf {
 
 /** 
- *  \class FFAT_Aggregator
+ *  \class FFAT_Aggregator_GPU
  *  
- *  \brief FFAT_Aggregator executing associative windowed queries using the FlatFAT algorithm
+ *  \brief FFAT_Aggregator_GPU executing associative windowed queries on GPU
  *  
- *  This class implements the FFAT_Aggregator operator able to execute associative windowed
- *  queries using the FlatFAT algorithm.
+ *  This class implements the FFAT_Aggregator_GPU operator able to execute associative windowed
+ *  queries on GPU using a GPU-based variant of the FlatFAT algorithm.
  */ 
-template<typename lift_func_t, typename comb_func_t, typename key_extractor_func_t>
-class FFAT_Aggregator: public Basic_Operator
+template<typename liftgpu_func_t, typename combgpu_func_t, typename key_extractor_func_t>
+class FFAT_Aggregator_GPU: public Basic_Operator
 {
 private:
     friend class MultiPipe; // friendship with the MultiPipe class
     friend class PipeGraph; // friendship with the PipeGraph class
-    lift_func_t lift_func; // functional logic of the lift
-    comb_func_t comb_func; // functional logic of the combine
+    liftgpu_func_t lift_func; // functional logic of the lift
+    combgpu_func_t comb_func; // functional logic of the combine
     key_extractor_func_t key_extr; // logic to extract the key attribute from the tuple_t
     size_t parallelism; // parallelism of the FFAT_Aggregator
     std::string name; // name of the FFAT_Aggregator
     bool input_batching; // if true, the FFAT_Aggregator expects to receive batches instead of individual inputs
-    size_t outputBatchSize; // batch size of the outputs produced by the FFAT_Aggregator
-    std::vector<FFAT_Replica<lift_func_t, comb_func_t, key_extractor_func_t>*> replicas; // vector of pointers to the replicas of the FFAT_Aggregator
+    size_t outputBatchSize; // batch size of the outputs produced by the FFAT_Aggregator_GPU
+    std::vector<FFAT_Replica_GPU<liftgpu_func_t, combgpu_func_t, key_extractor_func_t>*> replicas; // vector of pointers to the replicas of the FFAT_Aggregator_GPU
     uint64_t win_len; // window length (in no. of tuples or in time units)
     uint64_t slide_len; // slide length (in no. of tuples or in time units)
+    uint64_t quantum; // quantum value (for time-based windows only)
     uint64_t lateness; // triggering delay in time units (meaningful for TB windows in DEFAULT mode)
     Win_Type_t winType; // window type (CB or TB)
 
-    // Configure the FFAT_Aggregator to receive batches instead of individual inputs
+    // Configure the FFAT_Aggregator_GPU to receive batches instead of individual inputs
     void receiveBatches(bool _input_batching) override
     {
         for (auto *r: replicas) {
@@ -78,7 +76,7 @@ private:
         }
     }
 
-    // Set the emitter used to route outputs from the FFAT_Aggregator
+    // Set the emitter used to route outputs from the FFAT_Aggregator_GPU
     void setEmitter(Basic_Emitter *_emitter) override
     {
         replicas[0]->setEmitter(_emitter);
@@ -87,7 +85,7 @@ private:
         }
     }
 
-    // Check whether the FFAT_Aggregator has terminated
+    // Check whether the FFAT_Aggregator_GPU has terminated
     bool isTerminated() const override
     {
         bool terminated = true;
@@ -97,7 +95,7 @@ private:
         return terminated;
     }
 
-    // Set the execution mode of the FFAT_Aggregator
+    // Set the execution mode of the FFAT_Aggregator_GPU
     void setExecutionMode(Execution_Mode_t _execution_mode)
     {
         for (auto *r: replicas) {
@@ -112,7 +110,7 @@ private:
     }
 
 #if defined (WF_TRACING_ENABLED)
-    // Dump the log file (JSON format) of statistics of the FFAT_Aggregator
+    // Dump the log file (JSON format) of statistics of the FFAT_Aggregator_GPU
     void dumpStats() const override
     {
         std::ofstream logfile; // create and open the log file in the LOG_DIR directory
@@ -147,7 +145,7 @@ private:
         writer.Key("Operator_name");
         writer.String(name.c_str());
         writer.Key("Operator_type");
-        writer.String("FFAT_Aggregator");
+        writer.String("FFAT_Aggregator_GPU");
         writer.Key("Distribution");
         writer.String("KEYBY");
         writer.Key("isTerminated");
@@ -155,7 +153,7 @@ private:
         writer.Key("isWindowed");
         writer.Bool(true);
         writer.Key("isGPU");
-        writer.Bool(false);
+        writer.Bool(true);
         writer.Key("Window_type");
         if (winType == Win_Type_t::CB) {
             writer.String("count-based");
@@ -197,75 +195,80 @@ public:
      *  \param _closing_func closing functional logic of the FFAT_Aggregator (a function or callable type)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
+     *  \param _quantum quantum value (for time-based windows only, 0 otherwise)
      *  \param _lateness (lateness in time units, meaningful for TB windows in DEFAULT mode)
      *  \param _winType window type (count-based CB or time-based TB)
      */ 
-    FFAT_Aggregator(lift_func_t _lift_func,
-                    comb_func_t _comb_func,
-                    key_extractor_func_t _key_extr,
-                    size_t _parallelism,
-                    std::string _name,
-                    size_t _outputBatchSize,
-                    std::function<void(RuntimeContext &)> _closing_func,
-                    uint64_t _win_len,
-                    uint64_t _slide_len,
-                    uint64_t _lateness,
-                    Win_Type_t _winType):
-                    lift_func(_lift_func),
-                    comb_func(_comb_func),
-                    key_extr(_key_extr),
-                    parallelism(_parallelism),
-                    name(_name),
-                    input_batching(false),
-                    outputBatchSize(_outputBatchSize),
-                    win_len(_win_len),
-                    slide_len(_slide_len),
-                    lateness(_lateness),
-                    winType(_winType)
+    FFAT_Aggregator_GPU(liftgpu_func_t _lift_func,
+                        combgpu_func_t _comb_func,
+                        key_extractor_func_t _key_extr,
+                        size_t _parallelism,
+                        std::string _name,
+                        size_t _outputBatchSize,
+                        uint64_t _win_len,
+                        uint64_t _slide_len,
+                        uint64_t _quantum,
+                        uint64_t _lateness,
+                        Win_Type_t _winType):
+                        lift_func(_lift_func),
+                        comb_func(_comb_func),
+                        key_extr(_key_extr),
+                        parallelism(_parallelism),
+                        name(_name),
+                        input_batching(false),
+                        outputBatchSize(_outputBatchSize),
+                        win_len(_win_len),
+                        slide_len(_slide_len),
+                        quantum(_quantum),
+                        lateness(_lateness),
+                        winType(_winType)
     {
         if (parallelism == 0) { // check the validity of the parallelism value
-            std::cerr << RED << "WindFlow Error: FFAT_Aggregator has parallelism zero" << DEFAULT_COLOR << std::endl;
+            std::cerr << RED << "WindFlow Error: FFAT_Aggregator_GPU has parallelism zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         if (win_len == 0 || slide_len == 0) { // check the validity of the windowing parameters
-            std::cerr << RED << "WindFlow Error: FFAT_Aggregator used with window length or slide equal to zero" << DEFAULT_COLOR << std::endl;
+            std::cerr << RED << "WindFlow Error: FFAT_Aggregator_GPU used with window length or slide equal to zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        for (size_t i=0; i<parallelism; i++) { // create the internal replicas of the FFAT_Aggregator
-            replicas.push_back(new FFAT_Replica<lift_func_t, comb_func_t, key_extractor_func_t>(lift_func,
-                                                                                                comb_func,
-                                                                                                key_extr,
-                                                                                                name,
-                                                                                                RuntimeContext(parallelism, i),
-                                                                                                _closing_func,
-                                                                                                win_len,
-                                                                                                slide_len,
-                                                                                                lateness,
-                                                                                                winType));
+        for (size_t i=0; i<parallelism; i++) { // create the internal replicas of the FFAT_Aggregator_GPU
+            replicas.push_back(new FFAT_Replica_GPU<liftgpu_func_t, combgpu_func_t, key_extractor_func_t>(lift_func,
+                                                                                                          comb_func,
+                                                                                                          key_extr,
+                                                                                                          i,
+                                                                                                          name,
+                                                                                                          win_len,
+                                                                                                          slide_len,
+                                                                                                          _quantum,
+                                                                                                          lateness,
+                                                                                                          winType,
+                                                                                                          outputBatchSize,
+                                                                                                          false));
         }
     }
 
     /// Copy constructor
-    FFAT_Aggregator(const FFAT_Aggregator &_other):
-                    lift_func(_other.lift_func),
-                    comb_func(_other.comb_func),
-                    key_extr(_other.key_extr),
-                    parallelism(_other.parallelism),
-                    name(_other.name),
-                    input_batching(_other.input_batching),
-                    outputBatchSize(_other.outputBatchSize),
-                    win_len(_other.win_len),
-                    slide_len(_other.slide_len),
-                    lateness(_other.lateness),
-                    winType(_other.winType)
+    FFAT_Aggregator_GPU(const FFAT_Aggregator_GPU &_other):
+                        lift_func(_other.lift_func),
+                        comb_func(_other.comb_func),
+                        key_extr(_other.key_extr),
+                        parallelism(_other.parallelism),
+                        name(_other.name),
+                        input_batching(_other.input_batching),
+                        outputBatchSize(_other.outputBatchSize),
+                        win_len(_other.win_len),
+                        slide_len(_other.slide_len),
+                        quantum(_other.quantum),
+                        lateness(_other.lateness),
+                        winType(_other.winType)
     {
-        for (size_t i=0; i<parallelism; i++) { // deep copy of the pointers to the FFAT_Aggregator replicas
-            replicas.push_back(new FFAT_Replica<lift_func_t, comb_func_t, key_extractor_func_t>(*(_other.replicas[i])));
+        for (size_t i=0; i<parallelism; i++) { // deep copy of the pointers to the FFAT_Aggregator_GPU replicas
+            replicas.push_back(new FFAT_Replica_GPU<liftgpu_func_t, combgpu_func_t, key_extractor_func_t>(*(_other.replicas[i])));
         }
     }
 
     // Destructor
-    ~FFAT_Aggregator() override
+    ~FFAT_Aggregator_GPU() override
     {
         for (auto *r: replicas) { // delete all the replicas
             delete r;
@@ -273,7 +276,7 @@ public:
     }
 
     /// Copy Assignment Operator
-    FFAT_Aggregator& operator=(const FFAT_Aggregator &_other)
+    FFAT_Aggregator_GPU& operator=(const FFAT_Aggregator_GPU &_other)
     {
         if (this != &_other) {
             lift_func = _other.lift_func;
@@ -285,6 +288,7 @@ public:
             outputBatchSize = _other.outputBatchSize;
             win_len = _other.win_len;
             slide_len = _other.slide_len;
+            quantum = _other.quantum;
             lateness = _other.lateness;
             winType = _other.winType;
             for (auto *r: replicas) { // delete all the replicas
@@ -292,14 +296,14 @@ public:
             }
             replicas.clear();      
             for (size_t i=0; i<parallelism; i++) { // deep copy of the pointers to the FFAT_Aggregator replicas
-                replicas.push_back(new FFAT_Aggregator<lift_func_t, comb_func_t, key_extractor_func_t>(*(_other.replicas[i])));
+                replicas.push_back(new FFAT_Replica_GPU<liftgpu_func_t, combgpu_func_t, key_extractor_func_t>(*(_other.replicas[i])));
             }
         }
         return *this;
     }
 
     /// Move Assignment Operator
-    FFAT_Aggregator& operator=(FFAT_Aggregator &&_other)
+    FFAT_Aggregator_GPU& operator=(FFAT_Aggregator_GPU &&_other)
     {
         lift_func = std::move(_other.lift_func);
         comb_func = std::move(_other.comb_func);
@@ -310,6 +314,7 @@ public:
         outputBatchSize = _other.outputBatchSize;
         win_len = _other.win_len;
         slide_len = _other.slide_len;
+        quantum = _other.quantum;
         lateness = _other.lateness;
         winType = _other.winType;
         for (auto *r: replicas) { // delete all the replicas
@@ -320,17 +325,17 @@ public:
     }
 
     /** 
-     *  \brief Get the type of the FFAT_Aggregator as a string
-     *  \return type of the FFAT_Aggregator
+     *  \brief Get the type of the FFAT_Aggregator_GPU as a string
+     *  \return type of the FFAT_Aggregator_GPU
      */ 
     std::string getType() const override
     {
-        return std::string("FFAT_Aggregator");
+        return std::string("FFAT_Aggregator_GPU");
     }
 
     /** 
-     *  \brief Get the name of the FFAT_Aggregator as a string
-     *  \return name of the FFAT_Aggregator
+     *  \brief Get the name of the FFAT_Aggregator_GPU as a string
+     *  \return name of the FFAT_Aggregator_GPU
      */ 
     std::string getName() const override
     {
@@ -338,8 +343,8 @@ public:
     }
 
     /** 
-     *  \brief Get the total parallelism of the FFAT_Aggregator
-     *  \return total parallelism of the FFAT_Aggregator
+     *  \brief Get the total parallelism of the FFAT_Aggregator_GPU
+     *  \return total parallelism of the FFAT_Aggregator_GPU
      */  
     size_t getParallelism() const override
     {
@@ -347,8 +352,8 @@ public:
     }
 
     /** 
-     *  \brief Return the input routing mode of the FFAT_Aggregator
-     *  \return routing mode used to send inputs to the FFAT_Aggregator
+     *  \brief Return the input routing mode of the FFAT_Aggregator_GPU
+     *  \return routing mode used to send inputs to the FFAT_Aggregator_GPU
      */ 
     Routing_Mode_t getInputRoutingMode() const override
     {
@@ -356,7 +361,7 @@ public:
     }
 
     /** 
-     *  \brief Return the size of the output batches that the FFAT_Aggregator should produce
+     *  \brief Return the size of the output batches that the FFAT_Aggregator_GPU should produce
      *  \return output batch size in number of tuples
      */ 
     size_t getOutputBatchSize() const override
@@ -365,7 +370,7 @@ public:
     }
 
     /** 
-     *  \brief Get the window type (CB or TB) utilized by the FFAT_Aggregator
+     *  \brief Get the window type (CB or TB) utilized by the FFAT_Aggregator_GPU
      *  \return adopted windowing semantics (count-based or time-based)
      */ 
     Win_Type_t getWinType() const
@@ -374,8 +379,8 @@ public:
     }
 
     /** 
-     *  \brief Get the number of ignored tuples by the FFAT_Aggregator
-     *  \return number of tuples ignored during the processing by the FFAT_Aggregator
+     *  \brief Get the number of ignored tuples by the FFAT_Aggregator_GPU
+     *  \return number of tuples ignored during the processing by the FFAT_Aggregator_GPU
      */ 
     size_t getNumIgnoredTuples() const
     {

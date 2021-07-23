@@ -102,6 +102,16 @@ The corresponding builder needs two parameters (for the lift and combine logics)
     void(const result_t &, const result_t &, result_t &);
     void(const result_t &, const result_t &, result_t &, RuntimeContext &);
 
+FFAT_ACCUMULATOR_GPU
+--------------------
+The corresponding builder needs two parameters (for the lift and combine logics) with the following accepted signatures:
+
+ * Lift
+    void(const tuple_t &, result_t &);
+
+ * Combine
+    __host__ __device__ void(const result_t &, const result_t &, result_t &);
+
 SINK
 ----
 void(std::optional<tuple_t> &);

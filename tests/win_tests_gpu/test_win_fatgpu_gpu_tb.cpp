@@ -15,14 +15,13 @@
  */
 
 /*  
- *  Test of the Paned_Windows operator with time-based windows. This test
- *  also includes some basic GPU operators.
+ *  Test of the FFAT_Aggregator_GPU operator with time-based windows.
  *  
  *  +--------------------------------------------------------------------------+
  *  |  +-----+     +-----+     +-----+     +-----+     +--------+     +-----+  |
- *  |  |  S  |     |  F  |     |  M  |     |  M  |     | PaW_TB |     |  S  |  |
- *  |  | CPU +---->+ CPU +---->+ GPU +---->+ GPU +---->+  CPU   +---->+ CPU |  |
- *  |  | (*) |     | (*) |     | (*) |     | (*) |     | (*,*)  |     | (*) |  |
+ *  |  |  S  |     |  F  |     |  M  |     |  M  |     | FAT_TB |     |  S  |  |
+ *  |  | CPU +---->+ CPU +---->+ GPU +---->+ GPU +---->+  GPU   +---->+ CPU |  |
+ *  |  | (*) |     | (*) |     | (*) |     | (*) |     |  (*)   |     | (*) |  |
  *  |  +-----+     +-----+     +-----+     +-----+     +--------+     +-----+  |
  *  +--------------------------------------------------------------------------+
  */ 
@@ -60,7 +59,7 @@ int main(int argc, char *argv[])
         cout << argv[0] << " -r [runs] -l [stream_length] -k [n_keys] -w [win length usec] -s [win slide usec]" << endl;
         exit(EXIT_SUCCESS);
     }
-    while ((option = getopt(argc, argv, "r:l:k:w:s:")) != -1) {
+    while ((option = getopt(argc, argv, "r:l:k:w:s:b:")) != -1) {
         switch (option) {
             case 'r': runs = atoi(optarg);
                      break;
@@ -71,7 +70,7 @@ int main(int argc, char *argv[])
             case 'w': win_len = atoi(optarg);
                      break;
             case 's': win_slide = atoi(optarg);
-                     break;
+                     break;                  
             default: {
                 cout << argv[0] << " -r [runs] -l [stream_length] -k [n_keys] -w [win length usec] -s [win slide usec]" << endl;
                 exit(EXIT_SUCCESS);
@@ -85,7 +84,7 @@ int main(int argc, char *argv[])
     size_t max = 9;
     std::uniform_int_distribution<std::mt19937::result_type> dist_p(min, max);
     std::uniform_int_distribution<std::mt19937::result_type> dist_b(100, 200);
-    int filter_degree, map1_degree, map2_degree, map3_degree, plq_degree, wlq_degree;
+    int filter_degree, map1_degree, map2_degree, map3_degree, fat_gpu_degree;
     size_t source_degree, sink_degree;
     long last_result = 0;
     source_degree = 1; // dist_p(rng);
@@ -95,19 +94,18 @@ int main(int argc, char *argv[])
         map1_degree = dist_p(rng);
         map2_degree = dist_p(rng);
         map3_degree = dist_p(rng);
-        plq_degree = dist_p(rng);
-        wlq_degree = dist_p(rng);
+        fat_gpu_degree = dist_p(rng);
         sink_degree = dist_p(rng);
         cout << "Run " << i << endl;
         std::cout << "+--------------------------------------------------------------------------+" << std::endl;
         std::cout << "|  +-----+     +-----+     +-----+     +-----+     +--------+     +-----+  |" << std::endl;
-        std::cout << "|  |  S  |     |  F  |     |  M  |     |  M  |     | PaW_TB |     |  S  |  |" << std::endl;
-        std::cout << "|  | CPU +---->+ CPU +---->+ GPU +---->+ GPU +---->+  CPU   +---->+ CPU |  |" << std::endl;
-        std::cout << "|  | (" << source_degree << ") |     | (" << filter_degree << ") |     | (" << map1_degree << ") |     | (" << map2_degree << ") |     | (" << plq_degree << "," << wlq_degree << ")  |     | (" << sink_degree << ") |  |" << std::endl;
+        std::cout << "|  |  S  |     |  F  |     |  M  |     |  M  |     | FAT_TB |     |  S  |  |" << std::endl;
+        std::cout << "|  | CPU +---->+ CPU +---->+ GPU +---->+ GPU +---->+  GPU   +---->+ CPU |  |" << std::endl;
+        std::cout << "|  | (" << source_degree << ") |     | (" << filter_degree << ") |     | (" << map1_degree << ") |     | (" << map2_degree << ") |     |  (" << fat_gpu_degree << ")   |     | (" << sink_degree << ") |  |" << std::endl;
         std::cout << "|  +-----+     +-----+     +-----+     +-----+     +--------+     +-----+  |" << std::endl;
         std::cout << "+--------------------------------------------------------------------------+" << std::endl;
         // prepare the test
-        PipeGraph graph("test_win_paw_gpu_tb", Execution_Mode_t::DEFAULT, Time_Policy_t::EVENT_TIME);
+        PipeGraph graph("test_win_fatgpu_gpu_tb", Execution_Mode_t::DEFAULT, Time_Policy_t::EVENT_TIME);
         Source_Positive_Functor source_functor(stream_len, n_keys, true);
         Source source = Source_Builder(source_functor)
                             .withName("source")
@@ -136,15 +134,16 @@ int main(int argc, char *argv[])
                                 .withKeyBy([] __host__ __device__ (const tuple_t &t) -> size_t { return t.key; })
                                 .build();
         mp.chain(mapgpu2);
-        Stage1_Functor plq_functor;
-        Stage2_Functor wlq_functor;
-        Paned_Windows pawins = Paned_Windows_Builder(plq_functor, wlq_functor)
-                                    .withName("paned_wins")
-                                    .withParallelism(plq_degree, wlq_degree)
-                                    .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
-                                    .withTBWindows(microseconds(win_len), microseconds(win_slide))
-                                    .build();
-        mp.add(pawins);
+        Lift_Functor lift_functor;
+        Comb_Functor_GPU comb_functor_gpu;
+        FFAT_Aggregator_GPU fatagg_gpu = FFAT_AggregatorGPU_Builder(lift_functor, comb_functor_gpu)
+                                            .withName("ffat_agg_gpu")
+                                            .withParallelism(fat_gpu_degree)
+                                            .withKeyBy([] __host__ __device__ (const tuple_t &t) -> size_t { return t.key; })
+                                            .withTBWindows(microseconds(win_len), microseconds(win_slide), microseconds(100))
+                                            .withOutputBatchSize(dist_b(rng))
+                                            .build();
+        mp.add(fatagg_gpu);
         Sink_Functor sink_functor;
         Sink sink = Sink_Builder(sink_functor)
                         .withName("sink")

@@ -36,13 +36,13 @@ struct tuple_t
     uint64_t id;
     int64_t value;
 
-    // Constructor I (required by GPU operators)
+    // Constructor I
     tuple_t():
             key(0),
             id(0),
             value(0) {}
 
-    // Constructor II (required by Paned_Windows and MapReduce_Windows operators)
+    // Constructor II
     tuple_t(size_t _key,
             uint64_t _id):
             key(_key),
@@ -57,14 +57,14 @@ struct result_t
     uint64_t id;
     int64_t value;
 
-    // Constructor I (required by GPU operators)
-    result_t():
+    // Constructor I
+    __host__ __device__ result_t():
              key(0),
              id(0),
              value(0) {}
 
-    // Constructor II (required by all window-based operators)
-    result_t(size_t _key,
+    // Constructor II
+    __host__ __device__ result_t(size_t _key,
              uint64_t _id):
              key(_key),
              id(_id),
@@ -196,18 +196,18 @@ public:
 };
 
 // Map functor on GPU
-class Map_Functor
+class Map_Functor_GPU
 {
 public:
     // operator()
-    __host__ __device__ void operator()(tuple_t &t)
+    __device__ void operator()(tuple_t &t)
     {
         t.value = t.value + 2;
     }
 };
 
 // Map functor on GPU with keyby distribution
-class Map_Functor_KB
+class Map_Functor_GPU_KB
 {
 public:
     // operator()
@@ -301,6 +301,17 @@ class Comb_Functor
 public:
     // operator()
     void operator()(const result_t &input1, const result_t &input2, result_t &output)
+    {
+        output.value = input1.value + input2.value;
+    }
+};
+
+// Combine functor on GPU
+class Comb_Functor_GPU
+{
+public:
+    // operator()
+    __host__ __device__ void operator()(const result_t &input1, const result_t &input2, result_t &output)
     {
         output.value = input1.value + input2.value;
     }

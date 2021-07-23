@@ -118,7 +118,7 @@ struct Batch_GPU_t: Batch_t<tuple_t>
         return size;
     }
 
-    // Trasfering the GPU content to the host pinned array
+    // Trasfering the batch items to a host pinned memory array
     void transfer2CPU()
     {
         if (pinned_data_cpu == nullptr) { // create the host pinned array if it does not exist yet

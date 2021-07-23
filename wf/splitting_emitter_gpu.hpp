@@ -116,6 +116,13 @@ public:
             delete e;
         }
         emitters = std::move(_other.emitters);
+        if (queue != nullptr) {
+            Batch_t<tuple_t> *del_batch = nullptr;
+            while (queue->pop((void **) &del_batch)) {
+                delete del_batch;
+            }
+            delete queue; // delete the recycling queue
+        }
         queue = std::exchange(_other.queue, nullptr);
     }
 
