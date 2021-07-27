@@ -7,9 +7,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <link rel="shortcut icon" type="image/png" href="favicon.png">
     
-	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?4406">
-	<link rel="stylesheet" type="text/css" href="style.css?9838">
-	<link rel="stylesheet" type="text/css" href="./css/prism.css?893">
+	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?8096">
+	<link rel="stylesheet" type="text/css" href="style.css?7966">
+	<link rel="stylesheet" type="text/css" href="./css/prism.css?2337">
 	
 	<link rel="stylesheet" type="text/css" href="./css/font-awesome.min.css">
 	
@@ -35,7 +35,7 @@
 <div class="page-container">
     
 <!-- bloc-0 -->
-<div class="bloc l-bloc " id="bloc-0">
+<div class="bloc l-bloc" id="bloc-0">
 	<div class="container bloc-sm">
 		<div class="row">
 			<div class="col">
@@ -99,7 +99,7 @@
 		<div class="row">
 			<div class="col">
 				<h2 class="mg-md tc-davys-grey-2">
-					<strong>WindFlow Usage</strong><br>
+					<strong>Example of Usage</strong><br>
 				</h2>
 				<div >
 				</div>
@@ -138,7 +138,7 @@ public:
 							
 						</div>
 				<p class="text-justify">
-								The Splitter is implemented as a FlatMap operator producing more outputs per input. Again, the functional logic can be provided as a function, lambda or functor (as in the snippet below) respecting a specific signature.<br>
+								The Splitter is implemented as a FlatMap operator producing more outputs per input. Again, the functional logic can be provided as a function, lambda or a functor object (as in the snippet below) respecting a specific signature.<br>
 							</p>
 				<div >
 								<pre><code class="language-cpp">
@@ -246,7 +246,7 @@ wf::Sink sink = wf::Sink_Builder(sink_functor)
 				<div >
 												<ol>
 <li><b>DETERMINISTIC</b>: in this mode the user is requested to generate inputs in the Sources ordered by timestamps. The run-time environment guarantees that all the replicas of the operators will process inputs ordered by timestamp. This execution modes prevents batching to be used and allows a deterministic execution often at the expense of performance.</li>
-<li><b>PROBABILISTIC</b>: in this mode Source replicas can generate outputs in any order, but the run-time system still sorts items before processing the functional logics of the operators. In this case, to respect the ordering, items can be dropped. This execution mode still prevents batching to be used, but can be a reasonable compromise between ordering requirements and performance if some (few) dropped inputs are allowed by the application semantics.</li>
+<li><b>PROBABILISTIC</b>: in this mode Source replicas can generate outputs in any order, but the run-time system still sorts items before processing the functional logics of the operators. In this case, to respect the ordering, items might be dropped. This execution mode still prevents batching to be used, but can be a reasonable compromise between ordering requirements and performance if some (few) dropped inputs are allowed by the application semantics.</li>
 <li><b>DEFAULT</b>: this is the default mode without ordering guarantees. In this mode, inputs are processed in a non-deterministic ordering and window-based computations are evaluated based on <b>watermark</b> propagation. This execution mode allows batching to be used in the operators.</li>
 </ol>
 												
@@ -271,7 +271,7 @@ topology.run(); // synchronous execution of the dataflow
 														In the code above, based on the value of a boolean flag (<strong>chaining</strong>), we create the data-flow graph by chaining stateless operators (to reduce thread oversubscription) or not. This results in two different physical data-flow graphs running respectively with five (left-hand side figure below) and ten (right-hand side) underlying threads (based on the chosen parallelism levels in the builders).
 													</p><img src="img/lazyload-ph.png" data-src="img/application_physical.jpg" class="img-fluid mx-auto d-block mg-md lazyload" alt="WordCount physical data-flow graphs" />
 				<p class="text-justify">
-														This example shows only a fraction of the expressive power of WindFlow, which is actually able to generate complex data-flow graphs using <strong>split</strong> and <strong>merge</strong> operatotions on MultiPipes. Interested users can refer to the doxygen documentation for the API and can look at the synthetic examples and tests distributed with the source code.
+														This example shows only a fraction of the expressive power of WindFlow, which is actually able to generate complex data-flow graphs using <strong>split</strong> and <strong>merge</strong> operations&nbsp;on MultiPipes. Interested users can refer to the doxygen documentation for the API and can look at the synthetic examples and tests distributed with the source code.
 													</p>
 			</div>
 		</div>
@@ -318,11 +318,11 @@ topology.run(); // synchronous execution of the dataflow
     
 
 <!-- Additional JS -->
-<script src="./js/jquery-3.5.1.min.js?601"></script>
-<script src="./js/bootstrap.bundle.min.js?3255"></script>
-<script src="./js/blocs.min.js?3907"></script>
+<script src="./js/jquery-3.5.1.min.js?6777"></script>
+<script src="./js/bootstrap.bundle.min.js?4515"></script>
+<script src="./js/blocs.min.js?7745"></script>
 <script src="./js/lazysizes.min.js" defer></script>
-<script src="./js/prism.js?8016"></script>
+<script src="./js/prism.js?1555"></script>
 <!-- Additional JS END -->
 
 

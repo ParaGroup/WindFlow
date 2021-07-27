@@ -7,9 +7,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <link rel="shortcut icon" type="image/png" href="favicon.png">
     
-	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?8885">
-	<link rel="stylesheet" type="text/css" href="style.css?4056">
-	<link rel="stylesheet" type="text/css" href="./css/prism.css?8789">
+	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?8523">
+	<link rel="stylesheet" type="text/css" href="style.css?3935">
+	<link rel="stylesheet" type="text/css" href="./css/prism.css?2717">
 	
 	<link rel="stylesheet" type="text/css" href="./css/font-awesome.min.css">
 	
@@ -33,7 +33,7 @@
 <div class="page-container">
     
 <!-- bloc-0 -->
-<div class="bloc l-bloc " id="bloc-0">
+<div class="bloc l-bloc" id="bloc-0">
 	<div class="container bloc-sm">
 		<div class="row">
 			<div class="col">
@@ -92,7 +92,7 @@
 <!-- bloc-1 END -->
 
 <!-- bloc-5 -->
-<div class="bloc tc-davys-grey" id="bloc-5">
+<div class="bloc tc-davys-grey " id="bloc-5">
 	<div class="container bloc-lg">
 		<div class="row">
 			<div class="col">
@@ -105,7 +105,7 @@
 				<div class="row">
 					<div class="col">
 						<p class="text-justify">
-							To use the dashboard, WindFlow applications must be compiled with the <strong>WF_TRACING_ENABLED</strong> macro. Other macros are available and can be used to specify the hostname and the port of the dashboard (by default the applications assume that the dashboard is executed on the localhost).<br><br>The main web page of the dashboard, with the summary of the monitored applications (running, terminated or interrupted for any reason) is shown aside. In the figure, the dashboard reports one running application while no terminated or interrupted applications are listed.<br><br>When the user runs a WindFlow application (properly compiled), it tries to connect to the dashboard on a specific port. An additional monitoring thread is spawned by the WindFlow runtime to report statistics to the dashboard every second. The monitored application is added to the summary table of the dashboard, as in the figure on the right.<br>
+							To use the dashboard, WindFlow applications must be compiled with the <strong>WF_TRACING_ENABLED</strong> macro. Other macros are available and can be used to specify the hostname and the port of the dashboard (by default the applications assume that the dashboard is executed on the localhost).<br><br>The main web page of the dashboard, with the summary of the monitored applications (running, terminated or interrupted for any reason) is shown aside. In the figure, the dashboard reports one running application while no terminated or interrupted applications are listed.<br><br>When the user runs a WindFlow application, it tries to connect to the dashboard on a specific port. An additional monitoring thread is spawned by the WindFlow runtime to report statistics to the dashboard every second. The monitored application is added to the summary table of the dashboard, as in the figure on the right.<br>
 						</p>
 					</div>
 					<div class="col">
@@ -120,12 +120,12 @@
 							</div>
 							<div class="col">
 								<p>
-									By clicking on the application name, the user is directed to a separate web page where the statistics of the application can be inspected.<br><br>The user can check the monitoring information of each running operator and of each of its internal replicas. Statistics are updated every second, and report the number of received/transmitted inputs/outputs, processing time, and so forth. Figure on the left shows the report page of an application.<br><br>The last screenshot below shows the report of statistics opened for one operator and the historical statistics (input and output rate per second over the whole execution) for a different operator opened in the same web page. This can be useful to continuously track the application execution in order to discover bottlenecks in the dataflow and to optimize it as a further refinement of the development and configuration process by the developer.<br>
+									By clicking on the application name, the user is directed to a separate web page where the statistics of the application can be inspected.<br><br>The user can check the monitoring information of each running operator and of each of its internal replicas. Statistics are updated every second, and report the number of received/transmitted inputs/outputs, processing time, and so forth. The figure on the left shows the report page of an application.<br><br>The last screenshot below shows the report of statistics opened for one operator and the historical statistics (input and output rate per second over the whole execution) for a different operator opened in the same web page. This can be useful to continuously track the application execution in order to discover bottlenecks in the dataflow and to optimize it as a further refinement of the development and configuration process by the developer.<br>
 								</p>
 							</div>
 						</div><img src="img/lazyload-ph.png" data-src="img/screenshot-4.png" class="img-fluid mx-auto d-block mg-md lazyload" alt="Web dashboard screenshot 3" />
 						<p class="text-justify">
-							The web dashboard aims at being a useful tool for developers of WindFlow applications. However, statistics are often intrusive and slow down application performance (we measure a drop between <strong>5</strong> and <strong>20%</strong> in our benchmarks). So, it must be carefully used.
+							The web dashboard aims at being a useful tool for developers of WindFlow applications. However, statistics are often intrusive and slow down application performance (we measured a drop between <strong>5</strong> and <strong>20%</strong> in our benchmarks). So, it must be carefully used.
 						</p>
 					</div>
 				</div>
@@ -174,11 +174,11 @@
     
 
 <!-- Additional JS -->
-<script src="./js/jquery-3.5.1.min.js?601"></script>
-<script src="./js/bootstrap.bundle.min.js?3255"></script>
-<script src="./js/blocs.min.js?3907"></script>
+<script src="./js/jquery-3.5.1.min.js?6777"></script>
+<script src="./js/bootstrap.bundle.min.js?4515"></script>
+<script src="./js/blocs.min.js?7745"></script>
 <script src="./js/lazysizes.min.js" defer></script>
-<script src="./js/prism.js?953"></script>
+<script src="./js/prism.js?2524"></script>
 <!-- Additional JS END -->
 
 
