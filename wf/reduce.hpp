@@ -53,8 +53,8 @@ class Reduce_Replica: public ff::ff_monode
 private:
     reduce_func_t func; // functional logic used by the Reduce replica
     key_extractor_func_t key_extr; // logic to extract the key attribute from the tuple_t
-    using tuple_t = decltype(get_tuple_t_Acc(func)); // extracting the tuple_t type and checking the admissible signatures
-    using state_t = decltype(get_state_t_Acc(func)); // extracting the state_t type and checking the admissible signatures
+    using tuple_t = decltype(get_tuple_t_Reduce(func)); // extracting the tuple_t type and checking the admissible signatures
+    using state_t = decltype(get_state_t_Reduce(func)); // extracting the state_t type and checking the admissible signatures
     using key_t = decltype(get_key_t_KeyExtr(key_extr)); // extracting the key_t type and checking the admissible singatures
     // static predicates to check the type of the functional logic to be invoked
     static constexpr bool isNonRiched = std::is_invocable<decltype(func), const tuple_t &, state_t &>::value;
@@ -220,7 +220,7 @@ public:
         }
 #endif
         if (input_batching) { // receiving a batch
-            Batch_t<decltype(get_tuple_t_Acc(func))> *batch_input = reinterpret_cast<Batch_t<decltype(get_tuple_t_Acc(func))> *>(_in);
+            Batch_t<decltype(get_tuple_t_Reduce(func))> *batch_input = reinterpret_cast<Batch_t<decltype(get_tuple_t_Reduce(func))> *>(_in);
             if (batch_input->isPunct()) { // if it is a punctuaton
                 emitter->generate_punctuation(batch_input->getWatermark(context.getReplicaIndex()), this); // propagate the received punctuation
                 deleteBatch_t(batch_input); // delete the punctuaton
@@ -238,7 +238,7 @@ public:
             deleteBatch_t(batch_input); // delete the input batch
         }
         else { // receiving a single input
-            Single_t<decltype(get_tuple_t_Acc(func))> *input = reinterpret_cast<Single_t<decltype(get_tuple_t_Acc(func))> *>(_in);
+            Single_t<decltype(get_tuple_t_Reduce(func))> *input = reinterpret_cast<Single_t<decltype(get_tuple_t_Reduce(func))> *>(_in);
             if (input->isPunct()) { // if it is a punctuaton
                 emitter->generate_punctuation(input->getWatermark(context.getReplicaIndex()), this); // propagate the received punctuation
                 deleteSingle_t(input); // delete the punctuaton
@@ -285,7 +285,7 @@ public:
             context.setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
             func(_tuple, (*it).second, context);
         }
-        decltype(get_state_t_Acc(func)) result = (*it).second; // the result is a copy of the present state
+        decltype(get_state_t_Reduce(func)) result = (*it).second; // the result is a copy of the present state
         emitter->emit(&result, 0, _timestamp, _watermark, this);
     }
 
@@ -356,7 +356,7 @@ private:
     friend class PipeGraph; // friendship with the PipeGraph class
     reduce_func_t func; // functional logic used by the Reduce
     key_extractor_func_t key_extr; // logic to extract the key attribute from the tuple_t
-    using state_t = decltype(get_state_t_Acc(func)); // extracting the state_t type and checking the admissible signatures
+    using state_t = decltype(get_state_t_Reduce(func)); // extracting the state_t type and checking the admissible signatures
     size_t parallelism; // parallelism of the Reduce
     std::string name; // name of the Reduce
     bool input_batching; // if true, the Reduce expects to receive batches instead of individual inputs
