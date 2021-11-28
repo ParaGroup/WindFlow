@@ -29,6 +29,7 @@
 #define BUILDERS_GPU_H
 
 /// includes
+#include<chrono>
 #include<meta.hpp>
 #include<meta_gpu.hpp>
 #include<basic_gpu.hpp>
