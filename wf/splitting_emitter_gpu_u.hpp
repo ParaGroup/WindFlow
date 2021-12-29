@@ -15,23 +15,23 @@
  */
 
 /** 
- *  @file    splitting_emitter_gpu.hpp
+ *  @file    splitting_emitter_gpu_u.hpp
  *  @author  Gabriele Mencagli
  *  
  *  @brief Emitter implementing the splitting logic of a MultiPipe ending with a
- *         GPU operator
+ *         GPU operator. Version with CUDA Unified Memory
  *  
  *  @section Splitting_Emitter_GPU (Description)
  *  
  *  This file implements the splitting emitter in charge of splitting a MultiPipe.
- *  This version assumes to receive Batch_GPU_t messages.
+ *  This version assumes to receive Batch_GPU_t messages. Version with CUDA Unified Memory
  */ 
 
-#ifndef SPLITTING_GPU_H
-#define SPLITTING_GPU_H
+#ifndef SPLITTING_GPU_U_H
+#define SPLITTING_GPU_U_H
 
 // includes
-#include<batch_gpu_t.hpp>
+#include<batch_gpu_t_u.hpp>
 #include<basic_emitter.hpp>
 
 namespace wf {
@@ -116,13 +116,6 @@ public:
             delete e;
         }
         emitters = std::move(_other.emitters);
-        if (queue != nullptr) {
-            Batch_t<tuple_t> *del_batch = nullptr;
-            while (queue->pop((void **) &del_batch)) {
-                delete del_batch;
-            }
-            delete queue; // delete the recycling queue
-        }
         queue = std::exchange(_other.queue, nullptr);
     }
 
@@ -171,8 +164,8 @@ public:
             Batch_GPU_t<tuple_t> *copy_batch = allocateBatch_GPU_t<tuple_t>(input->original_size, queue); // create a new batch
             copy_batch->watermarks = input->watermarks;
             copy_batch->size = input->size;
-            gpuErrChk(cudaMemcpyAsync(copy_batch->data_gpu, input->data_gpu, sizeof(batch_item_gpu_t<tuple_t>) * input->size, cudaMemcpyDeviceToDevice, copy_batch->cudaStream));
-            gpuErrChk(cudaStreamSynchronize(copy_batch->cudaStream));
+            memcpy(copy_batch->data_u, input->data_u, sizeof(batch_item_gpu_t<tuple_t>) * input->size);
+            copy_batch->prefetch2GPU(false); // <-- this is not always the best choice!
             emitters[i]->emit_inplace(copy_batch, _node); // call the logic of the emitter at position i
             auto &vect = emitters[i]->getOutputQueue();
             for (auto msg: vect) { // send each message produced by emitters[i]

@@ -84,10 +84,10 @@ struct Batch_t
     virtual tuple_t &getTupleAtPos(size_t _pos) = 0;
 
     // Get the timestamp of the element at position pos of the batch
-    virtual uint64_t getTimestampAtPos(size_t _pos) const = 0;
+    virtual uint64_t getTimestampAtPos(size_t _pos) = 0;
 
     // Get the watermark of the batch related to a specific destination _node_id
-    virtual uint64_t getWatermark(size_t _node_id) const = 0;
+    virtual uint64_t getWatermark(size_t _node_id) = 0;
 
     // Set the watermark of the batch related to a specific destination _node_id
     virtual void setWatermark(uint64_t _wm, size_t _node_id) = 0;

@@ -1,5 +1,5 @@
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0)
-[![release](https://img.shields.io/github/release/paragroup/windflow.svg)](https://github.com/paragroup/windflow/releases/latest)
+[![Release](https://img.shields.io/github/release/paragroup/windflow.svg)](https://github.com/paragroup/windflow/releases/latest)
 [![Hits](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2FParaGroup%2FWindFlow&count_bg=%2379C83D&title_bg=%23555555&icon=&icon_color=%23E7E7E7&title=hits&edge_flat=false)](https://hits.seeyoufarm.com)
 [![Say Thanks!](https://img.shields.io/badge/Say%20Thanks-!-1EAEDB.svg)](https://saythanks.io/to/mencagli@di.unipi.it)
 [![Donate](https://img.shields.io/badge/Donate-PayPal-green.svg)](https://paypal.me/GabrieleMencagli)
@@ -7,70 +7,93 @@
 <p align="center"><img src="https://paragroup.github.io/WindFlow/img/logo_white.png" width="400" title="WindFlow Logo"></p>
 
 # Introduction
-WindFlow is a C++17 library for parallel data stream processing targeting heterogeneous shared-memory architectures equipped with multi-core CPUs and an NVIDIA GPUs. The library provides traditional stream processing operators like map, flatmap, filter, fold/reduce as well as sliding-window operators designed with complex parallel processing modes. The API allows building streaming applications through the <b>MultiPipe</b> and the <b>PipeGraph</b> programming constructs. The first is used to create parallel pipelines, while the second one allows several <b>MultiPipe</b> instances to be interconnected through <b>merge</b> and <b>split</b> operations, thus creating complex directed acyclic graphs of interconnected operators.
+WindFlow is a C++17 library for parallel data stream processing targeting heterogeneous shared-memory architectures equipped with multi-core CPUs and NVIDIA GPUs. The library provides traditional stream processing operators like map, flatmap, filter, fold/reduce as well as sliding-window operators. The API allows building streaming applications through the <b>MultiPipe</b> and the <b>PipeGraph</b> programming constructs. The first is used to create parallel pipelines, while the second allows several <b>MultiPipe</b> instances to be interconnected through <b>merge</b> and <b>split</b> operations, in order to create complex directed acyclic graphs of interconnected operators.
 
-WindFlow is not thought to support streaming analytics applications only (e.g., the ones written with relational algebra query languages, as in traditional old-style DSMSs) but rather all general-purpose streaming applications can be easily supported through operators embedding user-defined custom logics. In terms of runtime system, WindFlow is particularly suitable for embedded architectures equipped with low-power multi-core CPUs and integrated NVIDIA GPUs (i.e., Jetson boards). However, it works well also on traditional multi-core servers equipped with discrete NVIDIA GPUs (e.g., Pascal/Volta models). Differently from existing research libraries for stream processing on multicores, WindFlow is thought to support real live-streaming applications, where inputs are continuously received from real-world sources, and not only offline streaming applications reading historical data already prepared in memory.
+WindFlow does not support streaming analytics applications only (e.g., the ones written with relational algebra query languages), but rather general-purpose streaming applications can be supported through operators with user-defined custom logics. In terms of runtime system, WindFlow is suitable for embedded architectures equipped with low-power multi-core CPUs and integrated NVIDIA GPUs (like the Jetson family of NVIDIA boards). However, it works also on traditional multi-core servers equipped with discrete NVIDIA GPUs.
 
 The web site of the library is available at: https://paragroup.github.io/WindFlow/.
 
 # Dependencies
-The library needs the following dependencies:
-* <strong>a C++ compiler</strong> with full support to C++17 (WindFlow tests have been successfully compiled with both GCC and CLANG)
-* <strong>CUDA</strong> (for using operators targeting GPUs) with support for C++17 (CUDA >= 11)
-* <strong>libtbb-dev</strong> for using efficient concurrent containers needed by the operators targeting GPUs
+The library requires the following dependencies:
+* <strong>a C++ compiler</strong> with full support for C++17 (WindFlow tests have been successfully compiled with both GCC and CLANG)
 * <strong>FastFlow</strong> version >= 3.0 (https://github.com/fastflow/fastflow)
+* <strong>CUDA</strong> (for using operators targeting GPUs)
+* <strong>libtbb-dev</strong> for using efficient concurrent containers required by the GPU operators
 * <strong>libgraphviz-dev</strong> and <strong>rapidjson-dev</strong> (when compiling with -DWF_TRACING_ENABLED to report statistics and using the Web Dashboard)
 * <strong>doxygen</strong> (to generate the documentation)
 
-After downloading FastFlow, the user needs to properly configure the library for the underlying multi-core environment. By default, FastFlow pins its threads onto the cores of the machine. To be sure of the ordering of cores, and to place communicating threads on sibling cores, it is important to run the script <strong>"mapping_string.sh"</strong> in the folder <tt>fastflow/ff</tt> before compiling any code using WindFlow.
+<b>Important about the FastFlow dependency</b> -> after downloading FastFlow, the user needs to configure the library for the underlying multi-core environment. By default, FastFlow pins its threads onto the cores of the machine. To make FastFlow aware of the ordering of cores, and their correspondence in CPUs and NUMA regions, it is important to run (just one time) the script <strong>"mapping_string.sh"</strong> in the folder <tt>fastflow/ff</tt> before compiling your programs.
 
 # Macros
 WindFlow, and its underlying level FastFlow, come with some important macros that can be used during compilation to enable specific behaviors:
-* <strong>-DWF_TRACING_ENABLED</strong> -> enables tracing (logging) at the WindFlow level (operator replicas), and allows WindFlow applications to continuously report statistics to a Web Dashboard (which is a separate sub-project). Outputs are also written in log files at the end of the processing
+* <strong>-DWF_TRACING_ENABLED</strong> -> enables tracing (logging) at the WindFlow level (operator replicas), and allows streaming applications to continuously report statistics to a Web Dashboard (which is a separate sub-project). Outputs are also written in log files at the end of the processing
 * <strong>-DTRACE_FASTFLOW</strong> -> enables tracing (logging) at the FastFlow level (raw threads and FastFlow nodes). Outputs are written in log files at the end of the processing
 * <strong>-DFF_BOUNDED_BUFFER</strong> -> enables the use of bounded lock-free queues for pointer passing between threads. Otherwise, queues are unbounded (no backpressure mechanism)
-* <strong>-DDEFAULT_BUFFER_CAPACITY=VALUE</strong> -> set the size of the lock-free queues capacity in terms of pointers to objects. The default size of the queues is of 2048 entries. We suggest users to greatly reduce this size in applications using operators targeting GPUs (e.g., using sizes between 16 to 128 depending on the size of the input tuples and the batch size used)
-* <strong>-DNO_DEFAULT_MAPPING</strong> -> if set, FastFlow threads are not pinned onto the CPU cores and are scheduled by the standard OS scheduling policy
+* <strong>-DDEFAULT_BUFFER_CAPACITY=VALUE</strong> -> set the size of the lock-free queues capacity. The default size of the queues is of 2048 entries. We suggest the users to greatly reduce this size in applications that use GPU operators (e.g., using values between 16 to 128 depending on the available GPU memory)
+* <strong>-DNO_DEFAULT_MAPPING</strong> -> if set, FastFlow threads are not pinned onto the CPU cores and are scheduled by the Operating System
+* <strong>-DBLOCKING_MODE</strong> -> if set, FastFlow queues use the blocking concurrency mode (pushing to a full queue or polling from an empty queue might suspend the underlying thread)
+
+Some macros are useful to configure the run-time system when GPU operators are utilized in your applications. The default version of the GPU support is based on explicit CUDA memory management and overlapped data transfers, which is a version suitable for a wide range of NVIDIA GPU models. However, the developer could want to switch to a different implementation that makes use of the CUDA unified memory support. This can be done by compiling with the macro <strong>-DWF_GPU_UNIFIED_MEMORY</strong>. Unified memory support has a variable performance dependening on the underlying GPU models and the version of the CUDA driver.
 
 # Build the Examples
-WindFlow is a header-only template library. To build your applications you have to include the main header of the library (<tt>windflow.hpp</tt>). For using the operators targeting GPUs, you further have to include the <tt>windflow_gpu.hpp</tt> header file and compile using the <code>nvcc</code> CUDA compiler. The source code in this repository includes several examples that can be used to understand the use of the API and the advanced features of the library. The examples can be found in the <tt>tests</tt> folder. To compile them:
+WindFlow is a header-only template library. To build your applications you have to include the main header of the library (<tt>windflow.hpp</tt>). For using the operators targeting GPUs, you further have to include the <tt>windflow_gpu.hpp</tt> header file and compile using the <code>nvcc</code> CUDA compiler (or through <code>clang</code> with CUDA support). The source code in this repository includes several examples that can be used to understand the use of the API and the advanced features of the library. The examples can be found in the <tt>tests</tt> folder. To compile them:
 ```
-    cd <WINDFLOW_ROOT>
-    mkdir ./build
-    cd build; cmake ../
-    make -j<#cores> # compile all the tests (not the doxygen documentation)
-    make all_cpu -j<#cores> # compile only CPU tests
-    make all_gpu -j<#cores> # compile only GPU tests
-    make docs # generate the doxygen documentation (if doxygen has been installed)
+    $ cd <WINDFLOW_ROOT>
+    $ mkdir ./build
+    $ cd build
+    $ cmake ..
+    $ make -j<no_cores> # compile all the tests (not the doxygen documentation)
+    $ make all_cpu -j<no_cores> # compile only CPU tests
+    $ make all_gpu -j<no_cores> # compile only GPU tests
+    $ make docs # generate the doxygen documentation (if doxygen has been installed)
 ```
 
+# Docker Images
+Two Docker images are available in the WindFlow GitHub repository. The images contain all the synthetic tests compiled and ready to be executed. To build the first image (the one without tests using GPU operators) execute the following commands:
+```
+    $ cd <WINDFLOW_ROOT>
+    $ cd dockerimages
+    $ docker build -t windflow_nogpu -f Dockerfile_nogpu .
+    $ docker run windflow_nogpu ./bin/graph_tests/test_graph_1 -r 1 -l 10000 -k 10
+```
+The last command executes one of the synthetic experiments (test_graph_1). You can execute any of the compiled tests in the same mannner.
+
+The second image contains all synthetic tests with GPU operators. To use your GPU device with Docker, please follow the guidelines in the following page (https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). Then, you can build the image and run the container as follows:
+```
+    $ cd <WINDFLOW_ROOT>
+    $ cd dockerimages
+    $ docker build -t windflow_gpu -f Dockerfile_gpu .
+    $ docker run --gpus all windflow_gpu ./bin/graph_tests_gpu/test_graph_gpu_1 -r 1 -l 10000 -k 10
+```
+Again, the last command executes one of the synthetic experiments (test_graph_gpu_1). You can execute any of the compiled tests in the same mannner.
+
 # Web Dashboard
-WindFlow has its own Web Dashboard used to monitoring and profiling the execution of running WindFlow applications. The dashboard code is in the sub-folder <tt>WINDFLOW_ROOT/dashboard</tt>. It is a Java package based on Spring (for the Web Server) and developed using React for the front-end part. To start the Web Dashboard run the following commands:
+WindFlow has its own Web Dashboard that can be used to profile the execution of running WindFlow applications. The dashboard code is in the sub-folder <tt>WINDFLOW_ROOT/dashboard</tt>. It is a Java package based on Spring (for the Web Server) and developed using React for the front-end part. To start the Web Dashboard run the following commands:
 ```
     cd <WINDFLOW_ROOT>/dashboard/Server
     mvn spring-boot:run
 ```
-The web server listens on the default port <tt>8080</tt> of the machine. To change the port, and some other configuration settings, users can modify the configuration file <tt>WINDFLOW_ROOT/dashboard/Server/src/main/resources/application.properties</tt> for the Spring server (e.g., the HTTP port for connecting from a browser), and the file <tt>WINDFLOW_ROOT/dashboard/Server/src/main/java/com/server/CustomServer/Configuration/config.json</tt> for the internal server receiving reports of statistics from the connected WindFlow applications (e.g., the port used by WindFlow applications to report statistics to the dashboard).
+The web server listens on the default port <tt>8080</tt> of the machine. To change the port, and other configuration parameters, users should modify the configuration file <tt>WINDFLOW_ROOT/dashboard/Server/src/main/resources/application.properties</tt> for the Spring server (e.g., to change the HTTP port), and the file <tt>WINDFLOW_ROOT/dashboard/Server/src/main/java/com/server/CustomServer/Configuration/config.json</tt> for the internal server receiving reports of statistics from the WindFlow applications (e.g., to change the port used by applications to report statistics to the dashboard).
 
-WindFlow applications compiled with the macro <strong>-DWF_TRACING_ENABLED</strong> try to connect to the Web Dashboard and report statistics to it every second. By default, the applications assume that the dashboard is running on the local machine. To change the hostname and port number used to connect to the dashboard, developers should compile the WindFlow application with the macros <strong>WF_DASHBOARD_MACHINE=hostname/ip_addr</strong> and <strong>WF_DASHBOARD_PORT=port_number</strong>.
+WindFlow applications compiled with the macro <strong>-DWF_TRACING_ENABLED</strong> try to connect to the Web Dashboard and report statistics to it every second. By default, the applications assume that the dashboard is running on the local machine. To change the hostname and the port number, developers can use the macros <strong>WF_DASHBOARD_MACHINE=hostname/ip_addr</strong> and <strong>WF_DASHBOARD_PORT=port_number</strong>.
 
 # About the License
-WindFlow and FastFlow are released with the <strong>LGPL-3</strong> license and they are both header-only libraries. Programmers should check the licenses of the other libraries used as dependencies.
+WindFlow and FastFlow are released with the <strong>LGPL-3</strong> license and they are both header-only libraries. Programmers should check the licenses of the other libraries used as dependencies. Upon request, we can evaluate the possibility to provide dual-licensing models to interested partners.
 
 # Cite our Work
 In order to cite our work, we kindly ask interested people to use the following reference:
 ```
- @article{9408386,
+@article{9408386,
   author={Mencagli, Gabriele and Torquati, Massimo and Cardaci, Andrea and Fais, Alessandra and Rinaldi, Luca and Danelutto, Marco},
   journal={IEEE Transactions on Parallel and Distributed Systems},
-  title={WindFlow: High-Speed Continuous Stream Processing with Parallel Building Blocks},
+  title={WindFlow: High-Speed Continuous Stream Processing With Parallel Building Blocks},
   year={2021},
-  volume={},
-  number={},
-  pages={1-1},
+  volume={32},
+  number={11},
+  pages={2748-2763},
   doi={10.1109/TPDS.2021.3073970}
- }
+}
 ```
 
 # Contributors
-The main developer and maintainer of WindFlow is [Gabriele Mencagli](mailto:mencagli@di.unipi.it) (Department of Computer Science, University of Pisa, Italy).
+The main developer and maintainer of WindFlow is [Gabriele Mencagli](mailto:gabriele.mencagli@unipi.it) (Department of Computer Science, University of Pisa, Italy).

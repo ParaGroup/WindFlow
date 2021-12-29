@@ -15,23 +15,23 @@
  */
 
 /** 
- *  @file    flatfat_gpu.hpp
+ *  @file    flatfat_gpu_u.hpp
  *  @author  Elia Ruggeri and Gabriele Mencagli
  *  
- *  @brief Flat Fixed-size Aggregator Tree on GPU
+ *  @brief Flat Fixed-size Aggregator Tree on GPU (Version with CUDA Unified Memory)
  *  
  *  @section FlatFAT_GPU (Description)
  *  
  *  This file implements the GPU-based Flat Fixed-size Aggregator Tree (FlatFAT_GPU).
  *  It is based on the FlatFAT data structure [1], revisited to process batch of
- *  windows efficiently on a GPU device.
+ *  windows efficiently on a GPU device. Version with CUDA Unified Memory.
  *  
  *  [1] Kanat Tangwongsan, et al. 2015. General incremental sliding-window aggregation.
  *  Proc. VLDB Endow. 8, 7 (February 2015), 702–713.
  */ 
 
-#ifndef FLATFAT_GPU_H
-#define FLATFAT_GPU_H
+#ifndef FLATFAT_GPU_U_H
+#define FLATFAT_GPU_U_H
 
 // includes
 #include<list>
@@ -146,13 +146,13 @@ private:
     size_t slide; // size of the slide (in number of results)
     key_t key; // key value used by the FlatFAT_GPU
     size_t offset; // offset value
-    result_t *pinned_tree = nullptr; // host pinned array of the whole tree
-    result_t *pinned_results = nullptr; // host pinned array of the final results
-    result_t *gpu_tree = nullptr; // GPU array of the whole tree
-    result_t *gpu_results = nullptr; // GPU array of the final results
+    result_t *tree_u = nullptr; // array of the whole tree in CUDA unified memory
+    result_t *results_u = nullptr; // array of the final results in CUDA unified memory
     int numSMs = 0; // number of SMs in the GPU
     int max_blocks_per_sm; // maximum number of blocks resident on each Stream Multiprocessor of the GPU
     cudaStream_t *cudaStream; // pointer to the CUDA stream used by the FlatFAT_GPU
+    cudaDeviceProp deviceProp; // object containing the properties of the used GPU device
+    int isTegra; // flag equal to 1 if the GPU (device 0) is integrated (Tegra), 0 otherwise
 
 public:
     // Constructor
@@ -183,10 +183,21 @@ public:
         numLeaves = n;
         leavesSizeBytes = numLeaves * sizeof(result_t);
         batchSizeBytes = batchSize * sizeof(result_t);
-        gpuErrChk(cudaMallocHost(&pinned_tree, treeSizeBytes));
-        gpuErrChk(cudaMallocHost(&pinned_results, numWinsPerBatch * sizeof(result_t)));
-        gpuErrChk(cudaMalloc(&gpu_tree, treeSizeBytes));
-        gpuErrChk(cudaMalloc(&gpu_results, numWinsPerBatch * sizeof(result_t)));
+        gpuErrChk(cudaGetDeviceProperties(&deviceProp, 0)); // get the properties of the GPU device with id 0
+        gpuErrChk(cudaDeviceGetAttribute(&isTegra, cudaDevAttrIntegrated, 0));
+        if (!isTegra && deviceProp.concurrentManagedAccess) { // new discrete GPU models
+            // allocate the CUDA unified memory arrays
+            gpuErrChk(cudaMallocManaged(&tree_u, treeSizeBytes));
+            gpuErrChk(cudaMallocManaged(&results_u, numWinsPerBatch * sizeof(result_t)));
+        }
+        else { // old discrete GPU models and Tegra devices
+            // allocate the CUDA unified memory arrays and attach them to the host side
+            gpuErrChk(cudaMallocManaged(&tree_u, treeSizeBytes, cudaMemAttachHost));
+            gpuErrChk(cudaMallocManaged(&results_u, numWinsPerBatch * sizeof(result_t), cudaMemAttachHost));
+            // attach the CUDA unified memory arrays to the GPU side
+            gpuErrChk(cudaStreamAttachMemAsync(*cudaStream, tree_u, treeSizeBytes, cudaMemAttachSingle));
+            gpuErrChk(cudaStreamAttachMemAsync(*cudaStream, results_u, numWinsPerBatch * sizeof(result_t), cudaMemAttachSingle));
+        }
     }
 
     // Copy Constructor
@@ -205,12 +216,23 @@ public:
                 offset(_other.offset),
                 numSMs(_other.numSMs),
                 max_blocks_per_sm(_other.max_blocks_per_sm),
-                cudaStream(_other.cudaStream)
+                cudaStream(_other.cudaStream),
+                deviceProp(_other.deviceProp),
+                isTegra(_other.isTegra)
     {
-        gpuErrChk(cudaMallocHost(&pinned_tree, treeSizeBytes));
-        gpuErrChk(cudaMallocHost(&pinned_results, numWinsPerBatch * sizeof(result_t)));
-        gpuErrChk(cudaMalloc(&gpu_tree, treeSizeBytes));
-        gpuErrChk(cudaMalloc(&gpu_results, numWinsPerBatch * sizeof(result_t)));
+        if (!isTegra && deviceProp.concurrentManagedAccess) { // new discrete GPU models
+            // allocate the CUDA unified memory arrays
+            gpuErrChk(cudaMallocManaged(&tree_u, treeSizeBytes));
+            gpuErrChk(cudaMallocManaged(&results_u, numWinsPerBatch * sizeof(result_t)));
+        }
+        else { // old discrete GPU models and Tegra devices
+            // allocate the CUDA unified memory arrays and attach them to the host side
+            gpuErrChk(cudaMallocManaged(&tree_u, treeSizeBytes, cudaMemAttachHost));
+            gpuErrChk(cudaMallocManaged(&results_u, numWinsPerBatch * sizeof(result_t), cudaMemAttachHost));
+            // attach the CUDA unified memory arrays to the GPU side
+            gpuErrChk(cudaStreamAttachMemAsync(*cudaStream, tree_u, treeSizeBytes, cudaMemAttachSingle));
+            gpuErrChk(cudaStreamAttachMemAsync(*cudaStream, results_u, numWinsPerBatch * sizeof(result_t), cudaMemAttachSingle));
+        }
     }
 
     // Move Constructor
@@ -227,28 +249,22 @@ public:
                 slide(_other.slide),
                 key(std::move(_other.key)),
                 offset(_other.offset),
-                pinned_tree(std::exchange(_other.pinned_tree, nullptr)),
-                pinned_results(std::exchange(_other.pinned_results, nullptr)),
-                gpu_tree(std::exchange(_other.gpu_tree, nullptr)),
-                gpu_results(std::exchange(_other.gpu_results, nullptr)),
+                tree_u(std::exchange(_other.tree_u, nullptr)),
+                results_u(std::exchange(_other.results_u, nullptr)),
                 numSMs(_other.numSMs),
                 max_blocks_per_sm(_other.max_blocks_per_sm),
-                cudaStream(std::exchange(_other.cudaStream, nullptr)) {}
+                cudaStream(std::exchange(_other.cudaStream, nullptr)),
+                deviceProp(_other.deviceProp),
+                isTegra(_other.isTegra) {}
 
     // Destructor
     ~FlatFAT_GPU()
     {
-        if (pinned_tree != nullptr) {
-            cudaFreeHost(pinned_tree);
+        if (tree_u != nullptr) {
+            cudaFree(tree_u);
         }
-        if (pinned_results != nullptr) {
-            cudaFreeHost(pinned_results);
-        }
-        if (gpu_tree != nullptr) {
-            cudaFree(gpu_tree);
-        }
-        if (gpu_results != nullptr) {
-            cudaFree(gpu_results);
+        if (results_u != nullptr) {
+            cudaFree(results_u);
         }
     }
 
@@ -268,13 +284,24 @@ public:
             slide = _other.slide;
             key = _other.key;
             offset = _other.offset;
-            gpuErrChk(cudaMallocHost(&pinned_tree, treeSizeBytes));
-            gpuErrChk(cudaMallocHost(&pinned_results, numWinsPerBatch * sizeof(result_t)));
-            gpuErrChk(cudaMalloc(&gpu_tree, treeSizeBytes));
-            gpuErrChk(cudaMalloc(&gpu_results, numWinsPerBatch * sizeof(result_t)));
             numSMs = _other.numSMs;
             max_blocks_per_sm = _other.max_blocks_per_sm;
-            cudaStream = _other.cudaStream;     
+            cudaStream = _other.cudaStream;
+            deviceProp = _other.deviceProp;
+            isTegra = _other.isTegra;
+            if (!isTegra && deviceProp.concurrentManagedAccess) { // new discrete GPU models
+                // allocate the CUDA unified memory arrays
+                gpuErrChk(cudaMallocManaged(&tree_u, treeSizeBytes));
+                gpuErrChk(cudaMallocManaged(&results_u, numWinsPerBatch * sizeof(result_t)));
+            }
+            else { // old discrete GPU models and Tegra devices
+                // allocate the CUDA unified memory arrays and attach them to the host side
+                gpuErrChk(cudaMallocManaged(&tree_u, treeSizeBytes, cudaMemAttachHost));
+                gpuErrChk(cudaMallocManaged(&results_u, numWinsPerBatch * sizeof(result_t), cudaMemAttachHost));
+                // attach the CUDA unified memory arrays to the GPU side
+                gpuErrChk(cudaStreamAttachMemAsync(*cudaStream, tree_u, treeSizeBytes, cudaMemAttachSingle));
+                gpuErrChk(cudaStreamAttachMemAsync(*cudaStream, results_u, numWinsPerBatch * sizeof(result_t), cudaMemAttachSingle));
+            }
         }
         return *this;
     }
@@ -294,13 +321,13 @@ public:
             slide = _other.slide;
             key = std::move(_other.key);
             offset = _other.offset;
-            pinned_tree = std::exchange(_other.pinned_tree, nullptr);
-            pinned_results = std::exchange(_other.pinned_results, nullptr); 
-            gpu_tree = std::exchange(_other.gpu_tree, nullptr); 
-            gpu_results = std::exchange(_other.gpu_results, nullptr);
+            tree_u = std::exchange(_other.tree_u, nullptr); 
+            results_u = std::exchange(_other.results_u, nullptr);
             numSMs = _other.numSMs;
             max_blocks_per_sm = _other.max_blocks_per_sm;
             cudaStream = std::exchange(_other.cudaStream, nullptr);
+            deviceProp = _other.deviceProp;
+            isTegra = _other.isTegra;
             return *this;
     }
 
@@ -312,13 +339,20 @@ public:
         std::vector<result_t> tree(inputs.begin(), inputs.end()); // copy the input vector in the tree vector
         tree.insert(tree.end(), treeSize - batchSize, create_win_result_t<result_t, key_t>(key, 0)); // fill the remaining entries in the tree with empty results
         assert(tree.size() == treeSize); // sanity check
-        memcpy(pinned_tree, tree.data(), treeSizeBytes); // copy the tree vector in the pinned array
-        gpuErrChk(cudaMemcpyAsync(gpu_tree, pinned_tree, treeSizeBytes, cudaMemcpyHostToDevice, *cudaStream)); // copy on GPU
-        result_t *d_levelA = gpu_tree; // pointer to the first level of the tree
+        memcpy(tree_u, tree.data(), treeSizeBytes); // copy the tree vector in the tree arrey in CUDA unified memory
+        if (isTegra) { // Tegra devices
+            // attach the CUDA unified memory array results_u to the GPU side
+            gpuErrChk(cudaStreamAttachMemAsync(*cudaStream, tree_u, treeSizeBytes, cudaMemAttachSingle));
+        }
+        else if (deviceProp.concurrentManagedAccess) { // new discrete GPU models
+            // prefetch the CUDA unified memory array tree_u to the GPU side
+            gpuErrChk(cudaMemPrefetchAsync(tree_u, treeSizeBytes, 0, *cudaStream)); // device_id = 0
+        }
+        result_t *d_levelA = tree_u; // pointer to the first level of the tree
         int pow = 1;
         result_t *d_levelB = d_levelA + numLeaves / pow;
         int i = numLeaves / 2;
-        while (d_levelB < gpu_tree + treeSize && i > 0) { // fill the levels of the tree
+        while (d_levelB < tree_u + treeSize && i > 0) { // fill the levels of the tree
             int numBlocks = std::min((int) ceil(i / ((double) WF_GPU_DEFAULT_THREADS_PER_BLOCK)), numSMs * max_blocks_per_sm);
             Init_TreeLevel_Kernel<result_t, combgpu_func_t><<<numBlocks, WF_GPU_DEFAULT_THREADS_PER_BLOCK, 0, *cudaStream>>>(comb_func,
                                                                                                                              d_levelA,
@@ -333,8 +367,8 @@ public:
         int numBlocks = std::min((int) ceil(numWinsPerBatch / ((double) WF_GPU_DEFAULT_THREADS_PER_BLOCK)), numSMs * max_blocks_per_sm); // compute the results of the first batch
         Compute_Results_Kernel<key_t, result_t, combgpu_func_t><<<numBlocks, WF_GPU_DEFAULT_THREADS_PER_BLOCK, 0, *cudaStream>>>(comb_func,
                                                                                                                                  key,
-                                                                                                                                 gpu_tree,
-                                                                                                                                 gpu_results,
+                                                                                                                                 tree_u,
+                                                                                                                                 results_u,
                                                                                                                                  _initial_gwid,
                                                                                                                                  offset,
                                                                                                                                  numLeaves,
@@ -343,6 +377,14 @@ public:
                                                                                                                                  numWinsPerBatch,
                                                                                                                                  slide);
         gpuErrChk(cudaPeekAtLastError());
+        if (isTegra) { // Tegra devices
+            // attach the CUDA unified memory array results_u to the host side
+            gpuErrChk(cudaStreamAttachMemAsync(*cudaStream, results_u, numWinsPerBatch * sizeof(result_t), cudaMemAttachHost));
+        }
+        else if (deviceProp.concurrentManagedAccess) { // new discrete GPU models
+            // prefetch the CUDA unified memory array results_u to the host side
+            gpuErrChk(cudaMemPrefetchAsync(results_u, numWinsPerBatch * sizeof(result_t), cudaCpuDeviceId, *cudaStream));
+        }
     }
 
     // Update the FlatFAT_GPU tree
@@ -351,23 +393,29 @@ public:
     {
         size_t spaceLeft = batchSize - offset; // compute the remaining space at the end of the tree
         if (inputs.size() <= spaceLeft) {
-            memcpy(pinned_tree, inputs.data(), inputs.size() * sizeof(result_t)); // copy the inputs in the pinned array
-            gpuErrChk(cudaMemcpyAsync(gpu_tree + offset, pinned_tree, inputs.size() * sizeof(result_t), cudaMemcpyHostToDevice, *cudaStream)); // copy on GPU
+            memcpy(tree_u, inputs.data(), inputs.size() * sizeof(result_t)); // copy the inputs in the tree array in CUDA unified memory
         }
-        else { // split the copy on GPU in two parts
-            memcpy(pinned_tree, inputs.data(), inputs.size() * sizeof(result_t)); // copy the inputs in the page-locked memory
-            gpuErrChk(cudaMemcpyAsync(gpu_tree + offset, pinned_tree, spaceLeft * sizeof(result_t), cudaMemcpyHostToDevice, *cudaStream));
-            gpuErrChk(cudaMemcpyAsync(gpu_tree, pinned_tree + spaceLeft, (inputs.size() - spaceLeft) * sizeof(result_t), cudaMemcpyHostToDevice, *cudaStream));
+        else { // split the copy in two parts
+            memcpy(tree_u + offset, inputs.data(), spaceLeft * sizeof(result_t));
+            memcpy(tree_u, inputs.data() + spaceLeft, (inputs.size() - spaceLeft) * sizeof(result_t));
+        }
+        if (isTegra) { // Tegra devices
+            // attach the CUDA unified memory array results_u to the GPU side
+            gpuErrChk(cudaStreamAttachMemAsync(*cudaStream, tree_u, treeSizeBytes, cudaMemAttachSingle));
+        }
+        else if (deviceProp.concurrentManagedAccess) { // new discrete GPU models
+            // prefetch the CUDA unified memory array tree_u to the GPU side
+            gpuErrChk(cudaMemPrefetchAsync(tree_u, treeSizeBytes, 0, *cudaStream)); // device_id = 0
         }
         int pow = 1;
-        result_t *d_levelA = gpu_tree;
+        result_t *d_levelA = tree_u;
         result_t *d_levelB = d_levelA + numLeaves / pow;
         size_t sizeB = ceil((double) batchSize / (pow << 1 ));
         size_t update_pos = Parent(offset, numLeaves);
         size_t numSeenElements = numLeaves;
         size_t distance = update_pos - numSeenElements;
         int sizeUpdate = ceil((double) inputs.size() / (pow << 1)) + 1;
-        while (d_levelB < gpu_tree + treeSize) { // update the levels of the tree, each with a separate kernel
+        while (d_levelB < tree_u + treeSize) { // update the levels of the tree, each with a separate kernel
             // call the kernel to update a level of the tree
             size_t numBlocks = std::min((int) ceil(sizeUpdate / ((double) WF_GPU_DEFAULT_THREADS_PER_BLOCK)), numSMs * max_blocks_per_sm);
             Update_TreeLevel_Kernel<result_t, combgpu_func_t><<<numBlocks, WF_GPU_DEFAULT_THREADS_PER_BLOCK, 0, *cudaStream>>>(comb_func,
@@ -390,8 +438,8 @@ public:
         int numBlocks = std::min((int) ceil(numWinsPerBatch / ((double) WF_GPU_DEFAULT_THREADS_PER_BLOCK)), numSMs * max_blocks_per_sm);
         Compute_Results_Kernel<key_t, result_t, combgpu_func_t><<<numBlocks, WF_GPU_DEFAULT_THREADS_PER_BLOCK, 0, *cudaStream>>>(comb_func,
                                                                                                                                  key,
-                                                                                                                                 gpu_tree,
-                                                                                                                                 gpu_results,
+                                                                                                                                 tree_u,
+                                                                                                                                 results_u,
                                                                                                                                  _initial_gwid,
                                                                                                                                  offset,
                                                                                                                                  numLeaves,
@@ -400,36 +448,44 @@ public:
                                                                                                                                  numWinsPerBatch,
                                                                                                                                  slide);
         gpuErrChk(cudaPeekAtLastError());
+        if (isTegra) { // Tegra devices
+            // attach the CUDA unified memory array results_u to the host side
+            gpuErrChk(cudaStreamAttachMemAsync(*cudaStream, results_u, numWinsPerBatch * sizeof(result_t), cudaMemAttachHost));
+        }
+        else if (deviceProp.concurrentManagedAccess) { // new discrete GPU models
+            // prefetch the CUDA unified memory array results_u to the host side
+            gpuErrChk(cudaMemPrefetchAsync(results_u, numWinsPerBatch * sizeof(result_t), cudaCpuDeviceId, *cudaStream));
+        }
     }
 
     // Get (synchronously) the array of results computed by the GPU
     result_t *getSyncResults()
     {
-        gpuErrChk(cudaMemcpyAsync(pinned_results, gpu_results, numWinsPerBatch * sizeof(result_t), cudaMemcpyDeviceToHost, *cudaStream));
         gpuErrChk(cudaStreamSynchronize(*cudaStream));
-        return pinned_results;
+        return results_u;
     }
 
     // Start (asynchronously) the copy of the array of results from the GPU
-    void getAsyncResults()
-    {
-        gpuErrChk(cudaMemcpyAsync(pinned_results, gpu_results, numWinsPerBatch * sizeof(result_t), cudaMemcpyDeviceToHost, *cudaStream));
-    }
+    void getAsyncResults() {} // it is a stub to maintain the same interface
 
     // Wait the completion of the results copy from the GPU to the host
     result_t *waitResults()
     {
         gpuErrChk(cudaStreamSynchronize(*cudaStream));
-        return pinned_results;
+        return results_u;
     }
 
     // Get the vector of batched inputs
     std::vector<result_t> getBatchedTuples()
     {
-        gpuErrChk(cudaMemcpyAsync(pinned_tree, (gpu_tree + offset), (batchSize - offset) * sizeof(result_t), cudaMemcpyDeviceToHost, *cudaStream));
-        gpuErrChk(cudaMemcpyAsync((pinned_tree + batchSize - offset), gpu_tree, offset * sizeof(result_t), cudaMemcpyDeviceToHost, *cudaStream));
         gpuErrChk(cudaStreamSynchronize(*cudaStream));
-        return std::vector<result_t>(pinned_tree, pinned_tree + batchSize);
+        result_t *tmp_results = nullptr;
+        errChkMalloc(tmp_results = (result_t *) malloc(treeSizeBytes));
+        memcpy(tmp_results, (tree_u + offset), (batchSize - offset) * sizeof(result_t));
+        memcpy((tmp_results + batchSize - offset), tree_u, offset * sizeof(result_t));
+        std::vector<result_t> output(tmp_results, tmp_results + batchSize);
+        free(tmp_results);
+        return output;
     }
 };
 

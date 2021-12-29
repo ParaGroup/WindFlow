@@ -67,18 +67,6 @@ inline uint64_t current_time_nsecs()
     return (t.tv_sec)*1000000000L + t.tv_nsec;
 }
 
-/// Default capacity of vectors used internally by the library
-#define WF_DEFAULT_VECTOR_CAPACITY 500
-
-/// Default interval time to update the atomic counter of dropped tuples
-#define WF_DEFAULT_DROP_INTERVAL_USEC 100000
-
-/// Default interval time to generate punctuations conveying watermarks
-#define WF_DEFAULT_WM_INTERVAL_USEC 1000
-
-/// Default number of inputs to generate punctuations coveying watermarks
-#define WF_DEFAULT_WM_AMOUNT 100
-
 /// Supported execution modes of the PipeGraph
 enum class Execution_Mode_t { DEFAULT, DETERMINISTIC, PROBABILISTIC };
 
@@ -145,6 +133,18 @@ class PipeGraph;
 class RuntimeContext;
 
 //@cond DOXY_IGNORE
+
+// Default capacity of vectors used internally by the library
+#define WF_DEFAULT_VECTOR_CAPACITY 500
+
+// Default interval time to update the atomic counter of dropped tuples
+#define WF_DEFAULT_DROP_INTERVAL_USEC 100000
+
+// Default interval time to generate punctuations conveying watermarks
+#define WF_DEFAULT_WM_INTERVAL_USEC 1000
+
+// Default number of inputs to generate punctuations coveying watermarks
+#define WF_DEFAULT_WM_AMOUNT 100
 
 // Defines useful for strings
 #define STRINGIFY(x) XSTRINGIFY(x)

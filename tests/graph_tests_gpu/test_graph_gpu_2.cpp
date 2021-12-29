@@ -61,6 +61,8 @@ using namespace wf;
 // global variable for the result
 extern atomic<long> global_sum;
 
+
+
 // main
 int main(int argc, char *argv[])
 {

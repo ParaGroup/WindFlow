@@ -49,10 +49,17 @@
 #include<watermark_collector.hpp>
 #if defined (__CUDACC__)
     #include<basic_gpu.hpp>
-    #include<keyby_emitter_gpu.hpp>
-    #include<forward_emitter_gpu.hpp>
-    #include<broadcast_emitter_gpu.hpp>
-    #include<splitting_emitter_gpu.hpp>
+    #if defined (WF_GPU_UNIFIED_MEMORY)
+        #include<keyby_emitter_gpu_u.hpp> // version with CUDA unified memory support
+        #include<forward_emitter_gpu_u.hpp> // version with CUDA unified memory support
+        #include<broadcast_emitter_gpu_u.hpp> // version with CUDA unified memory support
+        #include<splitting_emitter_gpu_u.hpp> // version with CUDA unified memory support
+    #else
+        #include<keyby_emitter_gpu.hpp> // version with CUDA explicit memory transfers
+        #include<forward_emitter_gpu.hpp> // version with CUDA explicit memory transfers
+        #include<broadcast_emitter_gpu.hpp> // version with CUDA explicit memory transfers
+        #include<splitting_emitter_gpu.hpp> // version with CUDA explicit memory transfers
+    #endif
 #endif
 
 namespace wf {
@@ -1548,7 +1555,7 @@ public:
             exit(EXIT_FAILURE);
         }
         if (localOpList.back()->isGPUOperator()) { // split cannot be used after a GPU operator
-            std::cerr << RED << "WindFlow Error: last operator of the MultiPipe is a GPU one, use split_gpu() instead of split()" << DEFAULT_COLOR << std::endl;
+            std::cerr << RED << "WindFlow Error: last operator of the MultiPipe is a Map_GPU or a Filter_GPU, use split_gpu() instead of split()" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         splittingBranches = _cardinality;
@@ -1593,7 +1600,7 @@ public:
             exit(EXIT_FAILURE);
         }
         if (!localOpList.back()->isGPUOperator()) { // split_gpu cannot be used after a CPU operator
-            std::cerr << RED << "WindFlow Error: last operator of the MultiPipe is not a GPU one, use split() instead of split_gpu()" << DEFAULT_COLOR << std::endl;
+            std::cerr << RED << "WindFlow Error: last operator of the MultiPipe is not a Map_GPU or a Filter_GPU, use split() instead of split_gpu()" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         splittingBranches = _cardinality;

@@ -23,7 +23,7 @@
  *  @section StreamArchive (Description)
  *  
  *  Stream archive of tuples received from the input streams and still useful for the
- *  processing (used by window-based operators with non-incremental processing logic).
+ *  processing (used by window-based operators with non-incremental queries).
  */ 
 
 #ifndef ARCHIVE_H

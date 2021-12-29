@@ -20,7 +20,7 @@
  *  
  *  @brief Map operator on GPU
  *  
- *  @section Map on GPU (Description)
+ *  @section Map_GPU (Description)
  *  
  *  This file implements the Map operator able to execute streaming transformations
  *  producing one output per input. The operator offloads the processing on a GPU
@@ -179,14 +179,14 @@ public:
                    id_r(0),
                    execution_mode(Execution_Mode_t::DEFAULT)
     {
-        gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0));
-        gpuErrChk(cudaDeviceGetAttribute(&max_threads_per_sm, cudaDevAttrMaxThreadsPerMultiProcessor, 0));
-#if (__CUDACC_VER_MAJOR__ >= 11)
-        gpuErrChk(cudaDeviceGetAttribute(&max_blocks_per_sm, cudaDevAttrMaxBlocksPerMultiprocessor, 0));
+        gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0)); // device_id = 0
+        gpuErrChk(cudaDeviceGetAttribute(&max_threads_per_sm, cudaDevAttrMaxThreadsPerMultiProcessor, 0)); // device_id = 0
+#if (__CUDACC_VER_MAJOR__ >= 11) // at least CUDA 11
+        gpuErrChk(cudaDeviceGetAttribute(&max_blocks_per_sm, cudaDevAttrMaxBlocksPerMultiprocessor, 0)); // device_id = 0
 #else
         max_blocks_per_sm = WF_GPU_MAX_BLOCKS_PER_SM;
 #endif
-        gpuErrChk(cudaDeviceGetAttribute(&threads_per_warp, cudaDevAttrWarpSize, 0));
+        gpuErrChk(cudaDeviceGetAttribute(&threads_per_warp, cudaDevAttrWarpSize, 0)); // device_id = 0
     }
 
     // Copy Constructor
@@ -508,14 +508,14 @@ public:
                    emitter(nullptr),
                    execution_mode(Execution_Mode_t::DEFAULT)
     {
-        gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0));
-        gpuErrChk(cudaDeviceGetAttribute(&max_threads_per_sm, cudaDevAttrMaxThreadsPerMultiProcessor, 0));
-#if (__CUDACC_VER_MAJOR__ >= 11)
-        gpuErrChk(cudaDeviceGetAttribute(&max_blocks_per_sm, cudaDevAttrMaxBlocksPerMultiprocessor, 0));
+        gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0)); // device_id = 0
+        gpuErrChk(cudaDeviceGetAttribute(&max_threads_per_sm, cudaDevAttrMaxThreadsPerMultiProcessor, 0)); // device_id = 0
+#if (__CUDACC_VER_MAJOR__ >= 11) // at least CUDA 11
+        gpuErrChk(cudaDeviceGetAttribute(&max_blocks_per_sm, cudaDevAttrMaxBlocksPerMultiprocessor, 0)); // device_id = 0
 #else
         max_blocks_per_sm = WF_GPU_MAX_BLOCKS_PER_SM;
 #endif
-        gpuErrChk(cudaDeviceGetAttribute(&threads_per_warp, cudaDevAttrWarpSize, 0));
+        gpuErrChk(cudaDeviceGetAttribute(&threads_per_warp, cudaDevAttrWarpSize, 0)); // device_id = 0
     }
 
     // Copy Constructor
@@ -781,10 +781,10 @@ private:
     // Dump the log file (JSON format) of statistics of the Map_GPU
     void dumpStats() const override
     {
-        std::ofstream logfile; // create and open the log file in the LOG_DIR directory
-#if defined (LOG_DIR)
-        std::string log_dir = std::string(STRINGIFY(LOG_DIR));
-        std::string filename = std::string(STRINGIFY(LOG_DIR)) + "/" + std::to_string(getpid()) + "_" + name + ".json";
+        std::ofstream logfile; // create and open the log file in the WF_LOG_DIR directory
+#if defined (WF_LOG_DIR)
+        std::string log_dir = std::string(STRINGIFY(WF_LOG_DIR));
+        std::string filename = std::string(STRINGIFY(WF_LOG_DIR)) + "/" + std::to_string(getpid()) + "_" + name + ".json";
 #else
         std::string log_dir = std::string("log");
         std::string filename = "log/" + std::to_string(getpid()) + "_" + name + ".json";

@@ -15,20 +15,20 @@
  */
 
 /** 
- *  @file    filter_gpu.hpp
+ *  @file    filter_gpu_u.hpp
  *  @author  Gabriele Mencagli
  *  
- *  @brief Filter operator on GPU
+ *  @brief Filter operator on GPU (Version with CUDA Unified Memory)
  *  
  *  @section Filter_GPU (Description)
  *  
  *  This file implements the Filter_GPU operator able to execute streaming transformations
  *  producing zero or one output per input. The operator offloads the processing on a GPU
- *  device.
+ *  device. Version with CUDA Unified Memory.
  */ 
 
-#ifndef FILTER_GPU_H
-#define FILTER_GPU_H
+#ifndef FILTER_GPU_U_H
+#define FILTER_GPU_U_H
 
 // Required to compile with clang and CUDA < 11
 #if defined(__clang__) and (__CUDACC_VER_MAJOR__ < 11)
@@ -44,7 +44,7 @@
 #include<thrust/copy.h>
 #include<thrust/device_ptr.h>
 #include<tbb/concurrent_unordered_map.h>
-#include<batch_gpu_t.hpp>
+#include<batch_gpu_t_u.hpp>
 #include<basic_emitter.hpp>
 #include<basic_operator.hpp>
 #include<thrust_allocator.hpp>
@@ -58,7 +58,7 @@ namespace wf {
 
 // CUDA Kernel: Stateless_FILTERGPU_Kernel
 template<typename tuple_t, typename filtergpu_func_t>
-__global__ void Stateless_FILTERGPU_Kernel(batch_item_gpu_t<tuple_t> *data_gpu,
+__global__ void Stateless_FILTERGPU_Kernel(batch_item_gpu_t<tuple_t> *data_u,
                                            bool *flags_gpu,
                                            size_t len,
                                            int num_active_thread_per_warp,
@@ -71,17 +71,17 @@ __global__ void Stateless_FILTERGPU_Kernel(batch_item_gpu_t<tuple_t> *data_gpu,
     int id_worker = id / threads_per_worker; // id of the worker corresponding to this thread
     if (id % threads_per_worker == 0) { // only "num_active_thread_per_warp" threads per warp work, the others are idle
         for (size_t i=id_worker; i<len; i+=num_workers) {
-            flags_gpu[i] = func_gpu(data_gpu[i].tuple);
+            flags_gpu[i] = func_gpu(data_u[i].tuple);
         }
     }
 }
 
 // CUDA Kernel: Stateful_FILTERGPU_Kernel
 template<typename tuple_t, typename state_t, typename filtergpu_func_t>
-__global__ void Stateful_FILTERGPU_Kernel(batch_item_gpu_t<tuple_t> *data_gpu,
+__global__ void Stateful_FILTERGPU_Kernel(batch_item_gpu_t<tuple_t> *data_u,
                                           bool *flags_gpu,
-                                          int *map_idxs_gpu,
-                                          int *start_idxs_gpu,
+                                          int *map_idxs_u,
+                                          int *start_idxs_u,
                                           state_t **states,
                                           int num_dist_keys,
                                           int num_active_thread_per_warp,
@@ -94,10 +94,10 @@ __global__ void Stateful_FILTERGPU_Kernel(batch_item_gpu_t<tuple_t> *data_gpu,
     int id_worker = id / threads_per_worker; // id of the worker corresponding to this thread
     if (id % threads_per_worker == 0) { // only "num_active_thread_per_warp" threads per warp work, the others are idle
         for (int id_key=id_worker; id_key<num_dist_keys; id_key+=num_workers) {
-            size_t idx = start_idxs_gpu[id_key];
+            size_t idx = start_idxs_u[id_key];
             while (idx != -1) { // execute all the inputs with key in the input batch
-                flags_gpu[idx] = func_gpu(data_gpu[idx].tuple, *(states[id_key]));
-                idx = map_idxs_gpu[idx];
+                flags_gpu[idx] = func_gpu(data_u[idx].tuple, *(states[id_key]));
+                idx = map_idxs_u[idx];
             }
         }
     }
@@ -403,7 +403,7 @@ public:
         else {
             records[id_r]->resize(input->original_size);
         }
-        key_t *dist_keys = reinterpret_cast<key_t *>(input->dist_keys_cpu);
+        key_t *dist_keys = reinterpret_cast<key_t *>(input->dist_keys);
         for (size_t i=0; i<input->num_dist_keys; i++) { // prepare the states
             auto it = keymap->find(dist_keys[i]);
             if (it == keymap->end()) {
@@ -427,10 +427,10 @@ public:
         sendPreviousBatch(true); // send previous batch (if any)
         pthread_spin_lock(spinlock); // acquire the lock
         Stateful_FILTERGPU_Kernel<decltype(get_tuple_t_FilterGPU(func)), decltype(get_state_t_FilterGPU(func)), filtergpu_func_t>
-                                 <<<num_blocks, warps_per_block*threads_per_warp, 0, input->cudaStream>>>(input->data_gpu,
+                                 <<<num_blocks, warps_per_block*threads_per_warp, 0, input->cudaStream>>>(input->data_u,
                                                                                                           records[id_r]->flags_gpu,
-                                                                                                          input->map_idxs_gpu,
-                                                                                                          input->start_idxs_gpu,
+                                                                                                          input->map_idxs_u,
+                                                                                                          input->start_idxs_u,
                                                                                                           records[id_r]->state_ptrs_gpu,
                                                                                                           input->num_dist_keys,
                                                                                                           num_active_thread_per_warp,
@@ -471,16 +471,16 @@ public:
             size_t prev_id_r = (id_r + 2 - 1) % 2; // decrement_address_one = (address + Length - 1) % Length
             auto *prev_record = records[prev_id_r];
             thrust::device_ptr<bool> th_flags_gpu = thrust::device_pointer_cast(prev_record->flags_gpu);
-            thrust::device_ptr<batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>> th_data_gpu = thrust::device_pointer_cast(batch_tobe_sent->data_gpu);
+            thrust::device_ptr<batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>> th_data_u = thrust::device_pointer_cast(batch_tobe_sent->data_u);
             thrust::device_ptr<batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>> th_new_data_gpu = thrust::device_pointer_cast(prev_record->new_data_gpu);
             auto pred = [] __device__ (bool x) { return x; };
-            auto end = thrust::copy_if(thrust::cuda::par(alloc).on(batch_tobe_sent->cudaStream), th_data_gpu, th_data_gpu + batch_tobe_sent->size, th_flags_gpu, th_new_data_gpu, pred);
+            auto end = thrust::copy_if(thrust::cuda::par(alloc).on(batch_tobe_sent->cudaStream), th_data_u, th_data_u + batch_tobe_sent->size, th_flags_gpu, th_new_data_gpu, pred);
             batch_tobe_sent->size = end - th_new_data_gpu; // change the new size of the batch after filtering
 #if defined (WF_TRACING_ENABLED)
             stats_record.outputs_sent += batch_tobe_sent->size;
             stats_record.bytes_sent += batch_tobe_sent->size * sizeof(tuple_t);
 #endif
-            gpuErrChk(cudaMemcpyAsync(batch_tobe_sent->data_gpu, prev_record->new_data_gpu, batch_tobe_sent->size * sizeof(batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>), cudaMemcpyDeviceToDevice, batch_tobe_sent->cudaStream));
+            gpuErrChk(cudaMemcpyAsync(batch_tobe_sent->data_u, prev_record->new_data_gpu, batch_tobe_sent->size * sizeof(batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>), cudaMemcpyDeviceToDevice, batch_tobe_sent->cudaStream));
             gpuErrChk(cudaStreamSynchronize(batch_tobe_sent->cudaStream));
             if (batch_tobe_sent->size == 0) { // if the batch is now empty, it is destroyed
                 dropped_inputs++;
@@ -789,23 +789,23 @@ public:
         int num_blocks = std::min((int) ceil(((double) (input->size)) / warps_per_block), numSMs * max_blocks_per_sm);
         assert(records[id_r]->size >= input->size);
         Stateless_FILTERGPU_Kernel<decltype(get_tuple_t_FilterGPU(func)), filtergpu_func_t>
-                                  <<<num_blocks, warps_per_block*threads_per_warp, 0, input->cudaStream>>>(input->data_gpu,
+                                  <<<num_blocks, warps_per_block*threads_per_warp, 0, input->cudaStream>>>(input->data_u,
                                                                                                            records[id_r]->flags_gpu,
                                                                                                            input->size,
                                                                                                            num_active_thread_per_warp,
                                                                                                            func);
         gpuErrChk(cudaPeekAtLastError());
         thrust::device_ptr<bool> th_flags_gpu = thrust::device_pointer_cast(records[id_r]->flags_gpu);
-        thrust::device_ptr<batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>> th_data_gpu = thrust::device_pointer_cast(input->data_gpu);
+        thrust::device_ptr<batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>> th_data_u = thrust::device_pointer_cast(input->data_u);
         thrust::device_ptr<batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>> th_new_data_gpu = thrust::device_pointer_cast(records[id_r]->new_data_gpu);
         auto pred = [] __device__ (bool x) { return x; };
-        auto end = thrust::copy_if(thrust::cuda::par(alloc).on(input->cudaStream), th_data_gpu, th_data_gpu + input->size, th_flags_gpu, th_new_data_gpu, pred);
+        auto end = thrust::copy_if(thrust::cuda::par(alloc).on(input->cudaStream), th_data_u, th_data_u + input->size, th_flags_gpu, th_new_data_gpu, pred);
         input->size = end - th_new_data_gpu; // change the new size of the batch after filtering
 #if defined (WF_TRACING_ENABLED)
         stats_record.outputs_sent += input->size;
         stats_record.bytes_sent += input->size * sizeof(tuple_t);
 #endif
-        gpuErrChk(cudaMemcpyAsync(input->data_gpu, records[id_r]->new_data_gpu, input->size * sizeof(batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>), cudaMemcpyDeviceToDevice, input->cudaStream));
+        gpuErrChk(cudaMemcpyAsync(input->data_u, records[id_r]->new_data_gpu, input->size * sizeof(batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>), cudaMemcpyDeviceToDevice, input->cudaStream));
         gpuErrChk(cudaStreamSynchronize(input->cudaStream));
         if (input->size == 0) { // if the batch is now empty, it is destroyed
             dropped_inputs++;

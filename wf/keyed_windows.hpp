@@ -23,9 +23,9 @@
  *  @section Keyed_Windows (Description)
  *  
  *  This file implements the Keyed_Windows operator able to execute incremental
- *  or non-incremental processing logic on count- or time-based windows. If
- *  created with parallelism greater than one, windows belonging to different
- *  keys are processed in parallel by different operator replicas.
+ *  or non-incremental queries on count- or time-based windows. If created with
+ *  parallelism greater than one, windows belonging to different keys are processed
+ *  in parallel by different operator replicas.
  */ 
 
 #ifndef KEYED_WIN_H
@@ -51,8 +51,8 @@ namespace wf {
  *  \brief Keyed_Windows operator
  *  
  *  This class implements the Keyed_Windows operator executing incremental or
- *  non-incremental processing logic on streaming windows. The operator allows
- *  windows of different keys to be processed in parallel by different replica.
+ *  non-incremental queries on streaming windows. The operator allows windows
+ *  of different keys to be processed in parallel by different replica.
  */ 
 template<typename win_func_t, typename key_extractor_func_t>
 class Keyed_Windows: public Basic_Operator
@@ -117,10 +117,10 @@ private:
     // Dump the log file (JSON format) of statistics of the Keyed_Windows
     void dumpStats() const override
     {
-        std::ofstream logfile; // create and open the log file in the LOG_DIR directory
-#if defined (LOG_DIR)
-        std::string log_dir = std::string(STRINGIFY(LOG_DIR));
-        std::string filename = std::string(STRINGIFY(LOG_DIR)) + "/" + std::to_string(getpid()) + "_" + name + ".json";
+        std::ofstream logfile; // create and open the log file in the WF_LOG_DIR directory
+#if defined (WF_LOG_DIR)
+        std::string log_dir = std::string(STRINGIFY(WF_LOG_DIR));
+        std::string filename = std::string(STRINGIFY(WF_LOG_DIR)) + "/" + std::to_string(getpid()) + "_" + name + ".json";
 #else
         std::string log_dir = std::string("log");
         std::string filename = "log/" + std::to_string(getpid()) + "_" + name + ".json";

@@ -58,7 +58,7 @@ public:
         free_all(); // free all allocations when Thurst_Allocator goes out of scope
     }
 
-    // Allocate num_bytes in a GPU-accessible buffer
+    // Allocate num_bytes in a buffer accessible by the GPU side
     char *allocate(std::ptrdiff_t num_bytes)
     {
         char *result = 0;

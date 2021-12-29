@@ -155,14 +155,14 @@ struct Batch_CPU_t: Batch_t<tuple_t>
     }
 
     // Get the timestamp of the element at position pos of the batch
-    uint64_t getTimestampAtPos(size_t _pos) const override
+    uint64_t getTimestampAtPos(size_t _pos) override
     {
         assert(_pos < size && _pos < batch_data.size());
         return batch_data[_pos].timestamp;
     }
 
     // Get the watermark of the batch related to a specific destination _node_id
-    uint64_t getWatermark(size_t _node_id=0) const override
+    uint64_t getWatermark(size_t _node_id=0) override
     {
         if(_node_id < watermarks.size()) {
             return watermarks[_node_id];

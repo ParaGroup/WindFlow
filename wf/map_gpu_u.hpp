@@ -15,54 +15,42 @@
  */
 
 /** 
- *  @file    filter_gpu.hpp
+ *  @file    map_gpu_u.hpp
  *  @author  Gabriele Mencagli
  *  
- *  @brief Filter operator on GPU
+ *  @brief Map operator on GPU (Version with CUDA Unified Memory)
  *  
- *  @section Filter_GPU (Description)
+ *  @section Map_GPU (Description)
  *  
- *  This file implements the Filter_GPU operator able to execute streaming transformations
- *  producing zero or one output per input. The operator offloads the processing on a GPU
- *  device.
+ *  This file implements the Map operator able to execute streaming transformations
+ *  producing one output per input. The operator offloads the processing on a GPU
+ *  device. Version with CUDA Unified Memory.
  */ 
 
-#ifndef FILTER_GPU_H
-#define FILTER_GPU_H
-
-// Required to compile with clang and CUDA < 11
-#if defined(__clang__) and (__CUDACC_VER_MAJOR__ < 11)
-    #define THRUST_CUB_NS_PREFIX namespace thrust::cuda_cub {
-    #define THRUST_CUB_NS_POSTFIX }
-    #include<thrust/system/cuda/detail/cub/util_debug.cuh>
-    using namespace thrust::cuda_cub::cub;
-#endif
+#ifndef MAP_GPU_U_H
+#define MAP_GPU_U_H
 
 /// includes
 #include<string>
 #include<pthread.h>
-#include<thrust/copy.h>
-#include<thrust/device_ptr.h>
-#include<tbb/concurrent_unordered_map.h>
-#include<batch_gpu_t.hpp>
-#include<basic_emitter.hpp>
-#include<basic_operator.hpp>
-#include<thrust_allocator.hpp>
+#include<batch_gpu_t_u.hpp>
 #if defined (WF_TRACING_ENABLED)
     #include<stats_record.hpp>
 #endif
+#include<basic_emitter.hpp>
+#include<basic_operator.hpp>
+#include<tbb/concurrent_unordered_map.h>
 
 namespace wf {
 
 //@cond DOXY_IGNORE
 
-// CUDA Kernel: Stateless_FILTERGPU_Kernel
-template<typename tuple_t, typename filtergpu_func_t>
-__global__ void Stateless_FILTERGPU_Kernel(batch_item_gpu_t<tuple_t> *data_gpu,
-                                           bool *flags_gpu,
-                                           size_t len,
-                                           int num_active_thread_per_warp,
-                                           filtergpu_func_t func_gpu)
+// CUDA Kernel: Stateless_MAPGPU_Kernel
+template<typename tuple_t, typename mapgpu_func_t>
+__global__ void Stateless_MAPGPU_Kernel(batch_item_gpu_t<tuple_t> *data_u,
+                                        size_t len,
+                                        int num_active_thread_per_warp,
+                                        mapgpu_func_t func_gpu)
 {
     int id = threadIdx.x + blockIdx.x * blockDim.x; // id of the thread in the kernel
     int num_threads = gridDim.x * blockDim.x; // number of threads in the kernel
@@ -71,21 +59,20 @@ __global__ void Stateless_FILTERGPU_Kernel(batch_item_gpu_t<tuple_t> *data_gpu,
     int id_worker = id / threads_per_worker; // id of the worker corresponding to this thread
     if (id % threads_per_worker == 0) { // only "num_active_thread_per_warp" threads per warp work, the others are idle
         for (size_t i=id_worker; i<len; i+=num_workers) {
-            flags_gpu[i] = func_gpu(data_gpu[i].tuple);
+            func_gpu(data_u[i].tuple);
         }
     }
 }
 
-// CUDA Kernel: Stateful_FILTERGPU_Kernel
-template<typename tuple_t, typename state_t, typename filtergpu_func_t>
-__global__ void Stateful_FILTERGPU_Kernel(batch_item_gpu_t<tuple_t> *data_gpu,
-                                          bool *flags_gpu,
-                                          int *map_idxs_gpu,
-                                          int *start_idxs_gpu,
-                                          state_t **states,
-                                          int num_dist_keys,
-                                          int num_active_thread_per_warp,
-                                          filtergpu_func_t func_gpu)
+// CUDA Kernel: Stateful_MAPGPU_Kernel
+template<typename tuple_t, typename state_t, typename mapgpu_func_t>
+__global__ void Stateful_MAPGPU_Kernel(batch_item_gpu_t<tuple_t> *data_u,
+                                       int *map_idxs_u,
+                                       int *start_idxs_u,
+                                       state_t **states,
+                                       int num_dist_keys,
+                                       int num_active_thread_per_warp,
+                                       mapgpu_func_t func_gpu)
 {
     int id = threadIdx.x + blockIdx.x * blockDim.x; // id of the thread in the kernel
     int num_threads = gridDim.x * blockDim.x; // number of threads in the kernel
@@ -94,44 +81,42 @@ __global__ void Stateful_FILTERGPU_Kernel(batch_item_gpu_t<tuple_t> *data_gpu,
     int id_worker = id / threads_per_worker; // id of the worker corresponding to this thread
     if (id % threads_per_worker == 0) { // only "num_active_thread_per_warp" threads per warp work, the others are idle
         for (int id_key=id_worker; id_key<num_dist_keys; id_key+=num_workers) {
-            size_t idx = start_idxs_gpu[id_key];
+            size_t idx = start_idxs_u[id_key];
             while (idx != -1) { // execute all the inputs with key in the input batch
-                flags_gpu[idx] = func_gpu(data_gpu[idx].tuple, *(states[id_key]));
-                idx = map_idxs_gpu[idx];
+                func_gpu(data_u[idx].tuple, *(states[id_key]));
+                idx = map_idxs_u[idx];
             }
         }
     }
 }
 
 // CUDA callback
-void CUDART_CB unlock_callback_filter(void *data)
+void CUDART_CB unlock_callback_map(void *data)
 {
     pthread_spinlock_t *lock = (pthread_spinlock_t *) data;
     pthread_spin_unlock(lock);
 }
 
-// class FilterGPU_Replica (stateful version)
-template<typename filtergpu_func_t, typename key_t>
-class FilterGPU_Replica: public ff::ff_monode
+// class MapGPU_Replica (stateful version)
+template<typename mapgpu_func_t, typename key_t>
+class MapGPU_Replica: public ff::ff_monode
 {
 private:
-    template<typename T1, typename T2> friend class Filter_GPU; // friendship with all the instances of the Filter_GPU template
-    filtergpu_func_t func; // functional logic used by the Filter_GPU replica
-    using tuple_t = decltype(get_tuple_t_FilterGPU(func)); // extracting the tuple_t type and checking the admissible signatures
-    using state_t = decltype(get_state_t_FilterGPU(func)); // extracting the state_t type and checking the admissible signatures
-    size_t id_replica; // identifier of the Filter_GPU replica
+    template<typename T1, typename T2> friend class Map_GPU; // friendship with all the instances of the Map_GPU template
+    mapgpu_func_t func; // functional logic used by the Map_GPU replica
+    using tuple_t = decltype(get_tuple_t_MapGPU(func)); // extracting the tuple_t type and checking the admissible signatures
+    using state_t = decltype(get_state_t_MapGPU(func)); // extracting the state_t type and checking the admissible signatures
+    size_t id_replica; // identifier of the Map_GPU replica
     tbb::concurrent_unordered_map<key_t, wrapper_state_t<state_t>> *keymap; // pointer to the concurrent hashtable keeping the states of the keys
-    pthread_spinlock_t *spinlock; // pointer to the spinlock used by all the replicas of the Filter_GPU
-    std::string opName; // name of the Filter_GPU containing the replica
-    bool terminated; // true if the Filter_GPU replica has finished its work
+    pthread_spinlock_t *spinlock; // pointer to the spinlock used by all the replicas of the Map_GPU
+    std::string opName; // name of the Map_GPU containing the replica
+    bool terminated; // true if the Map_GPU replica has finished its work
     Basic_Emitter *emitter; // pointer to the used emitter
     struct record_t // struct record_t
     {
         size_t size; // size of the arrays in the structure
         state_t **state_ptrs_cpu=nullptr; // pinned host array of pointers to states
         state_t **state_ptrs_gpu=nullptr; // GPU array of pointers to states
-        bool *flags_gpu; // pointer to a GPU array of boolean flags
-        batch_item_gpu_t<tuple_t> *new_data_gpu; // pointer to a GPU array of compacted tuples
 
         // Constructor
         record_t(size_t _size):
@@ -139,8 +124,6 @@ private:
         {
             gpuErrChk(cudaMallocHost(&state_ptrs_cpu, sizeof(state_t *) * size));
             gpuErrChk(cudaMalloc(&state_ptrs_gpu, sizeof(state_t *) * size));
-            gpuErrChk(cudaMalloc(&flags_gpu, sizeof(bool) * size));
-            gpuErrChk(cudaMalloc(&new_data_gpu, sizeof(batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>) * size));
         }
 
         // Destructor
@@ -148,8 +131,6 @@ private:
         {
             gpuErrChk(cudaFreeHost(state_ptrs_cpu));
             gpuErrChk(cudaFree(state_ptrs_gpu));
-            gpuErrChk(cudaFree(flags_gpu));
-            gpuErrChk(cudaFree(new_data_gpu));
         }
 
         // Resize the internal arrays of the record
@@ -159,26 +140,19 @@ private:
                 size = _newsize;
                 gpuErrChk(cudaFreeHost(state_ptrs_cpu));
                 gpuErrChk(cudaFree(state_ptrs_gpu));
-                gpuErrChk(cudaFree(flags_gpu));
-                gpuErrChk(cudaFree(new_data_gpu));
                 gpuErrChk(cudaMallocHost(&state_ptrs_cpu, sizeof(state_t *) * size));
                 gpuErrChk(cudaMalloc(&state_ptrs_gpu, sizeof(state_t *) * size));
-                gpuErrChk(cudaMalloc(&flags_gpu, sizeof(bool) * size));
-                gpuErrChk(cudaMalloc(&new_data_gpu, sizeof(batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>) * size));
             }
         }
     };
     Batch_GPU_t<tuple_t> *batch_tobe_sent; // pointer to the output batch to be sent
-    std::vector<record_t *> records; // vector of pointers to record structures used circularly)
+    std::vector<record_t *> records; // vector of pointers to record structures (used circularly)
     size_t id_r; // identifier used for overlapping purposes
     int numSMs; // number of Stream Multiprocessor of the GPU
     int max_threads_per_sm; // maximum number of threads resident on each Stream Multiprocessor of the GPU
     int max_blocks_per_sm; // maximum number of blocks resident on each Stream Multiprocessor of the GPU
     int threads_per_warp; // number of threads per warp of the GPU
-    Thurst_Allocator alloc; // internal memory allocator used by CUDA/Thrust
-    Execution_Mode_t execution_mode; // execution mode of the Filter_GPU replica
-    size_t dropped_inputs; // number of "consecutive" dropped inputs
-    uint64_t last_time_punct; // last time used to send punctuations
+    Execution_Mode_t execution_mode; // execution mode of the Map_GPU replica
 #if defined (WF_TRACING_ENABLED)
     Stats_Record stats_record;
     double avg_td_us = 0;
@@ -188,23 +162,22 @@ private:
 
 public:
     // Constructor
-    FilterGPU_Replica(filtergpu_func_t _func,
-                      size_t _id_replica,
-                      std::string _opName,
-                      tbb::concurrent_unordered_map<key_t, wrapper_state_t<state_t>> *_keymap,
-                      pthread_spinlock_t *_spinlock):
-                      func(_func),
-                      id_replica(_id_replica),
-                      keymap(_keymap),
-                      spinlock(_spinlock),
-                      opName(_opName),
-                      terminated(false),
-                      emitter(nullptr),
-                      batch_tobe_sent(nullptr),
-                      records(2, nullptr),
-                      id_r(0),
-                      execution_mode(Execution_Mode_t::DEFAULT),
-                      dropped_inputs(0)
+    MapGPU_Replica(mapgpu_func_t _func,
+                   size_t _id_replica,
+                   std::string _opName,
+                   tbb::concurrent_unordered_map<key_t, wrapper_state_t<state_t>> *_keymap,
+                   pthread_spinlock_t *_spinlock):
+                   func(_func),
+                   id_replica(_id_replica),
+                   keymap(_keymap),
+                   spinlock(_spinlock),
+                   opName(_opName),
+                   terminated(false),
+                   emitter(nullptr),
+                   batch_tobe_sent(nullptr),
+                   records(2, nullptr),
+                   id_r(0),
+                   execution_mode(Execution_Mode_t::DEFAULT)
     {
         gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0)); // device_id = 0
         gpuErrChk(cudaDeviceGetAttribute(&max_threads_per_sm, cudaDevAttrMaxThreadsPerMultiProcessor, 0)); // device_id = 0
@@ -217,22 +190,21 @@ public:
     }
 
     // Copy Constructor
-    FilterGPU_Replica(const FilterGPU_Replica &_other):
-                      func(_other.func),
-                      id_replica(_other.id_replica),
-                      keymap(_other.keymap),
-                      spinlock(_other.spinlock),
-                      opName(_other.opName),
-                      terminated(_other.terminated),
-                      batch_tobe_sent(nullptr),
-                      records(2, nullptr),
-                      id_r(_other.id_r),
-                      numSMs(_other.numSMs),
-                      max_threads_per_sm(_other.max_threads_per_sm),
-                      max_blocks_per_sm(_other.max_blocks_per_sm),
-                      threads_per_warp(_other.threads_per_warp),
-                      execution_mode(_other.execution_mode),
-                      dropped_inputs(0)
+    MapGPU_Replica(const MapGPU_Replica &_other):
+                   func(_other.func),
+                   id_replica(_other.id_replica),
+                   keymap(_other.keymap),
+                   spinlock(_other.spinlock),
+                   opName(_other.opName),
+                   terminated(_other.terminated),
+                   batch_tobe_sent(nullptr),
+                   records(2, nullptr),
+                   id_r(_other.id_r),
+                   numSMs(_other.numSMs),
+                   max_threads_per_sm(_other.max_threads_per_sm),
+                   max_blocks_per_sm(_other.max_blocks_per_sm),
+                   threads_per_warp(_other.threads_per_warp),
+                   execution_mode(_other.execution_mode)
     {
         if (_other.emitter == nullptr) {
             emitter = nullptr;
@@ -246,23 +218,22 @@ public:
     }
 
     // Move Constructor
-    FilterGPU_Replica(FilterGPU_Replica &&_other):
-                      func(std::move(_other.func)),
-                      id_replica(_other.id_replica),
-                      keymap(std::exchange(_other.keymap, nullptr)),
-                      spinlock(std::exchange(_other.spinlock, nullptr)),
-                      opName(std::move(_other.opName)),
-                      terminated(_other.terminated),
-                      emitter(std::exchange(_other.emitter, nullptr)),
-                      batch_tobe_sent(std::exchange(_other.batch_tobe_sent, nullptr)),
-                      records(std::move(_other.records)),
-                      id_r(_other.id_r),
-                      numSMs(_other.numSMs),
-                      max_threads_per_sm(_other.max_threads_per_sm),
-                      max_blocks_per_sm(_other.max_blocks_per_sm),
-                      threads_per_warp(_other.threads_per_warp),
-                      execution_mode(_other.execution_mode),
-                      dropped_inputs(_other.dropped_inputs)
+    MapGPU_Replica(MapGPU_Replica &&_other):
+                   func(std::move(_other.func)),
+                   id_replica(_other.id_replica),
+                   keymap(std::exchange(_other.keymap, nullptr)),
+                   spinlock(std::exchange(_other.spinlock, nullptr)),
+                   opName(std::move(_other.opName)),
+                   terminated(_other.terminated),
+                   emitter(std::exchange(_other.emitter, nullptr)),
+                   batch_tobe_sent(std::exchange(_other.batch_tobe_sent, nullptr)),
+                   records(std::move(_other.records)),
+                   id_r(_other.id_r),
+                   numSMs(_other.numSMs),
+                   max_threads_per_sm(_other.max_threads_per_sm),
+                   max_blocks_per_sm(_other.max_blocks_per_sm),
+                   threads_per_warp(_other.threads_per_warp),
+                   execution_mode(_other.execution_mode)
     {
 #if defined (WF_TRACING_ENABLED)
         stats_record = std::move(_other.stats_record);
@@ -270,14 +241,12 @@ public:
     }
 
     // Destructor
-    ~FilterGPU_Replica()
+    ~MapGPU_Replica()
     {
         if (emitter != nullptr) {
             delete emitter;
         }
-        if (batch_tobe_sent != nullptr) {
-            delete batch_tobe_sent;
-        }
+        assert(batch_tobe_sent == nullptr); // sanity check
         for (auto *p: records) {
             if (p != nullptr) {
                 delete p;
@@ -290,7 +259,7 @@ public:
     }
 
     // Copy Assignment Operator
-    FilterGPU_Replica &operator=(const FilterGPU_Replica &_other)
+    MapGPU_Replica &operator=(const MapGPU_Replica &_other)
     {
         if (this != &_other) {
             func = _other.func;
@@ -324,7 +293,6 @@ public:
             max_blocks_per_sm = _other.max_blocks_per_sm;
             threads_per_warp = _other.threads_per_warp;
             execution_mode = _other.execution_mode;
-            dropped_inputs = _other.dropped_inputs;
 #if defined (WF_TRACING_ENABLED)
             stats_record = _other.stats_record;
 #endif
@@ -333,7 +301,7 @@ public:
     }
 
     // Move Assignment Operator
-    FilterGPU_Replica &operator=(FilterGPU_Replica &_other)
+    MapGPU_Replica &operator=(MapGPU_Replica &_other)
     {
         func = std::move(_other.func);
         id_replica = _other.id_replica;
@@ -361,7 +329,6 @@ public:
         max_blocks_per_sm = _other.max_blocks_per_sm;
         threads_per_warp = _other.threads_per_warp;
         execution_mode = _other.execution_mode;
-        dropped_inputs = _other.dropped_inputs;
 #if defined (WF_TRACING_ENABLED)
         stats_record = std::move(_other.stats_record);
 #endif
@@ -373,7 +340,6 @@ public:
 #if defined (WF_TRACING_ENABLED)
         stats_record = Stats_Record(opName, std::to_string(id_replica), false, true);
 #endif
-        last_time_punct = current_time_usecs();
         return 0;
     }
 
@@ -386,9 +352,13 @@ public:
             startTD = current_time_nsecs();
         }
 #endif
-        Batch_GPU_t<decltype(get_tuple_t_FilterGPU(func))> *input = reinterpret_cast<Batch_GPU_t<decltype(get_tuple_t_FilterGPU(func))> *>(_in);
+        Batch_GPU_t<decltype(get_tuple_t_MapGPU(func))> *input = reinterpret_cast<Batch_GPU_t<decltype(get_tuple_t_MapGPU(func))> *>(_in);
         if (input->isPunct()) { // if it is a punctuaton
-            sendPreviousBatch(); // send previous batch (if any)
+            if (batch_tobe_sent != nullptr) {
+                gpuErrChk(cudaStreamSynchronize(batch_tobe_sent->cudaStream));
+                emitter->emit_inplace(batch_tobe_sent, this); // send the output batch once computed
+                batch_tobe_sent = nullptr;
+            }
             emitter->generate_punctuation(input->getWatermark(id_replica), this); // propagate the received punctuation
             deleteBatch_t(input); // delete the punctuation
             return this->GO_ON;
@@ -396,6 +366,8 @@ public:
 #if defined (WF_TRACING_ENABLED)
         stats_record.inputs_received += input->size;
         stats_record.bytes_received += input->size * sizeof(tuple_t);
+        stats_record.outputs_sent += input->size;
+        stats_record.bytes_sent += input->size * sizeof(tuple_t);
 #endif
         if (records[id_r] == nullptr) {
             records[id_r] = new record_t(input->original_size);
@@ -403,12 +375,13 @@ public:
         else {
             records[id_r]->resize(input->original_size);
         }
-        key_t *dist_keys = reinterpret_cast<key_t *>(input->dist_keys_cpu);
+        key_t *dist_keys = reinterpret_cast<key_t *>(input->dist_keys);
         for (size_t i=0; i<input->num_dist_keys; i++) { // prepare the states
-            auto it = keymap->find(dist_keys[i]);
+            auto key = dist_keys[i];
+            auto it = keymap->find(key);
             if (it == keymap->end()) {
-                wrapper_state_t<decltype(get_state_t_FilterGPU(func))> newstate;
-                auto res = keymap->insert(std::move(std::make_pair(dist_keys[i], std::move(newstate))));
+                wrapper_state_t<decltype(get_state_t_MapGPU(func))> newstate;
+                auto res = keymap->insert(std::move(std::make_pair(key, std::move(newstate))));
                 records[id_r]->state_ptrs_cpu[i] = ((*(res.first)).second).state_gpu;
             }
             else {
@@ -424,19 +397,21 @@ public:
         }
         int num_active_thread_per_warp = std::min(x, threads_per_warp);
         int num_blocks = std::min((int) ceil(((double) input->num_dist_keys) / warps_per_block), numSMs * max_blocks_per_sm);
-        sendPreviousBatch(true); // send previous batch (if any)
+        if (batch_tobe_sent != nullptr) {
+            gpuErrChk(cudaStreamSynchronize(batch_tobe_sent->cudaStream));
+            emitter->emit_inplace(batch_tobe_sent, this); // send the output batch once computed
+        }
         pthread_spin_lock(spinlock); // acquire the lock
-        Stateful_FILTERGPU_Kernel<decltype(get_tuple_t_FilterGPU(func)), decltype(get_state_t_FilterGPU(func)), filtergpu_func_t>
-                                 <<<num_blocks, warps_per_block*threads_per_warp, 0, input->cudaStream>>>(input->data_gpu,
-                                                                                                          records[id_r]->flags_gpu,
-                                                                                                          input->map_idxs_gpu,
-                                                                                                          input->start_idxs_gpu,
-                                                                                                          records[id_r]->state_ptrs_gpu,
-                                                                                                          input->num_dist_keys,
-                                                                                                          num_active_thread_per_warp,
-                                                                                                          func);
+        Stateful_MAPGPU_Kernel<decltype(get_tuple_t_MapGPU(func)), decltype(get_state_t_MapGPU(func)), mapgpu_func_t>
+                              <<<num_blocks, warps_per_block*threads_per_warp, 0, input->cudaStream>>>(input->data_u,
+                                                                                                       input->map_idxs_u,
+                                                                                                       input->start_idxs_u,
+                                                                                                       records[id_r]->state_ptrs_gpu,
+                                                                                                       input->num_dist_keys,
+                                                                                                       num_active_thread_per_warp,
+                                                                                                       func);
         gpuErrChk(cudaPeekAtLastError());
-        gpuErrChk(cudaLaunchHostFunc(input->cudaStream, unlock_callback_filter, (void *) spinlock));
+        gpuErrChk(cudaLaunchHostFunc(input->cudaStream, unlock_callback_map, (void *) spinlock));
         batch_tobe_sent = input;
         id_r = (id_r + 1) % 2;
 #if defined (WF_TRACING_ENABLED)
@@ -456,7 +431,11 @@ public:
     // EOS management (utilized by the FastFlow runtime)
     void eosnotify(ssize_t id) override
     {
-        sendPreviousBatch(); // send previous batch (if any)
+        if (batch_tobe_sent != nullptr) {
+            gpuErrChk(cudaStreamSynchronize(batch_tobe_sent->cudaStream));
+            emitter->emit_inplace(batch_tobe_sent, this); // send the output batch once computed
+            batch_tobe_sent = nullptr;
+        }
         emitter->flush(this); // call the flush of the emitter
         terminated = true;
 #if defined (WF_TRACING_ENABLED)
@@ -464,67 +443,29 @@ public:
 #endif
     }
 
-    // Send the previous batch (if any)
-    void sendPreviousBatch(bool _autoPunc=false)
-    {
-        if (batch_tobe_sent != nullptr) {
-            size_t prev_id_r = (id_r + 2 - 1) % 2; // decrement_address_one = (address + Length - 1) % Length
-            auto *prev_record = records[prev_id_r];
-            thrust::device_ptr<bool> th_flags_gpu = thrust::device_pointer_cast(prev_record->flags_gpu);
-            thrust::device_ptr<batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>> th_data_gpu = thrust::device_pointer_cast(batch_tobe_sent->data_gpu);
-            thrust::device_ptr<batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>> th_new_data_gpu = thrust::device_pointer_cast(prev_record->new_data_gpu);
-            auto pred = [] __device__ (bool x) { return x; };
-            auto end = thrust::copy_if(thrust::cuda::par(alloc).on(batch_tobe_sent->cudaStream), th_data_gpu, th_data_gpu + batch_tobe_sent->size, th_flags_gpu, th_new_data_gpu, pred);
-            batch_tobe_sent->size = end - th_new_data_gpu; // change the new size of the batch after filtering
-#if defined (WF_TRACING_ENABLED)
-            stats_record.outputs_sent += batch_tobe_sent->size;
-            stats_record.bytes_sent += batch_tobe_sent->size * sizeof(tuple_t);
-#endif
-            gpuErrChk(cudaMemcpyAsync(batch_tobe_sent->data_gpu, prev_record->new_data_gpu, batch_tobe_sent->size * sizeof(batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>), cudaMemcpyDeviceToDevice, batch_tobe_sent->cudaStream));
-            gpuErrChk(cudaStreamSynchronize(batch_tobe_sent->cudaStream));
-            if (batch_tobe_sent->size == 0) { // if the batch is now empty, it is destroyed
-                dropped_inputs++;
-                if (_autoPunc) {
-                    if ((execution_mode == Execution_Mode_t::DEFAULT) && (dropped_inputs % WF_DEFAULT_WM_AMOUNT == 0)) { // punctuaction auto-generation logic
-                        if (current_time_usecs() - last_time_punct >= WF_DEFAULT_WM_INTERVAL_USEC) {
-                            emitter->generate_punctuation(batch_tobe_sent->getWatermark(id_replica), this); // generation of a new punctuation
-                            last_time_punct = current_time_usecs();
-                        }
-                    }
-                }
-                deleteBatch_t(batch_tobe_sent);
-            }
-            else {
-                emitter->emit_inplace(batch_tobe_sent, this); // send the output batch once computed
-                dropped_inputs = 0;
-            }
-            batch_tobe_sent = nullptr;
-        }
-    }
-
-    // Configure the Filter_GPU replica to receive batches (this method does nothing)
+    // Configure the Map_GPU replica to receive batches (this method does nothing)
     void receiveBatches(bool _input_batching) {}
 
-    // Set the emitter used to route outputs from the Filter_GPU replica
+    // Set the emitter used to route outputs from the Map_GPU replica
     void setEmitter(Basic_Emitter *_emitter)
     {
         emitter = _emitter;
     }
 
-    // Check the termination of the Filter_GPU replica
+    // Check the termination of the Map_GPU replica
     bool isTerminated() const
     {
         return terminated;
     }
 
-    // Set the execution mode of the Filter_GPU replica
+    // Set the execution mode of the Map_GPU replica
     void setExecutionMode(Execution_Mode_t _execution_mode)
     {
         execution_mode = _execution_mode;
     }
 
 #if defined (WF_TRACING_ENABLED)
-    // Get a copy of the Stats_Record of the Filter_GPU replica
+    // Get a copy of the Stats_Record of the Map_GPU replica
     Stats_Record getStatsRecord() const
     {
         return stats_record;
@@ -532,60 +473,22 @@ public:
 #endif
 };
 
-// class FilterGPU_Replica (stateless version)
-template<typename filtergpu_func_t>
-class FilterGPU_Replica<filtergpu_func_t, empty_key_t>: public ff::ff_monode
+// class MapGPU_Replica (stateless version)
+template<typename mapgpu_func_t>
+class MapGPU_Replica<mapgpu_func_t, empty_key_t>: public ff::ff_monode
 {
 private:
-    filtergpu_func_t func; // functional logic used by the Filter_GPU replica
-    using tuple_t = decltype(get_tuple_t_FilterGPU(func)); // extracting the tuple_t type and checking the admissible signatures
-    size_t id_replica; // identifier of the Filter_GPU replica
-    std::string opName; // name of the Filter_GPU containing the replica
-    bool terminated; // true if the Filter_GPU replica has finished its work
-    Basic_Emitter *emitter; // pointer to the used emitter
-    struct record_t // struct record_t
-    {
-        size_t size; // size of the arrays in the structure
-        bool *flags_gpu; // pointer to a GPU array of boolean flags
-        batch_item_gpu_t<tuple_t> *new_data_gpu; // pointer to a GPU array of compacted tuples
-
-        // Constructor
-        record_t(size_t _size):
-                 size(_size)
-        {
-            gpuErrChk(cudaMalloc(&flags_gpu, sizeof(bool) * size));
-            gpuErrChk(cudaMalloc(&new_data_gpu, sizeof(batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>) * size));
-        }
-
-        // Destructor
-        ~record_t()
-        {
-            gpuErrChk(cudaFree(flags_gpu));
-            gpuErrChk(cudaFree(new_data_gpu));
-        }
-
-        // Resize the internal arrays of the record
-        void resize(size_t _newsize)
-        {
-            if (_newsize > size) {
-                size = _newsize;
-                gpuErrChk(cudaFree(flags_gpu));
-                gpuErrChk(cudaFree(new_data_gpu));
-                gpuErrChk(cudaMalloc(&flags_gpu, sizeof(bool) * size));
-                gpuErrChk(cudaMalloc(&new_data_gpu, sizeof(batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>) * size));
-            }
-        }
-    };
-    std::vector<record_t *> records; // vector of pointers to record structures (used circularly)
-    size_t id_r; // identifier used for overlapping purposes
+    mapgpu_func_t func; // functional logic used by the Map_GPU replica
+    using tuple_t = decltype(get_tuple_t_MapGPU(func)); // extracting the tuple_t type and checking the admissible signatures
+    size_t id_replica; // identifier of the Map_GPU replica
+    std::string opName; // name of the Map_GPU containing the replica
+    bool terminated; // true if the Map_GPU replica has finished its work
+    Basic_Emitter *emitter; // pointer to the used emitter   
     int numSMs; // number of Stream Multiprocessor of the GPU
     int max_threads_per_sm; // maximum number of threads resident on each Stream Multiprocessor of the GPU
     int max_blocks_per_sm; // maximum number of blocks resident on each Stream Multiprocessor of the GPU
     int threads_per_warp; // number of threads per warp of the GPU
-    Thurst_Allocator alloc; // internal memory allocator used by CUDA/Thrust
-    Execution_Mode_t execution_mode; // execution mode of the Filter_GPU replica
-    size_t dropped_inputs; // number of "consecutive" dropped inputs
-    uint64_t last_time_punct; // last time used to send punctuations
+    Execution_Mode_t execution_mode; // execution mode of the Map_GPU replica
 #if defined (WF_TRACING_ENABLED)
     Stats_Record stats_record;
     double avg_td_us = 0;
@@ -595,7 +498,7 @@ private:
 
 public:
     // Constructor
-    FilterGPU_Replica(filtergpu_func_t _func,
+    MapGPU_Replica(mapgpu_func_t _func,
                    size_t _id_replica,
                    std::string _opName):
                    func(_func),
@@ -603,10 +506,7 @@ public:
                    opName(_opName),
                    terminated(false),
                    emitter(nullptr),
-                   records(2, nullptr),
-                   id_r(0),
-                   execution_mode(Execution_Mode_t::DEFAULT),
-                   dropped_inputs(0)
+                   execution_mode(Execution_Mode_t::DEFAULT)
     {
         gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0)); // device_id = 0
         gpuErrChk(cudaDeviceGetAttribute(&max_threads_per_sm, cudaDevAttrMaxThreadsPerMultiProcessor, 0)); // device_id = 0
@@ -619,19 +519,16 @@ public:
     }
 
     // Copy Constructor
-    FilterGPU_Replica(const FilterGPU_Replica &_other):
+    MapGPU_Replica(const MapGPU_Replica &_other):
                    func(_other.func),
                    id_replica(_other.id_replica),
                    opName(_other.opName),
                    terminated(_other.terminated),
-                   records(2, nullptr),
-                   id_r(_other.id_r),
                    numSMs(_other.numSMs),
                    max_threads_per_sm(_other.max_threads_per_sm),
                    max_blocks_per_sm(_other.max_blocks_per_sm),
                    threads_per_warp(_other.threads_per_warp),
-                   execution_mode(_other.execution_mode),
-                   dropped_inputs(_other.dropped_inputs)
+                   execution_mode(_other.execution_mode)
     {
         if (_other.emitter == nullptr) {
             emitter = nullptr;
@@ -645,20 +542,17 @@ public:
     }
 
     // Move Constructor
-    FilterGPU_Replica(FilterGPU_Replica &&_other):
+    MapGPU_Replica(MapGPU_Replica &&_other):
                    func(std::move(_other.func)),
                    id_replica(_other.id_replica),
                    opName(std::move(_other.opName)),
                    terminated(_other.terminated),
                    emitter(std::exchange(_other.emitter, nullptr)),
-                   records(std::move(_other.records)),
-                   id_r(_other.id_r),
                    numSMs(_other.numSMs),
                    max_threads_per_sm(_other.max_threads_per_sm),
                    max_blocks_per_sm(_other.max_blocks_per_sm),
                    threads_per_warp(_other.threads_per_warp),
-                   execution_mode(_other.execution_mode),
-                   dropped_inputs(_other.dropped_inputs)
+                   execution_mode(_other.execution_mode)
     {
 #if defined (WF_TRACING_ENABLED)
         stats_record = std::move(_other.stats_record);
@@ -666,20 +560,15 @@ public:
     }
 
     // Destructor
-    ~FilterGPU_Replica()
+    ~MapGPU_Replica()
     {
         if (emitter != nullptr) {
             delete emitter;
         }
-        for (auto *p: records) {
-            if (p != nullptr) {
-                delete p;
-            }
-        }
     }
 
     // Copy Assignment Operator
-    FilterGPU_Replica &operator=(const FilterGPU_Replica &_other)
+    MapGPU_Replica &operator=(const MapGPU_Replica &_other)
     {
         if (this != &_other) {
             func = _other.func;
@@ -695,19 +584,11 @@ public:
             else {
                 emitter = (_other.emitter)->clone(); // clone the emitter if it exists
             }
-            for (auto *p: records) {
-                if (p != nullptr) {
-                    delete p;
-                }
-            }
-            records = { nullptr, nullptr };
-            id_r = _other.id_r;
             numSMs = _other.numSMs;
             max_threads_per_sm = _other.max_threads_per_sm;
             max_blocks_per_sm = _other.max_blocks_per_sm;
             threads_per_warp = _other.threads_per_warp;
             execution_mode = _other.execution_mode;
-            dropped_inputs = _other.dropped_inputs;
 #if defined (WF_TRACING_ENABLED)
             stats_record = _other.stats_record;
 #endif
@@ -716,7 +597,7 @@ public:
     }
 
     // Move Assignment Operator
-    FilterGPU_Replica &operator=(FilterGPU_Replica &_other)
+    MapGPU_Replica &operator=(MapGPU_Replica &_other)
     {
         func = std::move(_other.func);
         id_replica = _other.id_replica;
@@ -726,19 +607,11 @@ public:
             delete emitter;
         }
         emitter = std::exchange(_other.emitter, nullptr);
-        for (auto *p: records) {
-            if (p != nullptr) {
-                delete p;
-            }
-        }
-        records = std::move(_other.records);
-        id_r = _other.id_r;
         numSMs = _other.numSMs;
         max_threads_per_sm = _other.max_threads_per_sm;
         max_blocks_per_sm = _other.max_blocks_per_sm;
         threads_per_warp = _other.threads_per_warp;
         execution_mode = _other.execution_mode;
-        dropped_inputs = _other.dropped_inputs;
 #if defined (WF_TRACING_ENABLED)
         stats_record = std::move(_other.stats_record);
 #endif
@@ -750,7 +623,6 @@ public:
 #if defined (WF_TRACING_ENABLED)
         stats_record = Stats_Record(opName, std::to_string(id_replica), false, true);
 #endif
-        last_time_punct = current_time_usecs();
         return 0;
     }
 
@@ -763,7 +635,7 @@ public:
             startTD = current_time_nsecs();
         }
 #endif
-        Batch_GPU_t<decltype(get_tuple_t_FilterGPU(func))> *input = reinterpret_cast<Batch_GPU_t<decltype(get_tuple_t_FilterGPU(func))> *>(_in);
+        Batch_GPU_t<decltype(get_tuple_t_MapGPU(func))> *input = reinterpret_cast<Batch_GPU_t<decltype(get_tuple_t_MapGPU(func))> *>(_in);
         if (input->isPunct()) { // if it is a punctuaton
             emitter->generate_punctuation(input->getWatermark(id_replica), this); // propagate the received punctuation
             deleteBatch_t(input); // delete the punctuation
@@ -772,13 +644,9 @@ public:
 #if defined (WF_TRACING_ENABLED)
         stats_record.inputs_received += input->size;
         stats_record.bytes_received += input->size * sizeof(tuple_t);
+        stats_record.outputs_sent += input->size;
+        stats_record.bytes_sent += input->size * sizeof(tuple_t);
 #endif
-        if (records[id_r] == nullptr) {
-            records[id_r] = new record_t(input->original_size);
-        }
-        else {
-            records[id_r]->resize(input->original_size);
-        }
         int warps_per_block = ((max_threads_per_sm / max_blocks_per_sm) / threads_per_warp); // launch the kernel to compute the results
         int tot_num_warps = warps_per_block * max_blocks_per_sm * numSMs;
         int32_t x = (int32_t) ceil(((double) (input->size)) / tot_num_warps); // compute how many threads should be active per warps
@@ -787,41 +655,14 @@ public:
         }
         int num_active_thread_per_warp = std::min(x, threads_per_warp);
         int num_blocks = std::min((int) ceil(((double) (input->size)) / warps_per_block), numSMs * max_blocks_per_sm);
-        assert(records[id_r]->size >= input->size);
-        Stateless_FILTERGPU_Kernel<decltype(get_tuple_t_FilterGPU(func)), filtergpu_func_t>
-                                  <<<num_blocks, warps_per_block*threads_per_warp, 0, input->cudaStream>>>(input->data_gpu,
-                                                                                                           records[id_r]->flags_gpu,
-                                                                                                           input->size,
-                                                                                                           num_active_thread_per_warp,
-                                                                                                           func);
+        Stateless_MAPGPU_Kernel<decltype(get_tuple_t_MapGPU(func)), mapgpu_func_t>
+                               <<<num_blocks, warps_per_block*threads_per_warp, 0, input->cudaStream>>>(input->data_u,
+                                                                                                        input->size,
+                                                                                                        num_active_thread_per_warp,
+                                                                                                        func);
         gpuErrChk(cudaPeekAtLastError());
-        thrust::device_ptr<bool> th_flags_gpu = thrust::device_pointer_cast(records[id_r]->flags_gpu);
-        thrust::device_ptr<batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>> th_data_gpu = thrust::device_pointer_cast(input->data_gpu);
-        thrust::device_ptr<batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>> th_new_data_gpu = thrust::device_pointer_cast(records[id_r]->new_data_gpu);
-        auto pred = [] __device__ (bool x) { return x; };
-        auto end = thrust::copy_if(thrust::cuda::par(alloc).on(input->cudaStream), th_data_gpu, th_data_gpu + input->size, th_flags_gpu, th_new_data_gpu, pred);
-        input->size = end - th_new_data_gpu; // change the new size of the batch after filtering
-#if defined (WF_TRACING_ENABLED)
-        stats_record.outputs_sent += input->size;
-        stats_record.bytes_sent += input->size * sizeof(tuple_t);
-#endif
-        gpuErrChk(cudaMemcpyAsync(input->data_gpu, records[id_r]->new_data_gpu, input->size * sizeof(batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>), cudaMemcpyDeviceToDevice, input->cudaStream));
         gpuErrChk(cudaStreamSynchronize(input->cudaStream));
-        if (input->size == 0) { // if the batch is now empty, it is destroyed
-            dropped_inputs++;
-            if ((execution_mode == Execution_Mode_t::DEFAULT) && (dropped_inputs % WF_DEFAULT_WM_AMOUNT == 0)) { // punctuaction auto-generation logic
-                if (current_time_usecs() - last_time_punct >= WF_DEFAULT_WM_INTERVAL_USEC) {
-                    emitter->generate_punctuation(input->getWatermark(id_replica), this); // generation of a new punctuation
-                    last_time_punct = current_time_usecs();
-                }
-            }
-            deleteBatch_t(input);
-        }
-        else {
-            emitter->emit_inplace(input, this); // send the output batch once computed
-            dropped_inputs = 0;
-        }
-        id_r = (id_r + 1) % 2;
+        emitter->emit_inplace(input, this); // send the output batch once computed
 #if defined (WF_TRACING_ENABLED)
         endTS = current_time_nsecs();
         endTD = current_time_nsecs();
@@ -846,29 +687,29 @@ public:
 #endif
     }
 
-    // Configure the Filter_GPU replica to receive batches (this method does nothing)
+    // Configure the Map_GPU replica to receive batches (this method does nothing)
     void receiveBatches(bool _input_batching) {}
 
-    // Set the emitter used to route outputs from the Filter_GPU replica
+    // Set the emitter used to route outputs from the Map_GPU replica
     void setEmitter(Basic_Emitter *_emitter)
     {
         emitter = _emitter;
     }
 
-    // Check the termination of the Filter_GPU replica
+    // Check the termination of the Map_GPU replica
     bool isTerminated() const
     {
         return terminated;
     }
 
-    // Set the execution mode of the Filter_GPU replica
+    // Set the execution mode of the Map_GPU replica
     void setExecutionMode(Execution_Mode_t _execution_mode)
     {
         execution_mode = _execution_mode;
     }
 
 #if defined (WF_TRACING_ENABLED)
-    // Get a copy of the Stats_Record of the Filter_GPU replica
+    // Get a copy of the Stats_Record of the Map_GPU replica
     Stats_Record getStatsRecord() const
     {
         return stats_record;
@@ -879,32 +720,31 @@ public:
 //@endcond
 
 /** 
- *  \class Filter_GPU
+ *  \class Map_GPU
  *  
- *  \brief Filter_GPU operator
+ *  \brief Map_GPU operator
  *  
- *  This class implements the Filter_GPU operator able to execute streaming transformations
- *  producing zero or one output per input. The operator offloads the processing on a GPU
- *  device.
+ *  This class implements the Map_GPU operator executing streaming transformations producing
+ *  one output per input. The operator offloads the processing on a GPU device.
  */ 
-template<typename filtergpu_func_t, typename key_extractor_func_t>
-class Filter_GPU: public Basic_Operator
+template<typename mapgpu_func_t, typename key_extractor_func_t>
+class Map_GPU: public Basic_Operator
 {
 private:
     friend class MultiPipe; // friendship with the MultiPipe class
     friend class PipeGraph; // friendship with the PipeGraph class
-    filtergpu_func_t func; // functional logic used by the Filter_GPU
+    mapgpu_func_t func; // functional logic used by the Map_GPU
     key_extractor_func_t key_extr; // logic to extract the key attribute from the tuple_t
     using key_t = decltype(get_key_t_KeyExtrGPU(key_extr)); // extracting the key_t type and checking the admissible singatures
-    size_t parallelism; // parallelism of the Filter_GPU
-    std::string name; // name of the Filter_GPU
-    Routing_Mode_t input_routing_mode; // routing mode of inputs to the Filter_GPU
-    std::vector<FilterGPU_Replica<filtergpu_func_t, key_t> *> replicas; // vector of pointers to the replicas of the Filter_GPU
+    size_t parallelism; // parallelism of the Map_GPU
+    std::string name; // name of the Map_GPU
+    Routing_Mode_t input_routing_mode; // routing mode of inputs to the Map_GPU
+    std::vector<MapGPU_Replica<mapgpu_func_t, key_t> *> replicas; // vector of pointers to the replicas of the Map_GPU
 
     // This method exists but its does not have any effect
     void receiveBatches(bool _input_batching) override {}
 
-    // Set the emitter used to route outputs from the Filter_GPU
+    // Set the emitter used to route outputs from the Map_GPU
     void setEmitter(Basic_Emitter *_emitter) override
     {
         replicas[0]->setEmitter(_emitter);
@@ -913,7 +753,7 @@ private:
         }
     }
 
-    // Check whether the Filter_GPU has terminated
+    // Check whether the Map_GPU has terminated
     bool isTerminated() const override
     {
         bool terminated = true;
@@ -923,7 +763,7 @@ private:
         return terminated;
     }
 
-    // Set the execution mode of the Filter_GPU (i.e., the one of its PipeGraph)
+    // Set the execution mode of the Map_GPU (i.e., the one of its PipeGraph)
     void setExecutionMode(Execution_Mode_t _execution_mode)
     {
         for (auto *r: replicas) {
@@ -938,7 +778,7 @@ private:
     }
 
 #if defined (WF_TRACING_ENABLED)
-    // Dump the log file (JSON format) of statistics of the Filter_GPU
+    // Dump the log file (JSON format) of statistics of the Map_GPU
     void dumpStats() const override
     {
         std::ofstream logfile; // create and open the log file in the WF_LOG_DIR directory
@@ -959,12 +799,12 @@ private:
         logfile.open(filename);
         rapidjson::StringBuffer buffer; // create the rapidjson writer
         rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
-        this->appendStats(writer); // append the statistics of the Filter_GPU
+        this->appendStats(writer); // append the statistics of the Map_GPU
         logfile << buffer.GetString();
         logfile.close();
     }
 
-    // Append the statistics (JSON format) of the Filter_GPU to a PrettyWriter
+    // Append the statistics (JSON format) of the Map_GPU to a PrettyWriter
     void appendStats(rapidjson::PrettyWriter<rapidjson::StringBuffer> &writer) const override
     {
         // create the header of the JSON file
@@ -972,7 +812,7 @@ private:
         writer.Key("Operator_name");
         writer.String(name.c_str());
         writer.Key("Operator_type");
-        writer.String("Filter_GPU");
+        writer.String("Map_GPU");
         writer.Key("Distribution");
         if (input_routing_mode == Routing_Mode_t::KEYBY) {
             writer.String("KEYBY");
@@ -990,7 +830,7 @@ private:
         writer.Uint(parallelism);
         writer.Key("Replicas");
         writer.StartArray();
-        for (auto *r: replicas) { // append the statistics from all the replicas of the Filter
+        for (auto *r: replicas) { // append the statistics from all the replicas of the Map
             Stats_Record record = r->getStatsRecord();
             record.appendStats(writer);
         }
@@ -1003,55 +843,55 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _func functional logic of the Filter_GPU (a function or a callable type)
+     *  \param _func functional logic of the Map_GPU (a function or a callable type)
      *  \param _key_extr key extractor (a function or a callable type)
-     *  \param _parallelism internal parallelism of the Filter_GPU
-     *  \param _name name of the Filter_GPU
-     *  \param _input_routing_mode input routing mode of the Filter_GPU
+     *  \param _parallelism internal parallelism of the Map_GPU
+     *  \param _name name of the Map_GPU
+     *  \param _input_routing_mode input routing mode of the Map_GPU
      */ 
-    Filter_GPU(filtergpu_func_t _func,
-               key_extractor_func_t _key_extr,
-               size_t _parallelism,
-               std::string _name,
-               Routing_Mode_t _input_routing_mode):
-               func(_func),
-               key_extr(_key_extr),
-               parallelism(_parallelism),
-               name(_name),
-               input_routing_mode(_input_routing_mode)
+    Map_GPU(mapgpu_func_t _func,
+            key_extractor_func_t _key_extr,
+            size_t _parallelism,
+            std::string _name,
+            Routing_Mode_t _input_routing_mode):
+            func(_func),
+            key_extr(_key_extr),
+            parallelism(_parallelism),
+            name(_name),
+            input_routing_mode(_input_routing_mode)
     {
         if (parallelism == 0) { // check the validity of the parallelism value
-            std::cerr << RED << "WindFlow Error: Filter_GPU has parallelism zero" << DEFAULT_COLOR << std::endl;
+            std::cerr << RED << "WindFlow Error: Map_GPU has parallelism zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         if constexpr(std::is_same<decltype(get_key_t_KeyExtrGPU(key_extr)), empty_key_t>::value) { // stateless case
-            for (size_t i=0; i<parallelism; i++) { // create the internal replicas of the Filter_GPU
-                replicas.push_back(new FilterGPU_Replica<filtergpu_func_t, empty_key_t>(_func, i, name));
+            for (size_t i=0; i<parallelism; i++) { // create the internal replicas of the Map_GPU
+                replicas.push_back(new MapGPU_Replica<mapgpu_func_t, empty_key_t>(_func, i, name));
             }
         }
         else { // stateful case
-            auto *keymap = new tbb::concurrent_unordered_map<decltype(get_key_t_KeyExtrGPU(key_extr)), wrapper_state_t<decltype(get_state_t_FilterGPU(func))>>();
+            auto *keymap = new tbb::concurrent_unordered_map<decltype(get_key_t_KeyExtrGPU(key_extr)), wrapper_state_t<decltype(get_state_t_MapGPU(func))>>();
             auto *spinlock = new pthread_spinlock_t();
             pthread_spin_init(spinlock, 0); // spinlock initialization
-            for (size_t i=0; i<parallelism; i++) { // create the internal replicas of the Filter_GPU
-                replicas.push_back(new FilterGPU_Replica<filtergpu_func_t, decltype(get_key_t_KeyExtrGPU(key_extr))>(_func, i, name, keymap, spinlock));
+            for (size_t i=0; i<parallelism; i++) { // create the internal replicas of the Map_GPU
+                replicas.push_back(new MapGPU_Replica<mapgpu_func_t, decltype(get_key_t_KeyExtrGPU(key_extr))>(_func, i, name, keymap, spinlock));
             }
         }
     }
 
     /// Copy constructor
-    Filter_GPU(const Filter_GPU &_other):
-               func(_other.func),
-               key_extr(_other.key_extr),
-               parallelism(_other.parallelism),
-               name(_other.name),
-               input_routing_mode(_other.input_routing_mode)
+    Map_GPU(const Map_GPU &_other):
+            func(_other.func),
+            key_extr(_other.key_extr),
+            parallelism(_other.parallelism),
+            name(_other.name),
+            input_routing_mode(_other.input_routing_mode)
     {
-        for (size_t i=0; i<parallelism; i++) { // deep copy of the pointers to the Filter_GPU replicas
-            replicas.push_back(new FilterGPU_Replica<filtergpu_func_t, decltype(get_key_t_KeyExtrGPU(key_extr))>(*(_other.replicas[i])));
+        for (size_t i=0; i<parallelism; i++) { // deep copy of the pointers to the Map_GPU replicas
+            replicas.push_back(new MapGPU_Replica<mapgpu_func_t, decltype(get_key_t_KeyExtrGPU(key_extr))>(*(_other.replicas[i])));
         }
         if constexpr(!std::is_same<decltype(get_key_t_KeyExtrGPU(key_extr)), empty_key_t>::value) { // stateful case
-            auto *keymap = new tbb::concurrent_unordered_map<decltype(get_key_t_KeyExtrGPU(key_extr)), wrapper_state_t<decltype(get_state_t_FilterGPU(func))>>();
+            auto *keymap = new tbb::concurrent_unordered_map<decltype(get_key_t_KeyExtrGPU(key_extr)), wrapper_state_t<decltype(get_state_t_MapGPU(func))>>();
             auto *spinlock = new pthread_spinlock_t();
             pthread_spin_init(spinlock, 0); // spinlock initialization
             for (auto *r: replicas) {
@@ -1062,7 +902,7 @@ public:
     }
 
     // Destructor
-    ~Filter_GPU() override
+    ~Map_GPU() override
     {
         for (auto *r: replicas) { // delete all the replicas
             delete r;
@@ -1070,7 +910,7 @@ public:
     }
 
     /// Copy Assignment Operator
-    Filter_GPU& operator=(const Filter_GPU &_other)
+    Map_GPU& operator=(const Map_GPU &_other)
     {
         if (this != &_other) {
             func = _other.func;
@@ -1082,11 +922,11 @@ public:
                 delete r;
             }
             replicas.clear();
-            for (size_t i=0; i<parallelism; i++) { // deep copy of the pointers to the Filter replicas
-                replicas.push_back(new FilterGPU_Replica<filtergpu_func_t, decltype(get_key_t_KeyExtrGPU(key_extr))>(*(_other.replicas[i])));
+            for (size_t i=0; i<parallelism; i++) { // deep copy of the pointers to the Map replicas
+                replicas.push_back(new MapGPU_Replica<mapgpu_func_t, decltype(get_key_t_KeyExtrGPU(key_extr))>(*(_other.replicas[i])));
             }
             if constexpr(!std::is_same<decltype(get_key_t_KeyExtrGPU(key_extr)), empty_key_t>::value) { // stateful case
-                auto *keymap = new tbb::concurrent_unordered_map<decltype(get_key_t_KeyExtrGPU(key_extr)), wrapper_state_t<decltype(get_state_t_FilterGPU(func))>>();
+                auto *keymap = new tbb::concurrent_unordered_map<decltype(get_key_t_KeyExtrGPU(key_extr)), wrapper_state_t<decltype(get_state_t_MapGPU(func))>>();
                 auto *spinlock = new pthread_spinlock_t();
                 pthread_spin_init(spinlock, 0); // spinlock initialization
                 for (auto *r: replicas) {
@@ -1099,7 +939,7 @@ public:
     }
 
     /// Move Assignment Operator
-    Filter_GPU& operator=(Filter_GPU &&_other)
+    Map_GPU& operator=(Map_GPU &&_other)
     {
         func = std::move(_other.func);
         key_extr = std::move(_other.key_extr);
@@ -1114,17 +954,17 @@ public:
     }
 
     /** 
-     *  \brief Get the type of the Filter_GPU as a string
-     *  \return type of the Filter_GPU
+     *  \brief Get the type of the Map_GPU as a string
+     *  \return type of the Map_GPU
      */ 
     std::string getType() const override
     {
-        return std::string("Filter_GPU");
+        return std::string("Map_GPU");
     }
 
     /** 
-     *  \brief Get the name of the Filter_GPU as a string
-     *  \return name of the Filter_GPU
+     *  \brief Get the name of the Map_GPU as a string
+     *  \return name of the Map_GPU
      */ 
     std::string getName() const override
     {
@@ -1132,8 +972,8 @@ public:
     }
 
     /** 
-     *  \brief Get the total parallelism of the Filter_GPU
-     *  \return total parallelism of the Filter_GPU
+     *  \brief Get the total parallelism of the Map_GPU
+     *  \return total parallelism of the Map_GPU
      */  
     size_t getParallelism() const override
     {
@@ -1141,8 +981,8 @@ public:
     }
 
     /** 
-     *  \brief Return the input routing mode of the Filter_GPU
-     *  \return routing mode used to send inputs to the Filter_GPU
+     *  \brief Return the input routing mode of the Map_GPU
+     *  \return routing mode used to send inputs to the Map_GPU
      */ 
     Routing_Mode_t getInputRoutingMode() const override
     {
@@ -1150,7 +990,7 @@ public:
     }
 
     /** 
-     *  \brief Return the size of the output batches that the Filter_GPU should produce
+     *  \brief Return the size of the output batches that the Map_GPU should produce
      *  \return this method returns always 1 since the exact batch size is unknown
      */ 
     size_t getOutputBatchSize() const override
@@ -1159,7 +999,7 @@ public:
     }
 
     /** 
-     *  \brief Check whether the Filter_GPU is for GPU
+     *  \brief Check whether the Map_GPU is for GPU
      *  \return this method returns true
      */ 
     bool isGPUOperator() const override

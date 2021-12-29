@@ -15,18 +15,20 @@
  */
 
 /** 
- *  @file    batch_gpu_t.hpp
+ *  @file    batch_gpu_t_u.hpp
  *  @author  Gabriele Mencagli
  *  
- *  @brief Class implementing a batch of data tuples accessible by the GPU side
+ *  @brief Class implementing a batch of data tuples accessible by the GPU side.
+ *         Version with CUDA Unified Memory
  *  
  *  @section Batch_GPU_t (Description)
  *  
- *  Class implementing a batch of data tuples accessible by the GPU side.
+ *  Class implementing a batch of data tuples accessible by the GPU side. Version
+ *  with CUDA Unified Memory.
  */ 
 
-#ifndef BATCH_GPU_T_H
-#define BATCH_GPU_T_H
+#ifndef BATCH_GPU_T_U_H
+#define BATCH_GPU_T_U_H
 
 // includes
 #include<atomic>
@@ -47,15 +49,14 @@ struct Batch_GPU_t: Batch_t<tuple_t>
     size_t original_size; // original size of the batch (and of its internal arrays)
     bool isPunctuation; // flag true if the message is a punctuation, false otherwise
     std::atomic<size_t> delete_counter; // atomic counter to delete correctly the batch
-    batch_item_gpu_t<tuple_t> *pinned_data_cpu; // host pinned array of batch items
-    batch_item_gpu_t<tuple_t> *data_gpu; // GPU array of batch items
+    batch_item_gpu_t<tuple_t> *data_u; // array of batch items in CUDA unified memory
     size_t num_dist_keys; // number of distinct keys in the batch
-    void *dist_keys_cpu; // untyped pointer to a host array containing the distinct keys in the batch
-    int *start_idxs_gpu; // GPU array of starting indexes of keys in the batch
-    int *map_idxs_gpu; // GPU array to find tuples with the same key within the batch
+    void *dist_keys; // untyped pointer to a host array containing the distinct keys in the batch
+    int *start_idxs_u; // array with the starting indexes of the keys in the batch in CUDA unified memory
+    int *map_idxs_u; // array to find tuples with the same key within the batch in CUDA unified memory
     cudaStream_t cudaStream; // CUDA stream associated with the batch
     cudaDeviceProp deviceProp; // object containing the properties of the used GPU device
-    bool startTransfer2CPU; // true if the transfer of the batch items to a host pinned memory array has started
+    int isTegra; // flag equal to 1 if the GPU (device 0) is integrated (Tegra), 0 otherwise
 
     // Constructor
     Batch_GPU_t(size_t _size,
@@ -64,49 +65,45 @@ struct Batch_GPU_t: Batch_t<tuple_t>
                 original_size(_size),
                 isPunctuation(false),
                 delete_counter(_delete_counter),
-                pinned_data_cpu(nullptr),
                 num_dist_keys(0),
-                dist_keys_cpu(nullptr),
-                startTransfer2CPU(false)
+                dist_keys(nullptr)
     {
         watermarks.push_back(std::numeric_limits<uint64_t>::max());
         gpuErrChk(cudaStreamCreate(&cudaStream)); // create the CUDA stream associated with this batch object
         gpuErrChk(cudaGetDeviceProperties(&deviceProp, 0)); // get the properties of the GPU device with id 0
-#if (__CUDACC_VER_MAJOR__ >= 11) // at least CUDA 11
-        if (deviceProp.concurrentManagedAccess) { // new GPU models
-            gpuErrChk(cudaMallocAsync(&data_gpu, sizeof(batch_item_gpu_t<tuple_t>) * size, cudaStream));
-            gpuErrChk(cudaMallocAsync(&start_idxs_gpu, sizeof(int) * size, cudaStream));
-            gpuErrChk(cudaMallocAsync(&map_idxs_gpu, sizeof(int) * size, cudaStream));
+        gpuErrChk(cudaDeviceGetAttribute(&isTegra, cudaDevAttrIntegrated, 0));
+        if (!isTegra && deviceProp.concurrentManagedAccess) { // new discrete GPU models
+            // allocate the CUDA unified memory arrays
+            gpuErrChk(cudaMallocManaged(&data_u, sizeof(batch_item_gpu_t<tuple_t>) * size));
+            gpuErrChk(cudaMallocManaged(&start_idxs_u, sizeof(int) * size));
+            gpuErrChk(cudaMallocManaged(&map_idxs_u, sizeof(int) * size));
         }
-        else { // old GPU models
-            gpuErrChk(cudaMalloc(&data_gpu, sizeof(batch_item_gpu_t<tuple_t>) * size));
-            gpuErrChk(cudaMalloc(&start_idxs_gpu, sizeof(int) * size));
-            gpuErrChk(cudaMalloc(&map_idxs_gpu, sizeof(int) * size));
+        else { // old discrete GPU models and Tegra devices
+            // allocate the CUDA unified memory arrays and attach them to the host side
+            gpuErrChk(cudaMallocManaged(&data_u, sizeof(batch_item_gpu_t<tuple_t>) * size, cudaMemAttachHost));
+            gpuErrChk(cudaMallocManaged(&start_idxs_u, sizeof(int) * size, cudaMemAttachHost));
+            gpuErrChk(cudaMallocManaged(&map_idxs_u, sizeof(int) * size, cudaMemAttachHost));
+            // attach the CUDA unified memory arrays to the GPU side
+            gpuErrChk(cudaStreamAttachMemAsync(cudaStream, data_u, sizeof(batch_item_gpu_t<tuple_t>) * original_size, cudaMemAttachSingle));
+            gpuErrChk(cudaStreamAttachMemAsync(cudaStream, start_idxs_u, sizeof(int) * size, cudaMemAttachSingle));
+            gpuErrChk(cudaStreamAttachMemAsync(cudaStream, map_idxs_u, sizeof(int) * size, cudaMemAttachSingle));
         }
-#else
-        gpuErrChk(cudaMalloc(&data_gpu, sizeof(batch_item_gpu_t<tuple_t>) * size));
-        gpuErrChk(cudaMalloc(&start_idxs_gpu, sizeof(int) * size));
-        gpuErrChk(cudaMalloc(&map_idxs_gpu, sizeof(int) * size));
-#endif
     }
 
     // Destructor
     ~Batch_GPU_t() override
     {
-        if (pinned_data_cpu != nullptr) {
-            gpuErrChk(cudaFreeHost(pinned_data_cpu));
+        if (data_u != nullptr) {
+            gpuErrChk(cudaFree(data_u));
         }
-        if (data_gpu != nullptr) {
-            gpuErrChk(cudaFree(data_gpu));
+        if (dist_keys != nullptr) {
+            free(dist_keys);
         }
-        if (dist_keys_cpu != nullptr) {
-            free(dist_keys_cpu);
+        if (start_idxs_u != nullptr) {
+            gpuErrChk(cudaFree(start_idxs_u));
         }
-        if (start_idxs_gpu != nullptr) {
-            gpuErrChk(cudaFree(start_idxs_gpu));
-        }
-        if (map_idxs_gpu != nullptr) {
-            gpuErrChk(cudaFree(map_idxs_gpu));
+        if (map_idxs_u != nullptr) {
+            gpuErrChk(cudaFree(map_idxs_u));
         }
         gpuErrChk(cudaStreamDestroy(cudaStream));
     }
@@ -135,36 +132,64 @@ struct Batch_GPU_t: Batch_t<tuple_t>
         return size;
     }
 
-    // Trasfering of the batch items to a host pinned memory array
-    void transfer2CPU()
+    // prefetch the internal CUDA unified memory arrays to be efficiently accessible by the host side
+    void prefetch2CPU(bool _isKB=false)
     {
-        if (pinned_data_cpu == nullptr) { // create the host pinned array if it does not exist yet
-            gpuErrChk(cudaMallocHost(&pinned_data_cpu, sizeof(batch_item_gpu_t<tuple_t>) * original_size)); // <-- using the original size is safer!
+        if (isTegra) { // Tegra devices
+            // attach the CUDA unified memory array of batch items to the host side
+            gpuErrChk(cudaStreamAttachMemAsync(cudaStream, data_u, sizeof(batch_item_gpu_t<tuple_t>) * original_size, cudaMemAttachHost));
+            if (_isKB) {
+                // attach the CUDA unified memory arrays used for keyby distribution to the host side
+                gpuErrChk(cudaStreamAttachMemAsync(cudaStream, start_idxs_u, sizeof(int) * original_size, cudaMemAttachHost));
+                gpuErrChk(cudaStreamAttachMemAsync(cudaStream, map_idxs_u, sizeof(int) * original_size, cudaMemAttachHost));
+            }
         }
-        gpuErrChk(cudaMemcpyAsync(pinned_data_cpu, data_gpu, sizeof(batch_item_gpu_t<tuple_t>) * size, cudaMemcpyDeviceToHost, cudaStream));
-        startTransfer2CPU = true;
+        else if (deviceProp.concurrentManagedAccess) { // new discrete GPU models
+            // prefetch the CUDA unified memory array of batch items to the host side
+            gpuErrChk(cudaMemPrefetchAsync(data_u, sizeof(batch_item_gpu_t<tuple_t>) * size, cudaCpuDeviceId, cudaStream));
+            if (_isKB) {
+                // prefetch the CUDA unified memory arrays used for keyby distribution to the host side
+                gpuErrChk(cudaMemPrefetchAsync(start_idxs_u, sizeof(int) * size, cudaCpuDeviceId, cudaStream));
+                gpuErrChk(cudaMemPrefetchAsync(map_idxs_u, sizeof(int) * size, cudaCpuDeviceId, cudaStream));
+            }
+        }
+    }
+
+    // prefetch the internal CUDA unified memory arrays to be efficiently accessible by the GPU side
+    void prefetch2GPU(bool _isKB=false)
+    {
+        if (isTegra) { // Tegra devices
+            // attach the CUDA unified memory array of batch items to the GPU side
+            gpuErrChk(cudaStreamAttachMemAsync(cudaStream, data_u, sizeof(batch_item_gpu_t<tuple_t>) * original_size, cudaMemAttachSingle));
+            if (_isKB) {
+                // attach the CUDA unified memory arrays used for keyby distribution to the GPU side
+                gpuErrChk(cudaStreamAttachMemAsync(cudaStream, start_idxs_u, sizeof(int) * original_size, cudaMemAttachSingle));
+                gpuErrChk(cudaStreamAttachMemAsync(cudaStream, map_idxs_u, sizeof(int) * original_size, cudaMemAttachSingle));
+            }
+        }
+        else if (deviceProp.concurrentManagedAccess) { // new discrete GPU models
+            // prefetch the CUDA unified memory array of batch items to the GPU side
+            gpuErrChk(cudaMemPrefetchAsync(data_u, sizeof(batch_item_gpu_t<tuple_t>) * size, 0, cudaStream)); // device_id = 0
+            if (_isKB) {
+                // prefetch the CUDA unified memory arrays used for keyby distribution to the GPU side
+                gpuErrChk(cudaMemPrefetchAsync(start_idxs_u, sizeof(int) * size, 0, cudaStream)); // device_id = 0
+                gpuErrChk(cudaMemPrefetchAsync(map_idxs_u, sizeof(int) * size, 0, cudaStream)); // device_id = 0
+            }
+        }
     }
 
     // Get the tuple (by reference) at position pos of the batch
     tuple_t &getTupleAtPos(size_t _pos) override
     {
-        assert(_pos < size && pinned_data_cpu != nullptr);
-        if (startTransfer2CPU) {
-            gpuErrChk(cudaStreamSynchronize(cudaStream));
-            startTransfer2CPU = false;
-        }
-        return pinned_data_cpu[_pos].tuple;
+        assert(_pos < size);
+        return data_u[_pos].tuple;
     }
 
     // Get the timestamp of the element at position pos of the batch
     uint64_t getTimestampAtPos(size_t _pos) override
     {
-        assert(_pos < size && pinned_data_cpu != nullptr);
-        if (startTransfer2CPU) {
-            gpuErrChk(cudaStreamSynchronize(cudaStream));
-            startTransfer2CPU = false;
-        }
-        return pinned_data_cpu[_pos].timestamp;
+        assert(_pos < size);
+        return data_u[_pos].timestamp;
     }
 
     // Get the watermark of the batch related to a specific destination _node_id
@@ -208,11 +233,10 @@ struct Batch_GPU_t: Batch_t<tuple_t>
         isPunctuation = false;
         delete_counter = _delete_counter;
         num_dist_keys = 0;
-        if (dist_keys_cpu != nullptr) {
-            free(dist_keys_cpu);
-            dist_keys_cpu = nullptr;
+        if (dist_keys != nullptr) {
+            free(dist_keys);
+            dist_keys = nullptr;
         }
-        startTransfer2CPU = false;
     }
 
     Batch_GPU_t(const Batch_GPU_t &) = delete; ///< Copy constructor is deleted

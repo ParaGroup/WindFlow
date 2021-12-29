@@ -122,7 +122,7 @@ decltype(get_tuple_t_Filter(&F_t::operator())) get_tuple_t_Filter(F_t);
 
 std::false_type get_tuple_t_Filter(...); // black hole
 
-// declaration of functions to extract the output type from the Filter operator
+// declaration of functions to extract the output type of the Filter operator
 template<typename F_t, typename Arg>
 Arg get_result_t_Filter(bool (F_t::*)(Arg&) const); // inplace version
 
@@ -190,7 +190,7 @@ decltype(get_tuple_t_Map(&F_t::operator())) get_tuple_t_Map(F_t);
 
 std::false_type get_tuple_t_Map(...); // black hole
 
-// declaration of functions to extract the result type from the Map operator
+// declaration of functions to extract the result type of the Map operator
 template<typename F_t, typename Arg1, typename Arg2> // non-inplace version
 Arg2 get_result_t_Map(Arg2 (F_t::*)(const Arg1&) const);
 
@@ -232,7 +232,7 @@ decltype(get_result_t_Map(&F_t::operator())) get_result_t_Map(F_t);
 
 std::false_type get_result_t_Map(...); // black hole
 
-// declaration of functions to extract the return type from the Map operator
+// declaration of functions to extract the return type of the Map operator
 template<typename F_t, typename Arg1, typename Arg2> // non-inplace version
 Arg2 get_return_t_Map(Arg2 (F_t::*)(const Arg1&) const);
 
@@ -300,7 +300,7 @@ decltype(get_tuple_t_FlatMap(&F_t::operator())) get_tuple_t_FlatMap(F_t);
 
 std::false_type get_tuple_t_FlatMap(...); // black hole
 
-// declaration of functions to extract the result type from the FlatMap operator
+// declaration of functions to extract the result type of the FlatMap operator
 template<typename F_t, typename Arg1, typename Arg2>
 Arg2 get_result_t_FlatMap(void (F_t::*)(const Arg1&, Shipper<Arg2>&) const);
 
@@ -350,7 +350,7 @@ decltype(get_tuple_t_Reduce(&F_t::operator())) get_tuple_t_Reduce(F_t);
 
 std::false_type get_tuple_t_Reduce(...); // black hole
 
-// declaration of functions to extract the state type from the Accumulator operator
+// declaration of functions to extract the state type of the Accumulator operator
 template<typename F_t, typename Arg1, typename Arg2>
 Arg2 get_state_t_Reduce(void (F_t::*)(const Arg1&, Arg2&) const);
 

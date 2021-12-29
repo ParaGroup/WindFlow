@@ -20,7 +20,7 @@
  *  
  *  @brief Abstract base class of the generic operator in WindFlow
  *  
- *  @section Basic Operator (Description)
+ *  @section Basic_Operator (Description)
  *  
  *  Abstract base class of the generic operator in WindFlow. All the operators
  *  in the library extend this abstract class.

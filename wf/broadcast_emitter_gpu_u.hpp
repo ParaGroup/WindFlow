@@ -15,22 +15,23 @@
  */
 
 /** 
- *  @file    broadcast_emitter_gpu.hpp
+ *  @file    broadcast_emitter_gpu_u.hpp
  *  @author  Gabriele Mencagli
  *  
- *  @brief Emitter implementing the broadcast (BD) distribution for GPU operators
+ *  @brief Emitter implementing the broadcast (BD) distribution for GPU operators.
+ *         Version with CUDA Unified Memory
  *  
  *  @section Broadcast_Emitter_GPU (Description)
  *  
- *  The emitter is capable of receiving/sending batches from/to GPU operators by
- *  implementing the broadcast distribution.
+ *  The emitter is capable of receiving/sending batches from/to GPU operators.
+ *  Version with CUDA Unified Memory.
  */ 
 
-#ifndef BD_EMITTER_GPU_H
-#define BD_EMITTER_GPU_H
+#ifndef BD_EMITTER_GPU_U_H
+#define BD_EMITTER_GPU_U_H
 
 // includes
-#include<batch_gpu_t.hpp>
+#include<batch_gpu_t_u.hpp>
 #include<basic_emitter.hpp>
 
 namespace wf {
@@ -91,7 +92,7 @@ public:
                 delete del_batch;
             }
             delete queue; // delete the recycling queue
-        }        
+        }
     }
 
     // Copy Assignment Operator
@@ -174,7 +175,7 @@ public:
         (_output->delete_counter).fetch_add(num_dests-1);
         assert((_output->watermarks).size() == 1);
         (_output->watermarks).insert((_output->watermarks).end(), num_dests-1, (_output->watermarks)[0]); // copy the watermark (having one per destination)
-        _output->transfer2CPU(); // starting the transfer of the batch items to a host pinned memory array
+        _output->prefetch2CPU(false); // prefetch batch items to be efficiently accessible by the host side
         for (size_t i=0; i<num_dests; i++) {
             if (!useTreeMode) { // real send
                 _node->ff_send_out_to(_output, i);

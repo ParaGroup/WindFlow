@@ -59,16 +59,16 @@ struct result_t
 
     // Constructor I
     __host__ __device__ result_t():
-             key(0),
-             id(0),
-             value(0) {}
+                                 key(0),
+                                 id(0),
+                                 value(0) {}
 
     // Constructor II
-    __host__ __device__ result_t(size_t _key,
-             uint64_t _id):
-             key(_key),
-             id(_id),
-             value(0) {}
+    __host__ __device__  result_t(size_t _key,
+                                  uint64_t _id):
+                                  key(_key),
+                                  id(_id),
+                                  value(0) {}
 };
 
 // Struct of the state used by Map_GPU operators

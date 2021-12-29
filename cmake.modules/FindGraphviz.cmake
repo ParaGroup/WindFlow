@@ -1,12 +1,12 @@
 # Try to find Graphviz cgraph library
 
-# check GRAPHVIZ_ROOT
+# Check GRAPHVIZ_ROOT
 if(EXISTS "$ENV{GRAPHVIZ_ROOT}")
     set(GRAPHVIZ_POSSIBLE_INCDIRS "$ENV{GRAPHVIZ_ROOT}/include" "$ENV{GRAPHVIZ_ROOT}/include/graphviz")
     set(GRAPHVIZ_POSSIBLE_LIBRARY_PATHS "$ENV{GRAPHVIZ_ROOT}/lib/release/dll" "$ENV{GRAPHVIZ_ROOT}/lib/release/lib")
 endif()
 
-# check GRAPHVIZ_DIR
+# Check GRAPHVIZ_DIR
 if(EXISTS "$ENV{GRAPHVIZ_DIR}")
     set(GRAPHVIZ_POSSIBLE_INCDIRS "$ENV{GRAPHVIZ_DIR}/include" "$ENV{GRAPHVIZ_DIR}/include/graphviz")
     set(GRAPHVIZ_POSSIBLE_LIBRARY_PATHS "$ENV{GRAPHVIZ_DIR}/lib/release/dll" "$ENV{GRAPHVIZ_DIR}/lib/release/lib")
@@ -18,11 +18,11 @@ if(GRAPHVIZ_DIR)
 endif()
 
 if(GRAPHVIZ_CGRAPH_LIBRARY)
-    # in cache already
+    # In cache already
     set(Graphviz_FIND_QUIETLY TRUE)
 endif()
 
-# use pkg-config to get the directories and then use these values in the FIND_PATH() and FIND_LIBRARY() calls
+# Use pkg-config to get the directories and then use these values in the FIND_PATH() and FIND_LIBRARY() calls
 if(NOT WIN32)
     find_package(PkgConfig)
     pkg_check_modules(GRAPHVIZ_GVC_PKG gvc)
@@ -100,5 +100,5 @@ FIND_PACKAGE_HANDLE_STANDARD_ARGS(Graphviz_Cgraph DEFAULT_MSG GRAPHVIZ_CGRAPH_LI
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(Graphviz_Cdt DEFAULT_MSG GRAPHVIZ_CDT_LIBRARY)
 FIND_PACKAGE_HANDLE_STANDARD_ARGS("Graphviz Headers" DEFAULT_MSG GRAPHVIZ_INCLUDE_DIR)
 
-# show the POPPLER_(XPDF/QT4)_INCLUDE_DIR and POPPLER_LIBRARIES variables only in the advanced view
+# Show the POPPLER_(XPDF/QT4)_INCLUDE_DIR and POPPLER_LIBRARIES variables only in the advanced view
 MARK_AS_ADVANCED(GRAPHVIZ_INCLUDE_DIR GRAPHVIZ_GVC_LIBRARY GRAPHVIZ_CGRAPH_LIBRARY GRAPHVIZ_CDT_LIBRARY)

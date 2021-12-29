@@ -4,15 +4,16 @@
 
 This file lists all the possible signatures that can be used to create WindFlow operators. In case
 you provide a wrong signature during the creation of an operator (through its builder), you receive
-a specific error message during the compilation phase (through static asserts).
+a specific error message during the compilation phase (through some static asserts).
 
 For basic and window-based operators, the functional logic, as well as the key extractor and the
 closing logic can be provided as functions, lambdas or functor objects providing operator() with
-the right signature.
+the right signatures.
 
-For Map_GPU and Filter_GPU operators, the functional logic must be provided as a __device__ lambda
-or through a functor object exposing a __device__ operator() method with the right signature. The
-key extractor logic must be provided using a __host__ __device__ lambda or functor object.
+For GPU operators, the functional logic must be provided as a __host__ __device__ lambda or through
+a functor object exposing a __device__ operator() method with the right signature. The key extractor
+logic must be provided using a __host__ __device__ lambda or through a functor object with the right
+__host__ __device__ operator() method.
 
 SOURCE
 ------
@@ -26,8 +27,8 @@ bool(tuple_t &, RuntimeContext &);
 
 FILTER_GPU
 ----------
-__device__ bool(tuple_t &);
-__device__ bool(tuple_t &, state_t &);
+[__host__] __device__ bool(tuple_t &);
+[__host__] __device__ bool(tuple_t &, state_t &);
 
 MAP
 ---
@@ -38,8 +39,8 @@ result_t(const tuple_t &, RuntimeContext &);
 
 MAP_GPU
 -------
-__device__ void(tuple_t &);
-__device__ void(tuple_t &, state_t &);
+[__host__] __device__ void(tuple_t &);
+[__host__] __device__ void(tuple_t &, state_t &);
 
 FLATMAP
 -------
@@ -90,8 +91,8 @@ The corresponding builder needs two parameters (for the MAP and REDUCE logics) w
     void(const tuple_t &, result_t &);
     void(const tuple_t &, result_t &, RuntimeContext &);
 
-FFAT_ACCUMULATOR
-----------------
+FFAT_AGGREGATOR
+---------------
 The corresponding builder needs two parameters (for the lift and combine logics) with the following accepted signatures:
 
  * Lift
@@ -102,8 +103,8 @@ The corresponding builder needs two parameters (for the lift and combine logics)
     void(const result_t &, const result_t &, result_t &);
     void(const result_t &, const result_t &, result_t &, RuntimeContext &);
 
-FFAT_ACCUMULATOR_GPU
---------------------
+FFAT_AGGREGATOR_GPU
+-------------------
 The corresponding builder needs two parameters (for the lift and combine logics) with the following accepted signatures:
 
  * Lift
@@ -116,8 +117,8 @@ SINK
 ----
 void(std::optional<tuple_t> &);
 void(std::optional<tuple_t> &, RuntimeContext &);
-void(std::optional<std::reference_wrapper<tuple_t>>)
-void(std::optional<std::reference_wrapper<tuple_t>>, RuntimeContext &)
+void(std::optional<std::reference_wrapper<tuple_t>>);
+void(std::optional<std::reference_wrapper<tuple_t>>, RuntimeContext &);
 
 CLOSING LOGIC
 -------------
@@ -126,7 +127,7 @@ void(RuntimeContext &);
 KEY EXTRACTOR
 -------------
 key_t(const tuple_t &); // for all the CPU operators
-__host__ __device__ key_t(const tuple_t &); // only for Map_GPU and Filter_GPU operators
+__host__ __device__ key_t(const tuple_t &); // only for GPU operators
 
 SPLITTING LOGIC
 ---------------

@@ -49,6 +49,11 @@ class MapGPU_Builder
 private:
     template<typename T1, typename T2, typename T3> friend class MapGPU_Builder; // friendship with all the instances of the MapGPU_Builder template
     mapgpu_func_t func; // functional logic of the Map_GPU
+#if !defined (__clang__)
+    // static assert to check that extended lambdas must be __host__ __device__
+    static_assert(!__nv_is_extended_device_lambda_closure_type(decltype(func)),
+        "WindFlow Compilation Error - MapGPU_Builder is instantiated with a __device__ extended lambda -> use a __host__ __device__ lambda instead!\n");
+#endif
     using tuple_t = decltype(get_tuple_t_MapGPU(func)); // extracting the tuple_t type and checking the admissible signatures
     using state_t = decltype(get_state_t_MapGPU(func)); // extracting the state_t type and checking the admissible signatures
     // static assert to check the signature of the Map_GPU functional logic
@@ -56,7 +61,7 @@ private:
         "WindFlow Compilation Error - unknown signature passed to the MapGPU_Builder:\n"
         "  Candidate 1 : __device__ void(tuple_t &)\n"
         "  Candidate 2 : __device__ void(tuple_t &, state_t &)\n");
-    // static assert to check that the state_t type must be default constructible
+    // static assert to check that the tuple_t type must be default constructible
     static_assert(std::is_default_constructible<tuple_t>::value,
         "WindFlow Compilation Error - tuple_t type must be default constructible (MapGPU_Builder):\n");
     // static assert to check that the state_t type must be default constructible
@@ -118,6 +123,11 @@ public:
     template<typename new_key_extractor_func_t>
     auto withKeyBy(new_key_extractor_func_t _key_extr)
     {
+#if !defined (__clang__)
+        // static assert to check that extended lambdas must be __host__ __device__
+        static_assert(!__nv_is_extended_device_lambda_closure_type(decltype(_key_extr)),
+            "WindFlow Compilation Error - withKeyBy is called with a __device__ extended lambda -> use a __host__ __device__ lambda instead!\n");
+#endif        
         // static assert to check the signature
         static_assert(!std::is_same<decltype(get_tuple_t_KeyExtrGPU(_key_extr)), std::false_type>::value,
             "WindFlow Compilation Error - unknown signature passed to withKeyBy (MapGPU_Builder):\n"
@@ -132,7 +142,7 @@ public:
         // static assert to check that new_key_t is default constructible
         static_assert(std::is_default_constructible<new_key_t>::value,
             "WindFlow Compilation Error - key type must be default constructible (MapGPU_Builder):\n");
-        // static assert to check that the tuple_t type must be trivially copyable
+        // static assert to check that the new_key_t type must be trivially copyable
         static_assert(std::is_trivially_copyable<new_key_t>::value,
             "WindFlow Compilation Error - key_t type must be trivially copyable (MapGPU_Builder):\n");
         MapGPU_Builder<mapgpu_func_t, new_key_extractor_func_t, new_key_t> new_builder(func, _key_extr);
@@ -186,13 +196,18 @@ class FilterGPU_Builder
 private:
     template<typename T1, typename T2, typename T3> friend class FilterGPU_Builder; // friendship with all the instances of the FilterGPU_Builder template
     filtergpu_func_t func; // functional logic of the Filter_GPU
+#if !defined (__clang__)    
+    // static assert to check that extended lambdas must be __host__ __device__
+    static_assert(!__nv_is_extended_device_lambda_closure_type(decltype(func)),
+        "WindFlow Compilation Error - FilterGPU_Builder is instantiated with a __device__ extended lambda -> use a __host__ __device__ lambda instead!\n");
+#endif    
     using tuple_t = decltype(get_tuple_t_FilterGPU(func)); // extracting the tuple_t type and checking the admissible signatures
     using state_t = decltype(get_state_t_FilterGPU(func)); // extracting the state_t type and checking the admissible signatures
     // static assert to check the signature of the Filter_GPU functional logic
     static_assert(!(std::is_same<tuple_t, std::false_type>::value || std::is_same<state_t, std::false_type>::value),
         "WindFlow Compilation Error - unknown signature passed to the FilterGPU_Builder:\n"
-        "  Candidate 1 : __device__ void(tuple_t &)\n"
-        "  Candidate 2 : __device__ void(tuple_t &, state_t &)\n");
+        "  Candidate 1 : __device__ bool(tuple_t &)\n"
+        "  Candidate 2 : __device__ bool(tuple_t &, state_t &)\n");
     // static assert to check that the tuple_t type must be default constructible
     static_assert(std::is_default_constructible<tuple_t>::value,
         "WindFlow Compilation Error - tuple_t type must be default constructible (FilterGPU_Builder):\n");
@@ -255,6 +270,11 @@ public:
     template<typename new_key_extractor_func_t>
     auto withKeyBy(new_key_extractor_func_t _key_extr)
     {
+#if !defined (__clang__)
+        // static assert to check that extended lambdas must be __host__ __device__
+        static_assert(!__nv_is_extended_device_lambda_closure_type(decltype(_key_extr)),
+            "WindFlow Compilation Error - withKeyBy is called with a __device__ extended lambda -> use a __host__ __device__ lambda instead!\n");
+#endif        
         // static assert to check the signature
         static_assert(!std::is_same<decltype(get_tuple_t_KeyExtrGPU(_key_extr)), std::false_type>::value,
             "WindFlow Compilation Error - unknown signature passed to withKeyBy (FilterGPU_Builder):\n"
@@ -269,7 +289,7 @@ public:
         // static assert to check that new_key_t is default constructible
         static_assert(std::is_default_constructible<new_key_t>::value,
             "WindFlow Compilation Error - key type must be default constructible (FilterGPU_Builder):\n");
-        // static assert to check that the tuple_t type must be trivially copyable
+        // static assert to check that the new_key_t type must be trivially copyable
         static_assert(std::is_trivially_copyable<new_key_t>::value,
             "WindFlow Compilation Error - key_t type must be trivially copyable (FilterGPU_Builder):\n");
         FilterGPU_Builder<filtergpu_func_t, new_key_extractor_func_t, new_key_t> new_builder(func, _key_extr);
@@ -334,8 +354,7 @@ private:
     static_assert(!(std::is_same<std::false_type, result_t2>::value),
         "WindFlow Compilation Error - unknown signature passed to the FFAT_AggregatorGPU_Builder (second argument, combine logic):\n"
         "  Candidate 1 : __host__ __device__ void(const result_t &, const result_t &, result_t &)\n");
-    static_assert(std::is_same<result_t, result_t2>::value &&
-                  std::is_same<result_t2, decltype(get_tuple_t_CombGPU(comb_func))>::value,
+    static_assert(std::is_same<result_t, result_t2>::value,
         "WindFlow Compilation Error - type mismatch in the FFAT_AggregatorGPU_Builder\n");
     // static assert to check that the tuple_t type must be default constructible
     static_assert(std::is_default_constructible<tuple_t>::value,
@@ -411,6 +430,11 @@ public:
     template<typename new_key_extractor_func_t>
     auto withKeyBy(new_key_extractor_func_t _key_extr)
     {
+#if !defined (__clang__)
+        // static assert to check that extended lambdas must be __host__ __device__
+        static_assert(!__nv_is_extended_device_lambda_closure_type(decltype(_key_extr)),
+            "WindFlow Compilation Error - withKeyBy is called with a __device__ extended lambda -> use a __host__ __device__ lambda instead!\n");
+#endif        
         // static assert to check the signature
         static_assert(!std::is_same<decltype(get_tuple_t_KeyExtrGPU(_key_extr)), std::false_type>::value,
             "WindFlow Compilation Error - unknown signature passed to withKeyBy (FFAT_AggregatorGPU_Builder):\n"
@@ -425,7 +449,7 @@ public:
         // static assert to check that new_key_t is default constructible
         static_assert(std::is_default_constructible<new_key_t>::value,
             "WindFlow Compilation Error - key type must be default constructible (FFAT_AggregatorGPU_Builder):\n");
-        // static assert to check that the tuple_t type must be trivially copyable
+        // static assert to check that the new_key_t type must be trivially copyable
         static_assert(std::is_trivially_copyable<new_key_t>::value,
             "WindFlow Compilation Error - key_t type must be trivially copyable (FFAT_AggregatorGPU_Builder):\n");
         FFAT_AggregatorGPU_Builder<liftgpu_func_t, combgpu_func_t, new_key_extractor_func_t, new_key_t> new_builder(lift_func, comb_func, _key_extr);

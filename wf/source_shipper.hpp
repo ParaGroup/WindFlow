@@ -394,11 +394,13 @@ public:
         watermark = _wm;
     }
 
+//@cond DOXY_IGNORE
     // Flushing function of the shipper
     void flush()
     {
         emitter->flush(node); // call the flush of the emitter
     }
+//@endcond
 };
 
 } // namespace wf

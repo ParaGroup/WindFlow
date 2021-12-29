@@ -23,9 +23,7 @@
  *  @section FlatFAT (Description)
  *  
  *  This file implements the Flat Fixed-size Aggregator Tree (FlatFAT) as it was described
- *  in [1].
- *  
- *  [1] Kanat Tangwongsan, et al. 2015. General incremental sliding-window aggregation.
+ *  in Kanat Tangwongsan, et al. 2015. General incremental sliding-window aggregation.
  *  Proc. VLDB Endow. 8, 7 (February 2015), 702–713.
  */ 
 

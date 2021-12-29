@@ -61,6 +61,7 @@ public:
     class Iterator
     {
     public:
+//@cond DOXY_IGNORE
         typedef Iterator self_type;
         typedef T value_type;
         typedef T &reference;
@@ -102,6 +103,7 @@ public:
 
         // > operator
         bool operator>(const self_type &rhs) const { return it > rhs.it; }
+//@endcond
     };
 
     /// class Const_Iterator
@@ -109,6 +111,7 @@ public:
     class Const_Iterator
     {
     public:
+//@cond DOXY_IGNORE
         typedef Const_Iterator self_type;
         typedef T value_type;
         typedef T &reference;
@@ -152,6 +155,7 @@ public:
 
         // > operator
         bool operator>(const self_type &rhs) const { return it > rhs.it; }
+//@endcond
     };
 
     /** 

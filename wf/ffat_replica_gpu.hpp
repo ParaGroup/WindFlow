@@ -34,7 +34,11 @@
 #include<string>
 #include<unordered_map>
 #include<ff/multinode.hpp>
-#include<flatfat_gpu.hpp>
+#if defined (WF_GPU_UNIFIED_MEMORY)
+    #include<flatfat_gpu_u.hpp> // version with CUDA unified memory support
+#else
+    #include<flatfat_gpu.hpp> // version with CUDA explicit memory transfers
+#endif
 #include<batch_t.hpp>
 #include<single_t.hpp>
 #if defined (WF_TRACING_ENABLED)
@@ -182,9 +186,9 @@ public:
             slide_len = slide_len / quantum;            
         }
         gpuErrChk(cudaStreamCreate(&cudaStream));
-        gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0));
-#if (__CUDACC_VER_MAJOR__ >= 11)
-        gpuErrChk(cudaDeviceGetAttribute(&max_blocks_per_sm, cudaDevAttrMaxBlocksPerMultiprocessor, 0));
+        gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0)); // device_id = 0
+#if (__CUDACC_VER_MAJOR__ >= 11) // at least CUDA 11
+        gpuErrChk(cudaDeviceGetAttribute(&max_blocks_per_sm, cudaDevAttrMaxBlocksPerMultiprocessor, 0)); // device_id = 0
 #else
         max_blocks_per_sm = WF_GPU_MAX_BLOCKS_PER_SM;
 #endif

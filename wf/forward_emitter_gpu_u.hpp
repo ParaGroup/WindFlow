@@ -15,23 +15,24 @@
  */
 
 /** 
- *  @file    forward_emitter_gpu.hpp
+ *  @file    forward_emitter_gpu_u.hpp
  *  @author  Gabriele Mencagli
  *  
- *  @brief Emitter implementing the forward (FW) distribution for GPU operators
+ *  @brief Emitter implementing the forward (FW) distribution for GPU operators.
+ *         Version with CUDA Unified Memory
  *  
  *  @section Forward_Emitter_GPU (Description)
  *  
- *  The emitter is capable of receiving/sending batches from/to GPU operators by
- *  implementing the forward distribution.
+ *  The emitter is capable of receiving/sending batches from/to GPU operators.
+ *  Version with CUDA Unified Memory
  */ 
 
-#ifndef FW_EMITTER_GPU_H
-#define FW_EMITTER_GPU_H
+#ifndef FW_EMITTER_GPU_U_H
+#define FW_EMITTER_GPU_U_H
 
 // includes
 #include<single_t.hpp>
-#include<batch_gpu_t.hpp>
+#include<batch_gpu_t_u.hpp>
 #include<basic_emitter.hpp>
 
 namespace wf {
@@ -48,12 +49,9 @@ private:
     size_t idx_dest; // identifier of the next destination to be used (meaningful if useTreeMode is true)
     bool useTreeMode; // true if the emitter is used in tree-based mode
     std::vector<std::pair<void *, size_t>> output_queue; // vector of pairs (messages and destination identifiers)
-    std::vector<Batch_GPU_t<tuple_t> *> batches_output; // vector of pointers to the output batches (used circularly)
-    std::vector<batch_item_gpu_t<tuple_t> *> pinned_buffers_cpu; // vector of pointers to host pinned arrays (used circularly)
+    Batch_GPU_t<tuple_t> *batch_output; // pointer to the output batch
     ff::MPMC_Ptr_Queue *queue; // pointer to the recyling queue
     size_t next_tuple_idx; // identifier where to copy the next tuple in the batch
-    size_t id_r; // identifier used for overlapping purposes
-    uint64_t sent_batches; // number of batches sent by the emitter
 
 public:
     // Constructor I (only CPU->GPU case)
@@ -65,11 +63,8 @@ public:
                         size(_size),
                         idx_dest(0),
                         useTreeMode(false),
-                        batches_output(2, nullptr),
-                        pinned_buffers_cpu(2, nullptr),
-                        next_tuple_idx(0),
-                        id_r(0),
-                        sent_batches(0)
+                        batch_output(nullptr),
+                        next_tuple_idx(0)
     {
         if constexpr (!(!inputGPU && outputGPU)) {
             std::cerr << RED << "WindFlow Error: Forward_Emitter_GPU created in an invalid manner" << DEFAULT_COLOR << std::endl;
@@ -78,8 +73,6 @@ public:
         assert(size > 0);
         queue = new ff::MPMC_Ptr_Queue();
         queue->init(WF_GPU_DEFAULT_RECYCLING_QUEUE_SIZE);
-        gpuErrChk(cudaMallocHost(&pinned_buffers_cpu[0], sizeof(batch_item_gpu_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>) * size));
-        gpuErrChk(cudaMallocHost(&pinned_buffers_cpu[1], sizeof(batch_item_gpu_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>) * size));
     }
 
     // Constructor II (only GPU->ANY cases)
@@ -90,16 +83,13 @@ public:
                         size(-1),
                         idx_dest(0),
                         useTreeMode(false),
-                        batches_output(2, nullptr),
-                        pinned_buffers_cpu(2, nullptr),
-                        next_tuple_idx(0),
-                        id_r(0),
-                        sent_batches(0)
+                        batch_output(nullptr),
+                        next_tuple_idx(0)
     {
         if constexpr (!((inputGPU && outputGPU) || (inputGPU && !outputGPU))) {
             std::cerr << RED << "WindFlow Error: Forward_Emitter_GPU created in an invalid manner" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
-        }        
+        }
         queue = new ff::MPMC_Ptr_Queue();
         queue->init(WF_GPU_DEFAULT_RECYCLING_QUEUE_SIZE);
     }
@@ -111,18 +101,11 @@ public:
                         size(_other.size),
                         idx_dest(_other.idx_dest),
                         useTreeMode(_other.useTreeMode),
-                        batches_output(2, nullptr),
-                        pinned_buffers_cpu(2, nullptr),
-                        next_tuple_idx(_other.next_tuple_idx),
-                        id_r(_other.id_r),
-                        sent_batches(_other.sent_batches)
+                        batch_output(nullptr),
+                        next_tuple_idx(_other.next_tuple_idx)
     {
         queue = new ff::MPMC_Ptr_Queue();
         queue->init(WF_GPU_DEFAULT_RECYCLING_QUEUE_SIZE);
-        if constexpr (!inputGPU) {
-            gpuErrChk(cudaMallocHost(&pinned_buffers_cpu[0], sizeof(batch_item_gpu_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>) * size));
-            gpuErrChk(cudaMallocHost(&pinned_buffers_cpu[1], sizeof(batch_item_gpu_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>) * size));
-        }
     }
 
     // Move Constructor
@@ -133,25 +116,15 @@ public:
                         idx_dest(_other.idx_dest),
                         useTreeMode(_other.useTreeMode),
                         output_queue(std::move(_other.output_queue)),
-                        batches_output(std::move(_other.batches_output)),
-                        pinned_buffers_cpu(std::move(_other.pinned_buffers_cpu)),
+                        batch_output(std::exchange(_other.batch_output, nullptr)),
                         queue(std::exchange(_other.queue, nullptr)),
-                        next_tuple_idx(_other.next_tuple_idx),
-                        id_r(_other.id_r),
-                        sent_batches(_other.sent_batches) {}
+                        next_tuple_idx(_other.next_tuple_idx) {}
 
     // Destructor
     ~Forward_Emitter_GPU() override
     {
         assert(output_queue.size() == 0); // sanity check
-        for (auto *b: batches_output) {
-            assert(b == nullptr); // sanity check
-        }
-        for (auto *p: pinned_buffers_cpu) {
-            if (p != nullptr) {
-                gpuErrChk(cudaFreeHost(p));
-            }
-        }
+        assert(batch_output == nullptr); // sanity check
         if (queue != nullptr) { // delete all the batches in the recycling queue
             Batch_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))> *del_batch = nullptr;
             while (queue->pop((void **) &del_batch)) {
@@ -170,25 +143,11 @@ public:
             size = _other.size;
             idx_dest = _other.idx_dest;
             useTreeMode = _other.useTreeMode;
-            for (auto *b: batches_output) {
-                if (b != nullptr) {
-                    delete b;
-                }
+            if (batch_output != nullptr) {
+                delete batch_output;
             }
-            batches_output = { nullptr, nullptr };
-            for (auto *p: pinned_buffers_cpu) {
-                if (p != nullptr) {
-                    gpuErrChk(cudaFreeHost(p));
-                }
-            }
-            pinned_buffers_cpu = { nullptr, nullptr };
-            if constexpr (!inputGPU) {
-                gpuErrChk(cudaMallocHost(&pinned_buffers_cpu[0], sizeof(batch_item_gpu_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>) * size));
-                gpuErrChk(cudaMallocHost(&pinned_buffers_cpu[1], sizeof(batch_item_gpu_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>) * size));
-            }
+            batch_output = nullptr;
             next_tuple_idx = _other.next_tuple_idx;
-            id_r =  _other.id_r;
-            sent_batches = _other.sent_batches;
         }
         return *this;
     }
@@ -202,18 +161,10 @@ public:
         idx_dest = _other.idx_dest;
         useTreeMode = _other.useTreeMode;
         output_queue = std::move(_other.output_queue);
-        for (auto *b: batches_output) {
-            if (b != nullptr) {
-                delete b;
-            }
+        if (batch_output != nullptr) {
+            delete batch_output;
         }
-        batches_output = std::move(_other.batches_output);
-        for (auto *p: pinned_buffers_cpu) {
-            if (p != nullptr) {
-                gpuErrChk(cudaFreeHost(p));
-            }
-        }
-        pinned_buffers_cpu = std::move(_other.pinned_buffers_cpu);
+        batch_output = std::exchange(_other.batch_output, nullptr);
         if (queue != nullptr) { // delete all the batches in the recycling queue
             Batch_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))> *del_batch = nullptr;
             while (queue->pop((void **) &del_batch)) {
@@ -223,8 +174,6 @@ public:
         }
         queue = std::exchange(_other.queue, nullptr);
         next_tuple_idx = _other.next_tuple_idx;
-        id_r = _other.id_r;
-        sent_batches = _other.sent_batches;
         return *this;
     }
 
@@ -291,29 +240,24 @@ public:
                  uint64_t _watermark,
                  ff::ff_monode *_node)
     {
-        if (batches_output[id_r] == nullptr) { // allocate the batch
-            batches_output[id_r] = allocateBatch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>(size, queue);
+        if (batch_output == nullptr) { // allocate the batch
+            batch_output = allocateBatch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>(size, queue);
         }
-        pinned_buffers_cpu[id_r][next_tuple_idx].tuple = _tuple;
-        pinned_buffers_cpu[id_r][next_tuple_idx].timestamp = _timestamp;
-        batches_output[id_r]->updateWatermark(_watermark);
+        (batch_output->data_u)[next_tuple_idx].tuple = _tuple;
+        (batch_output->data_u)[next_tuple_idx].timestamp = _timestamp;
+        batch_output->updateWatermark(_watermark);
         next_tuple_idx++;
         if (next_tuple_idx == size) { // batch is complete
-            if (sent_batches > 0) { // wait the copy of the previous batch to be sent
-                gpuErrChk(cudaStreamSynchronize(batches_output[(id_r + 1) % 2]->cudaStream));
-                if (!useTreeMode) { // real send
-                    _node->ff_send_out(batches_output[(id_r + 1) % 2]);
-                }
-                else { // output is buffered
-                    output_queue.push_back(std::make_pair(batches_output[(id_r + 1) % 2], idx_dest));
-                    idx_dest = (idx_dest + 1) % num_dests;
-                }
-                batches_output[(id_r + 1) % 2] = nullptr;
+            batch_output->prefetch2GPU(false); // prefetch batch items to be efficiently accessible by the GPU side
+            if (!useTreeMode) { // real send
+                _node->ff_send_out(batch_output);
             }
-            sent_batches++;
-            gpuErrChk(cudaMemcpyAsync(batches_output[id_r]->data_gpu, pinned_buffers_cpu[id_r], sizeof(batch_item_gpu_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>) * size, cudaMemcpyHostToDevice, batches_output[id_r]->cudaStream));
+            else { // output is buffered
+                output_queue.push_back(std::make_pair(batch_output, idx_dest));
+                idx_dest = (idx_dest + 1) % num_dests;
+            }
+            batch_output = nullptr;
             next_tuple_idx = 0;
-            id_r = (id_r + 1) % 2;
         }
     }
 
@@ -336,7 +280,7 @@ public:
     void routing(typename std::enable_if<b1 && !b2, Batch_GPU_t<tuple_t>>::type *_output,
                  ff::ff_monode *_node)
     {
-        _output->transfer2CPU(); // start the transfer of the batch items to a host pinned memory array
+        _output->prefetch2CPU(false); // prefetch batch items to be efficiently accessible by the host side
         if (!useTreeMode) { // real send
             _node->ff_send_out(_output);
         }
@@ -353,20 +297,6 @@ public:
         if constexpr (!inputGPU && outputGPU) { // CPU->GPU case
             if (next_tuple_idx > 0) {
                 return; // if there is a partial batch, punctuation is not propagated!
-            }
-            else {
-                if (sent_batches > 0) { // wait the copy of the previous batch to be sent
-                    gpuErrChk(cudaStreamSynchronize(batches_output[(id_r + 1) % 2]->cudaStream));
-                    if (!useTreeMode) { // real send
-                        _node->ff_send_out(batches_output[(id_r + 1) % 2]);
-                    }
-                    else { // output is buffered
-                        output_queue.push_back(std::make_pair(batches_output[(id_r + 1) % 2], idx_dest));
-                        idx_dest = (idx_dest + 1) % num_dests;
-                    }
-                    batches_output[(id_r + 1) % 2] = nullptr;
-                    sent_batches = 0; // this must be set to zero!
-                }
             }
         }
         size_t punc_size = (size == -1) ? 1 : size; // this is the size of the punctuation batch
@@ -390,30 +320,17 @@ public:
     void flush(ff::ff_monode *_node) override
     {
         if constexpr (!inputGPU && outputGPU) { // case CPU->GPU (the only one meaningful here)
-            if (sent_batches > 0) { // wait the copy of the previous batch to be sent
-                gpuErrChk(cudaStreamSynchronize(batches_output[(id_r + 1) % 2]->cudaStream));
-                if (!useTreeMode) { // real send
-                    _node->ff_send_out(batches_output[(id_r + 1) % 2]);
-                }
-                else { // output is buffered
-                    output_queue.push_back(std::make_pair(batches_output[(id_r + 1) % 2], idx_dest));
-                    idx_dest = (idx_dest + 1) % num_dests;
-                }
-                batches_output[(id_r + 1) % 2] = nullptr;
-            }
             if (next_tuple_idx > 0) { // partial batch to be sent
-                batches_output[id_r]->size = next_tuple_idx; // set the right size (this is a patially filled batch)
-                gpuErrChk(cudaMemcpyAsync(batches_output[id_r]->data_gpu, pinned_buffers_cpu[id_r], sizeof(batch_item_gpu_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>) * next_tuple_idx, cudaMemcpyHostToDevice, batches_output[id_r]->cudaStream));
-                gpuErrChk(cudaStreamSynchronize(batches_output[id_r]->cudaStream));
+                batch_output->size = next_tuple_idx; // set the right size (this is a patially filled batch)
+                batch_output->prefetch2GPU(false); // prefetch batch items to be efficiently accessible by the GPU side
                 if (!useTreeMode) { // real send
-                    _node->ff_send_out(batches_output[id_r]);
+                    _node->ff_send_out(batch_output);
                 }
                 else { // output is buffered
-                    output_queue.push_back(std::make_pair(batches_output[id_r], idx_dest));
+                    output_queue.push_back(std::make_pair(batch_output, idx_dest));
                     idx_dest = (idx_dest + 1) % num_dests;
                 }
-                sent_batches++;
-                batches_output[id_r] = nullptr;
+                batch_output = nullptr;
             }
         }
     }

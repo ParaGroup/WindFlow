@@ -31,8 +31,13 @@
 
 /// includes
 #include<builders_gpu.hpp>
-#include<map_gpu.hpp>
-#include<filter_gpu.hpp>
+#if defined (WF_GPU_UNIFIED_MEMORY)
+    #include<map_gpu_u.hpp> // version with CUDA unified memory support
+    #include<filter_gpu_u.hpp> // version with CUDA unified memory support
+#else
+    #include<map_gpu.hpp> // version with CUDA explicit memory transfers
+    #include<filter_gpu.hpp> // version with CUDA explicit memory transfers
+#endif
 #include<ffat_aggregator_gpu.hpp>
 
 #endif

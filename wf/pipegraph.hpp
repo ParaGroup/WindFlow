@@ -530,6 +530,7 @@ public:
      *  
      *  \param _name name of the PipeGraph
      *  \param _execution_mode execution mode of the PipeGraph
+     *  \param _time_policy time policy of the PipeGraph
      */ 
     PipeGraph(std::string _name,
               Execution_Mode_t _execution_mode=Execution_Mode_t::DEFAULT,
@@ -694,9 +695,9 @@ public:
         }
         ended = true;
 #if defined (WF_TRACING_ENABLED) // handling windflow statistics (if enabled)
-#if defined (LOG_DIR)
-        std::string ff_trace_file = std::string(STRINGIFY(LOG_DIR)) + "/" + this->name;
-        std::string ff_trace_dir = std::string(STRINGIFY(LOG_DIR));
+#if defined (WF_LOG_DIR)
+        std::string ff_trace_file = std::string(STRINGIFY(WF_LOG_DIR)) + "/" + this->name;
+        std::string ff_trace_dir = std::string(STRINGIFY(WF_LOG_DIR));
 #else
         std::string ff_trace_file = "log/" + this->name;
         std::string ff_trace_dir = "log";
@@ -717,9 +718,9 @@ public:
         }
 #endif
 #if defined (TRACE_FASTFLOW) // handling fastflow statistics (if enabled)
-#if defined (LOG_DIR)
-        std::string ff_trace_file = std::string(STRINGIFY(LOG_DIR)) + "/ff_trace_" + this->name + "_" + std::to_string(getpid()) + ".log";
-        std::string ff_trace_dir = std::string(STRINGIFY(LOG_DIR));
+#if defined (WF_LOG_DIR)
+        std::string ff_trace_file = std::string(STRINGIFY(WF_LOG_DIR)) + "/ff_trace_" + this->name + "_" + std::to_string(getpid()) + ".log";
+        std::string ff_trace_dir = std::string(STRINGIFY(WF_LOG_DIR));
 #else
         std::string ff_trace_file = "log/ff_trace_" + this->name + "_" + std::to_string(getpid()) + ".log";
         std::string ff_trace_dir = "log";

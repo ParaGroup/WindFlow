@@ -103,12 +103,25 @@ public:
     }
 };
 
-// Map functor on GPU
+// Map functor
 class Map_Functor
 {
 public:
     // operator()
-    __host__ __device__ void operator()(tuple_t &t)
+    void operator()(tuple_t &t)
+    {
+        if (isVowel(t.key)) {
+            t.value++;
+        }
+    }
+};
+
+// Map functor on GPU
+class Map_Functor_GPU
+{
+public:
+    // operator()
+    __device__ void operator()(tuple_t &t)
     {
         if (isVowel(t.key)) {
             t.value++;
