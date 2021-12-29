@@ -7,9 +7,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <link rel="shortcut icon" type="image/png" href="favicon.png">
     
-	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?9981">
-	<link rel="stylesheet" type="text/css" href="style.css?5414">
-	<link rel="stylesheet" type="text/css" href="./css/prism.css?1734">
+	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?3338">
+	<link rel="stylesheet" type="text/css" href="style.css?241">
+	<link rel="stylesheet" type="text/css" href="./css/prism.css?199">
 	
 	<link rel="stylesheet" type="text/css" href="./css/font-awesome.min.css">
 	
@@ -109,7 +109,7 @@
 					</div>
 				<p class="text-justify">
 							In this page, we show a simple example of streaming application in WindFlow. The example is a well-known streaming benchmark,&nbsp;<strong>WordCount</strong>. The Source operator is in charge of generating a stream of text lines. The second operator (Splitter) receives the text lines and splits them into words transmitted to the next operator (Counter). The Counter updates the count of each distinct received word, and sends a pair (word, count) to the Sink with the current value of the counter. While Splitter and Sink are stateless, the Counter is a stateful operator working on a keyby basis. The figure below shows a schematic view of the logical data-flow graph of the application.<br>
-						</p><img src="img/lazyload-ph.png" data-src="img/Application.jpg" class="img-fluid mx-auto d-block img-applicati-style mg-md lazyload" alt="WordCount logical data-flow graph" />
+						</p><img src="img/lazyload-ph.png" data-src="img/application.jpg" class="img-fluid mx-auto d-block img-applicati-style mg-md lazyload" alt="WordCount logical data-flow graph" />
 				<p class="text-justify">
 							We report below some code snippets to understand the API. The Source can be defined by developing its functional logic through a functor, a lambda, or using a C++ function. In all cases, the logic must respect specific admissible signatures to be used to instantiate a Source operator. In the snippet below the source logic is developed as a C++ functor.
 						</p>
@@ -269,7 +269,7 @@ topology.run(); // synchronous execution of the dataflow
 												</div>
 				<p class="text-justify">
 														In the code above, based on the value of a boolean flag (<strong>chaining</strong>), we create the data-flow graph by chaining stateless operators (to reduce thread oversubscription) or not. This results in two different physical data-flow graphs running respectively with five (left-hand side figure below) and ten (right-hand side) underlying threads (based on the chosen parallelism levels in the builders).
-													</p><img src="img/lazyload-ph.png" data-src="img/Application_Physical.jpg" class="img-fluid mx-auto d-block mg-md lazyload" alt="WordCount physical data-flow graphs" />
+													</p><img src="img/lazyload-ph.png" data-src="img/application_physical.jpg" class="img-fluid mx-auto d-block mg-md lazyload" alt="WordCount physical data-flow graphs" />
 				<p class="text-justify">
 														This example shows only a fraction of the expressive power of WindFlow, which is actually able to generate complex data-flow graphs using <strong>split</strong> and <strong>merge</strong> operations&nbsp;on MultiPipes. Interested users can refer to the doxygen documentation for the API and can look at the synthetic examples and tests distributed with the source code.
 													</p>
@@ -318,11 +318,11 @@ topology.run(); // synchronous execution of the dataflow
     
 
 <!-- Additional JS -->
-<script src="./js/jquery-3.5.1.min.js?8854"></script>
-<script src="./js/bootstrap.bundle.min.js?5165"></script>
-<script src="./js/blocs.min.js?6732"></script>
+<script src="./js/jquery-3.5.1.min.js?8102"></script>
+<script src="./js/bootstrap.bundle.min.js?8540"></script>
+<script src="./js/blocs.min.js?9361"></script>
 <script src="./js/lazysizes.min.js" defer></script>
-<script src="./js/prism.js?1381"></script>
+<script src="./js/prism.js?4687"></script>
 <!-- Additional JS END -->
 
 
