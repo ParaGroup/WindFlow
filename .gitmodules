@@ -2,3 +2,6 @@
     path = Dashboard-3.x
     url = https://github.com/ParaGroup/WindFlow_Dashboard.git
     branch = vers3.x
+[submodule "WindFlow_Dashboard"]
+	path = WindFlow_Dashboard
+	url = https://github.com/ParaGroup/WindFlow_Dashboard.git
