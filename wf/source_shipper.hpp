@@ -1,17 +1,24 @@
-/******************************************************************************
- *  This program is free software; you can redistribute it and/or modify it
- *  under the terms of the GNU Lesser General Public License version 3 as
- *  published by the Free Software Foundation.
+/**************************************************************************************
+ *  Copyright (c) 2019- Gabriele Mencagli
  *  
- *  This program is distributed in the hope that it will be useful, but WITHOUT
- *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- *  License for more details.
+ *  This file is part of WindFlow.
  *  
- *  You should have received a copy of the GNU Lesser General Public License
- *  along with this program; if not, write to the Free Software Foundation,
- *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- ******************************************************************************
+ *  WindFlow is free software dual licensed under the GNU LGPL or MIT License.
+ *  You can redistribute it and/or modify it under the terms of the
+ *    * GNU Lesser General Public License as published by
+ *      the Free Software Foundation, either version 3 of the License, or
+ *      (at your option) any later version
+ *    OR
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *  
+ *  WindFlow is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *  You should have received a copy of the GNU Lesser General Public License and
+ *  the MIT License along with WindFlow. If not, see <http://www.gnu.org/licenses/>
+ *  and <http://opensource.org/licenses/MIT/>.
+ **************************************************************************************
  */
 
 /** 
@@ -55,8 +62,8 @@ private:
     template<typename T1> friend class Source_Replica; // friendship with the Source_Replica class
     Basic_Emitter *emitter; // pointer to the emitter used for the delivery of messages
     ff::ff_monode *node; // pointer to the fastflow node to be passed to the emitter
-    Execution_Mode_t execution_mode; // execution mode of the Source_Shipper
-    Time_Policy_t time_policy; // time mode of the Source_Shipper
+    Execution_Mode_t execution_mode; // execution mode of the PipeGraph
+    Time_Policy_t time_policy; // time mode of the PipeGraph
     uint64_t num_delivered; // counter of the delivered results
     uint64_t max_timestamp; // maximum timestamp emitted by the source so far
     uint64_t watermark; // watermark to be used for sending the next output
@@ -191,6 +198,12 @@ private:
     }
 #endif
 
+    // Flushing function of the shipper
+    void flush()
+    {
+        emitter->flush(node); // call the flush of the emitter
+    }
+
 public:
     /** 
      *  \brief Get the number of results delivered by the Source_Shipper
@@ -224,9 +237,6 @@ public:
             watermark = timestamp; // watermarks equal to timestamps in case of DEFAULT mode
         }
         result_t copy_result = _r; // copy the result to be delivered
-#if defined (WF_TRACING_ENABLED)
-        volatile uint64_t time_send = current_time_nsecs();
-#endif
         emitter->emit(&copy_result, 0, timestamp, watermark, node);
         num_delivered++;
 #if defined (WF_TRACING_ENABLED)
@@ -234,11 +244,10 @@ public:
         stats_record->bytes_sent += sizeof(result_t);
         endTD = current_time_nsecs();
         double elapsedtime_us = ((double) (endTD - startTD)) / 1000;
-        double elapsedsend_us = ((double) (current_time_nsecs() - time_send)) / 1000;
-        avg_ts_us += (1.0 / stats_record->outputs_sent) * ((elapsedtime_us - elapsedsend_us) - avg_ts_us);
         avg_td_us += (1.0 / stats_record->outputs_sent) * (elapsedtime_us - avg_td_us);
-        stats_record->service_time = std::chrono::duration<double, std::micro>(avg_ts_us);
+        avg_ts_us = avg_td_us;
         stats_record->eff_service_time = std::chrono::duration<double, std::micro>(avg_td_us);
+        stats_record->service_time = stats_record->eff_service_time;
         startTD = current_time_nsecs();
 #endif
     }
@@ -264,9 +273,6 @@ public:
         if (execution_mode == Execution_Mode_t::DEFAULT) {
             watermark = timestamp; // watermarks equal to timestamps in case of DEFAULT mode
         }
-#if defined (WF_TRACING_ENABLED)
-        volatile uint64_t time_send = current_time_nsecs();
-#endif
         emitter->emit(&_r, 0, timestamp, watermark, node);
         num_delivered++;
 #if defined (WF_TRACING_ENABLED)
@@ -274,11 +280,10 @@ public:
         stats_record->bytes_sent += sizeof(result_t);
         endTD = current_time_nsecs();
         double elapsedtime_us = ((double) (endTD - startTD)) / 1000;
-        double elapsedsend_us = ((double) (current_time_nsecs() - time_send)) / 1000;
-        avg_ts_us += (1.0 / stats_record->outputs_sent) * ((elapsedtime_us - elapsedsend_us) - avg_ts_us);
         avg_td_us += (1.0 / stats_record->outputs_sent) * (elapsedtime_us - avg_td_us);
-        stats_record->service_time = std::chrono::duration<double, std::micro>(avg_ts_us);
+        avg_ts_us = avg_td_us;
         stats_record->eff_service_time = std::chrono::duration<double, std::micro>(avg_td_us);
+        stats_record->service_time = stats_record->eff_service_time;
         startTD = current_time_nsecs();
 #endif
     }
@@ -309,9 +314,6 @@ public:
             exit(EXIT_FAILURE);
         }
         result_t copy_result = _r; // copy the result to be delivered
-#if defined (WF_TRACING_ENABLED)
-        volatile uint64_t time_send = current_time_nsecs();
-#endif
         emitter->emit(&copy_result, 0, _ts, watermark, node);
         num_delivered++;
 #if defined (WF_TRACING_ENABLED)
@@ -319,11 +321,10 @@ public:
         stats_record->bytes_sent += sizeof(result_t);
         endTD = current_time_nsecs();
         double elapsedtime_us = ((double) (endTD - startTD)) / 1000;
-        double elapsedsend_us = ((double) (current_time_nsecs() - time_send)) / 1000;
-        avg_ts_us += (1.0 / stats_record->outputs_sent) * ((elapsedtime_us - elapsedsend_us) - avg_ts_us);
         avg_td_us += (1.0 / stats_record->outputs_sent) * (elapsedtime_us - avg_td_us);
-        stats_record->service_time = std::chrono::duration<double, std::micro>(avg_ts_us);
+        avg_ts_us = avg_td_us;
         stats_record->eff_service_time = std::chrono::duration<double, std::micro>(avg_td_us);
+        stats_record->service_time = stats_record->eff_service_time;
         startTD = current_time_nsecs();
 #endif
     }
@@ -353,9 +354,6 @@ public:
             std::cerr << RED << "WindFlow Error: user-defined timestamps must be monotonically increasing in DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-#if defined (WF_TRACING_ENABLED)
-        volatile uint64_t time_send = current_time_nsecs();
-#endif
         emitter->emit(&_r, 0, _ts, watermark, node);
         num_delivered++;
 #if defined (WF_TRACING_ENABLED)
@@ -363,21 +361,20 @@ public:
         stats_record->bytes_sent += sizeof(result_t);
         endTD = current_time_nsecs();
         double elapsedtime_us = ((double) (endTD - startTD)) / 1000;
-        double elapsedsend_us = ((double) (current_time_nsecs() - time_send)) / 1000;
-        avg_ts_us += (1.0 / stats_record->outputs_sent) * ((elapsedtime_us - elapsedsend_us) - avg_ts_us);
         avg_td_us += (1.0 / stats_record->outputs_sent) * (elapsedtime_us - avg_td_us);
-        stats_record->service_time = std::chrono::duration<double, std::micro>(avg_ts_us);
+        avg_ts_us = avg_td_us;
         stats_record->eff_service_time = std::chrono::duration<double, std::micro>(avg_td_us);
+        stats_record->service_time = stats_record->eff_service_time;
         startTD = current_time_nsecs();
 #endif
     }
 
     /** 
-     *  \brief Set the new watermark to be propagated with the next output
+     *  \brief Set the new watermark to be propagated with the next result
      *  
      *  \param _wm new watermark value (in microseconds starting from zero)
      */ 
-    void configureWatermark(uint64_t _wm)
+    void setNextWatermark(uint64_t _wm)
     {
         if (execution_mode != Execution_Mode_t::DEFAULT) { // check the execution mode of the PipeGraph
             std::cerr << RED << "WindFlow Error: watermarks can be set only in DEFAULT mode" << DEFAULT_COLOR << std::endl;
@@ -387,20 +384,23 @@ public:
             std::cerr << RED << "WindFlow Error: watermarks must be monotonically increasing" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        if (_wm > max_timestamp) { // current watermark cannot be greater than the emitted timestamp
+        if (_wm > max_timestamp) { // current watermark cannot be greater than the maximum emitted timestamp
             std::cerr << RED << "WindFlow Error: watermark cannot be greater than the highest emitted timestamp" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         watermark = _wm;
     }
 
-//@cond DOXY_IGNORE
-    // Flushing function of the shipper
-    void flush()
+    /** 
+     *  \brief Emit an explicit punctuaction message converying a new watermark value
+     *  
+     *  \param _wm new watermark value (in microseconds starting from zero)
+     */ 
+    void emitWatermark(uint64_t _wm)
     {
-        emitter->flush(node); // call the flush of the emitter
+        setNextWatermark(_wm);
+        emitter->propagate_punctuation(_wm, node);
     }
-//@endcond
 };
 
 } // namespace wf

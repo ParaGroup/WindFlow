@@ -1,17 +1,24 @@
-/******************************************************************************
- *  This program is free software; you can redistribute it and/or modify it
- *  under the terms of the GNU Lesser General Public License version 3 as
- *  published by the Free Software Foundation.
+/**************************************************************************************
+ *  Copyright (c) 2019- Gabriele Mencagli
  *  
- *  This program is distributed in the hope that it will be useful, but WITHOUT
- *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- *  License for more details.
+ *  This file is part of WindFlow.
  *  
- *  You should have received a copy of the GNU Lesser General Public License
- *  along with this program; if not, write to the Free Software Foundation,
- *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- ******************************************************************************
+ *  WindFlow is free software dual licensed under the GNU LGPL or MIT License.
+ *  You can redistribute it and/or modify it under the terms of the
+ *    * GNU Lesser General Public License as published by
+ *      the Free Software Foundation, either version 3 of the License, or
+ *      (at your option) any later version
+ *    OR
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *  
+ *  WindFlow is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *  You should have received a copy of the GNU Lesser General Public License and
+ *  the MIT License along with WindFlow. If not, see <http://www.gnu.org/licenses/>
+ *  and <http://opensource.org/licenses/MIT/>.
+ **************************************************************************************
  */
 
 /** 
@@ -162,7 +169,7 @@ private:
     bool get_MergedNodes1(std::vector<MultiPipe *> _toBeMerged,
                           std::vector<AppNode *> &_rightList)
     {
-        assert(_toBeMerged.size() > 1); // redundant check
+        assert(_toBeMerged.size() > 1); // sanity check
         std::vector<AppNode *> inputNodes;
         for (auto *mp: _toBeMerged) { // check that all the input MultiPipes must be leaves of the Application Tree
             AppNode *node = find_AppNode(root, mp);
@@ -170,7 +177,7 @@ private:
                 std::cerr << RED << "WindFlow Error: MultiPipe to be merged does not belong to this PipeGraph" << DEFAULT_COLOR << std::endl;
                 exit(EXIT_FAILURE);
             }
-            assert((node->children).size() == 0); // redundant check
+            assert((node->children).size() == 0); // sanity check
             inputNodes.push_back(node);
         }
         while (inputNodes.size() > 0) { // loop until inputNodes is empty
@@ -211,7 +218,7 @@ private:
     AppNode *get_MergedNodes2(std::vector<MultiPipe *> _toBeMerged,
                               std::vector<AppNode *> &_rightList)
     {
-        assert(_toBeMerged.size() > 1); // redundant check
+        assert(_toBeMerged.size() > 1); // sanity check
         std::vector<AppNode *> inputNodes; 
         for (auto *mp: _toBeMerged) { // check that all the input MultiPipes must be leaves of the Application Tree
             AppNode *node = find_AppNode(root, mp);
@@ -219,7 +226,7 @@ private:
                 std::cerr << RED << "WindFlow Error: MultiPipe to be merged does not belong to this PipeGraph" << DEFAULT_COLOR << std::endl;
                 exit(EXIT_FAILURE);
             }
-            assert((node->children).size() == 0); // redundant check
+            assert((node->children).size() == 0); // sanity check
             inputNodes.push_back(node);
         }
         AppNode *parent_node = get_LCA(root, inputNodes); // we have to find the LCA
@@ -259,7 +266,7 @@ private:
             std::cerr << RED << "WindFlow Error: MultiPipe to be split does not belong to this PipeGraph" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        assert((found->children).size() == 0); // redundant check
+        assert((found->children).size() == 0); // sanity check
         std::vector<MultiPipe *> splitMPs; // prepare the MultiPipe _mp
         std::vector<ff::ff_node *> normalization = _mp->normalize();
         _mp->isSplit = true; // be careful --> this statement after normalize() not before!
@@ -296,7 +303,7 @@ private:
         std::vector<AppNode *> rightList; // get the right list of AppNode instances to be merged
         if (get_MergedNodes1(_toBeMerged, rightList)) {
             if (rightList.size() == 1) { // Case 2.1: merge-full -> we merge a whole sub-tree
-                assert(rightList[0] != root); // redundant check
+                assert(rightList[0] != root); // sanity check
                 MultiPipe *mp = rightList[0]->mp;
                 std::vector<MultiPipe *> mp_v;
                 mp_v.push_back(mp);
@@ -400,7 +407,7 @@ private:
                 mergedMP->outputType = _toBeMerged[0]->outputType;
                 toBeDeteled.push_back(mergedMP);
                 MultiPipe *parentMP = parent_node->mp; // adjust the parent MultiPipe
-                assert(parentMP->isSplit); // redundant check
+                assert(parentMP->isSplit); // sanity check
                 size_t new_branches = (parentMP->splittingChildren).size() - indexes.size() + 1;
                 std::vector<MultiPipe *> new_splittingChildren;
                 std::vector<ff::ff_node *> new_second_set;
@@ -419,7 +426,7 @@ private:
                         new_second_set.push_back(second_set[i]);
                     }
                 }
-                assert(new_splittingChildren.size () == new_branches); // redundant check
+                assert(new_splittingChildren.size () == new_branches); // sanity check
                 parentMP->splittingBranches = new_branches;
                 parentMP->splittingChildren = new_splittingChildren;
                 (parentMP->last)->change_secondset(new_second_set, false);
@@ -640,17 +647,17 @@ public:
         else {
             std::cout << "--> EVENT_TIME policy " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
         }
-#if defined(FF_BOUNDED_BUFFER)
+#if defined (FF_BOUNDED_BUFFER)
         std::cout << "--> Backpressure " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
 #else
         std::cout << "--> Backpressure " << RED << "disabled" << DEFAULT_COLOR << std::endl;
 #endif
-#if !defined(BLOCKING_MODE)
+#if !defined (BLOCKING_MODE)
         std::cout << "--> Non-blocking queues " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
 #else
         std::cout << "--> Blocking queues " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
 #endif
-#if !defined(NO_DEFAULT_MAPPING)
+#if !defined (NO_DEFAULT_MAPPING)
         std::cout << "--> Pinning of threads " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
 #else
         std::cout << "--> Pinning of threads " << RED << "disabled" << DEFAULT_COLOR << std::endl;

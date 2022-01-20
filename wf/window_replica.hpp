@@ -1,17 +1,24 @@
-/******************************************************************************
- *  This program is free software; you can redistribute it and/or modify it
- *  under the terms of the GNU Lesser General Public License version 3 as
- *  published by the Free Software Foundation.
+/**************************************************************************************
+ *  Copyright (c) 2019- Gabriele Mencagli
  *  
- *  This program is distributed in the hope that it will be useful, but WITHOUT
- *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- *  License for more details.
+ *  This file is part of WindFlow.
  *  
- *  You should have received a copy of the GNU Lesser General Public License
- *  along with this program; if not, write to the Free Software Foundation,
- *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- ******************************************************************************
+ *  WindFlow is free software dual licensed under the GNU LGPL or MIT License.
+ *  You can redistribute it and/or modify it under the terms of the
+ *    * GNU Lesser General Public License as published by
+ *      the Free Software Foundation, either version 3 of the License, or
+ *      (at your option) any later version
+ *    OR
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *  
+ *  WindFlow is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *  You should have received a copy of the GNU Lesser General Public License and
+ *  the MIT License along with WindFlow. If not, see <http://www.gnu.org/licenses/>
+ *  and <http://opensource.org/licenses/MIT/>.
+ **************************************************************************************
  */
 
 /** 
@@ -23,7 +30,8 @@
  *  @section Window_Replica (Description)
  *  
  *  This file implements the Window_Replica representing the replica of traditional
- *  window-based operators.
+ *  window-based operators (i.e., Keyed_Windows, Parallel_Windows, Paned_Windows and
+ *  MapReduce_Windows).
  */ 
 
 #ifndef WIN_REPLICA_H
@@ -328,11 +336,9 @@ public:
         if (input_batching) { // receiving a batch
             Batch_t<decltype(get_tuple_t_Win(func))> *batch_input = reinterpret_cast<Batch_t<decltype(get_tuple_t_Win(func))> *>(_in);
             if (batch_input->isPunct()) { // if it is a punctuaton
-                emitter->generate_punctuation(batch_input->getWatermark(context.getReplicaIndex()), this); // generation of a new punctuation
-                if (execution_mode == Execution_Mode_t::DEFAULT) {
-                    assert(last_time <= batch_input->getWatermark(context.getReplicaIndex())); // redundant check (watermarks are always monotinically increasing)
-                    last_time = batch_input->getWatermark(context.getReplicaIndex());
-                }
+                emitter->propagate_punctuation(batch_input->getWatermark(context.getReplicaIndex()), this); // propagate the received punctuation
+                assert(last_time <= batch_input->getWatermark(context.getReplicaIndex())); // sanity check
+                last_time = batch_input->getWatermark(context.getReplicaIndex());
                 deleteBatch_t(batch_input); // delete the punctuation
                 return this->GO_ON;
             }
@@ -340,7 +346,7 @@ public:
             stats_record.inputs_received += batch_input->getSize();
             stats_record.bytes_received += batch_input->getSize() * sizeof(tuple_t);
 #endif
-            assert(role != role_t::WLQ && role != role_t::REDUCE);
+            assert(role != role_t::WLQ && role != role_t::REDUCE); // sanity check
             for (size_t i=0; i<batch_input->getSize(); i++) { // process all the inputs within the received batch
                 process_input(batch_input->getTupleAtPos(i), 0, batch_input->getTimestampAtPos(i), batch_input->getWatermark(context.getReplicaIndex()));
             }
@@ -349,11 +355,9 @@ public:
         else { // receiving a single input
             Single_t<decltype(get_tuple_t_Win(func))> *input = reinterpret_cast<Single_t<decltype(get_tuple_t_Win(func))> *>(_in);
             if (input->isPunct()) { // if it is a punctuaton
-                emitter->generate_punctuation(input->getWatermark(context.getReplicaIndex()), this); // generation of a new punctuation
-                if (execution_mode == Execution_Mode_t::DEFAULT) {
-                    assert(last_time <= input->getWatermark(context.getReplicaIndex())); // redundant check (watermarks are always monotinically increasing)
-                    last_time = input->getWatermark(context.getReplicaIndex());
-                }
+                emitter->propagate_punctuation(input->getWatermark(context.getReplicaIndex()), this); // propagate the received punctuation
+                assert(last_time <= input->getWatermark(context.getReplicaIndex())); // sanity check
+                last_time = input->getWatermark(context.getReplicaIndex());
                 deleteSingle_t(input); // delete the punctuation
                 return this->GO_ON;
             }
@@ -361,12 +365,12 @@ public:
             stats_record.inputs_received++;
             stats_record.bytes_received += sizeof(tuple_t);
 #endif
-            if ((role == role_t::WLQ || role == role_t::REDUCE) && execution_mode != Execution_Mode_t::DEFAULT) { // special case WLQ
-                assert(winType == Win_Type_t::CB); // redundant check
+            if ((role == role_t::WLQ || role == role_t::REDUCE) && execution_mode != Execution_Mode_t::DEFAULT) { // special case
+                assert(winType == Win_Type_t::CB); // sanity check
                 process_input(input->tuple, input->getIdentifier(), input->getWatermark(context.getReplicaIndex()), 0);
             }
-            else if ((role == role_t::WLQ || role == role_t::REDUCE) && execution_mode == Execution_Mode_t::DEFAULT) { // special case WLQ
-                assert(winType == Win_Type_t::CB); // redundant check
+            else if ((role == role_t::WLQ || role == role_t::REDUCE) && execution_mode == Execution_Mode_t::DEFAULT) { // special case
+                assert(winType == Win_Type_t::CB); // sanity check
                 process_input(input->tuple, input->getIdentifier(), input->getWatermark(context.getReplicaIndex()), input->getWatermark(context.getReplicaIndex()));
             }
             else {
@@ -395,10 +399,10 @@ public:
                        uint64_t _watermark)
     {
         if (execution_mode == Execution_Mode_t::DEFAULT) {
-            assert(last_time <= _watermark); // redundant check (watermarks are always monotinically increasing)
+            assert(last_time <= _watermark); // sanity check
             last_time = _watermark;
         }
-        else { // attention: timestamps can be disordered, even in DETERMINISTIC/PROBABILISTIC mode if role == WLQ or REDUCE!
+        else { // attention: timestamps can be disordered, even in DETERMINISTIC/PROBABILISTIC mode if role == WLQ or role == REDUCE
             if (last_time < _timestamp) {
                 last_time = _timestamp;
             }

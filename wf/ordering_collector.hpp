@@ -1,17 +1,24 @@
-/******************************************************************************
- *  This program is free software; you can redistribute it and/or modify it
- *  under the terms of the GNU Lesser General Public License version 3 as
- *  published by the Free Software Foundation.
+/**************************************************************************************
+ *  Copyright (c) 2019- Gabriele Mencagli
  *  
- *  This program is distributed in the hope that it will be useful, but WITHOUT
- *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- *  License for more details.
+ *  This file is part of WindFlow.
  *  
- *  You should have received a copy of the GNU Lesser General Public License
- *  along with this program; if not, write to the Free Software Foundation,
- *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- ******************************************************************************
+ *  WindFlow is free software dual licensed under the GNU LGPL or MIT License.
+ *  You can redistribute it and/or modify it under the terms of the
+ *    * GNU Lesser General Public License as published by
+ *      the Free Software Foundation, either version 3 of the License, or
+ *      (at your option) any later version
+ *    OR
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *  
+ *  WindFlow is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *  You should have received a copy of the GNU Lesser General Public License and
+ *  the MIT License along with WindFlow. If not, see <http://www.gnu.org/licenses/>
+ *  and <http://opensource.org/licenses/MIT/>.
+ **************************************************************************************
  */
 
 /** 
@@ -158,11 +165,11 @@ public:
             }
             Key_Descriptor &key_d = (*it).second;   
             if (execution_mode != Execution_Mode_t::DEFAULT) {
-                assert(globalMaxs[source_id] <= input->getTimestamp()); // redundant check
+                assert(globalMaxs[source_id] <= input->getTimestamp()); // sanity check
                 globalMaxs[source_id] = input->getTimestamp();
             }
             else {
-                assert(globalMaxs[source_id] <= input->getWatermark(id_collector)); // redundant check
+                assert(globalMaxs[source_id] <= input->getWatermark(id_collector)); // sanity check
                 globalMaxs[source_id] = input->getWatermark(id_collector);
                 if (input->isPunct()) { // special case -> the input is a punctuation, it must be propagated with the right watermark
                     input->setWatermark(getMinimum(globalMaxs), id_collector);
@@ -171,7 +178,7 @@ public:
                 }
             }
             uint64_t id = input->getIdentifier(); // get the private identifier       
-            assert(key_d.maxs[source_id] <= id); // redundant check
+            assert(key_d.maxs[source_id] <= id); // sanity check
             key_d.maxs[source_id] = id;
             uint64_t min_id = 0;
             min_id = getMinimum(key_d.maxs);
@@ -190,7 +197,7 @@ public:
         }
         else { // ordering based on timestamps
             uint64_t ts = input->getTimestamp();
-            assert(globalMaxs[source_id] <= ts); // redundant check
+            assert(globalMaxs[source_id] <= ts); // sanity check
             globalMaxs[source_id] = ts;
             uint64_t min_ts = 0;
             min_ts = getMinimum(globalMaxs);

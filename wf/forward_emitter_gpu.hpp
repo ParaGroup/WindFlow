@@ -1,17 +1,24 @@
-/******************************************************************************
- *  This program is free software; you can redistribute it and/or modify it
- *  under the terms of the GNU Lesser General Public License version 3 as
- *  published by the Free Software Foundation.
+/**************************************************************************************
+ *  Copyright (c) 2019- Gabriele Mencagli
  *  
- *  This program is distributed in the hope that it will be useful, but WITHOUT
- *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- *  License for more details.
+ *  This file is part of WindFlow.
  *  
- *  You should have received a copy of the GNU Lesser General Public License
- *  along with this program; if not, write to the Free Software Foundation,
- *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- ******************************************************************************
+ *  WindFlow is free software dual licensed under the GNU LGPL or MIT License.
+ *  You can redistribute it and/or modify it under the terms of the
+ *    * GNU Lesser General Public License as published by
+ *      the Free Software Foundation, either version 3 of the License, or
+ *      (at your option) any later version
+ *    OR
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *  
+ *  WindFlow is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *  You should have received a copy of the GNU Lesser General Public License and
+ *  the MIT License along with WindFlow. If not, see <http://www.gnu.org/licenses/>
+ *  and <http://opensource.org/licenses/MIT/>.
+ **************************************************************************************
  */
 
 /** 
@@ -56,7 +63,7 @@ private:
     uint64_t sent_batches; // number of batches sent by the emitter
 
 public:
-    // Constructor I (only CPU->GPU case)
+    // Constructor I (CPU->GPU case)
     Forward_Emitter_GPU(key_extractor_func_t _key_extr,
                         size_t _num_dests,
                         size_t _size):
@@ -75,14 +82,14 @@ public:
             std::cerr << RED << "WindFlow Error: Forward_Emitter_GPU created in an invalid manner" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        assert(size > 0);
+        assert(size > 0); // sanity check
         queue = new ff::MPMC_Ptr_Queue();
         queue->init(WF_GPU_DEFAULT_RECYCLING_QUEUE_SIZE);
         gpuErrChk(cudaMallocHost(&pinned_buffers_cpu[0], sizeof(batch_item_gpu_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>) * size));
         gpuErrChk(cudaMallocHost(&pinned_buffers_cpu[1], sizeof(batch_item_gpu_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>) * size));
     }
 
-    // Constructor II (only GPU->ANY cases)
+    // Constructor II (GPU->ANY cases)
     Forward_Emitter_GPU(key_extractor_func_t _key_extr,
                         size_t _num_dests):
                         key_extr(_key_extr),
@@ -99,7 +106,7 @@ public:
         if constexpr (!((inputGPU && outputGPU) || (inputGPU && !outputGPU))) {
             std::cerr << RED << "WindFlow Error: Forward_Emitter_GPU created in an invalid manner" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
-        }        
+        }
         queue = new ff::MPMC_Ptr_Queue();
         queue->init(WF_GPU_DEFAULT_RECYCLING_QUEUE_SIZE);
     }
@@ -311,7 +318,11 @@ public:
                 batches_output[(id_r + 1) % 2] = nullptr;
             }
             sent_batches++;
-            gpuErrChk(cudaMemcpyAsync(batches_output[id_r]->data_gpu, pinned_buffers_cpu[id_r], sizeof(batch_item_gpu_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>) * size, cudaMemcpyHostToDevice, batches_output[id_r]->cudaStream));
+            gpuErrChk(cudaMemcpyAsync(batches_output[id_r]->data_gpu,
+                                      pinned_buffers_cpu[id_r],
+                                      sizeof(batch_item_gpu_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>) * size,
+                                      cudaMemcpyHostToDevice,
+                                      batches_output[id_r]->cudaStream));
             next_tuple_idx = 0;
             id_r = (id_r + 1) % 2;
         }
@@ -346,34 +357,16 @@ public:
         }
     }
 
-    // Punctuation generation method
-    void generate_punctuation(uint64_t _watermark,
-                              ff::ff_monode * _node) override
+    // Punctuation propagation method
+    void propagate_punctuation(uint64_t _watermark,
+                               ff::ff_monode * _node) override
     {
-        if constexpr (!inputGPU && outputGPU) { // CPU->GPU case
-            if (next_tuple_idx > 0) {
-                return; // if there is a partial batch, punctuation is not propagated!
-            }
-            else {
-                if (sent_batches > 0) { // wait the copy of the previous batch to be sent
-                    gpuErrChk(cudaStreamSynchronize(batches_output[(id_r + 1) % 2]->cudaStream));
-                    if (!useTreeMode) { // real send
-                        _node->ff_send_out(batches_output[(id_r + 1) % 2]);
-                    }
-                    else { // output is buffered
-                        output_queue.push_back(std::make_pair(batches_output[(id_r + 1) % 2], idx_dest));
-                        idx_dest = (idx_dest + 1) % num_dests;
-                    }
-                    batches_output[(id_r + 1) % 2] = nullptr;
-                    sent_batches = 0; // this must be set to zero!
-                }
-            }
-        }
+        flush(_node); // flush the internal partially filled batch (if any)
         size_t punc_size = (size == -1) ? 1 : size; // this is the size of the punctuation batch
         Batch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))> *punc = allocateBatch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>(punc_size, queue);
         punc->setWatermark(_watermark);
         (punc->delete_counter).fetch_add(num_dests-1);
-        assert((punc->watermarks).size() == 1);
+        assert((punc->watermarks).size() == 1); // sanity check
         (punc->watermarks).insert((punc->watermarks).end(), num_dests-1, (punc->watermarks)[0]); // copy the watermark (having one per destination)
         punc->isPunctuation = true;
         for (size_t i=0; i<num_dests; i++) {
@@ -386,7 +379,7 @@ public:
         }
     }
 
-    // Flushing function of the emitter
+    // Flushing method
     void flush(ff::ff_monode *_node) override
     {
         if constexpr (!inputGPU && outputGPU) { // case CPU->GPU (the only one meaningful here)
@@ -401,9 +394,14 @@ public:
                 }
                 batches_output[(id_r + 1) % 2] = nullptr;
             }
-            if (next_tuple_idx > 0) { // partial batch to be sent
+            if (batches_output[id_r] != nullptr) {
+                assert(next_tuple_idx > 0); // sanity check
                 batches_output[id_r]->size = next_tuple_idx; // set the right size (this is a patially filled batch)
-                gpuErrChk(cudaMemcpyAsync(batches_output[id_r]->data_gpu, pinned_buffers_cpu[id_r], sizeof(batch_item_gpu_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>) * next_tuple_idx, cudaMemcpyHostToDevice, batches_output[id_r]->cudaStream));
+                gpuErrChk(cudaMemcpyAsync(batches_output[id_r]->data_gpu,
+                                          pinned_buffers_cpu[id_r],
+                                          sizeof(batch_item_gpu_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>) * next_tuple_idx,
+                                          cudaMemcpyHostToDevice,
+                                          batches_output[id_r]->cudaStream));
                 gpuErrChk(cudaStreamSynchronize(batches_output[id_r]->cudaStream));
                 if (!useTreeMode) { // real send
                     _node->ff_send_out(batches_output[id_r]);
@@ -412,9 +410,12 @@ public:
                     output_queue.push_back(std::make_pair(batches_output[id_r], idx_dest));
                     idx_dest = (idx_dest + 1) % num_dests;
                 }
-                sent_batches++;
                 batches_output[id_r] = nullptr;
             }
+            assert((batches_output[0] == nullptr) && (batches_output[1] == nullptr)); // sanity check
+            sent_batches = 0;
+            id_r = 0;
+            next_tuple_idx = 0;
         }
     }
 };

@@ -1,17 +1,24 @@
-/******************************************************************************
- *  This program is free software; you can redistribute it and/or modify it
- *  under the terms of the GNU Lesser General Public License version 3 as
- *  published by the Free Software Foundation.
+/**************************************************************************************
+ *  Copyright (c) 2019- Gabriele Mencagli
  *  
- *  This program is distributed in the hope that it will be useful, but WITHOUT
- *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- *  License for more details.
+ *  This file is part of WindFlow.
  *  
- *  You should have received a copy of the GNU Lesser General Public License
- *  along with this program; if not, write to the Free Software Foundation,
- *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- ******************************************************************************
+ *  WindFlow is free software dual licensed under the GNU LGPL or MIT License.
+ *  You can redistribute it and/or modify it under the terms of the
+ *    * GNU Lesser General Public License as published by
+ *      the Free Software Foundation, either version 3 of the License, or
+ *      (at your option) any later version
+ *    OR
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *  
+ *  WindFlow is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *  You should have received a copy of the GNU Lesser General Public License and
+ *  the MIT License along with WindFlow. If not, see <http://www.gnu.org/licenses/>
+ *  and <http://opensource.org/licenses/MIT/>.
+ **************************************************************************************
  */
 
 /** 
@@ -31,7 +38,11 @@
 #define SPLITTING_GPU_H
 
 // includes
-#include<batch_gpu_t.hpp>
+#if !defined (WF_GPU_UNIFIED_MEMORY)
+    #include<batch_gpu_t.hpp>
+#else
+    #include<batch_gpu_t_u.hpp>
+#endif
 #include<basic_emitter.hpp>
 
 namespace wf {
@@ -165,14 +176,25 @@ public:
     void emit_inplace(void *_out,
                       ff::ff_monode *_node) override
     {
-        assert(num_dests == _node->get_num_outchannels());
+        assert(num_dests == _node->get_num_outchannels()); // sanity check
         Batch_GPU_t<tuple_t> *input = reinterpret_cast<Batch_GPU_t<tuple_t> *>(_out);
         for (size_t i=0; i<num_dest_mps-1; i++) { // iterate across all the internal emitters (except the last one)
             Batch_GPU_t<tuple_t> *copy_batch = allocateBatch_GPU_t<tuple_t>(input->original_size, queue); // create a new batch
             copy_batch->watermarks = input->watermarks;
             copy_batch->size = input->size;
-            gpuErrChk(cudaMemcpyAsync(copy_batch->data_gpu, input->data_gpu, sizeof(batch_item_gpu_t<tuple_t>) * input->size, cudaMemcpyDeviceToDevice, copy_batch->cudaStream));
+#if !defined (WF_GPU_UNIFIED_MEMORY)
+            gpuErrChk(cudaMemcpyAsync(copy_batch->data_gpu,
+                                      input->data_gpu,
+                                      sizeof(batch_item_gpu_t<tuple_t>) * input->size,
+                                      cudaMemcpyDeviceToDevice,
+                                      copy_batch->cudaStream));
             gpuErrChk(cudaStreamSynchronize(copy_batch->cudaStream));
+#else
+            memcpy(copy_batch->data_u,
+                   input->data_u,
+                   sizeof(batch_item_gpu_t<tuple_t>) * input->size);
+            copy_batch->prefetch2GPU(false); // <-- this is not always the best choice!
+#endif
             emitters[i]->emit_inplace(copy_batch, _node); // call the logic of the emitter at position i
             auto &vect = emitters[i]->getOutputQueue();
             for (auto msg: vect) { // send each message produced by emitters[i]
@@ -180,7 +202,7 @@ public:
                 for (size_t j=0; j<i; j++) {
                     offset += emitters[j]->getNumDestinations();
                 }
-                assert(offset + msg.second < _node->get_num_outchannels());
+                assert(offset + msg.second < _node->get_num_outchannels()); // sanity check
                 _node->ff_send_out_to(msg.first, offset + msg.second);
             }
             vect.clear(); // clear all the sent messages
@@ -192,35 +214,35 @@ public:
             for (size_t j=0; j<num_dest_mps-1; j++) {
                 offset += emitters[j]->getNumDestinations();
             }
-            assert(offset + msg.second < _node->get_num_outchannels());
+            assert(offset + msg.second < _node->get_num_outchannels()); // sanity check
             _node->ff_send_out_to(msg.first, offset + msg.second);
         }
         vect.clear(); // clear all the sent messages
     }
 
-    // Punctuation generation method
-    void generate_punctuation(uint64_t _watermark,
-                              ff::ff_monode * _node) override
+    // Punctuation propagation method
+    void propagate_punctuation(uint64_t _watermark,
+                               ff::ff_monode * _node) override
     {
         for (size_t i=0; i<emitters.size(); i++) {
-            emitters[i]->generate_punctuation(_watermark, _node); // call the logic of the emitter at position i
+            emitters[i]->propagate_punctuation(_watermark, _node); // call the logic of the emitter at position i
             auto &vect = emitters[i]->getOutputQueue();
             for (auto msg: vect) { // send each message produced by emitters[i]
                 size_t offset = 0;
                 for (size_t j=0; j<i; j++) {
                     offset += emitters[j]->getNumDestinations();
                 }
-                assert(offset + msg.second < _node->get_num_outchannels());
+                assert(offset + msg.second < _node->get_num_outchannels()); // sanity check
                 _node->ff_send_out_to(msg.first, offset + msg.second);
             }
             vect.clear(); // clear all the sent messages
         }
     }
 
-    // Flushing function of the emitter
+    // Flushing method
     void flush(ff::ff_monode *_node) override
     {
-        assert(num_dests == _node->get_num_outchannels());
+        assert(num_dests == _node->get_num_outchannels()); // sanity check
         for (size_t i=0; i<emitters.size(); i++) {
             emitters[i]->flush(_node); // call the flush logic of emitters[i]
             auto &vect = emitters[i]->getOutputQueue();
@@ -229,7 +251,7 @@ public:
                 for (size_t j=0; j<i; j++) {
                     offset += emitters[j]->getNumDestinations();
                 }
-                assert(offset + msg.second < _node->get_num_outchannels());
+                assert(offset + msg.second < _node->get_num_outchannels()); // sanity check
                 _node->ff_send_out_to(msg.first, offset + msg.second);
             }
             vect.clear(); // clear all the sent messages
@@ -242,7 +264,7 @@ public:
         _e->setTreeMode(true); // all the emitters work in tree mode
         emitters.push_back(_e);
         num_dests += _e->getNumDestinations();
-        assert(emitters.size() <= num_dest_mps);
+        assert(emitters.size() <= num_dest_mps); // sanity check
     }
 
     // Get the number of internal emitters

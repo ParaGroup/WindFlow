@@ -1,29 +1,36 @@
-/******************************************************************************
- *  This program is free software; you can redistribute it and/or modify it
- *  under the terms of the GNU Lesser General Public License version 3 as
- *  published by the Free Software Foundation.
+/**************************************************************************************
+ *  Copyright (c) 2019- Gabriele Mencagli
  *  
- *  This program is distributed in the hope that it will be useful, but WITHOUT
- *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- *  License for more details.
+ *  This file is part of WindFlow.
  *  
- *  You should have received a copy of the GNU Lesser General Public License
- *  along with this program; if not, write to the Free Software Foundation,
- *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- ******************************************************************************
+ *  WindFlow is free software dual licensed under the GNU LGPL or MIT License.
+ *  You can redistribute it and/or modify it under the terms of the
+ *    * GNU Lesser General Public License as published by
+ *      the Free Software Foundation, either version 3 of the License, or
+ *      (at your option) any later version
+ *    OR
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *  
+ *  WindFlow is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *  You should have received a copy of the GNU Lesser General Public License and
+ *  the MIT License along with WindFlow. If not, see <http://www.gnu.org/licenses/>
+ *  and <http://opensource.org/licenses/MIT/>.
+ **************************************************************************************
  */
 
 /** 
  *  @file    ffat_aggregator_gpu.hpp
  *  @author  Gabriele Mencagli
  *  
- *  @brief FFAT_Aggregator_GPU supporting associative windowed queries on GPU
+ *  @brief FFAT_Aggregator_GPU supporting associative and commutative windowed queries on GPU
  *  
  *  @section FFAT_Aggregator_GPU (Description)
  *  
- *  This file implements the FFAT_Aggregator_GPU operator able to execute associative windowed
- *  queries on GPU using a GPU-based variant of the FlatFAT algorithm.
+ *  This file implements the FFAT_Aggregator_GPU operator able to execute associative and
+ *  commutative windowed queries on GPU using a GPU-based variant of the FlatFAT algorithm.
  */ 
 
 #ifndef FFAT_AGGREGATOR_GPU_H
@@ -43,10 +50,10 @@ namespace wf {
 /** 
  *  \class FFAT_Aggregator_GPU
  *  
- *  \brief FFAT_Aggregator_GPU executing associative windowed queries on GPU
+ *  \brief FFAT_Aggregator_GPU executing associative and commutative windowed queries on GPU
  *  
- *  This class implements the FFAT_Aggregator_GPU operator able to execute associative windowed
- *  queries on GPU using a GPU-based variant of the FlatFAT algorithm.
+ *  This class implements the FFAT_Aggregator_GPU operator able to execute associative and
+ *  commutative windowed queries on GPU using a GPU-based variant of the FlatFAT algorithm.
  */ 
 template<typename liftgpu_func_t, typename combgpu_func_t, typename key_extractor_func_t>
 class FFAT_Aggregator_GPU: public Basic_Operator
@@ -187,7 +194,7 @@ public:
      *  \brief Constructor
      *  
      *  \param _lift_func the lift functional logic of the FFAT_Aggregator (a function or a callable type)
-     *  \param _comb_func the combine functional logic of the FFAT_Aggregator (a function or a callable type)
+     *  \param _comb_func the combine functional logic of the FFAT_Aggregator (a __host__ __device__ lambda or __host__ __device__ functor object)
      *  \param _key_extr key extractor (a function or a callable type)
      *  \param _parallelism internal parallelism of the FFAT_Aggregator
      *  \param _name name of the FFAT_Aggregator
@@ -295,7 +302,7 @@ public:
                 delete r;
             }
             replicas.clear();      
-            for (size_t i=0; i<parallelism; i++) { // deep copy of the pointers to the FFAT_Aggregator replicas
+            for (size_t i=0; i<parallelism; i++) { // deep copy of the pointers to the FFAT_Aggregator_GPU replicas
                 replicas.push_back(new FFAT_Replica_GPU<liftgpu_func_t, combgpu_func_t, key_extractor_func_t>(*(_other.replicas[i])));
             }
         }

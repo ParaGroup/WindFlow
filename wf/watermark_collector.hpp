@@ -1,17 +1,24 @@
-/******************************************************************************
- *  This program is free software; you can redistribute it and/or modify it
- *  under the terms of the GNU Lesser General Public License version 3 as
- *  published by the Free Software Foundation.
+/**************************************************************************************
+ *  Copyright (c) 2019- Gabriele Mencagli
  *  
- *  This program is distributed in the hope that it will be useful, but WITHOUT
- *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- *  License for more details.
+ *  This file is part of WindFlow.
  *  
- *  You should have received a copy of the GNU Lesser General Public License
- *  along with this program; if not, write to the Free Software Foundation,
- *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- ******************************************************************************
+ *  WindFlow is free software dual licensed under the GNU LGPL or MIT License.
+ *  You can redistribute it and/or modify it under the terms of the
+ *    * GNU Lesser General Public License as published by
+ *      the Free Software Foundation, either version 3 of the License, or
+ *      (at your option) any later version
+ *    OR
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *  
+ *  WindFlow is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *  You should have received a copy of the GNU Lesser General Public License and
+ *  the MIT License along with WindFlow. If not, see <http://www.gnu.org/licenses/>
+ *  and <http://opensource.org/licenses/MIT/>.
+ **************************************************************************************
  */
 
 /** 
@@ -67,7 +74,7 @@ private:
                 min_wm = maxs[i];
             }
         }
-        assert(first == false); // redundant check
+        assert(first == false); // sanity check
         return min_wm;
     }
 
@@ -104,7 +111,7 @@ public:
         size_t source_id = this->get_channel_id(); // get the index of the source's stream
         if (!input_batching) { // non batching mode
             Single_t<decltype(get_tuple_t_KeyExtr(key_extr))> *input = reinterpret_cast<Single_t<decltype(get_tuple_t_KeyExtr(key_extr))> *>(_in); // cast the input to a Single_t structure
-            assert(maxs[source_id] <= input->getWatermark(id_collector)); // redundant check
+            assert(maxs[source_id] <= input->getWatermark(id_collector)); // sanity check
             maxs[source_id] = input->getWatermark(id_collector); // watermarks are received ordered on the same input channel
             uint64_t min_wm = getMinimumWM();
             input->setWatermark(min_wm, id_collector); // replace the watermark with the right one to use
@@ -112,7 +119,7 @@ public:
         }
         else { // batching mode
             Batch_t<decltype(get_tuple_t_KeyExtr(key_extr))> *batch_input = reinterpret_cast<Batch_t<decltype(get_tuple_t_KeyExtr(key_extr))> *>(_in); // cast the input to a Batch_t structure
-            assert(maxs[source_id] <= batch_input->getWatermark(id_collector)); // redundant check
+            assert(maxs[source_id] <= batch_input->getWatermark(id_collector)); // sanity check
             maxs[source_id] = batch_input->getWatermark(id_collector); // watermarks are received ordered on the same input channel
             uint64_t min_wm = getMinimumWM();
             batch_input->setWatermark(min_wm, id_collector); // replace the watermark with the right one to use
@@ -123,7 +130,7 @@ public:
     // method to manage the EOS (utilized by the FastFlow runtime)
     void eosnotify(ssize_t id) override
     {
-        assert(id < this->get_num_inchannels());
+        assert(id < this->get_num_inchannels()); // sanity check
         enabled[id] = false; // disable the channel where we received the EOS
     }
 };

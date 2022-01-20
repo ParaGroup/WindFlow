@@ -1,18 +1,25 @@
-/******************************************************************************
-*  This program is free software; you can redistribute it and/or modify it
-*  under the terms of the GNU Lesser General Public License version 3 as
-*  published by the Free Software Foundation.
-*  
-*  This program is distributed in the hope that it will be useful, but WITHOUT
-*  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-*  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
-*  License for more details.
-*  
-*  You should have received a copy of the GNU Lesser General Public License
-*  along with this program; if not, write to the Free Software Foundation,
-*  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
-******************************************************************************
-*/
+/**************************************************************************************
+ *  Copyright (c) 2019- Gabriele Mencagli
+ *  
+ *  This file is part of WindFlow.
+ *  
+ *  WindFlow is free software dual licensed under the GNU LGPL or MIT License.
+ *  You can redistribute it and/or modify it under the terms of the
+ *    * GNU Lesser General Public License as published by
+ *      the Free Software Foundation, either version 3 of the License, or
+ *      (at your option) any later version
+ *    OR
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *  
+ *  WindFlow is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *  You should have received a copy of the GNU Lesser General Public License and
+ *  the MIT License along with WindFlow. If not, see <http://www.gnu.org/licenses/>
+ *  and <http://opensource.org/licenses/MIT/>.
+ **************************************************************************************
+ */
 
 /** 
  *  @file    meta_gpu.hpp
@@ -160,6 +167,23 @@ template<typename F_t>
 decltype(get_state_t_FilterGPU(&F_t::operator())) get_state_t_FilterGPU(F_t);
 
 std::false_type get_state_t_FilterGPU(...); // black hole
+/*****************************************************************************************************************************/
+
+/************************************************** REDUCE_GPU OPERATOR ******************************************************/
+// declaration of functions to extract the input type of the Reduce_GPU operator
+template<typename F_t, typename Arg>
+Arg get_tuple_t_ReduceGPU(Arg (F_t::*)(const Arg&, const Arg&) const);
+
+template<typename F_t, typename Arg>
+Arg get_tuple_t_ReduceGPU(Arg (F_t::*)(const Arg&, const Arg&));
+
+// template<typename Arg>
+// Arg get_tuple_t_ReduceGPU(Arg (*)(Arg&, Arg&));
+
+template<typename F_t>
+decltype(get_tuple_t_ReduceGPU(&F_t::operator())) get_tuple_t_ReduceGPU(F_t);
+
+std::false_type get_tuple_t_ReduceGPU(...); // black hole
 /*****************************************************************************************************************************/
 
 /**************************************************** WINDOWED OPERATORS *****************************************************/

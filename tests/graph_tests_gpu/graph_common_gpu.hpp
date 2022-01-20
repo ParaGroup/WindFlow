@@ -1,17 +1,24 @@
-/*******************************************************************************
- *  This program is free software; you can redistribute it and/or modify it
- *  under the terms of the GNU Lesser General Public License version 3 as
- *  published by the Free Software Foundation.
+/**************************************************************************************
+ *  Copyright (c) 2019- Gabriele Mencagli
  *  
- *  This program is distributed in the hope that it will be useful, but WITHOUT
- *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- *  License for more details.
+ *  This file is part of WindFlow.
  *  
- *  You should have received a copy of the GNU Lesser General Public License
- *  along with this program; if not, write to the Free Software Foundation,
- *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- ******************************************************************************
+ *  WindFlow is free software dual licensed under the GNU LGPL or MIT License.
+ *  You can redistribute it and/or modify it under the terms of the
+ *    * GNU Lesser General Public License as published by
+ *      the Free Software Foundation, either version 3 of the License, or
+ *      (at your option) any later version
+ *    OR
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *  
+ *  WindFlow is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *  You should have received a copy of the GNU Lesser General Public License and
+ *  the MIT License along with WindFlow. If not, see <http://www.gnu.org/licenses/>
+ *  and <http://opensource.org/licenses/MIT/>.
+ **************************************************************************************
  */
 
 /*  
@@ -33,6 +40,11 @@ struct tuple_t
 {
     size_t key;
     int64_t value;
+
+    // Constructor
+    __host__ __device__ tuple_t():
+                                key(0),
+                                value(0) {}
 };
 
 // Struct of the state used by Map_GPU operators
@@ -86,7 +98,7 @@ public:
                 t.value = i;
                 shipper.pushWithTimestamp(std::move(t), next_ts);
                 if (generateWS) {
-                    shipper.configureWatermark(next_ts);
+                    shipper.setNextWatermark(next_ts);
                 }
                 auto offset = (distribution(generator)+1);
                 next_ts += offset;
@@ -129,7 +141,7 @@ public:
                 t.value = values[k];
                 shipper.pushWithTimestamp(std::move(t), next_ts);
                 if (generateWS) {
-                    shipper.configureWatermark(next_ts);
+                    shipper.setNextWatermark(next_ts);
                 }
                 auto offset = (distribution(generator)+1);
                 next_ts += offset;
@@ -245,6 +257,20 @@ public:
     {
         state.counter++;
         t.value += state.counter;
+    }
+};
+
+// Reduce functor on GPU
+class Reduce_Functor_GPU
+{
+public:
+    // operator()
+    __device__ tuple_t operator()(const tuple_t &t1, const tuple_t &t2)
+    {
+        tuple_t result;
+        result.key = t1.key;
+        result.value = t1.value + t2.value;
+        return result;
     }
 };
 

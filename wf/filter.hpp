@@ -1,17 +1,24 @@
-/******************************************************************************
- *  This program is free software; you can redistribute it and/or modify it
- *  under the terms of the GNU Lesser General Public License version 3 as
- *  published by the Free Software Foundation.
+/**************************************************************************************
+ *  Copyright (c) 2019- Gabriele Mencagli
  *  
- *  This program is distributed in the hope that it will be useful, but WITHOUT
- *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- *  License for more details.
+ *  This file is part of WindFlow.
  *  
- *  You should have received a copy of the GNU Lesser General Public License
- *  along with this program; if not, write to the Free Software Foundation,
- *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- ******************************************************************************
+ *  WindFlow is free software dual licensed under the GNU LGPL or MIT License.
+ *  You can redistribute it and/or modify it under the terms of the
+ *    * GNU Lesser General Public License as published by
+ *      the Free Software Foundation, either version 3 of the License, or
+ *      (at your option) any later version
+ *    OR
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *  
+ *  WindFlow is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *  You should have received a copy of the GNU Lesser General Public License and
+ *  the MIT License along with WindFlow. If not, see <http://www.gnu.org/licenses/>
+ *  and <http://opensource.org/licenses/MIT/>.
+ **************************************************************************************
  */
 
 /** 
@@ -209,7 +216,7 @@ public:
         if (input_batching) { // receiving a batch
             Batch_t<decltype(get_tuple_t_Filter(func))> *batch_input = reinterpret_cast<Batch_t<decltype(get_tuple_t_Filter(func))> *>(_in);
             if (batch_input->isPunct()) { // if it is a punctuaton
-                emitter->generate_punctuation(batch_input->getWatermark(context.getReplicaIndex()), this); // propagate the received punctuation
+                emitter->propagate_punctuation(batch_input->getWatermark(context.getReplicaIndex()), this); // propagate the received punctuation
                 deleteBatch_t(batch_input); // delete the punctuation
                 return this->GO_ON;
             }
@@ -225,7 +232,7 @@ public:
         else { // receiving a single input
             Single_t<decltype(get_tuple_t_Filter(func))> *input = reinterpret_cast<Single_t<decltype(get_tuple_t_Filter(func))> *>(_in);
             if (input->isPunct()) { // if it is a punctuaton
-                emitter->generate_punctuation(input->getWatermark(context.getReplicaIndex()), this); // propagate the received punctuation
+                emitter->propagate_punctuation(input->getWatermark(context.getReplicaIndex()), this); // propagate the received punctuation
                 deleteSingle_t(input); // delete the punctuation
                 return this->GO_ON;
             }
@@ -249,10 +256,10 @@ public:
         return this->GO_ON;
     }
 
-    // Process a single input (version 1)
+    // Process a single input (version "in-place")
     void process_input(Single_t<tuple_t> *_input)
     {
-        if constexpr (isNonRiched) { // inplace non-riched version
+        if constexpr (isNonRiched) { // non-riched version
             if (func(_input->tuple)) {
 #if defined (WF_TRACING_ENABLED)
                 stats_record.outputs_sent++;
@@ -263,16 +270,16 @@ public:
             }
             else {
                 dropped_inputs++;
-                if ((execution_mode == Execution_Mode_t::DEFAULT) && (dropped_inputs % WF_DEFAULT_WM_AMOUNT == 0)) { // punctuaction auto-generation logic
-                    if (current_time_usecs() - last_time_punct >= WF_DEFAULT_WM_INTERVAL_USEC) {
-                        emitter->generate_punctuation(_input->getWatermark(context.getReplicaIndex()), this); // generation of a new punctuation
+                if ((execution_mode == Execution_Mode_t::DEFAULT) && (dropped_inputs % WF_DEFAULT_WM_AMOUNT == 0)) { // check punctuaction generation logic
+                    if (current_time_usecs() - last_time_punct >= WF_DEFAULT_WM_INTERVAL_USEC) { // check the end of the sample
+                        emitter->propagate_punctuation(_input->getWatermark(context.getReplicaIndex()), this);
                         last_time_punct = current_time_usecs();
                     }
                 }
                 deleteSingle_t(_input); // delete the input Single_t
             }
         }
-        if constexpr (isRiched)  { // inplace riched version
+        if constexpr (isRiched)  { // riched version
             context.setContextParameters(_input->getTimestamp(), _input->getWatermark(context.getReplicaIndex())); // set the parameter of the RuntimeContext
             if (func(_input->tuple, context)) {
 #if defined (WF_TRACING_ENABLED)
@@ -284,9 +291,9 @@ public:
             }
             else {
                 dropped_inputs++;
-                if ((execution_mode == Execution_Mode_t::DEFAULT) && (dropped_inputs % WF_DEFAULT_WM_AMOUNT == 0)) { // punctuaction auto-generation logic
-                    if (current_time_usecs() - last_time_punct >= WF_DEFAULT_WM_INTERVAL_USEC) {
-                        emitter->generate_punctuation(_input->getWatermark(context.getReplicaIndex()), this); // generation of a new punctuation
+                if ((execution_mode == Execution_Mode_t::DEFAULT) && (dropped_inputs % WF_DEFAULT_WM_AMOUNT == 0)) { // check punctuaction generation logic
+                    if (current_time_usecs() - last_time_punct >= WF_DEFAULT_WM_INTERVAL_USEC) { // check the end of the sample
+                        emitter->propagate_punctuation(_input->getWatermark(context.getReplicaIndex()), this);
                         last_time_punct = current_time_usecs();
                     }
                 }
@@ -295,12 +302,12 @@ public:
         }
     }
 
-    // Process a single input (version 2)
+    // Process a single input (version "non in-place")
     void process_input(tuple_t &_tuple,
                        uint64_t _timestamp,
                        uint64_t _watermark)
     {
-        if constexpr (isNonRiched) { // inplace non-riched version
+        if constexpr (isNonRiched) { // non-riched version
             if (func(_tuple)) {
 #if defined (WF_TRACING_ENABLED)
                 stats_record.outputs_sent++;
@@ -311,15 +318,15 @@ public:
             }
             else {
                 dropped_inputs++;
-                if ((execution_mode == Execution_Mode_t::DEFAULT) && (dropped_inputs % WF_DEFAULT_WM_AMOUNT == 0)) { // punctuaction auto-generation logic
-                    if (current_time_usecs() - last_time_punct >= WF_DEFAULT_WM_INTERVAL_USEC) {
-                        emitter->generate_punctuation(_watermark, this); // generation of a new punctuation
+                if ((execution_mode == Execution_Mode_t::DEFAULT) && (dropped_inputs % WF_DEFAULT_WM_AMOUNT == 0)) { // check punctuaction generation logic
+                    if (current_time_usecs() - last_time_punct >= WF_DEFAULT_WM_INTERVAL_USEC) { // check the end of the sample
+                        emitter->propagate_punctuation(_watermark, this);
                         last_time_punct = current_time_usecs();
                     }
                 }
             }
         }
-        if constexpr (isRiched)  { // inplace riched version
+        if constexpr (isRiched)  { // riched version
             context.setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
             if (func(_tuple, context)) {
 #if defined (WF_TRACING_ENABLED)
@@ -331,9 +338,9 @@ public:
             }
             else {
                 dropped_inputs++;
-                if ((execution_mode == Execution_Mode_t::DEFAULT) && (dropped_inputs % WF_DEFAULT_WM_AMOUNT == 0)) { // punctuaction auto-generation logic
-                    if (current_time_usecs() - last_time_punct >= WF_DEFAULT_WM_INTERVAL_USEC) {
-                        emitter->generate_punctuation(_watermark, this); // generation of a new punctuation
+                if ((execution_mode == Execution_Mode_t::DEFAULT) && (dropped_inputs % WF_DEFAULT_WM_AMOUNT == 0)) { // check punctuaction generation logic
+                    if (current_time_usecs() - last_time_punct >= WF_DEFAULT_WM_INTERVAL_USEC) { // check the end of the sample
+                        emitter->propagate_punctuation(_watermark, this);
                         last_time_punct = current_time_usecs();
                     }
                 }

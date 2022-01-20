@@ -1,17 +1,24 @@
-/******************************************************************************
- *  This program is free software; you can redistribute it and/or modify it
- *  under the terms of the GNU Lesser General Public License version 3 as
- *  published by the Free Software Foundation.
+/**************************************************************************************
+ *  Copyright (c) 2019- Gabriele Mencagli
  *  
- *  This program is distributed in the hope that it will be useful, but WITHOUT
- *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- *  License for more details.
+ *  This file is part of WindFlow.
  *  
- *  You should have received a copy of the GNU Lesser General Public License
- *  along with this program; if not, write to the Free Software Foundation,
- *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- ******************************************************************************
+ *  WindFlow is free software dual licensed under the GNU LGPL or MIT License.
+ *  You can redistribute it and/or modify it under the terms of the
+ *    * GNU Lesser General Public License as published by
+ *      the Free Software Foundation, either version 3 of the License, or
+ *      (at your option) any later version
+ *    OR
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *  
+ *  WindFlow is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *  You should have received a copy of the GNU Lesser General Public License and
+ *  the MIT License along with WindFlow. If not, see <http://www.gnu.org/licenses/>
+ *  and <http://opensource.org/licenses/MIT/>.
+ **************************************************************************************
  */
 
 /** 
@@ -54,8 +61,6 @@ struct Batch_GPU_t: Batch_t<tuple_t>
     int *start_idxs_gpu; // GPU array of starting indexes of keys in the batch
     int *map_idxs_gpu; // GPU array to find tuples with the same key within the batch
     cudaStream_t cudaStream; // CUDA stream associated with the batch
-    cudaDeviceProp deviceProp; // object containing the properties of the used GPU device
-    bool startTransfer2CPU; // true if the transfer of the batch items to a host pinned memory array has started
 
     // Constructor
     Batch_GPU_t(size_t _size,
@@ -66,28 +71,13 @@ struct Batch_GPU_t: Batch_t<tuple_t>
                 delete_counter(_delete_counter),
                 pinned_data_cpu(nullptr),
                 num_dist_keys(0),
-                dist_keys_cpu(nullptr),
-                startTransfer2CPU(false)
+                dist_keys_cpu(nullptr)
     {
         watermarks.push_back(std::numeric_limits<uint64_t>::max());
         gpuErrChk(cudaStreamCreate(&cudaStream)); // create the CUDA stream associated with this batch object
-        gpuErrChk(cudaGetDeviceProperties(&deviceProp, 0)); // get the properties of the GPU device with id 0
-#if (__CUDACC_VER_MAJOR__ >= 11) // at least CUDA 11
-        if (deviceProp.concurrentManagedAccess) { // new GPU models
-            gpuErrChk(cudaMallocAsync(&data_gpu, sizeof(batch_item_gpu_t<tuple_t>) * size, cudaStream));
-            gpuErrChk(cudaMallocAsync(&start_idxs_gpu, sizeof(int) * size, cudaStream));
-            gpuErrChk(cudaMallocAsync(&map_idxs_gpu, sizeof(int) * size, cudaStream));
-        }
-        else { // old GPU models
-            gpuErrChk(cudaMalloc(&data_gpu, sizeof(batch_item_gpu_t<tuple_t>) * size));
-            gpuErrChk(cudaMalloc(&start_idxs_gpu, sizeof(int) * size));
-            gpuErrChk(cudaMalloc(&map_idxs_gpu, sizeof(int) * size));
-        }
-#else
         gpuErrChk(cudaMalloc(&data_gpu, sizeof(batch_item_gpu_t<tuple_t>) * size));
         gpuErrChk(cudaMalloc(&start_idxs_gpu, sizeof(int) * size));
         gpuErrChk(cudaMalloc(&map_idxs_gpu, sizeof(int) * size));
-#endif
     }
 
     // Destructor
@@ -141,18 +131,18 @@ struct Batch_GPU_t: Batch_t<tuple_t>
         if (pinned_data_cpu == nullptr) { // create the host pinned array if it does not exist yet
             gpuErrChk(cudaMallocHost(&pinned_data_cpu, sizeof(batch_item_gpu_t<tuple_t>) * original_size)); // <-- using the original size is safer!
         }
-        gpuErrChk(cudaMemcpyAsync(pinned_data_cpu, data_gpu, sizeof(batch_item_gpu_t<tuple_t>) * size, cudaMemcpyDeviceToHost, cudaStream));
-        startTransfer2CPU = true;
+        gpuErrChk(cudaMemcpyAsync(pinned_data_cpu,
+                                  data_gpu,
+                                  sizeof(batch_item_gpu_t<tuple_t>) * size,
+                                  cudaMemcpyDeviceToHost,
+                                  cudaStream));
+        gpuErrChk(cudaStreamSynchronize(cudaStream));
     }
 
     // Get the tuple (by reference) at position pos of the batch
     tuple_t &getTupleAtPos(size_t _pos) override
     {
         assert(_pos < size && pinned_data_cpu != nullptr);
-        if (startTransfer2CPU) {
-            gpuErrChk(cudaStreamSynchronize(cudaStream));
-            startTransfer2CPU = false;
-        }
         return pinned_data_cpu[_pos].tuple;
     }
 
@@ -160,10 +150,6 @@ struct Batch_GPU_t: Batch_t<tuple_t>
     uint64_t getTimestampAtPos(size_t _pos) override
     {
         assert(_pos < size && pinned_data_cpu != nullptr);
-        if (startTransfer2CPU) {
-            gpuErrChk(cudaStreamSynchronize(cudaStream));
-            startTransfer2CPU = false;
-        }
         return pinned_data_cpu[_pos].timestamp;
     }
 
@@ -193,7 +179,7 @@ struct Batch_GPU_t: Batch_t<tuple_t>
     // Update the watermark of the batch (if necessary)
     void updateWatermark(uint64_t _watermark)
     {
-        assert(watermarks.size() == 1);
+        assert(watermarks.size() == 1); // sanity check
         if (watermarks[0] > _watermark) {
             watermarks[0] = _watermark;
         }
@@ -212,7 +198,6 @@ struct Batch_GPU_t: Batch_t<tuple_t>
             free(dist_keys_cpu);
             dist_keys_cpu = nullptr;
         }
-        startTransfer2CPU = false;
     }
 
     Batch_GPU_t(const Batch_GPU_t &) = delete; ///< Copy constructor is deleted

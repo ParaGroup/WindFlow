@@ -1,17 +1,24 @@
-/******************************************************************************
- *  This program is free software; you can redistribute it and/or modify it
- *  under the terms of the GNU Lesser General Public License version 3 as
- *  published by the Free Software Foundation.
+/**************************************************************************************
+ *  Copyright (c) 2019- Gabriele Mencagli
  *  
- *  This program is distributed in the hope that it will be useful, but WITHOUT
- *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- *  License for more details.
+ *  This file is part of WindFlow.
  *  
- *  You should have received a copy of the GNU Lesser General Public License
- *  along with this program; if not, write to the Free Software Foundation,
- *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- ******************************************************************************
+ *  WindFlow is free software dual licensed under the GNU LGPL or MIT License.
+ *  You can redistribute it and/or modify it under the terms of the
+ *    * GNU Lesser General Public License as published by
+ *      the Free Software Foundation, either version 3 of the License, or
+ *      (at your option) any later version
+ *    OR
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *  
+ *  WindFlow is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *  You should have received a copy of the GNU Lesser General Public License and
+ *  the MIT License along with WindFlow. If not, see <http://www.gnu.org/licenses/>
+ *  and <http://opensource.org/licenses/MIT/>.
+ **************************************************************************************
  */
 
 /** 
@@ -224,7 +231,7 @@ public:
                  ff::ff_monode *_node)
     {
         (_output->delete_counter).fetch_add(num_dests-1);
-        assert((_output->fields).size() == 3);
+        assert((_output->fields).size() == 3); // sanity check
         (_output->fields).insert((_output->fields).end(), num_dests-1, (_output->fields)[2]); // copy the watermark (having one per destination)
         for (size_t i=0; i<num_dests; i++) {
             if (!useTreeMode) { // real send
@@ -248,7 +255,7 @@ public:
         batch_output->addTuple(std::move(_tuple), _timestamp, _watermark);
         if (batch_output->getSize() == size) { // batch is ready to be sent
             (batch_output->delete_counter).fetch_add(num_dests-1);
-            assert((batch_output->watermarks).size() == 1);
+            assert((batch_output->watermarks).size() == 1); // sanity check
             (batch_output->watermarks).insert((batch_output->watermarks).end(), num_dests-1, (batch_output->watermarks)[0]); // copy the watermark (having one per destination)
             for (size_t i=0; i<num_dests; i++) {
                 if (!useTreeMode) { // real send
@@ -262,20 +269,16 @@ public:
         }
     }
 
-    // Punctuation generation method
-    void generate_punctuation(uint64_t _watermark,
-                              ff::ff_monode * _node) override
+    // Punctuation propagation method
+    void propagate_punctuation(uint64_t _watermark,
+                               ff::ff_monode * _node) override
     {
-        if ((size > 0) && (batch_output != nullptr)) {
-            if (batch_output->getSize() > 0) {
-                return; // if there is a partial batch, punctuation is not propagated!
-            }
-        }
+        flush(_node); // flush the internal partially filled batch (if any)
         if (size == 0) { // no batching
             tuple_t t; // create an empty tuple
             Single_t<decltype(get_tuple_t_KeyExtr(key_extr))> *punc = allocateSingle_t(std::move(t), 0, 0, _watermark, queue);
             (punc->delete_counter).fetch_add(num_dests-1);
-            assert((punc->fields).size() == 3);
+            assert((punc->fields).size() == 3); // sanity check
             (punc->fields).insert((punc->fields).end(), num_dests-1, (punc->fields)[2]); // copy the watermark (having one per destination)
             punc->isPunctuation = true;
             for (size_t i=0; i<num_dests; i++) {
@@ -292,7 +295,7 @@ public:
             Batch_CPU_t<decltype(get_tuple_t_KeyExtr(key_extr))> *punc = allocateBatch_CPU_t<decltype(get_tuple_t_KeyExtr(key_extr))>(size, queue);
             punc->addTuple(std::move(t), 0, _watermark);
             (punc->delete_counter).fetch_add(num_dests-1);
-            assert((punc->watermarks).size() == 1);
+            assert((punc->watermarks).size() == 1); // sanity check
             (punc->watermarks).insert((punc->watermarks).end(), num_dests-1, (punc->watermarks)[0]); // copy the watermark (having one per destination)
             punc->isPunctuation = true;
             for (size_t i=0; i<num_dests; i++) {
@@ -310,7 +313,8 @@ public:
     void flush(ff::ff_monode *_node) override
     {
         if (size > 0) { // only batching
-            if (batch_output != nullptr && batch_output->getSize() > 0) { // send the partial batch if it exists
+            if (batch_output != nullptr) { // send the partial batch if it exists
+                assert(batch_output->getSize() > 0); // sanity check
                 (batch_output->delete_counter).fetch_add(num_dests-1);
                 (batch_output->watermarks).insert((batch_output->watermarks).end(), num_dests-1, (batch_output->watermarks)[0]); // copy the watermark (having one per destination)
                 for (size_t i=0; i<num_dests; i++) {

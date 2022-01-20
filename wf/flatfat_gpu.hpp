@@ -1,17 +1,24 @@
-/******************************************************************************
- *  This program is free software; you can redistribute it and/or modify it
- *  under the terms of the GNU Lesser General Public License version 3 as
- *  published by the Free Software Foundation.
+/**************************************************************************************
+ *  Copyright (c) 2019- Gabriele Mencagli
  *  
- *  This program is distributed in the hope that it will be useful, but WITHOUT
- *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- *  License for more details.
+ *  This file is part of WindFlow.
  *  
- *  You should have received a copy of the GNU Lesser General Public License
- *  along with this program; if not, write to the Free Software Foundation,
- *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- ******************************************************************************
+ *  WindFlow is free software dual licensed under the GNU LGPL or MIT License.
+ *  You can redistribute it and/or modify it under the terms of the
+ *    * GNU Lesser General Public License as published by
+ *      the Free Software Foundation, either version 3 of the License, or
+ *      (at your option) any later version
+ *    OR
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *  
+ *  WindFlow is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *  You should have received a copy of the GNU Lesser General Public License and
+ *  the MIT License along with WindFlow. If not, see <http://www.gnu.org/licenses/>
+ *  and <http://opensource.org/licenses/MIT/>.
+ **************************************************************************************
  */
 
 /** 
@@ -312,18 +319,25 @@ public:
         std::vector<result_t> tree(inputs.begin(), inputs.end()); // copy the input vector in the tree vector
         tree.insert(tree.end(), treeSize - batchSize, create_win_result_t<result_t, key_t>(key, 0)); // fill the remaining entries in the tree with empty results
         assert(tree.size() == treeSize); // sanity check
-        memcpy(pinned_tree, tree.data(), treeSizeBytes); // copy the tree vector in the pinned array
-        gpuErrChk(cudaMemcpyAsync(gpu_tree, pinned_tree, treeSizeBytes, cudaMemcpyHostToDevice, *cudaStream)); // copy on GPU
+        memcpy(pinned_tree,
+               tree.data(),
+               treeSizeBytes); // copy the tree vector in the pinned array
+        gpuErrChk(cudaMemcpyAsync(gpu_tree,
+                                  pinned_tree,
+                                  treeSizeBytes,
+                                  cudaMemcpyHostToDevice,
+                                  *cudaStream)); // copy on GPU
         result_t *d_levelA = gpu_tree; // pointer to the first level of the tree
         int pow = 1;
         result_t *d_levelB = d_levelA + numLeaves / pow;
         int i = numLeaves / 2;
         while (d_levelB < gpu_tree + treeSize && i > 0) { // fill the levels of the tree
             int numBlocks = std::min((int) ceil(i / ((double) WF_GPU_DEFAULT_THREADS_PER_BLOCK)), numSMs * max_blocks_per_sm);
-            Init_TreeLevel_Kernel<result_t, combgpu_func_t><<<numBlocks, WF_GPU_DEFAULT_THREADS_PER_BLOCK, 0, *cudaStream>>>(comb_func,
-                                                                                                                             d_levelA,
-                                                                                                                             d_levelB,
-                                                                                                                             i);
+            Init_TreeLevel_Kernel<result_t, combgpu_func_t>
+                                 <<<numBlocks, WF_GPU_DEFAULT_THREADS_PER_BLOCK, 0, *cudaStream>>>(comb_func,
+                                                                                                   d_levelA,
+                                                                                                   d_levelB,
+                                                                                                   i);
             gpuErrChk(cudaPeekAtLastError());
             d_levelA = d_levelB; // switch the levels
             pow = pow << 1;
@@ -331,17 +345,18 @@ public:
             i /= 2;
         }
         int numBlocks = std::min((int) ceil(numWinsPerBatch / ((double) WF_GPU_DEFAULT_THREADS_PER_BLOCK)), numSMs * max_blocks_per_sm); // compute the results of the first batch
-        Compute_Results_Kernel<key_t, result_t, combgpu_func_t><<<numBlocks, WF_GPU_DEFAULT_THREADS_PER_BLOCK, 0, *cudaStream>>>(comb_func,
-                                                                                                                                 key,
-                                                                                                                                 gpu_tree,
-                                                                                                                                 gpu_results,
-                                                                                                                                 _initial_gwid,
-                                                                                                                                 offset,
-                                                                                                                                 numLeaves,
-                                                                                                                                 batchSize,
-                                                                                                                                 windowSize,
-                                                                                                                                 numWinsPerBatch,
-                                                                                                                                 slide);
+        Compute_Results_Kernel<key_t, result_t, combgpu_func_t>
+                              <<<numBlocks, WF_GPU_DEFAULT_THREADS_PER_BLOCK, 0, *cudaStream>>>(comb_func,
+                                                                                                key,
+                                                                                                gpu_tree,
+                                                                                                gpu_results,
+                                                                                                _initial_gwid,
+                                                                                                offset,
+                                                                                                numLeaves,
+                                                                                                batchSize,
+                                                                                                windowSize,
+                                                                                                numWinsPerBatch,
+                                                                                                slide);
         gpuErrChk(cudaPeekAtLastError());
     }
 
@@ -351,13 +366,29 @@ public:
     {
         size_t spaceLeft = batchSize - offset; // compute the remaining space at the end of the tree
         if (inputs.size() <= spaceLeft) {
-            memcpy(pinned_tree, inputs.data(), inputs.size() * sizeof(result_t)); // copy the inputs in the pinned array
-            gpuErrChk(cudaMemcpyAsync(gpu_tree + offset, pinned_tree, inputs.size() * sizeof(result_t), cudaMemcpyHostToDevice, *cudaStream)); // copy on GPU
+            memcpy(pinned_tree,
+                   inputs.data(),
+                   inputs.size() * sizeof(result_t)); // copy the inputs in the pinned array
+            gpuErrChk(cudaMemcpyAsync(gpu_tree + offset,
+                                      pinned_tree,
+                                      inputs.size() * sizeof(result_t),
+                                      cudaMemcpyHostToDevice,
+                                      *cudaStream)); // copy on GPU
         }
         else { // split the copy on GPU in two parts
-            memcpy(pinned_tree, inputs.data(), inputs.size() * sizeof(result_t)); // copy the inputs in the page-locked memory
-            gpuErrChk(cudaMemcpyAsync(gpu_tree + offset, pinned_tree, spaceLeft * sizeof(result_t), cudaMemcpyHostToDevice, *cudaStream));
-            gpuErrChk(cudaMemcpyAsync(gpu_tree, pinned_tree + spaceLeft, (inputs.size() - spaceLeft) * sizeof(result_t), cudaMemcpyHostToDevice, *cudaStream));
+            memcpy(pinned_tree,
+                   inputs.data(),
+                   inputs.size() * sizeof(result_t)); // copy the inputs in the page-locked memory
+            gpuErrChk(cudaMemcpyAsync(gpu_tree + offset,
+                                      pinned_tree,
+                                      spaceLeft * sizeof(result_t),
+                                      cudaMemcpyHostToDevice,
+                                      *cudaStream));
+            gpuErrChk(cudaMemcpyAsync(gpu_tree,
+                                      pinned_tree + spaceLeft,
+                                      (inputs.size() - spaceLeft) * sizeof(result_t),
+                                      cudaMemcpyHostToDevice,
+                                      *cudaStream));
         }
         int pow = 1;
         result_t *d_levelA = gpu_tree;
@@ -370,12 +401,13 @@ public:
         while (d_levelB < gpu_tree + treeSize) { // update the levels of the tree, each with a separate kernel
             // call the kernel to update a level of the tree
             size_t numBlocks = std::min((int) ceil(sizeUpdate / ((double) WF_GPU_DEFAULT_THREADS_PER_BLOCK)), numSMs * max_blocks_per_sm);
-            Update_TreeLevel_Kernel<result_t, combgpu_func_t><<<numBlocks, WF_GPU_DEFAULT_THREADS_PER_BLOCK, 0, *cudaStream>>>(comb_func,
-                                                                                                                               d_levelA,
-                                                                                                                               d_levelB,
-                                                                                                                               distance,
-                                                                                                                               sizeB,
-                                                                                                                               sizeUpdate);
+            Update_TreeLevel_Kernel<result_t, combgpu_func_t>
+                                   <<<numBlocks, WF_GPU_DEFAULT_THREADS_PER_BLOCK, 0, *cudaStream>>>(comb_func,
+                                                                                                     d_levelA,
+                                                                                                     d_levelB,
+                                                                                                     distance,
+                                                                                                     sizeB,
+                                                                                                     sizeUpdate);
             gpuErrChk(cudaPeekAtLastError());
             pow = pow << 1;
             d_levelA = d_levelB;
@@ -388,24 +420,29 @@ public:
         }
         offset = (offset + inputs.size()) % batchSize;
         int numBlocks = std::min((int) ceil(numWinsPerBatch / ((double) WF_GPU_DEFAULT_THREADS_PER_BLOCK)), numSMs * max_blocks_per_sm);
-        Compute_Results_Kernel<key_t, result_t, combgpu_func_t><<<numBlocks, WF_GPU_DEFAULT_THREADS_PER_BLOCK, 0, *cudaStream>>>(comb_func,
-                                                                                                                                 key,
-                                                                                                                                 gpu_tree,
-                                                                                                                                 gpu_results,
-                                                                                                                                 _initial_gwid,
-                                                                                                                                 offset,
-                                                                                                                                 numLeaves,
-                                                                                                                                 batchSize,
-                                                                                                                                 windowSize,
-                                                                                                                                 numWinsPerBatch,
-                                                                                                                                 slide);
+        Compute_Results_Kernel<key_t, result_t, combgpu_func_t>
+                              <<<numBlocks, WF_GPU_DEFAULT_THREADS_PER_BLOCK, 0, *cudaStream>>>(comb_func,
+                                                                                                key,
+                                                                                                gpu_tree,
+                                                                                                gpu_results,
+                                                                                                _initial_gwid,
+                                                                                                offset,
+                                                                                                numLeaves,
+                                                                                                batchSize,
+                                                                                                windowSize,
+                                                                                                numWinsPerBatch,
+                                                                                                slide);
         gpuErrChk(cudaPeekAtLastError());
     }
 
     // Get (synchronously) the array of results computed by the GPU
     result_t *getSyncResults()
     {
-        gpuErrChk(cudaMemcpyAsync(pinned_results, gpu_results, numWinsPerBatch * sizeof(result_t), cudaMemcpyDeviceToHost, *cudaStream));
+        gpuErrChk(cudaMemcpyAsync(pinned_results,
+                                  gpu_results,
+                                  numWinsPerBatch * sizeof(result_t),
+                                  cudaMemcpyDeviceToHost,
+                                  *cudaStream));
         gpuErrChk(cudaStreamSynchronize(*cudaStream));
         return pinned_results;
     }
@@ -413,7 +450,11 @@ public:
     // Start (asynchronously) the copy of the array of results from the GPU
     void getAsyncResults()
     {
-        gpuErrChk(cudaMemcpyAsync(pinned_results, gpu_results, numWinsPerBatch * sizeof(result_t), cudaMemcpyDeviceToHost, *cudaStream));
+        gpuErrChk(cudaMemcpyAsync(pinned_results,
+                                  gpu_results,
+                                  numWinsPerBatch * sizeof(result_t),
+                                  cudaMemcpyDeviceToHost,
+                                  *cudaStream));
     }
 
     // Wait the completion of the results copy from the GPU to the host
@@ -426,8 +467,15 @@ public:
     // Get the vector of batched inputs
     std::vector<result_t> getBatchedTuples()
     {
-        gpuErrChk(cudaMemcpyAsync(pinned_tree, (gpu_tree + offset), (batchSize - offset) * sizeof(result_t), cudaMemcpyDeviceToHost, *cudaStream));
-        gpuErrChk(cudaMemcpyAsync((pinned_tree + batchSize - offset), gpu_tree, offset * sizeof(result_t), cudaMemcpyDeviceToHost, *cudaStream));
+        gpuErrChk(cudaMemcpyAsync(pinned_tree,
+                                  (gpu_tree + offset),
+                                  (batchSize - offset) * sizeof(result_t),
+                                  cudaMemcpyDeviceToHost,
+                                  *cudaStream));
+        gpuErrChk(cudaMemcpyAsync(pinned_tree + batchSize - offset,
+                                  gpu_tree, offset * sizeof(result_t),
+                                  cudaMemcpyDeviceToHost,
+                                  *cudaStream));
         gpuErrChk(cudaStreamSynchronize(*cudaStream));
         return std::vector<result_t>(pinned_tree, pinned_tree + batchSize);
     }

@@ -1,17 +1,24 @@
-/******************************************************************************
- *  This program is free software; you can redistribute it and/or modify it
- *  under the terms of the GNU Lesser General Public License version 3 as
- *  published by the Free Software Foundation.
+/**************************************************************************************
+ *  Copyright (c) 2019- Gabriele Mencagli
  *  
- *  This program is distributed in the hope that it will be useful, but WITHOUT
- *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- *  License for more details.
+ *  This file is part of WindFlow.
  *  
- *  You should have received a copy of the GNU Lesser General Public License
- *  along with this program; if not, write to the Free Software Foundation,
- *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- ******************************************************************************
+ *  WindFlow is free software dual licensed under the GNU LGPL or MIT License.
+ *  You can redistribute it and/or modify it under the terms of the
+ *    * GNU Lesser General Public License as published by
+ *      the Free Software Foundation, either version 3 of the License, or
+ *      (at your option) any later version
+ *    OR
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *  
+ *  WindFlow is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *  You should have received a copy of the GNU Lesser General Public License and
+ *  the MIT License along with WindFlow. If not, see <http://www.gnu.org/licenses/>
+ *  and <http://opensource.org/licenses/MIT/>.
+ **************************************************************************************
  */
 
 /** 
@@ -31,7 +38,7 @@
 #define FILTER_GPU_H
 
 // Required to compile with clang and CUDA < 11
-#if defined(__clang__) and (__CUDACC_VER_MAJOR__ < 11)
+#if defined (__clang__) and (__CUDACC_VER_MAJOR__ < 11)
     #define THRUST_CUB_NS_PREFIX namespace thrust::cuda_cub {
     #define THRUST_CUB_NS_POSTFIX }
     #include<thrust/system/cuda/detail/cub/util_debug.cuh>
@@ -44,7 +51,11 @@
 #include<thrust/copy.h>
 #include<thrust/device_ptr.h>
 #include<tbb/concurrent_unordered_map.h>
-#include<batch_gpu_t.hpp>
+#if !defined (WF_GPU_UNIFIED_MEMORY)
+    #include<batch_gpu_t.hpp>
+#else
+    #include<batch_gpu_t_u.hpp>
+#endif
 #include<basic_emitter.hpp>
 #include<basic_operator.hpp>
 #include<thrust_allocator.hpp>
@@ -58,8 +69,8 @@ namespace wf {
 
 // CUDA Kernel: Stateless_FILTERGPU_Kernel
 template<typename tuple_t, typename filtergpu_func_t>
-__global__ void Stateless_FILTERGPU_Kernel(batch_item_gpu_t<tuple_t> *data_gpu,
-                                           bool *flags_gpu,
+__global__ void Stateless_FILTERGPU_Kernel(batch_item_gpu_t<tuple_t> *data,
+                                           bool *flags,
                                            size_t len,
                                            int num_active_thread_per_warp,
                                            filtergpu_func_t func_gpu)
@@ -71,17 +82,17 @@ __global__ void Stateless_FILTERGPU_Kernel(batch_item_gpu_t<tuple_t> *data_gpu,
     int id_worker = id / threads_per_worker; // id of the worker corresponding to this thread
     if (id % threads_per_worker == 0) { // only "num_active_thread_per_warp" threads per warp work, the others are idle
         for (size_t i=id_worker; i<len; i+=num_workers) {
-            flags_gpu[i] = func_gpu(data_gpu[i].tuple);
+            flags[i] = func_gpu(data[i].tuple);
         }
     }
 }
 
 // CUDA Kernel: Stateful_FILTERGPU_Kernel
 template<typename tuple_t, typename state_t, typename filtergpu_func_t>
-__global__ void Stateful_FILTERGPU_Kernel(batch_item_gpu_t<tuple_t> *data_gpu,
-                                          bool *flags_gpu,
-                                          int *map_idxs_gpu,
-                                          int *start_idxs_gpu,
+__global__ void Stateful_FILTERGPU_Kernel(batch_item_gpu_t<tuple_t> *data,
+                                          bool *flags,
+                                          int *map_idxs,
+                                          int *start_idxs,
                                           state_t **states,
                                           int num_dist_keys,
                                           int num_active_thread_per_warp,
@@ -94,20 +105,13 @@ __global__ void Stateful_FILTERGPU_Kernel(batch_item_gpu_t<tuple_t> *data_gpu,
     int id_worker = id / threads_per_worker; // id of the worker corresponding to this thread
     if (id % threads_per_worker == 0) { // only "num_active_thread_per_warp" threads per warp work, the others are idle
         for (int id_key=id_worker; id_key<num_dist_keys; id_key+=num_workers) {
-            size_t idx = start_idxs_gpu[id_key];
+            size_t idx = start_idxs[id_key];
             while (idx != -1) { // execute all the inputs with key in the input batch
-                flags_gpu[idx] = func_gpu(data_gpu[idx].tuple, *(states[id_key]));
-                idx = map_idxs_gpu[idx];
+                flags[idx] = func_gpu(data[idx].tuple, *(states[id_key]));
+                idx = map_idxs[idx];
             }
         }
     }
-}
-
-// CUDA callback
-void CUDART_CB unlock_callback_filter(void *data)
-{
-    pthread_spinlock_t *lock = (pthread_spinlock_t *) data;
-    pthread_spin_unlock(lock);
 }
 
 // class FilterGPU_Replica (stateful version)
@@ -121,7 +125,7 @@ private:
     using state_t = decltype(get_state_t_FilterGPU(func)); // extracting the state_t type and checking the admissible signatures
     size_t id_replica; // identifier of the Filter_GPU replica
     tbb::concurrent_unordered_map<key_t, wrapper_state_t<state_t>> *keymap; // pointer to the concurrent hashtable keeping the states of the keys
-    pthread_spinlock_t *spinlock; // pointer to the spinlock used by all the replicas of the Filter_GPU
+    pthread_spinlock_t *spinlock; // pointer to the spinlock to serialize stateful GPU kernel calls
     std::string opName; // name of the Filter_GPU containing the replica
     bool terminated; // true if the Filter_GPU replica has finished its work
     Basic_Emitter *emitter; // pointer to the used emitter
@@ -169,7 +173,7 @@ private:
         }
     };
     Batch_GPU_t<tuple_t> *batch_tobe_sent; // pointer to the output batch to be sent
-    std::vector<record_t *> records; // vector of pointers to record structures used circularly)
+    std::vector<record_t *> records; // vector of pointers to record structures (used circularly)
     size_t id_r; // identifier used for overlapping purposes
     int numSMs; // number of Stream Multiprocessor of the GPU
     int max_threads_per_sm; // maximum number of threads resident on each Stream Multiprocessor of the GPU
@@ -284,8 +288,11 @@ public:
             }
         }
         if (id_replica == 0) { // only the first replica deletes the spinlock and keymap
-            delete spinlock;
-            delete keymap; // here we destroy and deallocate all the keyed states
+            if (pthread_spin_destroy(spinlock) != 0) { // destroy the spinlock
+                std::cerr << RED << "WindFlow Error: pthread_spin_destroy() failed in Filter_GPU" << DEFAULT_COLOR << std::endl;
+                exit(EXIT_FAILURE);             
+            }
+            delete keymap;
         }
     }
 
@@ -388,8 +395,8 @@ public:
 #endif
         Batch_GPU_t<decltype(get_tuple_t_FilterGPU(func))> *input = reinterpret_cast<Batch_GPU_t<decltype(get_tuple_t_FilterGPU(func))> *>(_in);
         if (input->isPunct()) { // if it is a punctuaton
-            sendPreviousBatch(); // send previous batch (if any)
-            emitter->generate_punctuation(input->getWatermark(id_replica), this); // propagate the received punctuation
+            sendPreviousBatch(); // send the previous output batch (if any)
+            emitter->propagate_punctuation(input->getWatermark(id_replica), this); // propagate the received punctuation
             deleteBatch_t(input); // delete the punctuation
             return this->GO_ON;
         }
@@ -403,7 +410,11 @@ public:
         else {
             records[id_r]->resize(input->original_size);
         }
+#if !defined (WF_GPU_UNIFIED_MEMORY)
         key_t *dist_keys = reinterpret_cast<key_t *>(input->dist_keys_cpu);
+#else
+        key_t *dist_keys = reinterpret_cast<key_t *>(input->dist_keys);
+#endif
         for (size_t i=0; i<input->num_dist_keys; i++) { // prepare the states
             auto it = keymap->find(dist_keys[i]);
             if (it == keymap->end()) {
@@ -415,7 +426,11 @@ public:
                 records[id_r]->state_ptrs_cpu[i] = ((*it).second).state_gpu;
             }
         }
-        gpuErrChk(cudaMemcpyAsync(records[id_r]->state_ptrs_gpu, records[id_r]->state_ptrs_cpu, input->num_dist_keys * sizeof(state_t *), cudaMemcpyHostToDevice, input->cudaStream));
+        gpuErrChk(cudaMemcpyAsync(records[id_r]->state_ptrs_gpu,
+                                  records[id_r]->state_ptrs_cpu,
+                                  input->num_dist_keys * sizeof(state_t *),
+                                  cudaMemcpyHostToDevice,
+                                  input->cudaStream));
         int warps_per_block = ((max_threads_per_sm / max_blocks_per_sm) / threads_per_warp); // launch the kernel to compute the results
         int tot_num_warps = warps_per_block * max_blocks_per_sm * numSMs;
         int32_t x = (int32_t) std::ceil(((double) input->num_dist_keys) / tot_num_warps); // compute how many threads should be active per warps
@@ -424,8 +439,12 @@ public:
         }
         int num_active_thread_per_warp = std::min(x, threads_per_warp);
         int num_blocks = std::min((int) ceil(((double) input->num_dist_keys) / warps_per_block), numSMs * max_blocks_per_sm);
-        sendPreviousBatch(true); // send previous batch (if any)
-        pthread_spin_lock(spinlock); // acquire the lock
+        sendPreviousBatch(true); // send the previous output batch (if any)
+        if (pthread_spin_lock(spinlock) != 0) { // acquire the lock
+            std::cerr << RED << "WindFlow Error: pthread_spin_lock() failed in Filter_GPU" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+#if !defined (WF_GPU_UNIFIED_MEMORY)
         Stateful_FILTERGPU_Kernel<decltype(get_tuple_t_FilterGPU(func)), decltype(get_state_t_FilterGPU(func)), filtergpu_func_t>
                                  <<<num_blocks, warps_per_block*threads_per_warp, 0, input->cudaStream>>>(input->data_gpu,
                                                                                                           records[id_r]->flags_gpu,
@@ -435,8 +454,23 @@ public:
                                                                                                           input->num_dist_keys,
                                                                                                           num_active_thread_per_warp,
                                                                                                           func);
+#else
+        Stateful_FILTERGPU_Kernel<decltype(get_tuple_t_FilterGPU(func)), decltype(get_state_t_FilterGPU(func)), filtergpu_func_t>
+                                 <<<num_blocks, warps_per_block*threads_per_warp, 0, input->cudaStream>>>(input->data_u,
+                                                                                                          records[id_r]->flags_gpu,
+                                                                                                          input->map_idxs_u,
+                                                                                                          input->start_idxs_u,
+                                                                                                          records[id_r]->state_ptrs_gpu,
+                                                                                                          input->num_dist_keys,
+                                                                                                          num_active_thread_per_warp,
+                                                                                                          func);
+#endif
         gpuErrChk(cudaPeekAtLastError());
-        gpuErrChk(cudaLaunchHostFunc(input->cudaStream, unlock_callback_filter, (void *) spinlock));
+        gpuErrChk(cudaStreamSynchronize(input->cudaStream));
+        if (pthread_spin_unlock(spinlock) != 0) { // release the lock
+            std::cerr << RED << "WindFlow Error: pthread_spin_unlock() failed in Filter_GPU" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
         batch_tobe_sent = input;
         id_r = (id_r + 1) % 2;
 #if defined (WF_TRACING_ENABLED)
@@ -456,7 +490,7 @@ public:
     // EOS management (utilized by the FastFlow runtime)
     void eosnotify(ssize_t id) override
     {
-        sendPreviousBatch(); // send previous batch (if any)
+        sendPreviousBatch(); // send the previous output batch (if any)
         emitter->flush(this); // call the flush of the emitter
         terminated = true;
 #if defined (WF_TRACING_ENABLED)
@@ -464,30 +498,51 @@ public:
 #endif
     }
 
-    // Send the previous batch (if any)
+    // Send the previous output batch (if any)
     void sendPreviousBatch(bool _autoPunc=false)
     {
         if (batch_tobe_sent != nullptr) {
             size_t prev_id_r = (id_r + 2 - 1) % 2; // decrement_address_one = (address + Length - 1) % Length
             auto *prev_record = records[prev_id_r];
             thrust::device_ptr<bool> th_flags_gpu = thrust::device_pointer_cast(prev_record->flags_gpu);
+#if !defined (WF_GPU_UNIFIED_MEMORY)
             thrust::device_ptr<batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>> th_data_gpu = thrust::device_pointer_cast(batch_tobe_sent->data_gpu);
+#else
+            thrust::device_ptr<batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>> th_data_gpu = thrust::device_pointer_cast(batch_tobe_sent->data_u);
+#endif
             thrust::device_ptr<batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>> th_new_data_gpu = thrust::device_pointer_cast(prev_record->new_data_gpu);
             auto pred = [] __device__ (bool x) { return x; };
-            auto end = thrust::copy_if(thrust::cuda::par(alloc).on(batch_tobe_sent->cudaStream), th_data_gpu, th_data_gpu + batch_tobe_sent->size, th_flags_gpu, th_new_data_gpu, pred);
+            auto end = thrust::copy_if(thrust::cuda::par(alloc).on(batch_tobe_sent->cudaStream),
+                                       th_data_gpu,
+                                       th_data_gpu + batch_tobe_sent->size,
+                                       th_flags_gpu,
+                                       th_new_data_gpu,
+                                       pred);
             batch_tobe_sent->size = end - th_new_data_gpu; // change the new size of the batch after filtering
 #if defined (WF_TRACING_ENABLED)
             stats_record.outputs_sent += batch_tobe_sent->size;
             stats_record.bytes_sent += batch_tobe_sent->size * sizeof(tuple_t);
 #endif
-            gpuErrChk(cudaMemcpyAsync(batch_tobe_sent->data_gpu, prev_record->new_data_gpu, batch_tobe_sent->size * sizeof(batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>), cudaMemcpyDeviceToDevice, batch_tobe_sent->cudaStream));
+#if !defined (WF_GPU_UNIFIED_MEMORY)
+            gpuErrChk(cudaMemcpyAsync(batch_tobe_sent->data_gpu,
+                                      prev_record->new_data_gpu,
+                                      batch_tobe_sent->size * sizeof(batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>),
+                                      cudaMemcpyDeviceToDevice,
+                                      batch_tobe_sent->cudaStream));
+#else
+            gpuErrChk(cudaMemcpyAsync(batch_tobe_sent->data_u,
+                                      prev_record->new_data_gpu,
+                                      batch_tobe_sent->size * sizeof(batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>),
+                                      cudaMemcpyDeviceToDevice,
+                                      batch_tobe_sent->cudaStream));
+#endif
             gpuErrChk(cudaStreamSynchronize(batch_tobe_sent->cudaStream));
             if (batch_tobe_sent->size == 0) { // if the batch is now empty, it is destroyed
                 dropped_inputs++;
                 if (_autoPunc) {
-                    if ((execution_mode == Execution_Mode_t::DEFAULT) && (dropped_inputs % WF_DEFAULT_WM_AMOUNT == 0)) { // punctuaction auto-generation logic
-                        if (current_time_usecs() - last_time_punct >= WF_DEFAULT_WM_INTERVAL_USEC) {
-                            emitter->generate_punctuation(batch_tobe_sent->getWatermark(id_replica), this); // generation of a new punctuation
+                    if ((execution_mode == Execution_Mode_t::DEFAULT) && (dropped_inputs % WF_DEFAULT_WM_AMOUNT == 0)) { // check punctuaction generation logic
+                        if (current_time_usecs() - last_time_punct >= WF_DEFAULT_WM_INTERVAL_USEC) { // check the end of the sample
+                            emitter->propagate_punctuation(batch_tobe_sent->getWatermark(id_replica), this);
                             last_time_punct = current_time_usecs();
                         }
                     }
@@ -765,7 +820,7 @@ public:
 #endif
         Batch_GPU_t<decltype(get_tuple_t_FilterGPU(func))> *input = reinterpret_cast<Batch_GPU_t<decltype(get_tuple_t_FilterGPU(func))> *>(_in);
         if (input->isPunct()) { // if it is a punctuaton
-            emitter->generate_punctuation(input->getWatermark(id_replica), this); // propagate the received punctuation
+            emitter->propagate_punctuation(input->getWatermark(id_replica), this); // propagate the received punctuation
             deleteBatch_t(input); // delete the punctuation
             return this->GO_ON;
         }
@@ -787,31 +842,61 @@ public:
         }
         int num_active_thread_per_warp = std::min(x, threads_per_warp);
         int num_blocks = std::min((int) ceil(((double) (input->size)) / warps_per_block), numSMs * max_blocks_per_sm);
-        assert(records[id_r]->size >= input->size);
+        assert(records[id_r]->size >= input->size); // sanity check
+#if !defined (WF_GPU_UNIFIED_MEMORY)
         Stateless_FILTERGPU_Kernel<decltype(get_tuple_t_FilterGPU(func)), filtergpu_func_t>
                                   <<<num_blocks, warps_per_block*threads_per_warp, 0, input->cudaStream>>>(input->data_gpu,
                                                                                                            records[id_r]->flags_gpu,
                                                                                                            input->size,
                                                                                                            num_active_thread_per_warp,
                                                                                                            func);
+#else
+        Stateless_FILTERGPU_Kernel<decltype(get_tuple_t_FilterGPU(func)), filtergpu_func_t>
+                                  <<<num_blocks, warps_per_block*threads_per_warp, 0, input->cudaStream>>>(input->data_u,
+                                                                                                           records[id_r]->flags_gpu,
+                                                                                                           input->size,
+                                                                                                           num_active_thread_per_warp,
+                                                                                                           func);
+#endif                             
         gpuErrChk(cudaPeekAtLastError());
         thrust::device_ptr<bool> th_flags_gpu = thrust::device_pointer_cast(records[id_r]->flags_gpu);
+#if !defined (WF_GPU_UNIFIED_MEMORY)
         thrust::device_ptr<batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>> th_data_gpu = thrust::device_pointer_cast(input->data_gpu);
+#else
+        thrust::device_ptr<batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>> th_data_gpu = thrust::device_pointer_cast(input->data_u);
+#endif
         thrust::device_ptr<batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>> th_new_data_gpu = thrust::device_pointer_cast(records[id_r]->new_data_gpu);
         auto pred = [] __device__ (bool x) { return x; };
-        auto end = thrust::copy_if(thrust::cuda::par(alloc).on(input->cudaStream), th_data_gpu, th_data_gpu + input->size, th_flags_gpu, th_new_data_gpu, pred);
+        auto end = thrust::copy_if(thrust::cuda::par(alloc).on(input->cudaStream),
+                                   th_data_gpu,
+                                   th_data_gpu + input->size,
+                                   th_flags_gpu,
+                                   th_new_data_gpu,
+                                   pred);
         input->size = end - th_new_data_gpu; // change the new size of the batch after filtering
 #if defined (WF_TRACING_ENABLED)
         stats_record.outputs_sent += input->size;
         stats_record.bytes_sent += input->size * sizeof(tuple_t);
 #endif
-        gpuErrChk(cudaMemcpyAsync(input->data_gpu, records[id_r]->new_data_gpu, input->size * sizeof(batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>), cudaMemcpyDeviceToDevice, input->cudaStream));
+#if !defined (WF_GPU_UNIFIED_MEMORY)
+        gpuErrChk(cudaMemcpyAsync(input->data_gpu,
+                                  records[id_r]->new_data_gpu,
+                                  input->size * sizeof(batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>),
+                                  cudaMemcpyDeviceToDevice,
+                                  input->cudaStream));
+#else
+        gpuErrChk(cudaMemcpyAsync(input->data_u,
+                                  records[id_r]->new_data_gpu,
+                                  input->size * sizeof(batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>),
+                                  cudaMemcpyDeviceToDevice,
+                                  input->cudaStream));        
+#endif
         gpuErrChk(cudaStreamSynchronize(input->cudaStream));
         if (input->size == 0) { // if the batch is now empty, it is destroyed
             dropped_inputs++;
-            if ((execution_mode == Execution_Mode_t::DEFAULT) && (dropped_inputs % WF_DEFAULT_WM_AMOUNT == 0)) { // punctuaction auto-generation logic
-                if (current_time_usecs() - last_time_punct >= WF_DEFAULT_WM_INTERVAL_USEC) {
-                    emitter->generate_punctuation(input->getWatermark(id_replica), this); // generation of a new punctuation
+            if ((execution_mode == Execution_Mode_t::DEFAULT) && (dropped_inputs % WF_DEFAULT_WM_AMOUNT == 0)) { // check punctuaction generation logic
+                if (current_time_usecs() - last_time_punct >= WF_DEFAULT_WM_INTERVAL_USEC) { // check the end of the sample
+                    emitter->propagate_punctuation(input->getWatermark(id_replica), this);
                     last_time_punct = current_time_usecs();
                 }
             }
@@ -990,7 +1075,7 @@ private:
         writer.Uint(parallelism);
         writer.Key("Replicas");
         writer.StartArray();
-        for (auto *r: replicas) { // append the statistics from all the replicas of the Filter
+        for (auto *r: replicas) { // append the statistics from all the replicas of the Filter_GPU
             Stats_Record record = r->getStatsRecord();
             record.appendStats(writer);
         }
@@ -1003,8 +1088,8 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _func functional logic of the Filter_GPU (a function or a callable type)
-     *  \param _key_extr key extractor (a function or a callable type)
+     *  \param _func functional logic of the Filter_GPU (a __host__ __device__ lambda or a __device__ functor object)
+     *  \param _key_extr key extractor (a __host__ __device__ lambda or a __host__ __device__ functor object)
      *  \param _parallelism internal parallelism of the Filter_GPU
      *  \param _name name of the Filter_GPU
      *  \param _input_routing_mode input routing mode of the Filter_GPU
@@ -1032,7 +1117,10 @@ public:
         else { // stateful case
             auto *keymap = new tbb::concurrent_unordered_map<decltype(get_key_t_KeyExtrGPU(key_extr)), wrapper_state_t<decltype(get_state_t_FilterGPU(func))>>();
             auto *spinlock = new pthread_spinlock_t();
-            pthread_spin_init(spinlock, 0); // spinlock initialization
+            if (pthread_spin_init(spinlock, 0) != 0) { // spinlock initialization
+                std::cerr << RED << "WindFlow Error: pthread_spin_init() failed in Filter_GPU" << DEFAULT_COLOR << std::endl;
+                exit(EXIT_FAILURE);
+            }
             for (size_t i=0; i<parallelism; i++) { // create the internal replicas of the Filter_GPU
                 replicas.push_back(new FilterGPU_Replica<filtergpu_func_t, decltype(get_key_t_KeyExtrGPU(key_extr))>(_func, i, name, keymap, spinlock));
             }
@@ -1053,7 +1141,10 @@ public:
         if constexpr(!std::is_same<decltype(get_key_t_KeyExtrGPU(key_extr)), empty_key_t>::value) { // stateful case
             auto *keymap = new tbb::concurrent_unordered_map<decltype(get_key_t_KeyExtrGPU(key_extr)), wrapper_state_t<decltype(get_state_t_FilterGPU(func))>>();
             auto *spinlock = new pthread_spinlock_t();
-            pthread_spin_init(spinlock, 0); // spinlock initialization
+            if (pthread_spin_init(spinlock, 0) != 0) { // spinlock initialization
+                std::cerr << RED << "WindFlow Error: pthread_spin_init() failed in Filter_GPU" << DEFAULT_COLOR << std::endl;
+                exit(EXIT_FAILURE);
+            }
             for (auto *r: replicas) {
                 r->spinlock = spinlock;
                 r->keymap = keymap;
@@ -1082,13 +1173,16 @@ public:
                 delete r;
             }
             replicas.clear();
-            for (size_t i=0; i<parallelism; i++) { // deep copy of the pointers to the Filter replicas
+            for (size_t i=0; i<parallelism; i++) { // deep copy of the pointers to the Filter_GPU replicas
                 replicas.push_back(new FilterGPU_Replica<filtergpu_func_t, decltype(get_key_t_KeyExtrGPU(key_extr))>(*(_other.replicas[i])));
             }
             if constexpr(!std::is_same<decltype(get_key_t_KeyExtrGPU(key_extr)), empty_key_t>::value) { // stateful case
                 auto *keymap = new tbb::concurrent_unordered_map<decltype(get_key_t_KeyExtrGPU(key_extr)), wrapper_state_t<decltype(get_state_t_FilterGPU(func))>>();
                 auto *spinlock = new pthread_spinlock_t();
-                pthread_spin_init(spinlock, 0); // spinlock initialization
+                if (pthread_spin_init(spinlock, 0) != 0) { // spinlock initialization
+                    std::cerr << RED << "WindFlow Error: pthread_spin_init() failed in Filter_GPU" << DEFAULT_COLOR << std::endl;
+                    exit(EXIT_FAILURE);
+                }
                 for (auto *r: replicas) {
                     r->spinlock = spinlock;
                     r->keymap = keymap;

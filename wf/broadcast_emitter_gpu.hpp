@@ -1,17 +1,24 @@
-/******************************************************************************
- *  This program is free software; you can redistribute it and/or modify it
- *  under the terms of the GNU Lesser General Public License version 3 as
- *  published by the Free Software Foundation.
+/**************************************************************************************
+ *  Copyright (c) 2019- Gabriele Mencagli
  *  
- *  This program is distributed in the hope that it will be useful, but WITHOUT
- *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- *  License for more details.
+ *  This file is part of WindFlow.
  *  
- *  You should have received a copy of the GNU Lesser General Public License
- *  along with this program; if not, write to the Free Software Foundation,
- *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- ******************************************************************************
+ *  WindFlow is free software dual licensed under the GNU LGPL or MIT License.
+ *  You can redistribute it and/or modify it under the terms of the
+ *    * GNU Lesser General Public License as published by
+ *      the Free Software Foundation, either version 3 of the License, or
+ *      (at your option) any later version
+ *    OR
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *  
+ *  WindFlow is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *  You should have received a copy of the GNU Lesser General Public License and
+ *  the MIT License along with WindFlow. If not, see <http://www.gnu.org/licenses/>
+ *  and <http://opensource.org/licenses/MIT/>.
+ **************************************************************************************
  */
 
 /** 
@@ -30,7 +37,11 @@
 #define BD_EMITTER_GPU_H
 
 // includes
-#include<batch_gpu_t.hpp>
+#if !defined (WF_GPU_UNIFIED_MEMORY)
+    #include<batch_gpu_t.hpp>
+#else
+    #include<batch_gpu_t_u.hpp>
+#endif
 #include<basic_emitter.hpp>
 
 namespace wf {
@@ -48,7 +59,7 @@ private:
     ff::MPMC_Ptr_Queue *queue; // pointer to the recyling queue
 
 public:
-    // Constructor
+    // Constructor (GPU->CPU case)
     Broadcast_Emitter_GPU(key_extractor_func_t _key_extr,
                           size_t _num_dests):
                           key_extr(_key_extr),
@@ -172,9 +183,13 @@ public:
                  ff::ff_monode *_node)
     {
         (_output->delete_counter).fetch_add(num_dests-1);
-        assert((_output->watermarks).size() == 1);
+        assert((_output->watermarks).size() == 1); // sanity check
         (_output->watermarks).insert((_output->watermarks).end(), num_dests-1, (_output->watermarks)[0]); // copy the watermark (having one per destination)
+#if !defined (WF_GPU_UNIFIED_MEMORY)
         _output->transfer2CPU(); // starting the transfer of the batch items to a host pinned memory array
+#else
+        _output->prefetch2CPU(false); // prefetch batch items to be efficiently accessible by the host side
+#endif
         for (size_t i=0; i<num_dests; i++) {
             if (!useTreeMode) { // real send
                 _node->ff_send_out_to(_output, i);
@@ -185,14 +200,15 @@ public:
         }
     }
 
-    // Punctuation generation method
-    void generate_punctuation(uint64_t _watermark,
-                              ff::ff_monode * _node) override
+    // Punctuation propagation method
+    void propagate_punctuation(uint64_t _watermark,
+                               ff::ff_monode * _node) override
     {
+        flush(_node); // flush the internal partially filled batch (if any)
         Batch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))> *punc = allocateBatch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>(1, queue); // punctuation batch has size 1!
         punc->setWatermark(_watermark);
         (punc->delete_counter).fetch_add(num_dests-1);
-        assert((punc->watermarks).size() == 1);
+        assert((punc->watermarks).size() == 1); // sanity check
         (punc->watermarks).insert((punc->watermarks).end(), num_dests-1, (punc->watermarks)[0]); // copy the watermark (having one per destination)
         punc->isPunctuation = true;
         for (size_t i=0; i<num_dests; i++) {
@@ -205,8 +221,11 @@ public:
         }
     }
 
-    // Flushing function of the emitter
-    void flush(ff::ff_monode *_node) override {}
+    // Flushing method
+    void flush(ff::ff_monode *_node) override
+    {
+        // empty method here!
+    }
 };
 
 } // namespace wf

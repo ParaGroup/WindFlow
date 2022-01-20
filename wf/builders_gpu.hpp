@@ -1,17 +1,24 @@
-/******************************************************************************
- *  This program is free software; you can redistribute it and/or modify it
- *  under the terms of the GNU Lesser General Public License version 3 as
- *  published by the Free Software Foundation.
+/**************************************************************************************
+ *  Copyright (c) 2019- Gabriele Mencagli
  *  
- *  This program is distributed in the hope that it will be useful, but WITHOUT
- *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- *  License for more details.
+ *  This file is part of WindFlow.
  *  
- *  You should have received a copy of the GNU Lesser General Public License
- *  along with this program; if not, write to the Free Software Foundation,
- *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- ******************************************************************************
+ *  WindFlow is free software dual licensed under the GNU LGPL or MIT License.
+ *  You can redistribute it and/or modify it under the terms of the
+ *    * GNU Lesser General Public License as published by
+ *      the Free Software Foundation, either version 3 of the License, or
+ *      (at your option) any later version
+ *    OR
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *  
+ *  WindFlow is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *  You should have received a copy of the GNU Lesser General Public License and
+ *  the MIT License along with WindFlow. If not, see <http://www.gnu.org/licenses/>
+ *  and <http://opensource.org/licenses/MIT/>.
+ **************************************************************************************
  */
 
 /** 
@@ -59,8 +66,8 @@ private:
     // static assert to check the signature of the Map_GPU functional logic
     static_assert(!(std::is_same<tuple_t, std::false_type>::value || std::is_same<state_t, std::false_type>::value),
         "WindFlow Compilation Error - unknown signature passed to the MapGPU_Builder:\n"
-        "  Candidate 1 : __device__ void(tuple_t &)\n"
-        "  Candidate 2 : __device__ void(tuple_t &, state_t &)\n");
+        "  Candidate 1 : [__host__] __device__ void(tuple_t &)\n"
+        "  Candidate 2 : [__host__] __device__ void(tuple_t &, state_t &)\n");
     // static assert to check that the tuple_t type must be default constructible
     static_assert(std::is_default_constructible<tuple_t>::value,
         "WindFlow Compilation Error - tuple_t type must be default constructible (MapGPU_Builder):\n");
@@ -85,7 +92,7 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _func functional logic of the Map_GPU (a __device__ callable type)
+     *  \param _func functional logic of the Map_GPU (a __host__ __device__ lambda or a __device__ functor object)
      */ 
     MapGPU_Builder(mapgpu_func_t _func):
                    func(_func) {}
@@ -117,7 +124,7 @@ public:
     /** 
      *  \brief Set the KEYBY routing mode of inputs to the Map_GPU
      *  
-     *  \param _key_extr key extractor functional logic (a __host__ __device__ callable type)
+     *  \param _key_extr key extractor functional logic (a __host__ __device__ lambda or a __host__ __device__ functor object)
      *  \return a new builder object with the right key type
      */ 
     template<typename new_key_extractor_func_t>
@@ -126,7 +133,7 @@ public:
 #if !defined (__clang__)
         // static assert to check that extended lambdas must be __host__ __device__
         static_assert(!__nv_is_extended_device_lambda_closure_type(decltype(_key_extr)),
-            "WindFlow Compilation Error - withKeyBy is called with a __device__ extended lambda -> use a __host__ __device__ lambda instead!\n");
+            "WindFlow Compilation Error - withKeyBy (MapGPU_Builder) is called with a __device__ extended lambda -> use a __host__ __device__ lambda instead!\n");
 #endif        
         // static assert to check the signature
         static_assert(!std::is_same<decltype(get_tuple_t_KeyExtrGPU(_key_extr)), std::false_type>::value,
@@ -206,8 +213,8 @@ private:
     // static assert to check the signature of the Filter_GPU functional logic
     static_assert(!(std::is_same<tuple_t, std::false_type>::value || std::is_same<state_t, std::false_type>::value),
         "WindFlow Compilation Error - unknown signature passed to the FilterGPU_Builder:\n"
-        "  Candidate 1 : __device__ bool(tuple_t &)\n"
-        "  Candidate 2 : __device__ bool(tuple_t &, state_t &)\n");
+        "  Candidate 1 : [__host__] __device__ bool(tuple_t &)\n"
+        "  Candidate 2 : [__host__] __device__ bool(tuple_t &, state_t &)\n");
     // static assert to check that the tuple_t type must be default constructible
     static_assert(std::is_default_constructible<tuple_t>::value,
         "WindFlow Compilation Error - tuple_t type must be default constructible (FilterGPU_Builder):\n");
@@ -232,7 +239,7 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _func functional logic of the Filter_GPU (a __device__ callable type)
+     *  \param _func functional logic of the Filter_GPU (a __host__ __device__ lambda or a __device__ functor object)
      */ 
     FilterGPU_Builder(filtergpu_func_t _func):
                       func(_func) {}
@@ -264,7 +271,7 @@ public:
     /** 
      *  \brief Set the KEYBY routing mode of inputs to the Filter_GPU
      *  
-     *  \param _key_extr key extractor functional logic (a __host__ __device__ callable type)
+     *  \param _key_extr key extractor functional logic (a __host__ __device__ lambda or a __host__ __device__ functor object)
      *  \return a new builder object with the right key type
      */ 
     template<typename new_key_extractor_func_t>
@@ -273,7 +280,7 @@ public:
 #if !defined (__clang__)
         // static assert to check that extended lambdas must be __host__ __device__
         static_assert(!__nv_is_extended_device_lambda_closure_type(decltype(_key_extr)),
-            "WindFlow Compilation Error - withKeyBy is called with a __device__ extended lambda -> use a __host__ __device__ lambda instead!\n");
+            "WindFlow Compilation Error - withKeyBy (FilterGPU_Builder) is called with a __device__ extended lambda -> use a __host__ __device__ lambda instead!\n");
 #endif        
         // static assert to check the signature
         static_assert(!std::is_same<decltype(get_tuple_t_KeyExtrGPU(_key_extr)), std::false_type>::value,
@@ -326,6 +333,140 @@ public:
                                                                       parallelism,
                                                                       name,
                                                                       input_routing_mode);
+        }
+    }
+};
+
+/** 
+ *  \class ReduceGPU_Builder
+ *  
+ *  \brief Builder of the Reduce_GPU operator
+ *  
+ *  Builder class to ease the creation of the Reduce_GPU operator.
+ */ 
+template<typename reducegpu_func_t, typename key_extractor_func_t=std::false_type, typename key_t=empty_key_t>
+class ReduceGPU_Builder
+{
+private:
+    template<typename T1, typename T2, typename T3> friend class ReduceGPU_Builder; // friendship with all the instances of the ReduceGPU_Builder template
+    reducegpu_func_t func; // functional logic of the Reduce_GPU
+#if !defined (__clang__)
+    // static assert to check that extended lambdas must be __host__ __device__
+    static_assert(!__nv_is_extended_device_lambda_closure_type(decltype(func)),
+        "WindFlow Compilation Error - ReduceGPU_Builder is instantiated with a __device__ extended lambda -> use a __host__ __device__ lambda instead!\n");
+#endif
+    using tuple_t = decltype(get_tuple_t_ReduceGPU(func)); // extracting the tuple_t type and checking the admissible signatures
+    // static assert to check the signature of the Reduce_GPU functional logic
+    static_assert(!(std::is_same<tuple_t, std::false_type>::value),
+        "WindFlow Compilation Error - unknown signature passed to the ReduceGPU_Builder:\n"
+        "  Candidate 1 : [__host__] __device__ tuple_t(tuple_t &, tuple_t &)\n");
+    // static assert to check that the tuple_t type must be default constructible
+    static_assert(std::is_default_constructible<tuple_t>::value,
+        "WindFlow Compilation Error - tuple_t type must be default constructible (ReduceGPU_Builder):\n");
+    // static assert to check that the tuple_t type must be trivially copyable
+    static_assert(std::is_trivially_copyable<tuple_t>::value,
+        "WindFlow Compilation Error - tuple_t type must be trivially copyable (ReduceGPU_Builder):\n");
+    std::string name = "reduce_gpu"; // name of the Reduce_GPU
+    size_t parallelism = 1; // parallelism of the Reduce_GPU
+    key_extractor_func_t key_extr; // key extractor
+
+    // Private Constructor (keyby only)
+    ReduceGPU_Builder(reducegpu_func_t _func,
+                      key_extractor_func_t _key_extr):
+                      func(_func),
+                      key_extr(_key_extr) {}
+
+public:
+    /** 
+     *  \brief Constructor
+     *  
+     *  \param _func functional logic of the Reduce_GPU (a __host__ __device__ lambda or a __device__ functor object)
+     */ 
+    ReduceGPU_Builder(reducegpu_func_t _func):
+                      func(_func) {}
+
+    /** 
+     *  \brief Set the name of the Reduce_GPU
+     *  
+     *  \param _name of the Reduce_GPU
+     *  \return a reference to the builder object
+     */ 
+    ReduceGPU_Builder<reducegpu_func_t, key_extractor_func_t, key_t> &withName(std::string _name)
+    {
+        name = _name;
+        return *this;
+    }
+
+    /** 
+     *  \brief Set the parallelism of the Reduce_GPU
+     *  
+     *  \param _parallelism of the Reduce_GPU
+     *  \return a reference to the builder object
+     */ 
+    ReduceGPU_Builder<reducegpu_func_t, key_extractor_func_t, key_t> &withParallelism(size_t _parallelism)
+    {
+        parallelism = _parallelism;
+        return *this;
+    }
+
+    /** 
+     *  \brief Set the KEYBY routing mode of inputs to the Reduce_GPU
+     *  
+     *  \param _key_extr key extractor functional logic (a __host__ __device__ lambda or a __host__ __device__ functor object)
+     *  \return a new builder object with the right key type
+     */ 
+    template<typename new_key_extractor_func_t>
+    auto withKeyBy(new_key_extractor_func_t _key_extr)
+    {
+#if !defined (__clang__)
+        // static assert to check that extended lambdas must be __host__ __device__
+        static_assert(!__nv_is_extended_device_lambda_closure_type(decltype(_key_extr)),
+            "WindFlow Compilation Error - withKeyBy (ReduceGPU_Builder) is called with a __device__ extended lambda -> use a __host__ __device__ lambda instead!\n");
+#endif
+        // static assert to check the signature
+        static_assert(!std::is_same<decltype(get_tuple_t_KeyExtrGPU(_key_extr)), std::false_type>::value,
+            "WindFlow Compilation Error - unknown signature passed to withKeyBy (ReduceGPU_Builder):\n"
+            "  Candidate : __host__ __device__ key_t(const tuple_t &)\n");
+        // static assert to check that the tuple_t type of the new key extractor is the right one
+        static_assert(std::is_same<decltype(get_tuple_t_KeyExtrGPU(_key_extr)), tuple_t>::value,
+            "WindFlow Compilation Error - key extractor receives a wrong input type (ReduceGPU_Builder):\n");
+        using new_key_t = decltype(get_key_t_KeyExtrGPU(_key_extr)); // extract the key type
+        // static assert to check the new_key_t type
+        static_assert(!std::is_same<new_key_t, void>::value,
+            "WindFlow Compilation Error - key type cannot be void (ReduceGPU_Builder):\n");
+        // static assert to check that new_key_t is default constructible
+        static_assert(std::is_default_constructible<new_key_t>::value,
+            "WindFlow Compilation Error - key type must be default constructible (ReduceGPU_Builder):\n");
+        // static assert to check that the new_key_t type must be trivially copyable
+        static_assert(std::is_trivially_copyable<new_key_t>::value,
+            "WindFlow Compilation Error - key_t type must be trivially copyable (ReduceGPU_Builder):\n");
+        ReduceGPU_Builder<reducegpu_func_t, new_key_extractor_func_t, new_key_t> new_builder(func, _key_extr);
+        new_builder.name = name;
+        new_builder.parallelism = parallelism;
+        return new_builder;
+    }
+
+    /** 
+     *  \brief Create the Reduce_GPU
+     *  
+     *  \return a new Reduce_GPU instance
+     */ 
+    auto build()
+    {
+        if constexpr (std::is_same<key_t, empty_key_t>::value) {
+            auto k_t = [] (const tuple_t &t) -> empty_key_t {
+                return empty_key_t();
+            };
+            return Reduce_GPU<reducegpu_func_t, decltype(k_t)>(func,
+                                                               k_t,
+                                                               parallelism,
+                                                               name);
+        }
+        else {
+            return Reduce_GPU<reducegpu_func_t, key_extractor_func_t>(func,
+                                                                      key_extr,
+                                                                      parallelism,
+                                                                      name);
         }
     }
 };
@@ -390,7 +531,7 @@ public:
      *  \brief Constructor
      *  
      *  \param _lift_func lift functional logic of the FFAT_Aggregator_GPU (a function or a callable type)
-     *  \param _comb_func combine functional logic of the FFAT_Aggregator_GPU (a __host__ __device__ callable type)
+     *  \param _comb_func combine functional logic of the FFAT_Aggregator_GPU (a __host__ __device__ lambda or a __host__ __device__ functor object)
      */ 
     FFAT_AggregatorGPU_Builder(liftgpu_func_t _lift_func,
                                combgpu_func_t _comb_func):
@@ -424,7 +565,7 @@ public:
     /** 
      *  \brief Set the KEYBY routing mode of inputs to the FFAT_Aggregator_GPU
      *  
-     *  \param _key_extr key extractor functional logic (a __host__ __device__ callable type)
+     *  \param _key_extr key extractor functional logic (a __host__ __device__ lambda or a __host__ __device__ functor object)
      *  \return a new builder object with the right key type
      */ 
     template<typename new_key_extractor_func_t>
@@ -433,7 +574,7 @@ public:
 #if !defined (__clang__)
         // static assert to check that extended lambdas must be __host__ __device__
         static_assert(!__nv_is_extended_device_lambda_closure_type(decltype(_key_extr)),
-            "WindFlow Compilation Error - withKeyBy is called with a __device__ extended lambda -> use a __host__ __device__ lambda instead!\n");
+            "WindFlow Compilation Error - withKeyBy (FFAT_AggregatorGPU_Builder) is called with a __device__ extended lambda -> use a __host__ __device__ lambda instead!\n");
 #endif        
         // static assert to check the signature
         static_assert(!std::is_same<decltype(get_tuple_t_KeyExtrGPU(_key_extr)), std::false_type>::value,

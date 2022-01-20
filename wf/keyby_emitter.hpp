@@ -1,17 +1,24 @@
-/******************************************************************************
- *  This program is free software; you can redistribute it and/or modify it
- *  under the terms of the GNU Lesser General Public License version 3 as
- *  published by the Free Software Foundation.
+/**************************************************************************************
+ *  Copyright (c) 2019- Gabriele Mencagli
  *  
- *  This program is distributed in the hope that it will be useful, but WITHOUT
- *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- *  License for more details.
+ *  This file is part of WindFlow.
  *  
- *  You should have received a copy of the GNU Lesser General Public License
- *  along with this program; if not, write to the Free Software Foundation,
- *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- ******************************************************************************
+ *  WindFlow is free software dual licensed under the GNU LGPL or MIT License.
+ *  You can redistribute it and/or modify it under the terms of the
+ *    * GNU Lesser General Public License as published by
+ *      the Free Software Foundation, either version 3 of the License, or
+ *      (at your option) any later version
+ *    OR
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *  
+ *  WindFlow is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *  You should have received a copy of the GNU Lesser General Public License and
+ *  the MIT License along with WindFlow. If not, see <http://www.gnu.org/licenses/>
+ *  and <http://opensource.org/licenses/MIT/>.
+ **************************************************************************************
  */
 
 /** 
@@ -264,13 +271,13 @@ public:
     void routing(Single_t<tuple_t> *_output,
                  ff::ff_monode *_node)
     {
-        if ((execution_mode == Execution_Mode_t::DEFAULT) && (received_inputs % WF_DEFAULT_WM_AMOUNT == 0)) { // check the punctuation auto-generation logic every WF_DEFAULT_WM_AMOUNT received inputs
-            autogeneration_punctuation(_output->getWatermark(), _node);
+        if ((execution_mode == Execution_Mode_t::DEFAULT) && (received_inputs % WF_DEFAULT_WM_AMOUNT == 0)) { // check punctuaction generation logic
+            generate_punctuation(_output->getWatermark(), _node);
         }
         auto key = key_extr(_output->tuple); // extract the key attribute of the tuple
         size_t hashcode = std::hash<decltype(key)>()(key); // compute the hashcode of the key
         size_t dest_id = hashcode % num_dests; // compute the destination identifier associated with the key attribute
-        assert(last_sent_wms[dest_id] <= _output->getWatermark()); // redundant check
+        assert(last_sent_wms[dest_id] <= _output->getWatermark()); // sanity check
         last_sent_wms[dest_id] = _output->getWatermark(); // save the last watermark emitted to this destination
         if (!useTreeMode) { // real send
             _node->ff_send_out_to(_output, dest_id);
@@ -288,8 +295,8 @@ public:
                          uint64_t _watermark,
                          ff::ff_monode *_node)
     {
-        if ((execution_mode == Execution_Mode_t::DEFAULT) && (received_inputs % WF_DEFAULT_WM_AMOUNT == 0)) { // check the punctuation generation logic every WF_DEFAULT_WM_AMOUNT received inputs
-            autogeneration_punctuation(_watermark, _node);
+        if ((execution_mode == Execution_Mode_t::DEFAULT) && (received_inputs % WF_DEFAULT_WM_AMOUNT == 0)) { // check punctuaction generation logic
+            generate_punctuation(_watermark, _node);
         }
         auto key = key_extr(_tuple); // extract the key attribute of the tuple
         size_t hashcode = std::hash<decltype(key)>()(key); // compute the hashcode of the key
@@ -299,7 +306,7 @@ public:
         }
         batches_output[dest_id]->addTuple(std::move(_tuple), _timestamp, _watermark);
         if (batches_output[dest_id]->getSize() == size) { // batch is complete and must be sent
-            assert(last_sent_wms[dest_id] <= batches_output[dest_id]->getWatermark()); // redundant check
+            assert(last_sent_wms[dest_id] <= batches_output[dest_id]->getWatermark()); // sanity check
             last_sent_wms[dest_id] = batches_output[dest_id]->getWatermark(); // save the last watermark emitted to this destination
             if (!useTreeMode) { // real send
                 _node->ff_send_out_to(batches_output[dest_id], dest_id);
@@ -313,23 +320,74 @@ public:
         }
     }
 
-    // Auto-generation logic of punctuations
-    void autogeneration_punctuation(uint64_t _watermark,
-                                    ff::ff_monode *_node)
+    // Punctuation propagation method
+    void propagate_punctuation(uint64_t _watermark,
+                               ff::ff_monode * _node) override
+    {
+        flush(_node); // flush all the internal partially filled batches (if any)
+        if (size == 0) { // no batching
+            tuple_t t; // create an empty tuple
+            Single_t<decltype(get_tuple_t_KeyExtr(key_extr))> *punc = allocateSingle_t(std::move(t), 0, 0, _watermark, queue);
+            (punc->delete_counter).fetch_add(num_dests-1);
+            assert((punc->fields).size() == 3); // sanity check
+            (punc->fields).insert((punc->fields).end(), num_dests-1, (punc->fields)[2]); // copy the watermark (having one per destination)
+            punc->isPunctuation = true;
+            for (size_t i=0; i<num_dests; i++) {
+                assert(last_sent_wms[i] <= _watermark); // sanity check
+                last_sent_wms[i] = _watermark; // save the last watermark emitted to this destination
+                if (!useTreeMode) { // real send
+                    _node->ff_send_out_to(punc, i);
+                }
+                else { // punctuation is buffered
+                    output_queue.push_back(std::make_pair(punc, i));
+                }
+            }
+        }
+        else { // batching
+            tuple_t t; // create an empty tuple
+            Batch_CPU_t<decltype(get_tuple_t_KeyExtr(key_extr))> *punc = allocateBatch_CPU_t<decltype(get_tuple_t_KeyExtr(key_extr))>(size, queue);
+            punc->addTuple(std::move(t), 0, _watermark);
+            (punc->delete_counter).fetch_add(num_dests-1);
+            assert((punc->watermarks).size() == 1); // sanity check
+            (punc->watermarks).insert((punc->watermarks).end(), num_dests-1, (punc->watermarks)[0]); // copy the watermark (having one per destination)
+            punc->isPunctuation = true;
+            for (size_t i=0; i<num_dests; i++) {
+                assert(last_sent_wms[i] <= _watermark); // sanity check
+                last_sent_wms[i] = _watermark; // save the last watermark emitted to this destination
+                if (!useTreeMode) { // real send
+                    _node->ff_send_out_to(punc, i);
+                }
+                else { // punctuation is buffered
+                    output_queue.push_back(std::make_pair(punc, i));
+                }
+            }
+        }
+    }
+
+    // Punctuation generation method
+    void generate_punctuation(uint64_t _watermark,
+                              ff::ff_monode *_node)
     {
         if (current_time_usecs() - last_time_punct >= WF_DEFAULT_WM_INTERVAL_USEC) { // check the end of the sample
             std::vector<int> idxs;
-            /* Select the destinations that must receive the punctuation. They are:
-             * 1- the ones that have not received any input by the emitter in the last sample
-             * 2- the punctuation is emitted to the destinations whose last emitted watermark
-             *    is smaller the one conveyed by the punctuation itself.
-             */
-            for (size_t i=0; i<num_dests; i++) {
-                if ((delivered[i] == 0) && (last_sent_wms[i] < _watermark)) {
-                    if (size == 0) {
+            for (size_t i=0; i<num_dests; i++) { // select the destinations receiving the new punctuation
+                if (delivered[i] == 0) {
+                    if (size == 0) { // no batching
                         idxs.push_back(i);
                     }
-                    else if ((batches_output[i] == nullptr || batches_output[i]->getSize() == 0)) {
+                    else { // batching
+                        if (batches_output[i] != nullptr) {
+                            assert(batches_output[i]->getSize() > 0); // sanity check
+                            assert(last_sent_wms[i] <= batches_output[i]->getWatermark()); // sanity check
+                            last_sent_wms[i] = batches_output[i]->getWatermark(); // save the last watermark emitted to this destination
+                            if (!useTreeMode) { // real send
+                                _node->ff_send_out_to(batches_output[i], i);
+                            }
+                            else { // output is buffered
+                                output_queue.push_back(std::make_pair(batches_output[i], i));
+                            }
+                            batches_output[i] = nullptr;
+                        }
                         idxs.push_back(i);
                     }
                 }
@@ -344,11 +402,11 @@ public:
                 tuple_t t; // create an empty tuple
                 Single_t<decltype(get_tuple_t_KeyExtr(key_extr))> *punc = allocateSingle_t(std::move(t), 0, 0, _watermark, queue);
                 (punc->delete_counter).fetch_add(idxs.size()-1);
-                assert((punc->fields).size() == 3);
+                assert((punc->fields).size() == 3); // sanity check
                 (punc->fields).insert((punc->fields).end(), num_dests-1, (punc->fields)[2]); // copy the watermark (having one per destination)
                 punc->isPunctuation = true;
                 for (auto id: idxs) {
-                    assert(last_sent_wms[id] <= _watermark);
+                    assert(last_sent_wms[id] <= _watermark); // sanity check
                     last_sent_wms[id] = _watermark; // save the last watermark emitted to this destination
                     if (!useTreeMode) { // real send
                         _node->ff_send_out_to(punc, id);
@@ -363,11 +421,11 @@ public:
                 Batch_CPU_t<decltype(get_tuple_t_KeyExtr(key_extr))> *punc = allocateBatch_CPU_t<decltype(get_tuple_t_KeyExtr(key_extr))>(size, queue);
                 punc->addTuple(std::move(t), 0, _watermark);
                 (punc->delete_counter).fetch_add(idxs.size()-1);
-                assert((punc->watermarks).size() == 1);
+                assert((punc->watermarks).size() == 1); // sanity check
                 (punc->watermarks).insert((punc->watermarks).end(), num_dests-1, (punc->watermarks)[0]); // copy the watermark (having one per destination)
                 punc->isPunctuation = true;
                 for (auto id: idxs) {
-                    assert(last_sent_wms[id] <= _watermark);
+                    assert(last_sent_wms[id] <= _watermark); // sanity check
                     last_sent_wms[id] = _watermark; // save the last watermark emitted to this destination
                     if (!useTreeMode) { // real send
                         _node->ff_send_out_to(punc, id);
@@ -381,68 +439,22 @@ public:
         }
     }
 
-    // Punctuation generation method
-    void generate_punctuation(uint64_t _watermark,
-                              ff::ff_monode * _node) override
-    {
-        if (size == 0) { // no batching
-            tuple_t t; // create an empty tuple
-            Single_t<decltype(get_tuple_t_KeyExtr(key_extr))> *punc = allocateSingle_t(std::move(t), 0, 0, _watermark, queue);
-            (punc->delete_counter).fetch_add(num_dests-1);
-            assert((punc->fields).size() == 3);
-            (punc->fields).insert((punc->fields).end(), num_dests-1, (punc->fields)[2]); // copy the watermark (having one per destination)
-            punc->isPunctuation = true;
-            for (size_t i=0; i<num_dests; i++) {
-                last_sent_wms[i] = _watermark; // save the last watermark emitted to this destination
-                if (!useTreeMode) { // real send
-                    _node->ff_send_out_to(punc, i);
-                }
-                else { // punctuation is buffered
-                    output_queue.push_back(std::make_pair(punc, i));
-                }
-            }
-        }
-        else { // batching
-            std::vector<int> idxs;
-            for (size_t i=0; i<num_dests; i++) {
-                if ((batches_output[i] == nullptr) || (batches_output[i]->getSize() == 0)) {
-                    idxs.push_back(i);
-                }
-            }
-            if (idxs.size() == 0) {
-                return;
-            }
-            tuple_t t; // create an empty tuple
-            Batch_CPU_t<decltype(get_tuple_t_KeyExtr(key_extr))> *punc = allocateBatch_CPU_t<decltype(get_tuple_t_KeyExtr(key_extr))>(size, queue);
-            punc->addTuple(std::move(t), 0, _watermark);
-            (punc->delete_counter).fetch_add(idxs.size());
-            assert((punc->watermarks).size() == 1);
-            (punc->watermarks).insert((punc->watermarks).end(), num_dests-1, (punc->watermarks)[0]); // copy the watermark (having one per destination)
-            punc->isPunctuation = true;
-            for (int id: idxs) {
-                assert(last_sent_wms[id] <= _watermark);
-                last_sent_wms[id] = _watermark; // save the last watermark emitted to this destination
-                if (!useTreeMode) { // real send
-                    _node->ff_send_out_to(punc, id);
-                }
-                else { // punctuation is buffered
-                    output_queue.push_back(std::make_pair(punc, id));
-                }
-            }
-        }
-    }
-
     // Flushing method
     void flush(ff::ff_monode *_node) override
     {
         if (size > 0) { // only batching
             for (size_t i=0; i<num_dests; i++) {
-                if (batches_output[i] != nullptr && batches_output[i]->getSize() > 0) {
+                if (batches_output[i] != nullptr) {
+                    assert(batches_output[i]->getSize() > 0); // sanity check
+                    assert(last_sent_wms[i] <=  batches_output[i]->getWatermark()); // sanity check
+                    last_sent_wms[i] = batches_output[i]->getWatermark(); // save the last watermark emitted to this destination
                     if (!useTreeMode) { // real send
                         _node->ff_send_out_to(batches_output[i], i);
+                        delivered[i]++;
                     }
                     else { // output is buffered
                         output_queue.push_back(std::make_pair(batches_output[i], i));
+                        delivered[i]++;
                     }
                     batches_output[i] = nullptr;
                 }

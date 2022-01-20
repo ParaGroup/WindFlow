@@ -1,4 +1,5 @@
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0)
+[![MIT Licence](https://badges.frapsoft.com/os/mit/mit.svg?v=103)](https://opensource.org/licenses/mit-license.php)
 [![Release](https://img.shields.io/github/release/paragroup/windflow.svg)](https://github.com/paragroup/windflow/releases/latest)
 [![Hits](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2FParaGroup%2FWindFlow&count_bg=%2379C83D&title_bg=%23555555&icon=&icon_color=%23E7E7E7&title=hits&edge_flat=false)](https://hits.seeyoufarm.com)
 [![Say Thanks!](https://img.shields.io/badge/Say%20Thanks-!-1EAEDB.svg)](https://saythanks.io/to/mencagli@di.unipi.it)
@@ -7,7 +8,7 @@
 <p align="center"><img src="https://paragroup.github.io/WindFlow/img/logo_white.png" width="400" title="WindFlow Logo"></p>
 
 # Introduction
-WindFlow is a C++17 library for parallel data stream processing targeting heterogeneous shared-memory architectures equipped with multi-core CPUs and NVIDIA GPUs. The library provides traditional stream processing operators like map, flatmap, filter, fold/reduce as well as sliding-window operators. The API allows building streaming applications through the <b>MultiPipe</b> and the <b>PipeGraph</b> programming constructs. The first is used to create parallel pipelines, while the second allows several <b>MultiPipe</b> instances to be interconnected through <b>merge</b> and <b>split</b> operations, in order to create complex directed acyclic graphs of interconnected operators.
+WindFlow is a C++17 header-only library for parallel data stream processing targeting heterogeneous shared-memory architectures equipped with multi-core CPUs and NVIDIA GPUs. The library provides traditional stream processing operators like map, flatmap, filter, fold/reduce as well as sliding-window operators. The API allows building streaming applications through the <b>MultiPipe</b> and the <b>PipeGraph</b> programming constructs. The first is used to create parallel pipelines, while the second allows several <b>MultiPipe</b> instances to be interconnected through <b>merge</b> and <b>split</b> operations, in order to create complex directed acyclic graphs of interconnected operators.
 
 WindFlow does not support streaming analytics applications only (e.g., the ones written with relational algebra query languages), but rather general-purpose streaming applications can be supported through operators with user-defined custom logics. In terms of runtime system, WindFlow is suitable for embedded architectures equipped with low-power multi-core CPUs and integrated NVIDIA GPUs (like the Jetson family of NVIDIA boards). However, it works also on traditional multi-core servers equipped with discrete NVIDIA GPUs.
 
@@ -31,7 +32,7 @@ WindFlow, and its underlying level FastFlow, come with some important macros tha
 * <strong>-DFF_BOUNDED_BUFFER</strong> -> enables the use of bounded lock-free queues for pointer passing between threads. Otherwise, queues are unbounded (no backpressure mechanism)
 * <strong>-DDEFAULT_BUFFER_CAPACITY=VALUE</strong> -> set the size of the lock-free queues capacity. The default size of the queues is of 2048 entries. We suggest the users to greatly reduce this size in applications that use GPU operators (e.g., using values between 16 to 128 depending on the available GPU memory)
 * <strong>-DNO_DEFAULT_MAPPING</strong> -> if set, FastFlow threads are not pinned onto the CPU cores and are scheduled by the Operating System
-* <strong>-DBLOCKING_MODE</strong> -> if set, FastFlow queues use the blocking concurrency mode (pushing to a full queue or polling from an empty queue might suspend the underlying thread)
+* <strong>-DBLOCKING_MODE</strong> -> if set, FastFlow queues use the blocking concurrency mode (pushing to a full queue or polling from an empty queue might suspend the underlying thread). If not set, waiting conditions are implemented by busy-waiting spin loops.
 
 Some macros are useful to configure the run-time system when GPU operators are utilized in your applications. The default version of the GPU support is based on explicit CUDA memory management and overlapped data transfers, which is a version suitable for a wide range of NVIDIA GPU models. However, the developer could want to switch to a different implementation that makes use of the CUDA unified memory support. This can be done by compiling with the macro <strong>-DWF_GPU_UNIFIED_MEMORY</strong>. Unified memory support has a variable performance dependening on the underlying GPU models and the version of the CUDA driver.
 
@@ -78,7 +79,7 @@ The web server listens on the default port <tt>8080</tt> of the machine. To chan
 WindFlow applications compiled with the macro <strong>-DWF_TRACING_ENABLED</strong> try to connect to the Web Dashboard and report statistics to it every second. By default, the applications assume that the dashboard is running on the local machine. To change the hostname and the port number, developers can use the macros <strong>WF_DASHBOARD_MACHINE=hostname/ip_addr</strong> and <strong>WF_DASHBOARD_PORT=port_number</strong>.
 
 # About the License
-WindFlow and FastFlow are released with the <strong>LGPL-3</strong> license and they are both header-only libraries. Programmers should check the licenses of the other libraries used as dependencies. Upon request, we can evaluate the possibility to provide dual-licensing models to interested partners.
+From version 3.1.0, WindFlow is released with a double license: <strong>LGPL-3</strong> and <strong>MIT</strong>. Programmers should check the licenses of the other libraries used as dependencies.
 
 # Cite our Work
 In order to cite our work, we kindly ask interested people to use the following reference:
@@ -94,6 +95,9 @@ In order to cite our work, we kindly ask interested people to use the following 
   doi={10.1109/TPDS.2021.3073970}
 }
 ```
+
+# Requests for Modifications
+If you are using WindFlow for your purposes and you are interested in specific modifications of the API (or of the runtime system), please send an email to the maintainer.
 
 # Contributors
 The main developer and maintainer of WindFlow is [Gabriele Mencagli](mailto:gabriele.mencagli@unipi.it) (Department of Computer Science, University of Pisa, Italy).

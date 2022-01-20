@@ -52,6 +52,10 @@ REDUCE
 void(const tuple_t &, result_t &);
 void(const tuple_t &, result_t &, RuntimeContext &);
 
+REDUCE_GPU
+----------
+[__host__] __device__ tuple_t (const tuple_t &, const tuple_t &);
+
 KEYED_WINDOWS, PARALLEL_WINDOWS
 -------------------------------
 void(const Iterable<tuple_t> &, result_t &);

@@ -5,7 +5,7 @@ enable_language(CUDA)
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_FLAGS_DEBUG "-w --expt-extended-lambda --expt-relaxed-constexpr -g -G -O0 -Wno-deprecated-gpu-targets")
-set(CMAKE_CUDA_FLAGS_RELEASE "-w --expt-extended-lambda --expt-relaxed-constexpr -O3 -Wno-deprecated-gpu-targets")
+set(CMAKE_CUDA_FLAGS_RELEASE "-w --expt-extended-lambda --expt-relaxed-constexpr -O3 -g -Wno-deprecated-gpu-targets")
 
 # Macros to be provided to the compiler
 add_definitions(-DFF_BOUNDED_BUFFER -DDEFAULT_BUFFER_CAPACITY=16)
@@ -17,7 +17,7 @@ include_directories(../../wf ${ff_root_dir} ${TBB_TBB_INCLUDE_DIR})
 link_directories(${TBB_TBB_LIBRARY_RELEASE})
 
 # Linking to pthread
-link_libraries(pthread tbb)
+link_libraries(pthread tbb gvc cgraph)
 
 # Set output directory
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ../../bin/split_tests_gpu)
@@ -33,7 +33,8 @@ foreach(testsourcefile ${SOURCES})
     string(REPLACE ".cpp" "" testname ${barename})
     add_executable(${testname} ${testsourcefile})
     set_property(SOURCE ${testsourcefile} PROPERTY LANGUAGE CUDA)
-    # change the statement below to express specific CUDA architectures to be used
+    # Change the statement below to express specific CUDA architectures to be used
     set_property(TARGET ${testname} PROPERTY CUDA_ARCHITECTURES OFF)
+    # set_property(TARGET ${testname} PROPERTY CUDA_ARCHITECTURES 35)
     add_dependencies(split_tests_gpu ${testname})
 endforeach(testsourcefile ${SOURCES})

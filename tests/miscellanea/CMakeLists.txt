@@ -5,7 +5,7 @@ enable_language(CUDA)
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_FLAGS_DEBUG "-w --expt-extended-lambda --expt-relaxed-constexpr -g -G -O0 -Wno-deprecated-gpu-targets")
-set(CMAKE_CUDA_FLAGS_RELEASE "-w --expt-extended-lambda --expt-relaxed-constexpr -O3 -Wno-deprecated-gpu-targets")
+set(CMAKE_CUDA_FLAGS_RELEASE "-w --expt-extended-lambda --expt-relaxed-constexpr -O3 -g -Wno-deprecated-gpu-targets")
 
 # Macros to be provided to the compiler
 add_definitions(-DFF_BOUNDED_BUFFER -DDEFAULT_BUFFER_CAPACITY=16 -DWF_TRACING_ENABLED)
@@ -35,5 +35,6 @@ foreach(testsourcefile ${SOURCES})
     set_property(SOURCE ${testsourcefile} PROPERTY LANGUAGE CUDA)
     # Change the statement below to express specific CUDA architectures to be used
     set_property(TARGET ${testname} PROPERTY CUDA_ARCHITECTURES OFF)
+    # set_property(TARGET ${testname} PROPERTY CUDA_ARCHITECTURES 35)
     add_dependencies(miscellanea ${testname})
 endforeach(testsourcefile ${SOURCES})

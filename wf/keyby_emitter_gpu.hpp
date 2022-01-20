@@ -1,17 +1,24 @@
-/******************************************************************************
- *  This program is free software; you can redistribute it and/or modify it
- *  under the terms of the GNU Lesser General Public License version 3 as
- *  published by the Free Software Foundation.
+/**************************************************************************************
+ *  Copyright (c) 2019- Gabriele Mencagli
  *  
- *  This program is distributed in the hope that it will be useful, but WITHOUT
- *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- *  License for more details.
+ *  This file is part of WindFlow.
  *  
- *  You should have received a copy of the GNU Lesser General Public License
- *  along with this program; if not, write to the Free Software Foundation,
- *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- ******************************************************************************
+ *  WindFlow is free software dual licensed under the GNU LGPL or MIT License.
+ *  You can redistribute it and/or modify it under the terms of the
+ *    * GNU Lesser General Public License as published by
+ *      the Free Software Foundation, either version 3 of the License, or
+ *      (at your option) any later version
+ *    OR
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *  
+ *  WindFlow is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *  You should have received a copy of the GNU Lesser General Public License and
+ *  the MIT License along with WindFlow. If not, see <http://www.gnu.org/licenses/>
+ *  and <http://opensource.org/licenses/MIT/>.
+ **************************************************************************************
  */
 
 /** 
@@ -30,7 +37,7 @@
 #define KB_EMITTER_GPU_H
 
 // Required to compile with clang and CUDA < 11
-#if defined(__clang__) and (__CUDACC_VER_MAJOR__ < 11)
+#if defined (__clang__) and (__CUDACC_VER_MAJOR__ < 11)
     #define THRUST_CUB_NS_PREFIX namespace thrust::cuda_cub {
     #define THRUST_CUB_NS_POSTFIX }
     #include<thrust/system/cuda/detail/cub/util_debug.cuh>
@@ -155,7 +162,7 @@ private:
     Thurst_Allocator alloc; // internal memory allocator used by CUDA/Thrust
 
 public:
-    // Constructor I (only CPU->GPU case)
+    // Constructor I (CPU->GPU case)
     KeyBy_Emitter_GPU(key_extractor_func_t _key_extr,
                       size_t _num_dests,
                       size_t _size):
@@ -181,14 +188,14 @@ public:
             std::cerr << RED << "WindFlow Error: KeyBy_Emitter_GPU created in an invalid manner" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        assert(size > 0);
+        assert(size > 0); // sanity check
         queue = new ff::MPMC_Ptr_Queue();
         queue->init(WF_GPU_DEFAULT_RECYCLING_QUEUE_SIZE);
         records_kb[0] = new record_kb_t(size);
         records_kb[1] = new record_kb_t(size);
     }
 
-    // Constructor II (only GPU->ANY cases)
+    // Constructor II (GPU->ANY cases)
     KeyBy_Emitter_GPU(key_extractor_func_t _key_extr,
                       size_t _num_dests):
                       key_extr(_key_extr),
@@ -531,11 +538,25 @@ public:
                 }
             }
             sent_batches++;
-            gpuErrChk(cudaMemcpyAsync(batch->data_gpu, record.pinned_buffer_cpu, sizeof(batch_item_gpu_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>) * size, cudaMemcpyHostToDevice, batch->cudaStream));
-            gpuErrChk(cudaMemcpyAsync(batch->start_idxs_gpu, record.pinned_start_idxs_cpu, sizeof(int) * size, cudaMemcpyHostToDevice, batch->cudaStream));
-            gpuErrChk(cudaMemcpyAsync(batch->map_idxs_gpu, record.pinned_map_idxs_cpu, sizeof(int) * size, cudaMemcpyHostToDevice, batch->cudaStream));
+            gpuErrChk(cudaMemcpyAsync(batch->data_gpu,
+                                      record.pinned_buffer_cpu,
+                                      sizeof(batch_item_gpu_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>) * size,
+                                      cudaMemcpyHostToDevice,
+                                      batch->cudaStream));
+            gpuErrChk(cudaMemcpyAsync(batch->start_idxs_gpu,
+                                      record.pinned_start_idxs_cpu,
+                                      sizeof(int) * size,
+                                      cudaMemcpyHostToDevice,
+                                      batch->cudaStream));
+            gpuErrChk(cudaMemcpyAsync(batch->map_idxs_gpu,
+                                      record.pinned_map_idxs_cpu,
+                                      sizeof(int) * size,
+                                      cudaMemcpyHostToDevice,
+                                      batch->cudaStream));
             errChkMalloc(batch->dist_keys_cpu = (void *) malloc(sizeof(key_t) * record.num_dist_keys)); // allocate space for the keys
-            memcpy((void *) batch->dist_keys_cpu, (void *) record.dist_keys_cpu, sizeof(key_t) * record.num_dist_keys); // copy the keys (they must be trivially copyable)
+            memcpy((void *) batch->dist_keys_cpu,
+                   (void *) record.dist_keys_cpu,
+                   sizeof(key_t) * record.num_dist_keys); // copy the keys (they must be trivially copyable)
             next_tuple_idx = 0;
             id_r = (id_r + 1) % 2;
             dist_map.clear();
@@ -556,8 +577,7 @@ public:
     // Routing GPU->GPU
     template<bool b1, bool b2>
     void routing(typename std::enable_if<b1 && b2 && !std::is_same<decltype(get_key_t_KeyExtrGPU(key_extr)), empty_key_t>::value, Batch_GPU_t<tuple_t>>::type *_output,
-                 ff::ff_monode *_node,
-                 bool _inPlace=false)
+                 ff::ff_monode *_node)
     {
         if (sent_batches > 0) { // wait the copy of the previous batch to be sent
             gpuErrChk(cudaStreamSynchronize(batch_tobe_sent->cudaStream));
@@ -594,7 +614,10 @@ public:
         gpuErrChk(cudaPeekAtLastError());
         thrust::device_ptr<decltype(get_key_t_KeyExtrGPU(key_extr))> th_keys_gpu = thrust::device_pointer_cast(keys_gpu[id_r]);
         thrust::device_ptr<int> th_sequence_gpu = thrust::device_pointer_cast(sequence_gpu[id_r]);
-        thrust::sort_by_key(thrust::cuda::par(alloc).on(_output->cudaStream), th_keys_gpu, th_keys_gpu + _output->size, th_sequence_gpu);
+        thrust::sort_by_key(thrust::cuda::par(alloc).on(_output->cudaStream),
+                            th_keys_gpu,
+                            th_keys_gpu + _output->size,
+                            th_sequence_gpu);
         Compute_Mapping_Kernel<decltype(get_key_t_KeyExtrGPU(key_extr))>
                               <<<num_blocks, WF_GPU_DEFAULT_THREADS_PER_BLOCK, 0, _output->cudaStream>>>(keys_gpu[id_r],
                                                                                                          sequence_gpu[id_r],
@@ -603,13 +626,21 @@ public:
         gpuErrChk(cudaPeekAtLastError());
         thrust::device_ptr<decltype(get_key_t_KeyExtrGPU(key_extr))> th_dist_keys_gpu = thrust::device_pointer_cast(dist_keys_gpu[id_r]);
         thrust::device_ptr<int> th_start_idxs_gpu = thrust::device_pointer_cast(_output->start_idxs_gpu);
-        auto end = thrust::unique_by_key_copy(thrust::cuda::par(alloc).on(_output->cudaStream), th_keys_gpu, th_keys_gpu + _output->size, th_sequence_gpu, th_dist_keys_gpu, th_start_idxs_gpu);
+        auto end = thrust::unique_by_key_copy(thrust::cuda::par(alloc).on(_output->cudaStream),
+                                              th_keys_gpu, th_keys_gpu + _output->size,
+                                              th_sequence_gpu,
+                                              th_dist_keys_gpu,
+                                              th_start_idxs_gpu);
         _output->num_dist_keys = end.first - th_dist_keys_gpu; // copy the unique keys on the cpu area within the batch
         if (_output->dist_keys_cpu != nullptr) {
             free(_output->dist_keys_cpu);
         }
         errChkMalloc(_output->dist_keys_cpu = (void *) malloc(sizeof(key_t) * _output->num_dist_keys));
-        gpuErrChk(cudaMemcpyAsync(_output->dist_keys_cpu, dist_keys_gpu[id_r], sizeof(key_t) * _output->num_dist_keys, cudaMemcpyDeviceToHost, _output->cudaStream));
+        gpuErrChk(cudaMemcpyAsync(_output->dist_keys_cpu,
+                                  dist_keys_gpu[id_r],
+                                  sizeof(key_t) * _output->num_dist_keys,
+                                  cudaMemcpyDeviceToHost,
+                                  _output->cudaStream));
         id_r = (id_r + 1) % 2;
         batch_tobe_sent = _output;
         sent_batches++;
@@ -618,8 +649,7 @@ public:
     // Routing GPU->CPU
     template<bool b1, bool b2>
     void routing(typename std::enable_if<b1 && !b2 && !std::is_same<decltype(get_key_t_KeyExtrGPU(key_extr)), empty_key_t>::value, Batch_GPU_t<tuple_t>>::type *_output,
-                 ff::ff_monode *_node,
-                 bool _inPlace=false)
+                 ff::ff_monode *_node)
     {
         _output->transfer2CPU(); // start the transfer of the batch items to a host pinned memory array
         if (num_dests == 1) { // optimized case of one destination only -> the input batch is delivered as it is
@@ -631,7 +661,7 @@ public:
             }
         }
         else { // general case of multiple destinations -> this is not so optimized at the moment!
-            assert(bouts_cpu.size() == num_dests);
+            assert(bouts_cpu.size() == num_dests); // sanity check
             for (size_t i=0; i<num_dests; i++) {
                 if (bouts_cpu[i] == nullptr) {
                     bouts_cpu[i] = allocateBatch_CPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>(_output->size, queue);
@@ -662,39 +692,22 @@ public:
     // Routing stub (never used)
     template<bool b1, bool b2>
     void routing(typename std::enable_if<(b1 || !b1) && std::is_same<decltype(get_key_t_KeyExtrGPU(key_extr)), empty_key_t>::value, Batch_GPU_t<tuple_t>>::type *_out,
-                 ff::ff_monode *_node,
-                 bool _inPlace=false)
+                 ff::ff_monode *_node)
     {
         abort(); // <-- this method cannot be used!
     }
 
-    // Punctuation generation method
-    void generate_punctuation(uint64_t _watermark,
-                              ff::ff_monode * _node) override
+    // Punctuation propagation method
+    void propagate_punctuation(uint64_t _watermark,
+                               ff::ff_monode * _node) override
     {
-        if constexpr (!inputGPU && outputGPU) { // CPU->GPU case
-            if (next_tuple_idx > 0) {
-                return; // if there is a partial batch, punctuation is not propagated!
-            }
-        }
-        if (sent_batches > 0) { // wait the copy of the previous batch to be sent
-            gpuErrChk(cudaStreamSynchronize(batch_tobe_sent->cudaStream));
-            if (!useTreeMode) { // real send
-                _node->ff_send_out(batch_tobe_sent);
-            }
-            else { // output is buffered
-                output_queue.push_back(std::make_pair(batch_tobe_sent, idx_dest));
-                idx_dest = (idx_dest + 1) % num_dests;
-            }
-            batch_tobe_sent = nullptr;
-            sent_batches = 0;
-        }
+        flush(_node); // flush the internal partially filled batch (if any)
         size_t punc_size = (size == -1) ? 1 : size; // this is the size of the punctuation batch
         if constexpr (inputGPU && !outputGPU) { // GPU->CPU case
             Batch_CPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))> *punc = allocateBatch_CPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>(punc_size, queue);
             punc->setWatermark(_watermark);
             (punc->delete_counter).fetch_add(num_dests-1);
-            assert((punc->watermarks).size() == 1);
+            assert((punc->watermarks).size() == 1); // sanity check
             (punc->watermarks).insert((punc->watermarks).end(), num_dests-1, (punc->watermarks)[0]); // copy the watermark (having one per destination)
             punc->isPunctuation = true;
             for (size_t i=0; i<num_dests; i++) {
@@ -710,7 +723,7 @@ public:
             Batch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))> *punc = allocateBatch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>(punc_size, queue);
             punc->setWatermark(_watermark);
             (punc->delete_counter).fetch_add(num_dests-1);
-            assert((punc->watermarks).size() == 1);
+            assert((punc->watermarks).size() == 1); // sanity check
             (punc->watermarks).insert((punc->watermarks).end(), num_dests-1, (punc->watermarks)[0]); // copy the watermark (having one per destination)
             punc->isPunctuation = true;
             for (size_t i=0; i<num_dests; i++) {
@@ -724,11 +737,12 @@ public:
         }
     }
 
-    // Flushing function of the emitter
+    // Flushing method
     void flush(ff::ff_monode *_node) override
     {
         if constexpr (!inputGPU && outputGPU) { // case CPU->GPU
             if (sent_batches > 0) { // wait the copy of the previous batch to be sent
+                assert(batch_tobe_sent != nullptr); // sanity check
                 gpuErrChk(cudaStreamSynchronize(batch_tobe_sent->cudaStream));
                 if (!useTreeMode) { // real send
                     _node->ff_send_out(batch_tobe_sent);
@@ -739,17 +753,32 @@ public:
                 }
                 batch_tobe_sent = nullptr;
             }
+            assert(batch_tobe_sent == nullptr); // sanity check
             if (next_tuple_idx > 0) { // partial batch to be sent
                 auto &record = *(records_kb[id_r]);
                 Batch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))> *batch = allocateBatch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>(size, queue); // allocate the new batch
                 batch->size = next_tuple_idx; // set the real size of the last batch
                 batch->num_dist_keys = record.num_dist_keys;
                 errChkMalloc(batch->dist_keys_cpu = (void *) malloc(sizeof(key_t) * record.num_dist_keys)); // allocate space for the keys
-                memcpy((void *) batch->dist_keys_cpu, (void *) record.dist_keys_cpu, sizeof(key_t) * record.num_dist_keys); // copy the keys (they must be trivially copyable)
+                memcpy((void *) batch->dist_keys_cpu,
+                       (void *) record.dist_keys_cpu,
+                       sizeof(key_t) * record.num_dist_keys); // copy the keys (they must be trivially copyable)
                 batch->setWatermark(record.watermark, 0);
-                gpuErrChk(cudaMemcpyAsync(batch->data_gpu, record.pinned_buffer_cpu, sizeof(batch_item_gpu_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>) * next_tuple_idx, cudaMemcpyHostToDevice, batch->cudaStream));
-                gpuErrChk(cudaMemcpyAsync(batch->start_idxs_gpu, record.pinned_start_idxs_cpu, sizeof(int) * next_tuple_idx, cudaMemcpyHostToDevice, batch->cudaStream));
-                gpuErrChk(cudaMemcpyAsync(batch->map_idxs_gpu, record.pinned_map_idxs_cpu, sizeof(int) * next_tuple_idx, cudaMemcpyHostToDevice, batch->cudaStream));
+                gpuErrChk(cudaMemcpyAsync(batch->data_gpu,
+                                          record.pinned_buffer_cpu,
+                                          sizeof(batch_item_gpu_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>) * next_tuple_idx,
+                                          cudaMemcpyHostToDevice,
+                                          batch->cudaStream));
+                gpuErrChk(cudaMemcpyAsync(batch->start_idxs_gpu,
+                                          record.pinned_start_idxs_cpu,
+                                          sizeof(int) * next_tuple_idx,
+                                          cudaMemcpyHostToDevice,
+                                          batch->cudaStream));
+                gpuErrChk(cudaMemcpyAsync(batch->map_idxs_gpu,
+                                          record.pinned_map_idxs_cpu,
+                                          sizeof(int) * next_tuple_idx,
+                                          cudaMemcpyHostToDevice,
+                                          batch->cudaStream));
                 gpuErrChk(cudaStreamSynchronize(batch->cudaStream));
                 if (!useTreeMode) { // real send
                     _node->ff_send_out(batch);
@@ -758,11 +787,15 @@ public:
                     output_queue.push_back(std::make_pair(batch, idx_dest));
                     idx_dest = (idx_dest + 1) % num_dests;
                 }
-                sent_batches++;
             }
+            sent_batches = 0;
+            next_tuple_idx = 0;
+            id_r = 0;
+            dist_map.clear();
         }
         else if constexpr (inputGPU && outputGPU) { // case GPU->GPU
             if (sent_batches > 0) { // wait the copy of the previous batch to be sent
+                assert(batch_tobe_sent != nullptr); // sanity check
                 gpuErrChk(cudaStreamSynchronize(batch_tobe_sent->cudaStream));
                 if (!useTreeMode) { // real send
                     _node->ff_send_out(batch_tobe_sent);
@@ -773,6 +806,9 @@ public:
                 }
                 batch_tobe_sent = nullptr;
             }
+            assert(batch_tobe_sent == nullptr); // sanity check
+            sent_batches = 0;
+            id_r = 0;
         }
     }
 };

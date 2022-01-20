@@ -2,7 +2,7 @@
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -finline-functions")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -finline-functions")
 
 # Macros to be provided to the compiler
 add_definitions(-DFF_BOUNDED_BUFFER)

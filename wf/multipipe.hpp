@@ -1,17 +1,24 @@
-/******************************************************************************
- *  This program is free software; you can redistribute it and/or modify it
- *  under the terms of the GNU Lesser General Public License version 3 as
- *  published by the Free Software Foundation.
+/**************************************************************************************
+ *  Copyright (c) 2019- Gabriele Mencagli
  *  
- *  This program is distributed in the hope that it will be useful, but WITHOUT
- *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- *  License for more details.
+ *  This file is part of WindFlow.
  *  
- *  You should have received a copy of the GNU Lesser General Public License
- *  along with this program; if not, write to the Free Software Foundation,
- *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- ******************************************************************************
+ *  WindFlow is free software dual licensed under the GNU LGPL or MIT License.
+ *  You can redistribute it and/or modify it under the terms of the
+ *    * GNU Lesser General Public License as published by
+ *      the Free Software Foundation, either version 3 of the License, or
+ *      (at your option) any later version
+ *    OR
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *  
+ *  WindFlow is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *  You should have received a copy of the GNU Lesser General Public License and
+ *  the MIT License along with WindFlow. If not, see <http://www.gnu.org/licenses/>
+ *  and <http://opensource.org/licenses/MIT/>.
+ **************************************************************************************
  */
 
 /** 
@@ -49,16 +56,14 @@
 #include<watermark_collector.hpp>
 #if defined (__CUDACC__)
     #include<basic_gpu.hpp>
+    #include<broadcast_emitter_gpu.hpp>
+    #include<splitting_emitter_gpu.hpp>
     #if defined (WF_GPU_UNIFIED_MEMORY)
         #include<keyby_emitter_gpu_u.hpp> // version with CUDA unified memory support
         #include<forward_emitter_gpu_u.hpp> // version with CUDA unified memory support
-        #include<broadcast_emitter_gpu_u.hpp> // version with CUDA unified memory support
-        #include<splitting_emitter_gpu_u.hpp> // version with CUDA unified memory support
     #else
         #include<keyby_emitter_gpu.hpp> // version with CUDA explicit memory transfers
         #include<forward_emitter_gpu.hpp> // version with CUDA explicit memory transfers
-        #include<broadcast_emitter_gpu.hpp> // version with CUDA explicit memory transfers
-        #include<splitting_emitter_gpu.hpp> // version with CUDA explicit memory transfers
     #endif
 #endif
 
@@ -241,7 +246,7 @@ private:
                                   bool isSourceGPU=false,
                                   bool isDestGPU=false) const
     {
-        assert(!isSourceGPU && !isDestGPU); // redundant check
+        assert(!isSourceGPU && !isDestGPU); // sanity check
         if (_routing_mode == Routing_Mode_t::FORWARD) { // FW
             return new Forward_Emitter<decltype(_key_extr)>(_key_extr, _num_dests, _outputBatchSize);
         }
@@ -263,7 +268,7 @@ private:
                                   bool isSourceGPU=false,
                                   bool isDestGPU=false) const
     {
-        assert(!isDestGPU); // redundant check
+        assert(!isDestGPU); // sanity check
         if (!isSourceGPU && !isDestGPU) { // CPU -> CPU case
             if (_routing_mode == Routing_Mode_t::FORWARD) { // FW
                 return new Forward_Emitter<decltype(_key_extr)>(_key_extr, _num_dests, _outputBatchSize);
@@ -300,7 +305,7 @@ private:
                                   bool isSourceGPU,
                                   bool isDestGPU) const
     {
-        assert(isDestGPU); // redundant chekc
+        assert(isDestGPU); // sanity chekc
         if (isSourceGPU && isDestGPU) { // GPU -> GPU case
             if (_routing_mode == Routing_Mode_t::FORWARD) { // FW
                 return new Forward_Emitter_GPU<decltype(_key_extr), true, true>(_key_extr, _num_dests);
@@ -406,8 +411,8 @@ private:
         }
         if (fromSplitting && last == nullptr) { // Case 1: first operator added after splitting
             ff::ff_a2a *matrioska = new ff::ff_a2a(); // create the initial matrioska
-            assert(splittingParent != nullptr); // redundant check
-            assert((splittingParent->localOpList).size() > 0); // redundant check
+            assert(splittingParent != nullptr); // sanity check
+            assert((splittingParent->localOpList).size() > 0); // sanity check
             size_t outputBatchSize = ((splittingParent->localOpList).back())->getOutputBatchSize();
             bool isSourceGPU = ((splittingParent->localOpList).back())->isGPUOperator();
             bool isDestGPU = _operator.isGPUOperator();
@@ -519,7 +524,7 @@ private:
             add_operator<operator_t, isDestGPUType>(_operator, _ordering_mode);
             return false;
         }
-        assert(localOpList.size() > 0); // redundant check
+        assert(localOpList.size() > 0); // sanity check
         size_t n1 = (localOpList.back())->getParallelism();
         bool isSourceGPU = (localOpList.back())->isGPUOperator();
         size_t n2 = _operator.getParallelism();
@@ -657,11 +662,11 @@ private:
     // Set an emitter acting as a leaf of the splitting emitter
     void setEmitterLeaf(Basic_Emitter *_e)
     {
-        assert(isSplit); // redundant check
-        assert(splittingEmitter != nullptr); // redundant check
+        assert(isSplit); // sanity check
+        assert(splittingEmitter != nullptr); // sanity check
         splittingEmitter->addInternalEmitter(_e);
         if (splittingEmitter->getNumInternalEmitters() == splittingBranches) { // check if all the emitters are ready
-            assert(localOpList.size() > 0); // redundant check
+            assert(localOpList.size() > 0); // sanity check
             (localOpList.back())->setEmitter(splittingEmitter); // set the emitter of all the replicas of the last operator in the MultiPipe
         }
     }
@@ -1277,7 +1282,6 @@ public:
             exit(EXIT_FAILURE);
         }
         auto *copied_mapgpu = new Map_GPU(_mapgpu); // create a copy of the operator
-        copied_mapgpu->setExecutionMode(execution_mode); // set the execution mode of the operator
         using tuple_t = decltype(get_tuple_t_MapGPU(copied_mapgpu->func)); // extracting the tuple_t type and checking the admissible signatures
         std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
         if (!outputType.empty() && outputType.compare(opInType) != 0) {
@@ -1307,7 +1311,6 @@ public:
             exit(EXIT_FAILURE);
         }
         auto *copied_mapgpu = new Map_GPU(_mapgpu); // create a copy of the operator
-        copied_mapgpu->setExecutionMode(execution_mode); // set the execution mode of the operator
         using tuple_t = decltype(get_tuple_t_MapGPU(copied_mapgpu->func)); // extracting the tuple_t type and checking the admissible signatures
         std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
         if (!outputType.empty() && outputType.compare(opInType) != 0) {
@@ -1393,6 +1396,70 @@ public:
         }
         localOpList.push_back(copied_filtergpu); // add the copied operator to local list
         globalOpList->push_back(copied_filtergpu); // add the copied operator to global list
+        return *this;
+    }
+
+    /** 
+     *  \brief Add a Reduce_GPU operator to the MultiPipe
+     *  \param _reducegpu the Reduce_GPU operator to be added
+     *  \return a reference to the modified MultiPipe
+     */ 
+    template<typename reducegpu_func_t, typename key_extractor_func_t>
+    MultiPipe &add(const Reduce_GPU<reducegpu_func_t, key_extractor_func_t> &_reducegpu)
+    {
+        if (execution_mode != Execution_Mode_t::DEFAULT) {
+            std::cerr << RED << "WindFlow Error: Reduce_GPU can be used in DEFAULT mode only" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        auto *copied_reducegpu = new Reduce_GPU(_reducegpu); // create a copy of the operator
+        using tuple_t = decltype(get_tuple_t_ReduceGPU(copied_reducegpu->func)); // extracting the tuple_t type and checking the admissible signatures
+        std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
+        if (!outputType.empty() && outputType.compare(opInType) != 0) {
+            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Reduce_GPU operator" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        add_operator<decltype(*copied_reducegpu), true>(*copied_reducegpu, ordering_mode_t::TS);
+#if defined (WF_TRACING_ENABLED)
+        gv_add_vertex("Reduce_GPU (" + std::to_string(copied_reducegpu->getParallelism()) + ")", copied_reducegpu->getName(), false, false, copied_reducegpu->getInputRoutingMode());
+#endif
+        localOpList.push_back(copied_reducegpu); // add the copied operator to local list
+        globalOpList->push_back(copied_reducegpu); // add the copied operator to global list
+        return *this;
+    }
+
+    /** 
+     *  \brief Try to chain a Reduce_GPU operator to the MultiPipe
+     *         (if not possible, the operator is added)
+     *  \param _reducegpu the Reduce_GPU operator to be chained
+     *  \return a reference to the modified MultiPipe
+     */ 
+    template<typename reducegpu_func_t, typename key_extractor_func_t>
+    MultiPipe &chain(const Reduce_GPU<reducegpu_func_t, key_extractor_func_t> &_reducegpu)
+    {
+        if (execution_mode != Execution_Mode_t::DEFAULT) {
+            std::cerr << RED << "WindFlow Error: Reduce_GPU can be used in DEFAULT mode only" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        auto *copied_reducegpu = new Reduce_GPU(_reducegpu); // create a copy of the operator
+        using tuple_t = decltype(get_tuple_t_ReduceGPU(copied_reducegpu->func)); // extracting the tuple_t type and checking the admissible signatures
+        std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
+        if (!outputType.empty() && outputType.compare(opInType) != 0) {
+            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Reduce_GPU operator" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        bool isChained = chain_operator<decltype(*copied_reducegpu), true>(*copied_reducegpu, ordering_mode_t::TS); // try to chain the operator (otherwise, it is added)
+        if (isChained) {
+#if defined (WF_TRACING_ENABLED)
+            gv_chain_vertex("Reduce_GPU (" + std::to_string(copied_reducegpu->getParallelism()) + ")", copied_reducegpu->getName());
+#endif
+        }
+        else {
+#if defined (WF_TRACING_ENABLED)
+            gv_add_vertex("Filter_GPU (" + std::to_string(copied_reducegpu->getParallelism()) + ")", copied_reducegpu->getName(), false, false, copied_reducegpu->getInputRoutingMode());
+#endif
+        }
+        localOpList.push_back(copied_reducegpu); // add the copied operator to local list
+        globalOpList->push_back(copied_reducegpu); // add the copied operator to global list
         return *this;
     }
 
@@ -1574,7 +1641,7 @@ public:
         return *this;
     }
 
-#if defined(__CUDACC__)
+#if defined (__CUDACC__)
     /** 
      *  \brief Split of this into a set of new empty MultiPipes
      *  \param _cardinality number of empty MultiPipes to generate from the splitting

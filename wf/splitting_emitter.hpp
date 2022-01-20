@@ -1,17 +1,24 @@
-/******************************************************************************
- *  This program is free software; you can redistribute it and/or modify it
- *  under the terms of the GNU Lesser General Public License version 3 as
- *  published by the Free Software Foundation.
+/**************************************************************************************
+ *  Copyright (c) 2019- Gabriele Mencagli
  *  
- *  This program is distributed in the hope that it will be useful, but WITHOUT
- *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- *  License for more details.
+ *  This file is part of WindFlow.
  *  
- *  You should have received a copy of the GNU Lesser General Public License
- *  along with this program; if not, write to the Free Software Foundation,
- *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- ******************************************************************************
+ *  WindFlow is free software dual licensed under the GNU LGPL or MIT License.
+ *  You can redistribute it and/or modify it under the terms of the
+ *    * GNU Lesser General Public License as published by
+ *      the Free Software Foundation, either version 3 of the License, or
+ *      (at your option) any later version
+ *    OR
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *  
+ *  WindFlow is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *  You should have received a copy of the GNU Lesser General Public License and
+ *  the MIT License along with WindFlow. If not, see <http://www.gnu.org/licenses/>
+ *  and <http://opensource.org/licenses/MIT/>.
+ **************************************************************************************
  */
 
 /** 
@@ -55,7 +62,7 @@ private:
     size_t num_dests; // number of destinations connected in output to the emitter
     size_t num_dest_mps; // number of destination MultiPipes connected in output to the emitter
     std::vector<Basic_Emitter *> emitters; // vector of pointers to the internal emitters (one per destination MultiPipes)
-    Execution_Mode_t execution_mode; // execution mode of the Splitting_Emitter
+    Execution_Mode_t execution_mode; // execution mode of the PipeGraph
     uint64_t last_time_punct; // last time used to send punctuations
     std::vector<int> delivered; // delivered[i] is the number of outputs delivered to the MultiPipe i during the last sample
     uint64_t received_inputs; // total number of inputs received by the emitter
@@ -219,10 +226,10 @@ public:
                  uint64_t _watermark,
                  ff::ff_monode *_node)
     {
-        assert(num_dests == _node->get_num_outchannels());
+        assert(num_dests == _node->get_num_outchannels()); // sanity check
         auto dests = callSplittingFunction(splitting_func, _tuple);
-        if ((execution_mode == Execution_Mode_t::DEFAULT) && (received_inputs % WF_DEFAULT_WM_AMOUNT == 0)) { // check the punctuation generation logic every 100 received inputs
-            autogeneration_punctuation(_watermark, _node);
+        if ((execution_mode == Execution_Mode_t::DEFAULT) && (received_inputs % WF_DEFAULT_WM_AMOUNT == 0)) { // check punctuaction generation logic
+            generate_punctuation(_watermark, _node);
         }
         if (dests.size() == 0) { // the input must be dropped (like in a filter)
             return;
@@ -242,7 +249,7 @@ public:
                 for (size_t i=0; i<dests[idx]; i++) {
                     offset += emitters[i]->getNumDestinations();
                 }
-                assert(offset + msg.second < _node->get_num_outchannels());
+                assert(offset + msg.second < _node->get_num_outchannels()); // sanity check
                 _node->ff_send_out_to(msg.first, offset + msg.second);
             }
             vect.clear(); // clear all the sent messages
@@ -250,14 +257,32 @@ public:
         }
     }
 
-    // Auto-generation logic of punctuations
-    void autogeneration_punctuation(uint64_t _watermark,
-                                    ff::ff_monode *_node)
+    // Punctuation propagation method
+    void propagate_punctuation(uint64_t _watermark,
+                               ff::ff_monode * _node) override
+    {
+        for (size_t i=0; i<emitters.size(); i++) {
+            emitters[i]->propagate_punctuation(_watermark, _node);
+            auto &vect = emitters[i]->getOutputQueue();
+            for (auto msg: vect) { // send each message produced by emitters[i]
+                size_t offset = 0;
+                for (size_t j=0; j<i; j++) {
+                    offset += emitters[j]->getNumDestinations();
+                }
+                assert(offset + msg.second < _node->get_num_outchannels()); // sanity check
+                _node->ff_send_out_to(msg.first, offset + msg.second);
+            }
+            vect.clear(); // clear all the sent messages
+        }
+    }
+
+    // Punctuation generation method
+    void generate_punctuation(uint64_t _watermark,
+                              ff::ff_monode *_node)
     {
         if (current_time_usecs() - last_time_punct >= WF_DEFAULT_WM_INTERVAL_USEC) { // check the end of the sample
             std::vector<int> idxs;
-            // Select the destinations (MultiPipes) that must receive the punctuation
-            for (size_t i=0; i<num_dest_mps; i++) {
+            for (size_t i=0; i<num_dest_mps; i++) { // select the destinations (MultiPipes) receiving the punctuation
                 if (delivered[i] == 0) {
                     idxs.push_back(i);
                 }
@@ -269,14 +294,14 @@ public:
                 return;
             }
             for (int id: idxs) {
-                emitters[id]->generate_punctuation(_watermark, _node); // call the logic of the emitter at position i
+                emitters[id]->propagate_punctuation(_watermark, _node);
                 auto &vect = emitters[id]->getOutputQueue();
                 for (auto msg: vect) { // send each message produced by emitters[i]
                     size_t offset = 0;
                     for (size_t j=0; j<id; j++) {
                         offset += emitters[j]->getNumDestinations();
                     }
-                    assert(offset + msg.second < _node->get_num_outchannels());
+                    assert(offset + msg.second < _node->get_num_outchannels()); // sanity check
                     _node->ff_send_out_to(msg.first, offset + msg.second);
                 }
                 vect.clear(); // clear all the sent messages
@@ -285,38 +310,19 @@ public:
         }
     }
 
-    // Punctuation generation method
-    void generate_punctuation(uint64_t _watermark,
-                              ff::ff_monode * _node) override
-    {
-        for (size_t i=0; i<emitters.size(); i++) {
-            emitters[i]->generate_punctuation(_watermark, _node); // call the logic of the emitter at position i
-            auto &vect = emitters[i]->getOutputQueue();
-            for (auto msg: vect) { // send each message produced by emitters[i]
-                size_t offset = 0;
-                for (size_t j=0; j<i; j++) {
-                    offset += emitters[j]->getNumDestinations();
-                }
-                assert(offset + msg.second < _node->get_num_outchannels());
-                _node->ff_send_out_to(msg.first, offset + msg.second);
-            }
-            vect.clear(); // clear all the sent messages
-        }
-    }
-
     // Flushing method
     void flush(ff::ff_monode *_node) override
     {
-        assert(num_dests == _node->get_num_outchannels());
+        assert(num_dests == _node->get_num_outchannels()); // sanity check
         for (size_t i=0; i<emitters.size(); i++) {
-            emitters[i]->flush(_node); // call the flush logic of emitters[i]
+            emitters[i]->flush(_node);
             auto &vect = emitters[i]->getOutputQueue();
             for (auto msg: vect) { // send each message produced by emitters[i]
                 size_t offset = 0;
                 for (size_t j=0; j<i; j++) {
                     offset += emitters[j]->getNumDestinations();
                 }
-                assert(offset + msg.second < _node->get_num_outchannels());
+                assert(offset + msg.second < _node->get_num_outchannels()); // sanity check
                 _node->ff_send_out_to(msg.first, offset + msg.second);
             }
             vect.clear(); // clear all the sent messages
@@ -329,7 +335,7 @@ public:
         _e->setTreeMode(true); // all the emitters work in tree mode
         emitters.push_back(_e);
         num_dests += _e->getNumDestinations();
-        assert(emitters.size() <= num_dest_mps);
+        assert(emitters.size() <= num_dest_mps); // sanity check
     }
 
     // Get the number of internal emitters

@@ -1,17 +1,24 @@
-/******************************************************************************
- *  This program is free software; you can redistribute it and/or modify it
- *  under the terms of the GNU Lesser General Public License version 3 as
- *  published by the Free Software Foundation.
+/**************************************************************************************
+ *  Copyright (c) 2019- Gabriele Mencagli
  *  
- *  This program is distributed in the hope that it will be useful, but WITHOUT
- *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- *  License for more details.
+ *  This file is part of WindFlow.
  *  
- *  You should have received a copy of the GNU Lesser General Public License
- *  along with this program; if not, write to the Free Software Foundation,
- *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- ******************************************************************************
+ *  WindFlow is free software dual licensed under the GNU LGPL or MIT License.
+ *  You can redistribute it and/or modify it under the terms of the
+ *    * GNU Lesser General Public License as published by
+ *      the Free Software Foundation, either version 3 of the License, or
+ *      (at your option) any later version
+ *    OR
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *  
+ *  WindFlow is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *  You should have received a copy of the GNU Lesser General Public License and
+ *  the MIT License along with WindFlow. If not, see <http://www.gnu.org/licenses/>
+ *  and <http://opensource.org/licenses/MIT/>.
+ **************************************************************************************
  */
 
 /** 
@@ -179,7 +186,7 @@ public:
                      last_time(0)
     {
         if (winType == Win_Type_t::CB) {
-            assert(quantum == 0);
+            assert(quantum == 0); // sanity check
         }
         else {
             win_len = win_len / quantum;
@@ -355,7 +362,7 @@ public:
     void waitAndFlush()
     {
         if (isRunningKernel) {
-            assert(lastKeyD != nullptr);
+            assert(lastKeyD != nullptr); // sanity check
             auto *results = (lastKeyD->fatgpu).waitResults();
             for (size_t i=0; i<batch_len; i++) {
                 emitter->emit(&(results[i]), 0, last_time, last_time, this);
@@ -391,11 +398,9 @@ public:
         if (input_batching) { // receiving a batch
             Batch_t<decltype(get_tuple_t_Lift(lift_func))> *batch_input = reinterpret_cast<Batch_t<decltype(get_tuple_t_Lift(lift_func))> *>(_in);
             if (batch_input->isPunct()) { // if it is a punctuaton
-                emitter->generate_punctuation(batch_input->getWatermark(id_replica), this); // propagate the received punctuation
-                if (execution_mode == Execution_Mode_t::DEFAULT) { // useless check ?
-                    assert(last_time <= batch_input->getWatermark(id_replica)); // redundant check (watermarks are always monotonically increasing)
-                    last_time = batch_input->getWatermark(id_replica);
-                }
+                emitter->propagate_punctuation(batch_input->getWatermark(id_replica), this); // propagate the received punctuation
+                assert(last_time <= batch_input->getWatermark(id_replica)); // sanity check
+                last_time = batch_input->getWatermark(id_replica);
                 deleteBatch_t(batch_input); // delete the punctuation
                 return this->GO_ON;
             }
@@ -416,11 +421,9 @@ public:
         else { // receiving a single input
             Single_t<decltype(get_tuple_t_Lift(lift_func))> *input = reinterpret_cast<Single_t<decltype(get_tuple_t_Lift(lift_func))> *>(_in);
             if (input->isPunct()) { // if it is a punctuaton
-                emitter->generate_punctuation(input->getWatermark(id_replica), this); // propagate the received punctuation
-                if (execution_mode == Execution_Mode_t::DEFAULT) { // useless check ?
-                    assert(last_time <= input->getWatermark(id_replica)); // redundant check (watermarks are always monotonically increasing)
-                    last_time = input->getWatermark(id_replica);
-                }
+                emitter->propagate_punctuation(input->getWatermark(id_replica), this); // propagate the received punctuation
+                assert(last_time <= input->getWatermark(id_replica)); // sanity check
+                last_time = input->getWatermark(id_replica);
                 deleteSingle_t(input); // delete the punctuation
                 return this->GO_ON;
             }
@@ -456,11 +459,11 @@ public:
                           uint64_t _watermark)
     {
         if (execution_mode == Execution_Mode_t::DEFAULT) {
-            assert(last_time <= _watermark); // redundant check (watermarks are always monotonically increasing)
+            assert(last_time <= _watermark); // sanity check
             last_time = _watermark;
         }
         else {
-            assert(last_time <= _timestamp); // redundant check (timestamps are always monotonically increasing)
+            assert(last_time <= _timestamp); // sanity check
             last_time = _timestamp;
         }
         auto key = key_extr(_tuple); // get the key attribute of the input tuple
@@ -525,11 +528,11 @@ public:
                           uint64_t _watermark)
     {
         if (execution_mode == Execution_Mode_t::DEFAULT) {
-            assert(last_time <= _watermark); // redundant check (watermarks are always monotonically increasing)
+            assert(last_time <= _watermark); // sanity check
             last_time = _watermark;
         }
         else {
-            assert(last_time <= _timestamp); // redundant check (timestamps are always monotonically increasing)
+            assert(last_time <= _timestamp); // sanity check
             last_time = _timestamp;
         }
         auto key = key_extr(_tuple); // get the key attribute of the input tuple

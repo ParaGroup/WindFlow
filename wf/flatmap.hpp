@@ -1,17 +1,24 @@
-/******************************************************************************
- *  This program is free software; you can redistribute it and/or modify it
- *  under the terms of the GNU Lesser General Public License version 3 as
- *  published by the Free Software Foundation.
+/**************************************************************************************
+ *  Copyright (c) 2019- Gabriele Mencagli
  *  
- *  This program is distributed in the hope that it will be useful, but WITHOUT
- *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
- *  License for more details.
+ *  This file is part of WindFlow.
  *  
- *  You should have received a copy of the GNU Lesser General Public License
- *  along with this program; if not, write to the Free Software Foundation,
- *  Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- ******************************************************************************
+ *  WindFlow is free software dual licensed under the GNU LGPL or MIT License.
+ *  You can redistribute it and/or modify it under the terms of the
+ *    * GNU Lesser General Public License as published by
+ *      the Free Software Foundation, either version 3 of the License, or
+ *      (at your option) any later version
+ *    OR
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *  
+ *  WindFlow is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU Lesser General Public License for more details.
+ *  You should have received a copy of the GNU Lesser General Public License and
+ *  the MIT License along with WindFlow. If not, see <http://www.gnu.org/licenses/>
+ *  and <http://opensource.org/licenses/MIT/>.
+ **************************************************************************************
  */
 
 /** 
@@ -217,7 +224,7 @@ public:
         if (input_batching) { // receiving a batch
             Batch_t<decltype(get_tuple_t_FlatMap(func))> *batch_input = reinterpret_cast<Batch_t<decltype(get_tuple_t_FlatMap(func))> *>(_in);
             if (batch_input->isPunct()) { // check if it is a punctuaton
-                (shipper->emitter)->generate_punctuation(batch_input->getWatermark(context.getReplicaIndex()), this); // propagate the received punctuation
+                (shipper->emitter)->propagate_punctuation(batch_input->getWatermark(context.getReplicaIndex()), this); // propagate the received punctuation
                 deleteBatch_t(batch_input); // delete the input batch
                 return this->GO_ON;
             }
@@ -233,7 +240,7 @@ public:
         else { // receiving a single input
             Single_t<decltype(get_tuple_t_FlatMap(func))> *input = reinterpret_cast<Single_t<decltype(get_tuple_t_FlatMap(func))> *>(_in);
             if (input->isPunct()) { // check if it is a punctuaton
-                (shipper->emitter)->generate_punctuation(input->getWatermark(context.getReplicaIndex()), this); // propagate the received punctuation
+                (shipper->emitter)->propagate_punctuation(input->getWatermark(context.getReplicaIndex()), this); // propagate the received punctuation
                 deleteSingle_t(input); // delete the input Single_t
                 return this->GO_ON;
             }
@@ -265,10 +272,10 @@ public:
     {
         shipper->setShipperParameters(_timestamp, _watermark); // set the parameter of the shipper
         uint64_t delivered = shipper->getNumDelivered();
-        if constexpr (isNonRiched) { // inplace non-riched version
+        if constexpr (isNonRiched) { // non-riched version
             func(_tuple, *shipper);
         }
-        if constexpr (isRiched)  { // inplace riched version
+        if constexpr (isRiched)  { // riched version
             context.setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
             func(_tuple, *shipper, context);
         }
@@ -278,9 +285,9 @@ public:
         else {
             empty_rounds = 0;
         }
-        if ((execution_mode == Execution_Mode_t::DEFAULT) && (empty_rounds % WF_DEFAULT_WM_AMOUNT == 0)) { // punctuaction auto-generation logic
-            if (current_time_usecs() - last_time_punct >= WF_DEFAULT_WM_INTERVAL_USEC) {
-                (shipper->emitter)->generate_punctuation(_watermark, this); // generation of a new punctuation
+        if ((execution_mode == Execution_Mode_t::DEFAULT) && (empty_rounds % WF_DEFAULT_WM_AMOUNT == 0)) { // check punctuaction generation logic
+            if (current_time_usecs() - last_time_punct >= WF_DEFAULT_WM_INTERVAL_USEC) { // check the end of the sample
+                (shipper->emitter)->propagate_punctuation(_watermark, this);
                 last_time_punct = current_time_usecs();
             }
         }
