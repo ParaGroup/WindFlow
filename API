@@ -17,8 +17,8 @@ __host__ __device__ operator() method.
 
 SOURCE
 ------
-bool(Source_Shipper<tuple_t> &);
-bool(Source_Shipper<tuple_t> &, RuntimeContext &);
+void(Source_Shipper<tuple_t> &);
+void(Source_Shipper<tuple_t> &, RuntimeContext &);
 
 FILTER
 ------
