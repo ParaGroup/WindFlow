@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="keywords" content="">
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <link rel="shortcut icon" type="image/png" href="favicon.png">
+    
+	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?9076">
+	<link rel="stylesheet" type="text/css" href="style.css?3361">
+	<link rel="stylesheet" type="text/css" href="./css/prism.css?9851">
+	
+	<link rel="stylesheet" type="text/css" href="./css/font-awesome.min.css">
+	
+    <title>Special</title>
+
+
+    
+<!-- Analytics -->
+ 
+<!-- Analytics END -->
+    
+</head>
+<body>
+
+<!-- Preloader -->
+<div id="page-loading-blocs-notifaction" class="page-preloader"></div>
+<!-- Preloader END -->
+
+
+<!-- Main container -->
+<div class="page-container">
+    
+<!-- bloc-0 -->
+<div class="bloc l-bloc" id="bloc-0">
+	<div class="container bloc-sm">
+		<div class="row">
+			<div class="col">
+				<nav class="navbar navbar-light row navbar-expand-md" role="navigation">
+					<a class="navbar-brand" href="index.html">WindFlow</a>
+					<button id="nav-toggle" type="button" class="ml-auto ui-navbar-toggler navbar-toggler border-0 p-0" data-toggle="collapse" data-target=".navbar-48557" aria-expanded="false" aria-label="Toggle navigation">
+						<span class="navbar-toggler-icon"></span>
+					</button>
+					<div class="collapse navbar-collapse navbar-48557">
+						<ul class="site-navigation nav navbar-nav ml-auto">
+							<li class="nav-item">
+								<a href="index.html" class="btn btn-lg btn-glossy btn-azure">Home</a>
+							</li>
+							<li>
+								<a href="operators.html" class="btn btn-lg btn-glossy btn-azure">Operators</a>
+							</li>
+							<li>
+								<a href="usage.html" class="btn btn-lg btn-glossy btn-azure">Usage<br></a>
+							</li>
+							<li>
+								<a href="usage_gpu.html" class="btn btn-lg btn-glossy btn-azure">Usage GPU</a>
+							</li>
+							<li>
+								<a href="special.html" class="btn btn-lg btn-glossy btn-azure">Kafka<br></a>
+							</li>
+							<li>
+								<a href="dashboard.html" class="btn btn-lg btn-glossy btn-azure">Dashboard</a>
+							</li>
+							<li>
+								<a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/3.2.0.zip" class="btn btn-lg btn-glossy btn-azure">Download</a>
+							</li>
+							<li>
+								<a href="about.html" class="btn btn-lg btn-glossy btn-azure">About</a>
+							</li>
+						</ul>
+					</div>
+				</nav>
+			</div>
+		</div>
+	</div>
+</div>
+<!-- bloc-0 END -->
+
+<!-- bloc-1 -->
+<div class="bloc none l-bloc" id="bloc-1">
+	<div class="container ">
+		<div class="row bgc-azure">
+			<div class="order-md-0 col-md-12 col-lg-6 order-lg-1 offset-lg-1">
+				<img src="img/logo_white.png" class="img-fluid img-style float-lg-none" alt="logo_white" />
+			</div>
+			<div class="align-self-center offset-md-1 col-md-10 col-lg-4 col-sm-10 offset-sm-1 col-10 offset-1">
+				<h4 class="mg-md tc-white btn-resize-mode h2-style float-lg-right">
+					A C++17 Data Stream Processing Parallel Library for Multicores and GPUs&nbsp;<br>
+				</h4>
+			</div>
+		</div>
+	</div>
+</div>
+<!-- bloc-1 END -->
+
+<!-- bloc-8 -->
+<div class="bloc l-bloc" id="bloc-8">
+	<div class="container bloc-lg">
+		<div class="row">
+			<div class="col">
+				<h2 class="mg-md tc-davys-grey-2">
+					<strong>Apache Kafka Integration</strong>
+				</h2>
+				<p class="text-justify">
+					WindFlow (from version <strong>3.2.0</strong>) incorporates an extension to interface with <strong>Apache Kafka</strong>, a popular publish-subscribe messaging system. This allows WindFlow applications to subscribe to Apache Kafka (and so receiving messages from it), transforming them based on the application semantics of the dataflow graph, and then to report results to Kafka by publishing output messages.<br>
+				</p>
+				<p class="text-justify">
+					To do that, WindFlow provides the following two operators described in the figure below.
+				</p><img src="img/lazyload-ph.png" data-src="img/kafka_operators.jpg" class="img-fluid mx-auto d-block img-kafka-operato-style lazyload" alt="kafka_operators" />
+				<h2 class="mg-md tc-davys-grey-2">
+					<strong>Kafka_Source</strong>
+				</h2>
+				<p class="text-justify">
+					<strong>Kafka_Source</strong> is an alternative source that can be used to create a WindFlow application. It provides a user-friendly builder class that can be used to configure the operator and its interaction with Apache Kafka in order to properly subscribe to topics.
+				</p>
+				<div >
+					<pre><code class="language-cpp">
+KafkaSource_Functor source_functor;
+Kafka_Source source = KafkaSource_Builder(source_functor)
+                                .withName("kafka_source")
+                                .withBrokers("hostname:9092")
+                                .withTopics("input")
+                                .withGroupID("groupid")
+                                .withAssignmentPolicy("roundrobin")
+                                .withIdleness(seconds(5))
+                                .withParallelism(1)
+                                .withOffsets(-1) // -1 means from the most recent offset
+                                .build();
+</code></pre>
+					
+				</div>
+				<p class="text-justify">
+						The builder allows the developer to specify several configuration parameters, such as a set of&nbsp;<i>address:port</i> strings of the Kafka brokers to connect with, the names of the topics to subscribe (and to all their partitions), the name of the <i>group_id</i> (all the replicas of the Kafka_Source will belong to the same consumer group and they receive messages of the subscribed topics). Other configuration parameters are more advanced (e.g., the assignment policy). Interested readers can refer to the API of&nbsp;<a href="https://github.com/edenhill/librdkafka">librdkafka-dev</a>. The <i>withIdleness()</i> method allows the configuration of a timeout control, in order to execute a callback once a replica of the Kafka_Source does not receive any message for a given time period.<br>
+					</p>
+				<p class="text-justify">
+						The builder is instantiated by passing to its constructor the <strong>deserialization logic</strong>, which determines how to deserialize a raw Kafka message into a data structure exchanged internally by WindFlow operators. The deserialization logic can be expressed as a lambda, functor object or using a plain function respecting a given signature. Below, there is an example using a functor object exposing an operator() method.
+					</p>
+				<div >
+						<pre><code class="language-cpp">
+class KafkaSource_Functor
+{
+public:
+    bool operator()(std::optional&lt;std::reference_wrapper&lt;rdkafka::message>> msg, Source_Shipper&lt;tuple_t> &amp;shipper)
+    {
+        if (msg) {
+            tuple_t out;
+            out.value = static_cast&lt;const char="" *="">(msg->get().payload());
+            shipper.push(std::move(out));
+            return true;
+        }
+        else {
+            return false; // if timeout, we terminate listening
+        }
+    }
+};
+</code></pre>
+						
+					</div>
+				<p class="text-justify">
+							The Boolean return value states whether the replica of the Kafka_Source should wait for another message from Apache Kafka or not (in order to start the application termination).
+						</p>
+				<h2 class="mg-md">
+							<strong>Kafka_Sink</strong>
+						</h2>
+				<p>
+							The <strong>Kafka_Sink</strong> operator allows a WindFlow application to publish its results as messages of specific topics to Apache Kafka. Also in this case, the operator can be configured with its builder class as in the code snippet below.
+						</p>
+				<div >
+							<pre><code class="language-cpp">
+KafkaSink_Functor sink_functor;
+Kafka_Sink sink = KafkaSink_Builder(sink_functor)
+                        .withName("kafka_sink")
+                        .withParallelism(1)
+                        .withBrokers("hostname:9092")
+                        .build();
+</code></pre>
+							
+						</div>
+				<p>
+								We can configure the Kafka brokers, and as for all the operators in the library, the parallelism level, name and so forth. The builder is constructed by providing the <strong>serialization logic</strong> as done in the code snippet below.
+							</p>
+				<div class=" ">
+								<pre><code class="language-cpp">
+class KafkaSink_Functor
+{
+public:
+    // operator()
+    wf::wf_kafka_sink_msg operator()(tuple_t &amp;out)
+    {
+        wf::wf_kafka_sink_msg tmp;
+        std::string msg = out.value;
+        tmp.payload = msg;
+        tmp.topic = "output";
+        return tmp;
+    }
+};
+</code></pre>
+								
+							</div>
+				<p>
+									The return value &nbsp;of the serialization logic is a message of type&nbsp;<i>wf_kafka_sink_msg</i>, which contains the serialized message (as a string), the name of the topic and the index of the partition to be used to publish that message to Apache Kafka.
+								</p>
+			</div>
+		</div>
+	</div>
+</div>
+<!-- bloc-8 END -->
+
+<!-- ScrollToTop Button -->
+<a class="bloc-button btn btn-d scrollToTop" onclick="scrollToTarget('1',this)"><span class="fa fa-chevron-up"></span></a>
+<!-- ScrollToTop Button END-->
+
+
+<!-- bloc-8 -->
+<div class="bloc l-bloc" id="bloc-8">
+	<div class="container bloc-lg">
+		<div class="row">
+			<div class="col-md-3 col-sm-6">
+				<h4 class="mg-md text-sm-left text-center">
+					About
+				</h4><a href="http://calvados.di.unipi.it/paragroup/" class="a-btn a-block footer-link ltc-azure">PPMs Group</a><a href="https://www.unipi.it/" class="a-btn a-block footer-link ltc-azure">University of Pisa</a>
+			</div>
+			<div class="col-md-3 col-sm-6">
+				<h4 class="mg-md text-sm-left text-center">
+					<br>
+				</h4><a href="index.html" class="a-btn a-block footer-link"></a><a href="index.html" class="a-btn a-block footer-link"><br></a>
+			</div>
+			<div class="col-md-3 col-sm-6">
+				<h4 class="mg-md text-sm-left text-center">
+					<br>
+				</h4><a href="index.html" class="a-btn a-block footer-link"><br></a><a href="index.html" class="a-btn a-block footer-link"></a>
+			</div>
+			<div class="col-md-3 col-sm-6">
+				<h4 class="mg-md text-sm-left text-center">
+					Get the library
+				</h4><a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/3.1.0.zip" class="a-btn a-block footer-link ltc-azure">Download</a><a href="https://github.com/ParaGroup/WindFlow" class="a-btn a-block footer-link ltc-azure">GitHub</a>
+			</div>
+		</div>
+	</div>
+</div>
+<!-- bloc-8 END -->
+
+</div>
+<!-- Main container END -->
+    
+
+<!-- Additional JS -->
+<script src="./js/jquery-3.5.1.min.js?7302"></script>
+<script src="./js/bootstrap.bundle.min.js?9283"></script>
+<script src="./js/blocs.min.js?8067"></script>
+<script src="./js/lazysizes.min.js" defer></script>
+<script src="./js/prism.js?6418"></script>
+<!-- Additional JS END -->
+
+
+</body>
+</html>

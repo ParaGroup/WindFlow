@@ -7,9 +7,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <link rel="shortcut icon" type="image/png" href="favicon.png">
     
-	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?8064">
-	<link rel="stylesheet" type="text/css" href="style.css?6793">
-	<link rel="stylesheet" type="text/css" href="./css/prism.css?2275">
+	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?2864">
+	<link rel="stylesheet" type="text/css" href="style.css?7705">
+	<link rel="stylesheet" type="text/css" href="./css/prism.css?6350">
 	
 	<link rel="stylesheet" type="text/css" href="./css/font-awesome.min.css">
 	
@@ -57,10 +57,13 @@
 								<a href="usage_gpu.html" class="btn btn-lg btn-glossy btn-azure">Usage GPU</a>
 							</li>
 							<li>
+								<a href="special.html" class="btn btn-lg btn-glossy btn-azure">Kafka<br></a>
+							</li>
+							<li>
 								<a href="dashboard.html" class="btn btn-lg btn-glossy btn-azure">Dashboard</a>
 							</li>
 							<li>
-								<a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/3.1.0.zip" class="btn btn-lg btn-glossy btn-azure">Download</a>
+								<a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/3.2.0.zip" class="btn btn-lg btn-glossy btn-azure">Download</a>
 							</li>
 							<li>
 								<a href="about.html" class="btn btn-lg btn-glossy btn-azure">About</a>
@@ -75,7 +78,7 @@
 <!-- bloc-0 END -->
 
 <!-- bloc-1 -->
-<div class="bloc l-bloc none" id="bloc-1">
+<div class="bloc none l-bloc" id="bloc-1">
 	<div class="container ">
 		<div class="row bgc-azure">
 			<div class="order-md-0 col-md-12 col-lg-6 order-lg-1 offset-lg-1">
@@ -92,7 +95,7 @@
 <!-- bloc-1 END -->
 
 <!-- bloc-5 -->
-<div class="bloc l-bloc tc-davys-grey" id="bloc-5">
+<div class="bloc tc-davys-grey l-bloc" id="bloc-5">
 	<div class="container bloc-lg">
 		<div class="row">
 			<div class="col">
@@ -208,7 +211,7 @@ private:
 									
 								</div>
 				<p class="text-justify">
-										The run-time system guarantees that the update to the prediction model for each customer will be done sequentially, one by one. Therefore, WindFlow allows &nbsp;GPU devices to be used for traditional stateful stream processing using the common keyby paradigm. This approach is quite general and useful for a broad set of real-world applications.<br><br>To conclude to showcase the API, operators are created with a very high-level user-friendly interface.
+										The run-time system guarantees that the update to the prediction model for each customer will be done sequentially, one by one. Therefore, WindFlow allows &nbsp;GPU devices to be used for stateful stream processing using the common keyby paradigm. This approach is quite general and useful for a broad set of real-world applications.<br><br>To conclude to showcase the API, operators are created with a very high-level user-friendly interface.
 									</p>
 				<div >
 										<pre><code class="language-cpp">
@@ -248,7 +251,7 @@ topology.run(); // synchronous execution of the dataflow
 											<strong>Important Aspects</strong>
 										</h2>
 				<p class="text-justify">
-											The use of GPU operators requires special care. In the code above, the batch size is dediced during the creation of the first operator preceding a sequence of GPU operators. In this case, the source defines a batch size of 1000 tuples composing each batch. Batches of 1000 inputs are processed by the Filter_GPU and each one is delivered to the following Map_GPU operator (now the batch can contain less than 1000 inputs depending on the filtering predicate). Choosing the right batch size, as well the parallelism level of the operators, requires manual tuning by the user to achieve the highest performance as possible.<br><br><strong><u>Warning</u></strong>: the use of backpressure (bounded queues) is of special importance for GPU operators, since each input message is a batch containing a potentially large sequence of inputs stored in a GPU-accessible memory. To avoid the saturation of this memory (and thus a CUDA run-time error), the developer should tune the size of the queues to a sufficiently small value (e.g., 16-32 items is a good practice).
+											The use of GPU operators requires special care. In the code above, the batch size is set during the creation of the first operator preceding a sequence of GPU operators. In this case, the Source defines a batch size of 1000 tuples composing each batch. Batches of 1000 inputs are processed by the Filter_GPU, and each one is delivered to the following Map_GPU operator (now the batch can contain less than 1000 inputs depending on the filtering predicate). Choosing the right batch size, as well the parallelism level of the operators, requires manual tuning by the user to achieve the highest performance as possible.<br><br><strong><u>Warning</u></strong>: the use of backpressure (bounded queues) is of special importance for GPU operators, since each input message is a batch containing a potentially large sequence of inputs stored in GPU-accessible memory. To avoid the saturation of this memory (and thus a CUDA run-time error), the developer should tune the size of the queues to a sufficiently small value (e.g., 16-32 items is a good value in practice).
 										</p>
 				<h2 class="mg-md tc-davys-grey">
 											<strong>References</strong>
@@ -304,11 +307,11 @@ topology.run(); // synchronous execution of the dataflow
     
 
 <!-- Additional JS -->
-<script src="./js/jquery-3.5.1.min.js?1927"></script>
-<script src="./js/bootstrap.bundle.min.js?6075"></script>
-<script src="./js/blocs.min.js?6630"></script>
+<script src="./js/jquery-3.5.1.min.js?7302"></script>
+<script src="./js/bootstrap.bundle.min.js?9283"></script>
+<script src="./js/blocs.min.js?8067"></script>
 <script src="./js/lazysizes.min.js" defer></script>
-<script src="./js/prism.js?7276"></script>
+<script src="./js/prism.js?6047"></script>
 <!-- Additional JS END -->
 
 

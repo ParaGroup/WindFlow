@@ -7,9 +7,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <link rel="shortcut icon" type="image/png" href="favicon.png">
     
-	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?611">
-	<link rel="stylesheet" type="text/css" href="style.css?8722">
-	<link rel="stylesheet" type="text/css" href="./css/prism.css?1976">
+	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?4907">
+	<link rel="stylesheet" type="text/css" href="style.css?5246">
+	<link rel="stylesheet" type="text/css" href="./css/prism.css?7250">
 	
 	<link rel="stylesheet" type="text/css" href="./css/font-awesome.min.css">
 	
@@ -57,10 +57,13 @@
 								<a href="usage_gpu.html" class="btn btn-lg btn-glossy btn-azure">Usage GPU</a>
 							</li>
 							<li>
+								<a href="special.html" class="btn btn-lg btn-glossy btn-azure">Kafka<br></a>
+							</li>
+							<li>
 								<a href="dashboard.html" class="btn btn-lg btn-glossy btn-azure">Dashboard</a>
 							</li>
 							<li>
-								<a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/3.1.0.zip" class="btn btn-lg btn-glossy btn-azure">Download</a>
+								<a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/3.2.0.zip" class="btn btn-lg btn-glossy btn-azure">Download</a>
 							</li>
 							<li>
 								<a href="about.html" class="btn btn-lg btn-glossy btn-azure">About</a>
@@ -75,7 +78,7 @@
 <!-- bloc-0 END -->
 
 <!-- bloc-1 -->
-<div class="bloc l-bloc none" id="bloc-1">
+<div class="bloc none l-bloc" id="bloc-1">
 	<div class="container ">
 		<div class="row bgc-azure">
 			<div class="order-md-0 col-md-12 col-lg-6 order-lg-1 offset-lg-1">
@@ -92,7 +95,7 @@
 <!-- bloc-1 END -->
 
 <!-- bloc-5 -->
-<div class="bloc tc-davys-grey" id="bloc-5">
+<div class="bloc tc-davys-grey l-bloc" id="bloc-5">
 	<div class="container bloc-lg">
 		<div class="row">
 			<div class="col">
@@ -100,12 +103,12 @@
 					<strong>Web Dashboard<br></strong>
 				</h2>
 				<p class="text-justify">
-					Starting from release <strong>2.8.8</strong>, WindFlow has its own web dashboard that can be used to monitor and profile the performance of running WindFlow applications.&nbsp;Once running, the dashboard opens a <strong>REST</strong> server on a port (<strong>8080</strong> by default) of the machine. To avoid performance conflicts between the dashboard threads and the ones of the running WindFlow applications, the dashboard can be executed on a different machine with respect to the ones used to run the WindFlow applications to be monitored.<br>
+					Starting from the release <strong>2.8.8</strong>, WindFlow has its own web dashboard that can be used to monitor and profile the performance of running WindFlow applications.&nbsp;Once running, the dashboard opens a <strong>REST</strong> server on a port (<strong>8080</strong> by default) of the machine. To avoid performance conflicts between the dashboard threads and the ones of the running WindFlow applications, the dashboard can be executed on a different machine with respect to the ones used to run the WindFlow applications to be monitored.<br>
 				</p>
 				<div class="row">
 					<div class="col">
 						<p class="text-justify">
-							To use the dashboard, WindFlow applications must be compiled with the <strong>WF_TRACING_ENABLED</strong> macro. Other macros are available and can be used to specify the hostname and the port of the dashboard (by default the applications assume that the dashboard is executed on the localhost).<br><br>The main web page of the dashboard, with the summary of the monitored applications (running, terminated or interrupted for any reason) is shown aside. In the figure, the dashboard reports one running application while no terminated or interrupted applications are listed.<br><br>When the user runs a WindFlow application, it tries to connect to the dashboard on a specific port. An additional monitoring thread is spawned by the WindFlow runtime to report statistics to the dashboard every second. The monitored application is added to the summary table of the dashboard, as in the figure on the right.<br>
+							To use the dashboard, WindFlow applications must be compiled with the <strong>WF_TRACING_ENABLED</strong> macro. Other macros are available and can be used to specify the hostname and the port of the dashboard (by default the applications assume that the dashboard is executed on the localhost).<br><br>The main web page of the dashboard, with the summary of the monitored applications (running, terminated or interrupted for any reason) is shown aside. In the figure, the dashboard reports one running application while no terminated or interrupted applications are listed.<br><br>When the user runs a WindFlow application, it automatically tries to connect to the dashboard on a specific port. An additional monitoring thread is spawned by the WindFlow runtime to report statistics to the dashboard every second. The monitored application is added to the summary table of the dashboard.<br>
 						</p>
 					</div>
 					<div class="col">
@@ -125,7 +128,7 @@
 							</div>
 						</div><img src="img/lazyload-ph.png" data-src="img/screenshot-4.png" class="img-fluid mx-auto d-block mg-md lazyload" alt="Web dashboard screenshot 3" />
 						<p class="text-justify">
-							The web dashboard aims at being a useful tool for developers of WindFlow applications. However, statistics are often intrusive and might slow down application performance (we measured a drop between <strong>5</strong> and <strong>20%</strong> in our benchmarks). So, it must be carefully used.
+							The web dashboard aims at being a useful tool for developers of WindFlow applications. However, statistics are often intrusive and might slow down application performance (we measured a drop between <strong>5</strong> and <strong>20%</strong> in our benchmarks). So, it must be used carefully.
 						</p>
 					</div>
 				</div>
@@ -174,11 +177,11 @@
     
 
 <!-- Additional JS -->
-<script src="./js/jquery-3.5.1.min.js?1927"></script>
-<script src="./js/bootstrap.bundle.min.js?6075"></script>
-<script src="./js/blocs.min.js?6630"></script>
+<script src="./js/jquery-3.5.1.min.js?7302"></script>
+<script src="./js/bootstrap.bundle.min.js?9283"></script>
+<script src="./js/blocs.min.js?8067"></script>
 <script src="./js/lazysizes.min.js" defer></script>
-<script src="./js/prism.js?6453"></script>
+<script src="./js/prism.js?6235"></script>
 <!-- Additional JS END -->
 
 
