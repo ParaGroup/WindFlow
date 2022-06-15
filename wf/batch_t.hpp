@@ -104,6 +104,7 @@ struct Batch_t
 template<typename tuple_t>
 inline void deleteBatch_t(Batch_t<tuple_t> *batch_input)
 {
+#if !defined (WF_NO_RECYCLING)
     if (batch_input->isDeletable()) {
         if (batch_input->queue != nullptr) {
             if (!(batch_input->queue)->push((void * const) batch_input)) {
@@ -114,6 +115,11 @@ inline void deleteBatch_t(Batch_t<tuple_t> *batch_input)
             delete batch_input;
         }
     }
+#else
+    if (batch_input->isDeletable()) {
+        delete batch_input;
+    }
+#endif
 }
 
 } // namespace wf

@@ -54,7 +54,7 @@
 #include<thrust/reduce.h>
 #include<thrust/device_ptr.h>
 #include<thrust/functional.h>
-#if !defined (WF_GPU_UNIFIED_MEMORY)
+#if !defined (WF_GPU_UNIFIED_MEMORY) && !defined (WF_GPU_PINNED_MEMORY)
     #include<batch_gpu_t.hpp>
 #else
     #include<batch_gpu_t_u.hpp>
@@ -329,7 +329,7 @@ public:
         stats_record.inputs_received += input->size;
         stats_record.bytes_received += input->size * sizeof(tuple_t);
 #endif
-#if !defined (WF_GPU_UNIFIED_MEMORY)
+#if !defined (WF_GPU_UNIFIED_MEMORY) && !defined (WF_GPU_PINNED_MEMORY)
         auto *batch_data = input->data_gpu; // version with CUDA explicit memory transfers
 #else
         auto *batch_data = input->data_u; // version with CUDA unified memory support
@@ -341,9 +341,9 @@ public:
             else {
                 record->resize(input->original_size);
             }
-            int num_blocks = std::min((int) ceil(((double) input->size) / WF_GPU_DEFAULT_THREADS_PER_BLOCK), numSMs * max_blocks_per_sm);
+            int num_blocks = std::min((int) ceil(((double) input->size) / WF_GPU_THREADS_PER_BLOCK), numSMs * max_blocks_per_sm);
             Extract_Keys_Kernel<key_extractor_func_t, decltype(get_tuple_t_ReduceGPU(func)), decltype(get_key_t_KeyExtrGPU(key_extr))>
-                               <<<num_blocks, WF_GPU_DEFAULT_THREADS_PER_BLOCK, 0, input->cudaStream>>>(batch_data,
+                               <<<num_blocks, WF_GPU_THREADS_PER_BLOCK, 0, input->cudaStream>>>(batch_data,
                                                                                                         record->keys_gpu,
                                                                                                         input->size,
                                                                                                         key_extr);

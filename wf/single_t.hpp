@@ -214,6 +214,7 @@ struct Single_t
 template<typename tuple_t>
 inline void deleteSingle_t(Single_t<tuple_t> *input)
 {
+#if !defined (WF_NO_RECYCLING)
     if (input->isDeletable()) {
         if (input->queue != nullptr) {
             if (!(input->queue)->push((void * const) input)) {
@@ -224,6 +225,11 @@ inline void deleteSingle_t(Single_t<tuple_t> *input)
             delete input;
         }
     }
+#else
+    if (input->isDeletable()) {
+        delete input;
+    }
+#endif
 }
 
 // Allocate a Single_t message (trying to recycle an old one)
@@ -235,6 +241,7 @@ inline Single_t<tuple_t> *allocateSingle_t(tuple_t &&_tuple, // universal refere
                                            ff::MPMC_Ptr_Queue *_queue)
 {
     Single_t<tuple_t> *input = nullptr;
+#if !defined (WF_NO_RECYCLING)
     if (_queue != nullptr) {
         if (!_queue->pop((void **) &input)) {
             input = new Single_t<tuple_t>(std::forward<tuple_t>(_tuple), _identifier, _timestamp, _watermark);
@@ -250,6 +257,10 @@ inline Single_t<tuple_t> *allocateSingle_t(tuple_t &&_tuple, // universal refere
         input = new Single_t<tuple_t>(std::forward<tuple_t>(_tuple), _identifier, _timestamp, _watermark);
         return input;
     }
+#else
+    input = new Single_t<tuple_t>(std::forward<tuple_t>(_tuple), _identifier, _timestamp, _watermark);
+    return input;
+#endif
 }
 
 } // namespace wf

@@ -20,11 +20,30 @@ else()
     message(STATUS "Build type is '${CMAKE_BUILD_TYPE}'")
 endif()
 
+# Configure the CMAKE_MODULE_PATH
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
+
 # Check Git dependency
 find_package(Git REQUIRED)
 
 # Check pthreads dependency
 find_package(Threads REQUIRED)
+
+# Check rapidjson dependency
+find_package(RapidJSON)
+
+# Check tbb dependency
+find_package(TBB)
+
+# Check LibRDKafka dependency
+find_package(LibRDKafka 1.6.2)
+
+# Check graphviz, rapidjson, tbb and librdkafka dependencies
+#set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake.modules)
+include(${PROJECT_SOURCE_DIR}/cmake/FindGraphviz.cmake)
+#include(${PROJECT_SOURCE_DIR}/cmake.modules/FindRapidJSON.cmake)
+#include(${PROJECT_SOURCE_DIR}/cmake.modules/FindTBB.cmake)
+#include(${PROJECT_SOURCE_DIR}/cmake.modules/FindLibRDKafka.cmake)
 
 # Check FastFlow dependency
 if(DEFINED ENV{FF_ROOT})
@@ -35,12 +54,6 @@ else()
     endif()
     set(ff_root_dir $ENV{HOME}/fastflow)
 endif()
-
-# Check graphviz, rapidjson and tbb dependencies
-set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake.modules)
-include(${PROJECT_SOURCE_DIR}/cmake.modules/FindGraphviz.cmake)
-include(${PROJECT_SOURCE_DIR}/cmake.modules/FindRapidJSON.cmake)
-include(${PROJECT_SOURCE_DIR}/cmake.modules/FindTBB.cmake)
 
 # Add sub-folder with tests
 add_subdirectory(tests)

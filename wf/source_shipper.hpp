@@ -60,6 +60,7 @@ class Source_Shipper
 {
 private:
     template<typename T1> friend class Source_Replica; // friendship with the Source_Replica class
+    template<typename T1> friend class KafkaSource_Replica; // friendship with the Kafka_Source_Replica class
     Basic_Emitter *emitter; // pointer to the emitter used for the delivery of messages
     ff::ff_monode *node; // pointer to the fastflow node to be passed to the emitter
     Execution_Mode_t execution_mode; // execution mode of the PipeGraph

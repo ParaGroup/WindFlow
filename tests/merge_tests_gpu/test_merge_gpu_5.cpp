@@ -44,7 +44,6 @@
 // include
 #include<random>
 #include<iostream>
-#include<ff/ff.hpp>
 #include<windflow.hpp>
 #include<windflow_gpu.hpp>
 #include"merge_common_gpu.hpp"

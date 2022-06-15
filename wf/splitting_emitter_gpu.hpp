@@ -38,7 +38,7 @@
 #define SPLITTING_GPU_H
 
 // includes
-#if !defined (WF_GPU_UNIFIED_MEMORY)
+#if !defined (WF_GPU_UNIFIED_MEMORY) && !defined (WF_GPU_PINNED_MEMORY)
     #include<batch_gpu_t.hpp>
 #else
     #include<batch_gpu_t_u.hpp>
@@ -182,7 +182,7 @@ public:
             Batch_GPU_t<tuple_t> *copy_batch = allocateBatch_GPU_t<tuple_t>(input->original_size, queue); // create a new batch
             copy_batch->watermarks = input->watermarks;
             copy_batch->size = input->size;
-#if !defined (WF_GPU_UNIFIED_MEMORY)
+#if !defined (WF_GPU_UNIFIED_MEMORY) && !defined (WF_GPU_PINNED_MEMORY)
             gpuErrChk(cudaMemcpyAsync(copy_batch->data_gpu,
                                       input->data_gpu,
                                       sizeof(batch_item_gpu_t<tuple_t>) * input->size,

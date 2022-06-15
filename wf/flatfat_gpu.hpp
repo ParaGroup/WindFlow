@@ -1,5 +1,5 @@
 /**************************************************************************************
- *  Copyright (c) 2019- Gabriele Mencagli
+ *  Copyright (c) 2019- Gabriele Mencagli and Elia Ruggeri
  *  
  *  This file is part of WindFlow.
  *  
@@ -23,7 +23,7 @@
 
 /** 
  *  @file    flatfat_gpu.hpp
- *  @author  Elia Ruggeri and Gabriele Mencagli
+ *  @author  Gabriele Mencagli and Elia Ruggeri
  *  
  *  @brief Flat Fixed-size Aggregator Tree on GPU
  *  
@@ -332,9 +332,9 @@ public:
         result_t *d_levelB = d_levelA + numLeaves / pow;
         int i = numLeaves / 2;
         while (d_levelB < gpu_tree + treeSize && i > 0) { // fill the levels of the tree
-            int numBlocks = std::min((int) ceil(i / ((double) WF_GPU_DEFAULT_THREADS_PER_BLOCK)), numSMs * max_blocks_per_sm);
+            int numBlocks = std::min((int) ceil(i / ((double) WF_GPU_THREADS_PER_BLOCK)), numSMs * max_blocks_per_sm);
             Init_TreeLevel_Kernel<result_t, combgpu_func_t>
-                                 <<<numBlocks, WF_GPU_DEFAULT_THREADS_PER_BLOCK, 0, *cudaStream>>>(comb_func,
+                                 <<<numBlocks, WF_GPU_THREADS_PER_BLOCK, 0, *cudaStream>>>(comb_func,
                                                                                                    d_levelA,
                                                                                                    d_levelB,
                                                                                                    i);
@@ -344,9 +344,9 @@ public:
             d_levelB = d_levelA + numLeaves / pow;
             i /= 2;
         }
-        int numBlocks = std::min((int) ceil(numWinsPerBatch / ((double) WF_GPU_DEFAULT_THREADS_PER_BLOCK)), numSMs * max_blocks_per_sm); // compute the results of the first batch
+        int numBlocks = std::min((int) ceil(numWinsPerBatch / ((double) WF_GPU_THREADS_PER_BLOCK)), numSMs * max_blocks_per_sm); // compute the results of the first batch
         Compute_Results_Kernel<key_t, result_t, combgpu_func_t>
-                              <<<numBlocks, WF_GPU_DEFAULT_THREADS_PER_BLOCK, 0, *cudaStream>>>(comb_func,
+                              <<<numBlocks, WF_GPU_THREADS_PER_BLOCK, 0, *cudaStream>>>(comb_func,
                                                                                                 key,
                                                                                                 gpu_tree,
                                                                                                 gpu_results,
@@ -400,9 +400,9 @@ public:
         int sizeUpdate = ceil((double) inputs.size() / (pow << 1)) + 1;
         while (d_levelB < gpu_tree + treeSize) { // update the levels of the tree, each with a separate kernel
             // call the kernel to update a level of the tree
-            size_t numBlocks = std::min((int) ceil(sizeUpdate / ((double) WF_GPU_DEFAULT_THREADS_PER_BLOCK)), numSMs * max_blocks_per_sm);
+            size_t numBlocks = std::min((int) ceil(sizeUpdate / ((double) WF_GPU_THREADS_PER_BLOCK)), numSMs * max_blocks_per_sm);
             Update_TreeLevel_Kernel<result_t, combgpu_func_t>
-                                   <<<numBlocks, WF_GPU_DEFAULT_THREADS_PER_BLOCK, 0, *cudaStream>>>(comb_func,
+                                   <<<numBlocks, WF_GPU_THREADS_PER_BLOCK, 0, *cudaStream>>>(comb_func,
                                                                                                      d_levelA,
                                                                                                      d_levelB,
                                                                                                      distance,
@@ -419,9 +419,9 @@ public:
             sizeUpdate = ceil((double) inputs.size() / (pow << 1)) + 1;
         }
         offset = (offset + inputs.size()) % batchSize;
-        int numBlocks = std::min((int) ceil(numWinsPerBatch / ((double) WF_GPU_DEFAULT_THREADS_PER_BLOCK)), numSMs * max_blocks_per_sm);
+        int numBlocks = std::min((int) ceil(numWinsPerBatch / ((double) WF_GPU_THREADS_PER_BLOCK)), numSMs * max_blocks_per_sm);
         Compute_Results_Kernel<key_t, result_t, combgpu_func_t>
-                              <<<numBlocks, WF_GPU_DEFAULT_THREADS_PER_BLOCK, 0, *cudaStream>>>(comb_func,
+                              <<<numBlocks, WF_GPU_THREADS_PER_BLOCK, 0, *cudaStream>>>(comb_func,
                                                                                                 key,
                                                                                                 gpu_tree,
                                                                                                 gpu_results,

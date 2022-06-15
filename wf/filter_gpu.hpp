@@ -51,7 +51,7 @@
 #include<thrust/copy.h>
 #include<thrust/device_ptr.h>
 #include<tbb/concurrent_unordered_map.h>
-#if !defined (WF_GPU_UNIFIED_MEMORY)
+#if !defined (WF_GPU_UNIFIED_MEMORY) && !defined (WF_GPU_PINNED_MEMORY)
     #include<batch_gpu_t.hpp>
 #else
     #include<batch_gpu_t_u.hpp>
@@ -410,7 +410,7 @@ public:
         else {
             records[id_r]->resize(input->original_size);
         }
-#if !defined (WF_GPU_UNIFIED_MEMORY)
+#if !defined (WF_GPU_UNIFIED_MEMORY) && !defined (WF_GPU_PINNED_MEMORY)
         key_t *dist_keys = reinterpret_cast<key_t *>(input->dist_keys_cpu);
 #else
         key_t *dist_keys = reinterpret_cast<key_t *>(input->dist_keys);
@@ -431,39 +431,58 @@ public:
                                   input->num_dist_keys * sizeof(state_t *),
                                   cudaMemcpyHostToDevice,
                                   input->cudaStream));
-        int warps_per_block = ((max_threads_per_sm / max_blocks_per_sm) / threads_per_warp); // launch the kernel to compute the results
+        // **************************** Hyrbid Version with TLP and WLP **************************** //
+        int warps_per_block = ((max_threads_per_sm / max_blocks_per_sm) / threads_per_warp);
         int tot_num_warps = warps_per_block * max_blocks_per_sm * numSMs;
-        int32_t x = (int32_t) std::ceil(((double) input->num_dist_keys) / tot_num_warps); // compute how many threads should be active per warps
+        int32_t x = (int32_t) std::ceil(((double) input->num_dist_keys) / tot_num_warps);
         if (x > 1) {
             x = next_power_of_two(x);
         }
         int num_active_thread_per_warp = std::min(x, threads_per_warp);
         int num_blocks = std::min((int) ceil(((double) input->num_dist_keys) / warps_per_block), numSMs * max_blocks_per_sm);
+        int threads_per_block = warps_per_block*threads_per_warp;
+        // ***************************************************************************************** //
+#if defined (WF_GPU_TLP_ONLY)
+        // ************************ Version with Thread-Level Parallelism ************************** //
+        num_blocks = std::min((int) ceil(((double) input->num_dist_keys) / WF_GPU_THREADS_PER_BLOCK), numSMs * max_blocks_per_sm);
+        threads_per_block = WF_GPU_THREADS_PER_BLOCK;
+        num_active_thread_per_warp = 32;
+        // ***************************************************************************************** //
+#endif
+#if defined (WF_GPU_WLP_ONLY)
+        // ************************** Version with Warp-level Parallelism ************************** //
+        warps_per_block = ((max_threads_per_sm / max_blocks_per_sm) / threads_per_warp);
+        tot_num_warps = warps_per_block * max_blocks_per_sm * numSMs;
+        num_active_thread_per_warp = 1;
+        num_blocks = std::min((int) ceil(((double) input->num_dist_keys) / warps_per_block), numSMs * max_blocks_per_sm);
+        threads_per_block = warps_per_block*threads_per_warp;
+        // ***************************************************************************************** //
+#endif
         sendPreviousBatch(true); // send the previous output batch (if any)
         if (pthread_spin_lock(spinlock) != 0) { // acquire the lock
             std::cerr << RED << "WindFlow Error: pthread_spin_lock() failed in Filter_GPU" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-#if !defined (WF_GPU_UNIFIED_MEMORY)
+#if !defined (WF_GPU_UNIFIED_MEMORY) && !defined (WF_GPU_PINNED_MEMORY)
         Stateful_FILTERGPU_Kernel<decltype(get_tuple_t_FilterGPU(func)), decltype(get_state_t_FilterGPU(func)), filtergpu_func_t>
-                                 <<<num_blocks, warps_per_block*threads_per_warp, 0, input->cudaStream>>>(input->data_gpu,
-                                                                                                          records[id_r]->flags_gpu,
-                                                                                                          input->map_idxs_gpu,
-                                                                                                          input->start_idxs_gpu,
-                                                                                                          records[id_r]->state_ptrs_gpu,
-                                                                                                          input->num_dist_keys,
-                                                                                                          num_active_thread_per_warp,
-                                                                                                          func);
+                                 <<<num_blocks, threads_per_block, 0, input->cudaStream>>>(input->data_gpu,
+                                                                                           records[id_r]->flags_gpu,
+                                                                                           input->map_idxs_gpu,
+                                                                                           input->start_idxs_gpu,
+                                                                                           records[id_r]->state_ptrs_gpu,
+                                                                                           input->num_dist_keys,
+                                                                                           num_active_thread_per_warp,
+                                                                                           func);
 #else
         Stateful_FILTERGPU_Kernel<decltype(get_tuple_t_FilterGPU(func)), decltype(get_state_t_FilterGPU(func)), filtergpu_func_t>
-                                 <<<num_blocks, warps_per_block*threads_per_warp, 0, input->cudaStream>>>(input->data_u,
-                                                                                                          records[id_r]->flags_gpu,
-                                                                                                          input->map_idxs_u,
-                                                                                                          input->start_idxs_u,
-                                                                                                          records[id_r]->state_ptrs_gpu,
-                                                                                                          input->num_dist_keys,
-                                                                                                          num_active_thread_per_warp,
-                                                                                                          func);
+                                 <<<num_blocks, threads_per_block, 0, input->cudaStream>>>(input->data_u,
+                                                                                           records[id_r]->flags_gpu,
+                                                                                           input->map_idxs_u,
+                                                                                           input->start_idxs_u,
+                                                                                           records[id_r]->state_ptrs_gpu,
+                                                                                           input->num_dist_keys,
+                                                                                           num_active_thread_per_warp,
+                                                                                           func);
 #endif
         gpuErrChk(cudaPeekAtLastError());
         gpuErrChk(cudaStreamSynchronize(input->cudaStream));
@@ -505,7 +524,7 @@ public:
             size_t prev_id_r = (id_r + 2 - 1) % 2; // decrement_address_one = (address + Length - 1) % Length
             auto *prev_record = records[prev_id_r];
             thrust::device_ptr<bool> th_flags_gpu = thrust::device_pointer_cast(prev_record->flags_gpu);
-#if !defined (WF_GPU_UNIFIED_MEMORY)
+#if !defined (WF_GPU_UNIFIED_MEMORY) && !defined (WF_GPU_PINNED_MEMORY)
             thrust::device_ptr<batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>> th_data_gpu = thrust::device_pointer_cast(batch_tobe_sent->data_gpu);
 #else
             thrust::device_ptr<batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>> th_data_gpu = thrust::device_pointer_cast(batch_tobe_sent->data_u);
@@ -523,7 +542,7 @@ public:
             stats_record.outputs_sent += batch_tobe_sent->size;
             stats_record.bytes_sent += batch_tobe_sent->size * sizeof(tuple_t);
 #endif
-#if !defined (WF_GPU_UNIFIED_MEMORY)
+#if !defined (WF_GPU_UNIFIED_MEMORY) && !defined (WF_GPU_PINNED_MEMORY)
             gpuErrChk(cudaMemcpyAsync(batch_tobe_sent->data_gpu,
                                       prev_record->new_data_gpu,
                                       batch_tobe_sent->size * sizeof(batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>),
@@ -834,33 +853,52 @@ public:
         else {
             records[id_r]->resize(input->original_size);
         }
-        int warps_per_block = ((max_threads_per_sm / max_blocks_per_sm) / threads_per_warp); // launch the kernel to compute the results
+        // **************************** Hyrbid Version with TLP and WLP **************************** //
+        int warps_per_block = ((max_threads_per_sm / max_blocks_per_sm) / threads_per_warp);
         int tot_num_warps = warps_per_block * max_blocks_per_sm * numSMs;
-        int32_t x = (int32_t) ceil(((double) (input->size)) / tot_num_warps); // compute how many threads should be active per warps
+        int32_t x = (int32_t) ceil(((double) (input->size)) / tot_num_warps);
         if (x > 1) {
             x = next_power_of_two(x);
         }
         int num_active_thread_per_warp = std::min(x, threads_per_warp);
         int num_blocks = std::min((int) ceil(((double) (input->size)) / warps_per_block), numSMs * max_blocks_per_sm);
+        int threads_per_block = warps_per_block*threads_per_warp;
+        // ***************************************************************************************** //
+#if defined (WF_GPU_TLP_ONLY)
+        // ************************ Version with Thread-Level Parallelism ************************** //
+        num_blocks = std::min((int) ceil(((double) input->size) / WF_GPU_THREADS_PER_BLOCK), numSMs * max_blocks_per_sm);
+        threads_per_block = WF_GPU_THREADS_PER_BLOCK;
+        num_active_thread_per_warp = 32;
+        // ***************************************************************************************** //
+#endif
+#if defined (WF_GPU_WLP_ONLY)
+        // ************************** Version with Warp-level Parallelism ************************** //
+        warps_per_block = ((max_threads_per_sm / max_blocks_per_sm) / threads_per_warp);
+        tot_num_warps = warps_per_block * max_blocks_per_sm * numSMs;
+        num_active_thread_per_warp = 1;
+        num_blocks = std::min((int) ceil(((double) input->size) / warps_per_block), numSMs * max_blocks_per_sm);
+        threads_per_block = warps_per_block*threads_per_warp;
+        // ***************************************************************************************** //
+#endif
         assert(records[id_r]->size >= input->size); // sanity check
-#if !defined (WF_GPU_UNIFIED_MEMORY)
+#if !defined (WF_GPU_UNIFIED_MEMORY) && !defined (WF_GPU_PINNED_MEMORY)
         Stateless_FILTERGPU_Kernel<decltype(get_tuple_t_FilterGPU(func)), filtergpu_func_t>
-                                  <<<num_blocks, warps_per_block*threads_per_warp, 0, input->cudaStream>>>(input->data_gpu,
-                                                                                                           records[id_r]->flags_gpu,
-                                                                                                           input->size,
-                                                                                                           num_active_thread_per_warp,
-                                                                                                           func);
+                                  <<<num_blocks, threads_per_block, 0, input->cudaStream>>>(input->data_gpu,
+                                                                                            records[id_r]->flags_gpu,
+                                                                                            input->size,
+                                                                                            num_active_thread_per_warp,
+                                                                                            func);
 #else
         Stateless_FILTERGPU_Kernel<decltype(get_tuple_t_FilterGPU(func)), filtergpu_func_t>
-                                  <<<num_blocks, warps_per_block*threads_per_warp, 0, input->cudaStream>>>(input->data_u,
-                                                                                                           records[id_r]->flags_gpu,
-                                                                                                           input->size,
-                                                                                                           num_active_thread_per_warp,
-                                                                                                           func);
+                                  <<<num_blocks, threads_per_block, 0, input->cudaStream>>>(input->data_u,
+                                                                                            records[id_r]->flags_gpu,
+                                                                                            input->size,
+                                                                                            num_active_thread_per_warp,
+                                                                                            func);
 #endif                             
         gpuErrChk(cudaPeekAtLastError());
         thrust::device_ptr<bool> th_flags_gpu = thrust::device_pointer_cast(records[id_r]->flags_gpu);
-#if !defined (WF_GPU_UNIFIED_MEMORY)
+#if !defined (WF_GPU_UNIFIED_MEMORY) && !defined (WF_GPU_PINNED_MEMORY)
         thrust::device_ptr<batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>> th_data_gpu = thrust::device_pointer_cast(input->data_gpu);
 #else
         thrust::device_ptr<batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>> th_data_gpu = thrust::device_pointer_cast(input->data_u);
@@ -878,7 +916,7 @@ public:
         stats_record.outputs_sent += input->size;
         stats_record.bytes_sent += input->size * sizeof(tuple_t);
 #endif
-#if !defined (WF_GPU_UNIFIED_MEMORY)
+#if !defined (WF_GPU_UNIFIED_MEMORY) && !defined (WF_GPU_PINNED_MEMORY)
         gpuErrChk(cudaMemcpyAsync(input->data_gpu,
                                   records[id_r]->new_data_gpu,
                                   input->size * sizeof(batch_item_gpu_t<decltype(get_tuple_t_FilterGPU(func))>),

@@ -1,5 +1,5 @@
 /**************************************************************************************
- *  Copyright (c) 2019- Gabriele Mencagli
+ *  Copyright (c) 2019- Gabriele Mencagli and Elia Ruggeri
  *  
  *  This file is part of WindFlow.
  *  
@@ -23,7 +23,7 @@
 
 /** 
  *  @file    ffat_replica_gpu.hpp
- *  @author  Elia Ruggeri and Gabriele Mencagli
+ *  @author  Gabriele Mencagli and Elia Ruggeri
  *  
  *  @brief FFAT_Replica_GPU implements the replica of the FFAT_Aggregator_GPU
  *  
@@ -41,10 +41,10 @@
 #include<string>
 #include<unordered_map>
 #include<ff/multinode.hpp>
-#if defined (WF_GPU_UNIFIED_MEMORY)
-    #include<flatfat_gpu_u.hpp> // version with CUDA unified memory support
-#else
+#if !defined (WF_GPU_UNIFIED_MEMORY) && !defined (WF_GPU_PINNED_MEMORY)
     #include<flatfat_gpu.hpp> // version with CUDA explicit memory transfers
+#else
+    #include<flatfat_gpu_u.hpp> // version with CUDA unified memory support
 #endif
 #include<batch_t.hpp>
 #include<single_t.hpp>

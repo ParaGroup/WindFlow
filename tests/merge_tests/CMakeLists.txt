@@ -7,8 +7,8 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -finline-functions")
 # Macros to be provided to the compiler
 add_definitions(-DFF_BOUNDED_BUFFER)
 
-# Header files of WindFlow and of FastFlow
-include_directories(../../wf ${ff_root_dir})
+# Header files of WindFlow and FastFlow
+include_directories(${PROJECT_SOURCE_DIR}/wf ${ff_root_dir})
 
 # Linking to pthread
 link_libraries(pthread)

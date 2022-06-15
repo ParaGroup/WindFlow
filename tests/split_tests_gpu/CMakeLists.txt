@@ -10,8 +10,8 @@ set(CMAKE_CUDA_FLAGS_RELEASE "-w --expt-extended-lambda --expt-relaxed-constexpr
 # Macros to be provided to the compiler
 add_definitions(-DFF_BOUNDED_BUFFER -DDEFAULT_BUFFER_CAPACITY=16)
 
-# Header files of WindFlow and of FastFlow
-include_directories(../../wf ${ff_root_dir} ${TBB_TBB_INCLUDE_DIR})
+# Header files of WindFlow, FastFlow and TBB
+include_directories(${PROJECT_SOURCE_DIR}/wf ${ff_root_dir} ${TBB_TBB_INCLUDE_DIR})
 
 # Set the dynamic path to find the tbb library
 link_directories(${TBB_TBB_LIBRARY_RELEASE})

@@ -359,7 +359,7 @@ private:
     // static assert to check the signature of the Reduce_GPU functional logic
     static_assert(!(std::is_same<tuple_t, std::false_type>::value),
         "WindFlow Compilation Error - unknown signature passed to the ReduceGPU_Builder:\n"
-        "  Candidate 1 : [__host__] __device__ tuple_t(tuple_t &, tuple_t &)\n");
+        "  Candidate 1 : [__host__] __device__ tuple_t(const tuple_t &, const tuple_t &)\n");
     // static assert to check that the tuple_t type must be default constructible
     static_assert(std::is_default_constructible<tuple_t>::value,
         "WindFlow Compilation Error - tuple_t type must be default constructible (ReduceGPU_Builder):\n");

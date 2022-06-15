@@ -68,10 +68,14 @@ class FFAT_Aggregator_GPU;
 #endif
 
 // Default number of CUDA threads per block
-#define WF_GPU_DEFAULT_THREADS_PER_BLOCK 256
+#if !defined (WF_GPU_THREADS_PER_BLOCK)
+    #define WF_GPU_THREADS_PER_BLOCK 256
+#endif
 
 // Default size of the feedback recycling queues (for GPU operators only)
-#define WF_GPU_DEFAULT_RECYCLING_QUEUE_SIZE 8192
+#if !defined (WF_GPU_DEFAULT_RECYCLING_QUEUE_SIZE)
+    #define WF_GPU_DEFAULT_RECYCLING_QUEUE_SIZE 8192
+#endif
 
 // Compute the next power of two greater than a 32-bit integer
 inline int32_t next_power_of_two(int32_t n)
@@ -160,7 +164,7 @@ struct wrapper_state_t
     wrapper_state_t()
     {
         gpuErrChk(cudaMalloc(&state_gpu, sizeof(state_t)));
-        Build_State_Kernel<<<1, WF_GPU_DEFAULT_THREADS_PER_BLOCK>>>(state_gpu); // use the default CUDA stream
+        Build_State_Kernel<<<1, WF_GPU_THREADS_PER_BLOCK>>>(state_gpu); // use the default CUDA stream
         gpuErrChk(cudaPeekAtLastError());
         gpuErrChk(cudaDeviceSynchronize());
     }
@@ -169,7 +173,7 @@ struct wrapper_state_t
     wrapper_state_t(const wrapper_state_t &_other)
     {
         gpuErrChk(cudaMalloc(&state_gpu, sizeof(state_t)));
-        Copy_State_Kernel<<<1, WF_GPU_DEFAULT_THREADS_PER_BLOCK>>>(state_gpu, _other.state_gpu); // use the default CUDA stream
+        Copy_State_Kernel<<<1, WF_GPU_THREADS_PER_BLOCK>>>(state_gpu, _other.state_gpu); // use the default CUDA stream
         gpuErrChk(cudaPeekAtLastError());
         gpuErrChk(cudaDeviceSynchronize());
     }
@@ -182,7 +186,7 @@ struct wrapper_state_t
     ~wrapper_state_t()
     {
         if (state_gpu != nullptr) {
-            Destroy_State_Kernel<<<1, WF_GPU_DEFAULT_THREADS_PER_BLOCK, 0>>>(state_gpu); // use the default CUDA stream
+            Destroy_State_Kernel<<<1, WF_GPU_THREADS_PER_BLOCK, 0>>>(state_gpu); // use the default CUDA stream
             gpuErrChk(cudaPeekAtLastError());
             gpuErrChk(cudaDeviceSynchronize());
             gpuErrChk(cudaFree(state_gpu));
@@ -193,13 +197,13 @@ struct wrapper_state_t
     wrapper_state_t &operator=(const wrapper_state_t &_other)
     {
         if (state_gpu != nullptr) {
-            Destroy_State_Kernel<<<1, WF_GPU_DEFAULT_THREADS_PER_BLOCK, 0>>>(state_gpu); // use the default CUDA stream
+            Destroy_State_Kernel<<<1, WF_GPU_THREADS_PER_BLOCK, 0>>>(state_gpu); // use the default CUDA stream
             gpuErrChk(cudaPeekAtLastError());
             gpuErrChk(cudaDeviceSynchronize());
             gpuErrChk(cudaFree(state_gpu));
         }
         gpuErrChk(cudaMalloc(&state_gpu, sizeof(state_t)));
-        Copy_State_Kernel<<<1, WF_GPU_DEFAULT_THREADS_PER_BLOCK>>>(state_gpu, _other.state_gpu); // use the default CUDA stream
+        Copy_State_Kernel<<<1, WF_GPU_THREADS_PER_BLOCK>>>(state_gpu, _other.state_gpu); // use the default CUDA stream
         gpuErrChk(cudaPeekAtLastError());
         gpuErrChk(cudaDeviceSynchronize());
         return *this;

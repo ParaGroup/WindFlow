@@ -507,9 +507,9 @@ public:
             gpuErrChk(cudaMalloc(&(dist_keys_gpu[id_r]), sizeof(key_t) * _output->original_size));
             gpuErrChk(cudaMalloc(&(sequence_gpu[id_r]), sizeof(int) * _output->original_size));
         }
-        int num_blocks = std::min((int) ceil(((double) _output->size) / WF_GPU_DEFAULT_THREADS_PER_BLOCK), numSMs * max_blocks_per_sm);
+        int num_blocks = std::min((int) ceil(((double) _output->size) / WF_GPU_THREADS_PER_BLOCK), numSMs * max_blocks_per_sm);
         Extract_Dests_Kernel<key_extractor_func_t, decltype(get_tuple_t_KeyExtrGPU(key_extr)), decltype(get_key_t_KeyExtrGPU(key_extr))>
-                            <<<num_blocks, WF_GPU_DEFAULT_THREADS_PER_BLOCK, 0, _output->cudaStream>>>(_output->data_u,
+                            <<<num_blocks, WF_GPU_THREADS_PER_BLOCK, 0, _output->cudaStream>>>(_output->data_u,
                                                                                                        keys_gpu[id_r],
                                                                                                        sequence_gpu[id_r],
                                                                                                        _output->size,
@@ -522,7 +522,7 @@ public:
                             th_keys_gpu + _output->size,
                             th_sequence_gpu);
         Compute_Mapping_Kernel<decltype(get_key_t_KeyExtrGPU(key_extr))>
-                              <<<num_blocks, WF_GPU_DEFAULT_THREADS_PER_BLOCK, 0, _output->cudaStream>>>(keys_gpu[id_r],
+                              <<<num_blocks, WF_GPU_THREADS_PER_BLOCK, 0, _output->cudaStream>>>(keys_gpu[id_r],
                                                                                                          sequence_gpu[id_r],
                                                                                                          _output->map_idxs_u,
                                                                                                          _output->size);

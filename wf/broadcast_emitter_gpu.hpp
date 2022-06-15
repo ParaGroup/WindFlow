@@ -37,7 +37,7 @@
 #define BD_EMITTER_GPU_H
 
 // includes
-#if !defined (WF_GPU_UNIFIED_MEMORY)
+#if !defined (WF_GPU_UNIFIED_MEMORY) && !defined (WF_GPU_PINNED_MEMORY)
     #include<batch_gpu_t.hpp>
 #else
     #include<batch_gpu_t_u.hpp>
@@ -185,7 +185,7 @@ public:
         (_output->delete_counter).fetch_add(num_dests-1);
         assert((_output->watermarks).size() == 1); // sanity check
         (_output->watermarks).insert((_output->watermarks).end(), num_dests-1, (_output->watermarks)[0]); // copy the watermark (having one per destination)
-#if !defined (WF_GPU_UNIFIED_MEMORY)
+#if !defined (WF_GPU_UNIFIED_MEMORY) && !defined (WF_GPU_PINNED_MEMORY)
         _output->transfer2CPU(); // starting the transfer of the batch items to a host pinned memory array
 #else
         _output->prefetch2CPU(false); // prefetch batch items to be efficiently accessible by the host side

@@ -40,7 +40,7 @@
 /// includes
 #include<string>
 #include<pthread.h>
-#if !defined (WF_GPU_UNIFIED_MEMORY)
+#if !defined (WF_GPU_UNIFIED_MEMORY) && !defined(WF_GPU_PINNED_MEMORY)
     #include<batch_gpu_t.hpp>
 #else
     #include<batch_gpu_t_u.hpp>
@@ -346,7 +346,7 @@ public:
         else {
             record->resize(input->original_size);
         }
-#if !defined (WF_GPU_UNIFIED_MEMORY)
+#if !defined (WF_GPU_UNIFIED_MEMORY) && !defined (WF_GPU_PINNED_MEMORY)
         key_t *dist_keys = reinterpret_cast<key_t *>(input->dist_keys_cpu);
 #else
         key_t *dist_keys = reinterpret_cast<key_t *>(input->dist_keys);
@@ -368,36 +368,55 @@ public:
                                   input->num_dist_keys * sizeof(state_t *),
                                   cudaMemcpyHostToDevice,
                                   input->cudaStream));
-        int warps_per_block = ((max_threads_per_sm / max_blocks_per_sm) / threads_per_warp); // launch the kernel to compute the results
+        // **************************** Hyrbid Version with TLP and WLP **************************** //
+        int warps_per_block = ((max_threads_per_sm / max_blocks_per_sm) / threads_per_warp);
         int tot_num_warps = warps_per_block * max_blocks_per_sm * numSMs;
-        int32_t x = (int32_t) std::ceil(((double) input->num_dist_keys) / tot_num_warps); // compute how many threads should be active per warps
+        int32_t x = (int32_t) std::ceil(((double) input->num_dist_keys) / tot_num_warps);
         if (x > 1) {
             x = next_power_of_two(x);
         }
         int num_active_thread_per_warp = std::min(x, threads_per_warp);
         int num_blocks = std::min((int) ceil(((double) input->num_dist_keys) / warps_per_block), numSMs * max_blocks_per_sm);
+        int threads_per_block = warps_per_block*threads_per_warp;
+        // ***************************************************************************************** //
+#if defined (WF_GPU_TLP_ONLY)
+        // ************************ Version with Thread-Level Parallelism ************************** //
+        num_blocks = std::min((int) ceil(((double) input->num_dist_keys) / WF_GPU_THREADS_PER_BLOCK), numSMs * max_blocks_per_sm);
+        threads_per_block = WF_GPU_THREADS_PER_BLOCK;
+        num_active_thread_per_warp = 32;
+        // ***************************************************************************************** //
+#endif
+#if defined (WF_GPU_WLP_ONLY)
+        // ************************** Version with Warp-level Parallelism ************************** //
+        warps_per_block = ((max_threads_per_sm / max_blocks_per_sm) / threads_per_warp);
+        tot_num_warps = warps_per_block * max_blocks_per_sm * numSMs;
+        num_active_thread_per_warp = 1;
+        num_blocks = std::min((int) ceil(((double) input->num_dist_keys) / warps_per_block), numSMs * max_blocks_per_sm);
+        threads_per_block = warps_per_block*threads_per_warp;
+        // ***************************************************************************************** //
+#endif
         if (pthread_spin_lock(spinlock) != 0) { // acquire the lock
             std::cerr << RED << "WindFlow Error: pthread_spin_lock() failed in Map_GPU" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-#if !defined (WF_GPU_UNIFIED_MEMORY)
+#if !defined (WF_GPU_UNIFIED_MEMORY) && !defined (WF_GPU_PINNED_MEMORY)
         Stateful_MAPGPU_Kernel<decltype(get_tuple_t_MapGPU(func)), decltype(get_state_t_MapGPU(func)), mapgpu_func_t>
-                              <<<num_blocks, warps_per_block*threads_per_warp, 0, input->cudaStream>>>(input->data_gpu,
-                                                                                                       input->map_idxs_gpu,
-                                                                                                       input->start_idxs_gpu,
-                                                                                                       record->state_ptrs_gpu,
-                                                                                                       input->num_dist_keys,
-                                                                                                       num_active_thread_per_warp,
-                                                                                                       func);
+                              <<<num_blocks, threads_per_block, 0, input->cudaStream>>>(input->data_gpu,
+                                                                                        input->map_idxs_gpu,
+                                                                                        input->start_idxs_gpu,
+                                                                                        record->state_ptrs_gpu,
+                                                                                        input->num_dist_keys,
+                                                                                        num_active_thread_per_warp,
+                                                                                        func);
 #else
         Stateful_MAPGPU_Kernel<decltype(get_tuple_t_MapGPU(func)), decltype(get_state_t_MapGPU(func)), mapgpu_func_t>
-                              <<<num_blocks, warps_per_block*threads_per_warp, 0, input->cudaStream>>>(input->data_u,
-                                                                                                       input->map_idxs_u,
-                                                                                                       input->start_idxs_u,
-                                                                                                       record->state_ptrs_gpu,
-                                                                                                       input->num_dist_keys,
-                                                                                                       num_active_thread_per_warp,
-                                                                                                       func);                              
+                              <<<num_blocks, threads_per_block, 0, input->cudaStream>>>(input->data_u,
+                                                                                        input->map_idxs_u,
+                                                                                        input->start_idxs_u,
+                                                                                        record->state_ptrs_gpu,
+                                                                                        input->num_dist_keys,
+                                                                                        num_active_thread_per_warp,
+                                                                                        func);                              
 #endif
         gpuErrChk(cudaPeekAtLastError());
         gpuErrChk(cudaStreamSynchronize(input->cudaStream));
@@ -622,26 +641,45 @@ public:
         stats_record.outputs_sent += input->size;
         stats_record.bytes_sent += input->size * sizeof(tuple_t);
 #endif
-        int warps_per_block = ((max_threads_per_sm / max_blocks_per_sm) / threads_per_warp); // launch the kernel to compute the results
+        // **************************** Hyrbid Version with TLP and WLP **************************** //
+        int warps_per_block = ((max_threads_per_sm / max_blocks_per_sm) / threads_per_warp);
         int tot_num_warps = warps_per_block * max_blocks_per_sm * numSMs;
-        int32_t x = (int32_t) ceil(((double) (input->size)) / tot_num_warps); // compute how many threads should be active per warps
+        int32_t x = (int32_t) ceil(((double) (input->size)) / tot_num_warps);
         if (x > 1) {
             x = next_power_of_two(x);
         }
         int num_active_thread_per_warp = std::min(x, threads_per_warp);
         int num_blocks = std::min((int) ceil(((double) (input->size)) / warps_per_block), numSMs * max_blocks_per_sm);
-#if !defined (WF_GPU_UNIFIED_MEMORY)
+        int threads_per_block = warps_per_block*threads_per_warp;
+        // ***************************************************************************************** //
+#if defined (WF_GPU_TLP_ONLY)
+        // ************************ Version with Thread-Level Parallelism ************************** //
+        num_blocks = std::min((int) ceil(((double) input->size) / WF_GPU_THREADS_PER_BLOCK), numSMs * max_blocks_per_sm);
+        threads_per_block = WF_GPU_THREADS_PER_BLOCK;
+        num_active_thread_per_warp = 32;
+        // ***************************************************************************************** //
+#endif
+#if defined (WF_GPU_WLP_ONLY)
+        // ************************** Version with Warp-level Parallelism ************************** //
+        warps_per_block = ((max_threads_per_sm / max_blocks_per_sm) / threads_per_warp);
+        tot_num_warps = warps_per_block * max_blocks_per_sm * numSMs;
+        num_active_thread_per_warp = 1;
+        num_blocks = std::min((int) ceil(((double) input->size) / warps_per_block), numSMs * max_blocks_per_sm);
+        threads_per_block = warps_per_block*threads_per_warp;
+        // ***************************************************************************************** //
+#endif
+#if !defined (WF_GPU_UNIFIED_MEMORY) && !defined (WF_GPU_PINNED_MEMORY)
         Stateless_MAPGPU_Kernel<decltype(get_tuple_t_MapGPU(func)), mapgpu_func_t>
-                               <<<num_blocks, warps_per_block*threads_per_warp, 0, input->cudaStream>>>(input->data_gpu,
-                                                                                                        input->size,
-                                                                                                        num_active_thread_per_warp,
-                                                                                                        func);
+                               <<<num_blocks, threads_per_block, 0, input->cudaStream>>>(input->data_gpu,
+                                                                                         input->size,
+                                                                                         num_active_thread_per_warp,
+                                                                                         func);
 #else
         Stateless_MAPGPU_Kernel<decltype(get_tuple_t_MapGPU(func)), mapgpu_func_t>
-                               <<<num_blocks, warps_per_block*threads_per_warp, 0, input->cudaStream>>>(input->data_u,
-                                                                                                        input->size,
-                                                                                                        num_active_thread_per_warp,
-                                                                                                        func);
+                               <<<num_blocks, threads_per_block, 0, input->cudaStream>>>(input->data_u,
+                                                                                         input->size,
+                                                                                         num_active_thread_per_warp,
+                                                                                         func);
 #endif
         gpuErrChk(cudaPeekAtLastError());
         gpuErrChk(cudaStreamSynchronize(input->cudaStream)); // <-- I think that this one is not really needed!

@@ -246,6 +246,7 @@ inline Batch_CPU_t<tuple_t> *allocateBatch_CPU_t(size_t _reserved_size,
                                                  ff::MPMC_Ptr_Queue *_queue)
 {
     Batch_CPU_t<tuple_t> *batch_input = nullptr;
+#if !defined (WF_NO_RECYCLING)
     if (_queue != nullptr) {
         if (!_queue->pop((void **) &batch_input)) { // create a new batch
             batch_input = new Batch_CPU_t<tuple_t>(_reserved_size);
@@ -261,6 +262,10 @@ inline Batch_CPU_t<tuple_t> *allocateBatch_CPU_t(size_t _reserved_size,
         batch_input = new Batch_CPU_t<tuple_t>(_reserved_size);
         return batch_input;
     }
+#else
+    batch_input = new Batch_CPU_t<tuple_t>(_reserved_size);
+    return batch_input;
+#endif
 }
 
 } // namespace wf

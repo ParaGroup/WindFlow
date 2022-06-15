@@ -1,5 +1,5 @@
 /**************************************************************************************
- *  Copyright (c) 2019- Gabriele Mencagli
+ *  Copyright (c) 2019- Gabriele Mencagli and Elia Ruggeri
  *  
  *  This file is part of WindFlow.
  *  
@@ -23,7 +23,7 @@
 
 /** 
  *  @file    flatfat.hpp
- *  @author  Elia Ruggeri and Gabriele Mencagli
+ *  @author  Gabriele Mencagli and Elia Ruggeri
  *  
  *  @brief Flat Fixed-size Aggregator Tree
  *  

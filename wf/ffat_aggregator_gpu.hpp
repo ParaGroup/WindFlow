@@ -1,5 +1,5 @@
 /**************************************************************************************
- *  Copyright (c) 2019- Gabriele Mencagli
+ *  Copyright (c) 2019- Gabriele Mencagli and Elia Ruggeri
  *  
  *  This file is part of WindFlow.
  *  
@@ -23,7 +23,7 @@
 
 /** 
  *  @file    ffat_aggregator_gpu.hpp
- *  @author  Gabriele Mencagli
+ *  @author  Gabriele Mencagli and Elia Ruggeri
  *  
  *  @brief FFAT_Aggregator_GPU supporting associative and commutative windowed queries on GPU
  *  

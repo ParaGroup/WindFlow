@@ -20,6 +20,11 @@ SOURCE
 void(Source_Shipper<tuple_t> &);
 void(Source_Shipper<tuple_t> &, RuntimeContext &);
 
+KAFKA_SOURCE
+------------
+bool(std::optional<std::reference_wrapper<RdKafka::Message>>, Source_Shipper<result_t> &);
+bool(std::optional<std::reference_wrapper<RdKafka::Message>>, Source_Shipper<result_t> &, KafkaRuntimeContext &);
+
 FILTER
 ------
 bool(tuple_t &);
@@ -124,9 +129,18 @@ void(std::optional<tuple_t> &, RuntimeContext &);
 void(std::optional<std::reference_wrapper<tuple_t>>);
 void(std::optional<std::reference_wrapper<tuple_t>>, RuntimeContext &);
 
+KAFKA_SINK
+----------
+wf::wf_kafka_sink_msg(tuple_t &);
+wf::wf_kafka_sink_msg(tuple_t &, KafkaRuntimeContext &);
+
 CLOSING LOGIC
 -------------
 void(RuntimeContext &);
+
+CLOSING LOGIC (Kafka Operators)
+-------------------------------
+void(KafkaRuntimeContext &);
 
 KEY EXTRACTOR
 -------------

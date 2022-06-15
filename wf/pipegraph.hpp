@@ -587,8 +587,8 @@ public:
      *  \param _source Source operator to be added
      *  \return reference to a MultiPipe object to be filled with operators fed by this Source
      */ 
-    template<typename source_func_t>
-    MultiPipe &add_source(const Source<source_func_t> &_source)
+    template<typename source_t>
+    MultiPipe &add_source(const source_t &_source)
     {
         MultiPipe *mp = new MultiPipe(this, execution_mode, time_policy, &atomic_num_dropped, &globalOpList); // create an empty MultiPipe
 #if defined (WF_TRACING_ENABLED)
@@ -669,6 +669,14 @@ public:
         std::cout << "--> WindFlow tracing " << GREEN << "enabled" << DEFAULT_COLOR << std::endl;
         MonitoringThread mt(this); // start the monitoring thread connecting with the Web DashBoard
         mt_thread = std::thread(mt);
+#endif
+#if defined (__CUDACC__)
+        int max_threads_per_block = 0;
+        gpuErrChk(cudaDeviceGetAttribute(&max_threads_per_block, cudaDevAttrMaxThreadsPerBlock, 0)); // device_id = 0
+        if (WF_GPU_THREADS_PER_BLOCK > max_threads_per_block) {
+                std::cerr << RED << "WindFlow Error: block size (" << WF_GPU_THREADS_PER_BLOCK << ") exceeds the maximum supported by the GPU (" << max_threads_per_block << ")" << DEFAULT_COLOR << std::endl;
+                exit(EXIT_FAILURE);
+        }
 #endif
         for (auto *an: root->children) { // run all the topmost MultiPipe instances
             int status = (an->mp)->run();

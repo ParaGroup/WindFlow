@@ -90,6 +90,10 @@ enum class Routing_Mode_t { NONE, FORWARD, KEYBY, BROADCAST };
 template<typename source_func_t>
 class Source;
 
+/// Forward declaration of the Kafka_Source operator
+template<typename kafka_deser_func_t>
+class Kafka_Source;
+
 /// Forward declaration of the Filter operator
 template<typename filter_func_t, typename key_extractor_func_t>
 class Filter;
@@ -109,6 +113,10 @@ class Reduce;
 /// Forward declaration of the Sink operator
 template<typename sink_func_t, typename key_extractor_func_t>
 class Sink;
+
+/// Forward declaration of the Kafka_Sink operator
+template<typename kafka_ser_func_t, typename key_extractor_func_t>
+class Kafka_Sink;
 
 /// Forward declaration of the Keyed_Windows operator
 template<typename win_func_t, typename key_extractor_func_t>
@@ -142,16 +150,24 @@ class RuntimeContext;
 //@cond DOXY_IGNORE
 
 // Default capacity of vectors used internally by the library
-#define WF_DEFAULT_VECTOR_CAPACITY 500
+#if !defined (WF_DEFAULT_VECTOR_CAPACITY)
+    #define WF_DEFAULT_VECTOR_CAPACITY 500
+#endif
 
 // Default interval time to update the atomic counter of dropped tuples
-#define WF_DEFAULT_DROP_INTERVAL_USEC 100000
+#if !defined (WF_DEFAULT_DROP_INTERVAL_USEC)
+    #define WF_DEFAULT_DROP_INTERVAL_USEC 100000
+#endif
 
 // Default interval time to generate punctuations conveying watermarks
-#define WF_DEFAULT_WM_INTERVAL_USEC 100000
+#if !defined (WF_DEFAULT_WM_INTERVAL_USEC)
+    #define WF_DEFAULT_WM_INTERVAL_USEC 100000
+#endif
 
 // Default number of inputs to generate punctuations coveying watermarks
-#define WF_DEFAULT_WM_AMOUNT 1000
+#if !defined (WF_DEFAULT_WM_AMOUNT)
+    #define WF_DEFAULT_WM_AMOUNT 1000
+#endif
 
 // Defines useful for strings
 #define STRINGIFY(x) XSTRINGIFY(x)

@@ -9,6 +9,7 @@ RUN apt-get -y update &&\
     apt-get --no-install-recommends install -y doxygen &&\
     apt-get --no-install-recommends install -y hwloc &&\
     apt-get --no-install-recommends install -y wget &&\
+    apt-get --no-install-recommends install -y librdkafka-dev &&\
     rm -rf /var/lib/apt/lists/*
 
 # Using a sufficiently recent version of cmake

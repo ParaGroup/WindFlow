@@ -37,7 +37,6 @@
 #include<random>
 #include<iostream>
 #include<math.h>
-#include<ff/ff.hpp>
 #include<windflow.hpp>
 #include"win_common.hpp"
 

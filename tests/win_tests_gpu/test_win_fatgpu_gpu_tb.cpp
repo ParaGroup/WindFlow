@@ -38,7 +38,6 @@
 #include<random>
 #include<iostream>
 #include<math.h>
-#include<ff/ff.hpp>
 #include<windflow.hpp>
 #include<windflow_gpu.hpp>
 #include"win_common_gpu.hpp"

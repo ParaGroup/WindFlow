@@ -48,7 +48,6 @@
 // include
 #include<random>
 #include<iostream>
-#include<ff/ff.hpp>
 #include<windflow.hpp>
 #include<windflow_gpu.hpp>
 #include"split_common_gpu.hpp"
