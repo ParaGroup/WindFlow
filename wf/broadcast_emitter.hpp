@@ -137,7 +137,7 @@ public:
     }
 
     // Move Assignment Operator
-    Broadcast_Emitter &operator=(Broadcast_Emitter &_other)
+    Broadcast_Emitter &operator=(Broadcast_Emitter &&_other)
     {
         key_extr = std::move(_other.key_extr);
         num_dests = _other.num_dests;

@@ -153,11 +153,17 @@ public:
 // Filter functor
 class Filter_Functor
 {
+private:
+    int mod;
+
 public:
+    // constructor
+    Filter_Functor(int _mod): mod(_mod) {}
+
     // operator()
     bool operator()(tuple_t &t)
     {
-        if (t.value % 2 == 0) {
+        if (t.value % mod == 0) {
             return true;
         }
         else {
@@ -169,12 +175,18 @@ public:
 // Filter functor with keyby distribution
 class Filter_Functor_KB
 {
+private:
+    int mod;
+
 public:
+    // constructor
+    Filter_Functor_KB(int _mod): mod(_mod) {}
+
     // operator()
     bool operator()(tuple_t &t, RuntimeContext &rc)
     {
         assert(t.key % rc.getParallelism() == rc.getReplicaIndex());
-        if (t.value % 2 == 0) {
+        if (t.value % mod == 0) {
             return true;
         }
         else {
@@ -186,11 +198,17 @@ public:
 // Filter functor on GPU
 class Filter_Functor_GPU
 {
+private:
+    int mod;
+
 public:
+    // constructor
+    Filter_Functor_GPU(int _mod): mod(_mod) {}
+
     // operator()
     __device__ bool operator()(tuple_t &t)
     {
-        if (t.value % 2 == 0) {
+        if (t.value % mod == 0) {
             return true;
         }
         else {
@@ -202,12 +220,18 @@ public:
 // Filter functor on GPU with keyby distribution
 class Filter_Functor_GPU_KB
 {
+private:
+    int mod;
+
 public:
+    // constructor
+    Filter_Functor_GPU_KB(int _mod): mod(_mod) {}
+
     // operator()
     __device__ bool operator()(tuple_t &t, filter_state_t &state)
     {
         state.counter++;
-        if (t.value % 2 == 0) {
+        if (t.value % mod == 0) {
             return true;
         }
         else {

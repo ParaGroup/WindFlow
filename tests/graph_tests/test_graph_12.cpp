@@ -22,7 +22,7 @@
  */
 
 /*  
- *  Test 1 of general graphs of operators.
+ *  Test 12 of general graphs of operators.
  *  
  *  +---------------------+                         +-----------+
  *  |  +-----+   +-----+  |                         |  +-----+  |
@@ -89,14 +89,16 @@ int main(int argc, char *argv[])
     int map1_degree, map2_degree, filter_degree, sink1_degree, sink2_degree;
     size_t source1_degree = dist_p(rng);
     size_t source2_degree = dist_p(rng);
+    sink1_degree = dist_p(rng);
+    sink2_degree = dist_p(rng);
     long last_result = 0;
     // executes the runs in DEFAULT mode
     for (size_t i=0; i<runs; i++) {
         map1_degree = dist_p(rng);
         map2_degree = dist_p(rng);
         filter_degree = dist_p(rng);
-        sink1_degree = dist_p(rng);
-        sink2_degree = dist_p(rng);
+        // sink1_degree = dist_p(rng);
+        // sink2_degree = dist_p(rng);
         cout << "Run " << i << endl;
         cout << "+---------------------+                         +-----------+" << endl;
         cout << "|  +-----+   +-----+  |                         |  +-----+  |" << endl;
@@ -123,7 +125,7 @@ int main(int argc, char *argv[])
         check_degree += filter_degree;
         check_degree += (sink1_degree + sink2_degree);
         // prepare the test
-        PipeGraph graph("test_graph_1 (DEFAULT)", Execution_Mode_t::DEFAULT, Time_Policy_t::EVENT_TIME);
+        PipeGraph graph("test_graph_12 (DEFAULT)", Execution_Mode_t::DEFAULT, Time_Policy_t::EVENT_TIME);
         // prepare the first MultiPipe
         Source_Positive_Functor source_functor_positive(stream_len, n_keys, true);
         Source source1 = Source_Builder(source_functor_positive)
@@ -178,6 +180,7 @@ int main(int argc, char *argv[])
         Sink sink1 = Sink_Builder(sink_functor1)
                         .withName("sink1")
                         .withParallelism(sink1_degree)
+                        .withBroadcast()
                         .build();
         pipe4.chain_sink(sink1);
         // prepare the fifth MultiPipe
@@ -186,6 +189,7 @@ int main(int argc, char *argv[])
         Sink sink2 = Sink_Builder(sink_functor2)
                         .withName("sink2")
                         .withParallelism(sink2_degree)
+                        .withBroadcast()
                         .build();
         pipe5.chain_sink(sink2);
         assert(graph.getNumThreads() == check_degree);
@@ -211,8 +215,8 @@ int main(int argc, char *argv[])
         map1_degree = dist_p(rng);
         map2_degree = dist_p(rng);
         filter_degree = dist_p(rng);
-        sink1_degree = dist_p(rng);
-        sink2_degree = dist_p(rng);
+        // sink1_degree = dist_p(rng);
+        // sink2_degree = dist_p(rng);
         cout << "Run " << i << endl;
         cout << "+---------------------+                         +-----------+" << endl;
         cout << "|  +-----+   +-----+  |                         |  +-----+  |" << endl;
@@ -239,7 +243,7 @@ int main(int argc, char *argv[])
         check_degree += filter_degree;
         check_degree += (sink1_degree + sink2_degree);
         // prepare the test
-        PipeGraph graph("test_graph_1 (DETERMINISTIC)", Execution_Mode_t::DETERMINISTIC, Time_Policy_t::EVENT_TIME);
+        PipeGraph graph("test_graph_12 (DETERMINISTIC)", Execution_Mode_t::DETERMINISTIC, Time_Policy_t::EVENT_TIME);
         // prepare the first MultiPipe
         Source_Positive_Functor source_functor_positive(stream_len, n_keys, false);
         Source source1 = Source_Builder(source_functor_positive)
@@ -289,6 +293,7 @@ int main(int argc, char *argv[])
         Sink sink1 = Sink_Builder(sink_functor1)
                         .withName("sink1")
                         .withParallelism(sink1_degree)
+                        .withBroadcast()
                         .build();
         pipe4.chain_sink(sink1);
         // prepare the fifth MultiPipe
@@ -297,6 +302,7 @@ int main(int argc, char *argv[])
         Sink sink2 = Sink_Builder(sink_functor2)
                         .withName("sink2")
                         .withParallelism(sink2_degree)
+                        .withBroadcast()
                         .build();
         pipe5.chain_sink(sink2);
         assert(graph.getNumThreads() == check_degree);

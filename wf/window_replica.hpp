@@ -283,7 +283,7 @@ public:
     }
 
     // Move Assignment Operator
-    Window_Replica &operator=(Window_Replica &_other)
+    Window_Replica &operator=(Window_Replica &&_other)
     {
         func = std::move(_other.func);
         key_extr = std::move(_other.key_extr);

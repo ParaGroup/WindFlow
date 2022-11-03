@@ -85,17 +85,30 @@ WindFlow applications compiled with the macro <strong>-DWF_TRACING_ENABLED</stro
 From version 3.1.0, WindFlow is released with a double license: <strong>LGPL-3</strong> and <strong>MIT</strong>. Programmers should check the licenses of the other libraries used as dependencies.
 
 # Cite our Work
-In order to cite our work, we kindly ask interested people to use the following reference:
+In order to cite our work, we kindly ask interested people to use the following references:
 ```
-@article{9408386,
-  author={Mencagli, Gabriele and Torquati, Massimo and Cardaci, Andrea and Fais, Alessandra and Rinaldi, Luca and Danelutto, Marco},
-  journal={IEEE Transactions on Parallel and Distributed Systems},
-  title={WindFlow: High-Speed Continuous Stream Processing With Parallel Building Blocks},
-  year={2021},
-  volume={32},
-  number={11},
-  pages={2748-2763},
-  doi={10.1109/TPDS.2021.3073970}
+@article{WindFlow,
+ author={Mencagli, Gabriele and Torquati, Massimo and Cardaci, Andrea and Fais, Alessandra and Rinaldi, Luca and Danelutto, Marco},
+ journal={IEEE Transactions on Parallel and Distributed Systems},
+ title={WindFlow: High-Speed Continuous Stream Processing With Parallel Building Blocks},
+ year={2021},
+ volume={32},
+ number={11},
+ pages={2748-2763},
+ doi={10.1109/TPDS.2021.3073970}
+}
+```
+
+```
+@inproceedings{WindFlow-GPU,
+ author={Mencagli, Gabriele and Griebler, Dalvan and Danelutto, Marco},
+ booktitle={2022 30th Euromicro International Conference on Parallel, Distributed and Network-based Processing (PDP)}, 
+ title={Towards Parallel Data Stream Processing on System-on-Chip CPU+GPU Devices}, 
+ year={2022},
+ volume={},
+ number={},
+ pages={34-38},
+ doi={10.1109/PDP55904.2022.00014}
 }
 ```
 

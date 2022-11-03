@@ -72,6 +72,7 @@ private:
     std::function<void(RuntimeContext &)> closing_func; // closing functional logic used by the Sink replica
     bool terminated; // true if the Sink replica has finished its work
     Execution_Mode_t execution_mode; // execution mode of the Sink replica
+    bool copyOnWrite; // flag stating if a copy of each input must be done in case of in-place semantics
 #if defined (WF_TRACING_ENABLED)
     Stats_Record stats_record;
     double avg_td_us = 0;
@@ -84,14 +85,16 @@ public:
     Sink_Replica(sink_func_t _func,
                  std::string _opName,
                  RuntimeContext _context,
-                 std::function<void(RuntimeContext &)> _closing_func):
+                 std::function<void(RuntimeContext &)> _closing_func,
+                 bool _copyOnWrite):
                  func(_func),
                  opName(_opName),
                  input_batching(false),
                  context(_context),
                  closing_func(_closing_func),
                  terminated(false),
-                 execution_mode(Execution_Mode_t::DEFAULT) {}
+                 execution_mode(Execution_Mode_t::DEFAULT),
+                 copyOnWrite(_copyOnWrite) {}
 
     // svc_init (utilized by the FastFlow runtime)
     int svc_init() override
@@ -122,7 +125,13 @@ public:
             stats_record.bytes_received += batch_input->getSize() * sizeof(tuple_t);
 #endif
             for (size_t i=0; i<batch_input->getSize(); i++) { // process all the inputs within the received batch
-                process_input(batch_input->getTupleAtPos(i), batch_input->getTimestampAtPos(i), batch_input->getWatermark(context.getReplicaIndex()));
+                if (copyOnWrite) {
+                    tuple_t t = batch_input->getTupleAtPos(i);
+                    process_input(t, batch_input->getTimestampAtPos(i), batch_input->getWatermark(context.getReplicaIndex()));
+                }
+                else {
+                    process_input(batch_input->getTupleAtPos(i), batch_input->getTimestampAtPos(i), batch_input->getWatermark(context.getReplicaIndex()));
+                }
             }
             deleteBatch_t(batch_input); // delete the input batch
         }
@@ -136,7 +145,13 @@ public:
             stats_record.inputs_received++;
             stats_record.bytes_received += sizeof(tuple_t);
 #endif
-            process_input(input->tuple, input->getTimestamp(), input->getWatermark(context.getReplicaIndex()));
+            if (copyOnWrite) {
+                tuple_t t = input->tuple;
+                process_input(t, input->getTimestamp(), input->getWatermark(context.getReplicaIndex()));
+            }
+            else {
+                process_input(input->tuple, input->getTimestamp(), input->getWatermark(context.getReplicaIndex()));
+            }
             deleteSingle_t(input); // delete the input Single_t
         }
 #if defined (WF_TRACING_ENABLED)
@@ -390,7 +405,8 @@ public:
             exit(EXIT_FAILURE);
         }
         for (size_t i=0; i<parallelism; i++) { // create the internal replicas of the Sink
-            replicas.push_back(new Sink_Replica<sink_func_t>(_func, name, RuntimeContext(parallelism, i), _closing_func));
+            bool copyOnWrite = (_input_routing_mode == Routing_Mode_t::BROADCAST);
+            replicas.push_back(new Sink_Replica<sink_func_t>(_func, name, RuntimeContext(parallelism, i), _closing_func, copyOnWrite));
         }
     }
 

@@ -186,7 +186,7 @@ public:
     }
 
     // Move Assignment Operator
-    Reduce_Replica &operator=(Reduce_Replica &_other)
+    Reduce_Replica &operator=(Reduce_Replica &&_other)
     {
         func = std::move(_other.func);
         key_extr = std::move(_other.key_extr);

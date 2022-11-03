@@ -169,7 +169,7 @@ public:
     }
 
     // Move Assignment Operator
-    KeyBy_Emitter &operator=(KeyBy_Emitter &_other)
+    KeyBy_Emitter &operator=(KeyBy_Emitter &&_other)
     {
         key_extr = std::move(_other.key_extr);
         num_dests = _other.num_dests;

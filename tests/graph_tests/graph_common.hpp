@@ -128,11 +128,17 @@ public:
 // Filter functor
 class Filter_Functor
 {
+private:
+    int mod;
+
 public:
+    // constructor
+    Filter_Functor(int _mod): mod(_mod) {}
+
     // operator()
     bool operator()(tuple_t &t)
     {
-        if (t.value % 2 == 0) {
+        if (t.value % mod == 0) {
             return true;
         }
         else {
@@ -144,12 +150,18 @@ public:
 // Filter functor with keyby distribution
 class Filter_Functor_KB
 {
+private:
+    int mod;
+
 public:
+    // constructor
+    Filter_Functor_KB(int _mod): mod(_mod) {}
+
     // operator()
     bool operator()(tuple_t &t, RuntimeContext &rc)
     {
         assert(t.key % rc.getParallelism() == rc.getReplicaIndex());
-        if (t.value % 2 == 0) {
+        if (t.value % mod == 0) {
             return true;
         }
         else {

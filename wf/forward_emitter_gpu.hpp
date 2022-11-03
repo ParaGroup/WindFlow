@@ -201,7 +201,7 @@ public:
     }
 
     // Move Assignment Operator
-    Forward_Emitter_GPU &operator=(Forward_Emitter_GPU &_other)
+    Forward_Emitter_GPU &operator=(Forward_Emitter_GPU &&_other)
     {
         key_extr = std::move(_other.key_extr);
         num_dests = _other.num_dests;

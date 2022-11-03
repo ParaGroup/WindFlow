@@ -265,7 +265,7 @@ public:
     }
 
     // Move Assignment Operator
-    FFAT_Replica &operator=(FFAT_Replica &_other)
+    FFAT_Replica &operator=(FFAT_Replica &&_other)
     {
         lift_func = std::move(_other.lift_func);
         comb_func = std::move(_other.comb_func);

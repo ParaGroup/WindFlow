@@ -313,7 +313,7 @@ public:
     }
 
     // Move Assignment Operator
-    KeyBy_Emitter_GPU &operator=(KeyBy_Emitter_GPU &_other)
+    KeyBy_Emitter_GPU &operator=(KeyBy_Emitter_GPU &&_other)
     {
         key_extr = std::move(_other.key_extr);
         num_dests = _other.num_dests;

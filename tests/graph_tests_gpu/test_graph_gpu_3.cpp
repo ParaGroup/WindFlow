@@ -199,7 +199,7 @@ int main(int argc, char *argv[])
         }, 2);
         // prepare the second MultiPipe
         MultiPipe &pipe2 = pipe1.select(0);
-        Filter_Functor_KB filter_functor1;
+        Filter_Functor_KB filter_functor1(4);
         Filter filter1 = Filter_Builder(filter_functor1)
                                 .withName("filter1")
                                 .withParallelism(filter1_degree)
@@ -225,7 +225,7 @@ int main(int argc, char *argv[])
         pipe3.chain(mapgpu3);
         // prepare the fourth MultiPipe
         MultiPipe &pipe4 = pipe2.select(1);
-        Filter_Functor_GPU_KB filter_functor_gpu2;
+        Filter_Functor_GPU_KB filter_functor_gpu2(6);
         Filter_GPU filtergpu2 = FilterGPU_Builder(filter_functor_gpu2)
                                     .withName("filtergpu2")
                                     .withParallelism(filter2_degree)
@@ -243,7 +243,7 @@ int main(int argc, char *argv[])
         pipe5.chain(mapgpu4);
         // prepare the sixth MultiPipe
         MultiPipe &pipe6 = pipe1.select(1);
-        Filter_Functor_KB filter_functor3;
+        Filter_Functor_KB filter_functor3(7);
         Filter filter3 = Filter_Builder(filter_functor3)
                                 .withName("filter3")
                                 .withParallelism(filter3_degree)

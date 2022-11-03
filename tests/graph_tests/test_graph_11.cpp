@@ -22,7 +22,7 @@
  */
 
 /*  
- *  Test 3 of general graphs of operators.
+ *  Test 11 of general graphs of operators.
  *                                                          +---------------------+
  *                                                          |  +-----+   +-----+  |
  *                                                          |  |  S  |   |  F  |  |
@@ -98,14 +98,16 @@ int main(int argc, char *argv[])
     int map1_degree, map2_degree, flatmap1_degree, filter1_degree, filter2_degree, filter3_degree, filter4_degree, sink1_degree;
     size_t source1_degree = dist_p(rng);
     size_t source2_degree = dist_p(rng);
+    filter1_degree = dist_p(rng);
+    filter2_degree = dist_p(rng);
     long last_result = 0;
     // executes the runs in DEFAULT mode
     for (size_t i=0; i<runs; i++) {
         map1_degree = dist_p(rng);
         map2_degree = dist_p(rng);
         flatmap1_degree = dist_p(rng);
-        filter1_degree = dist_p(rng);
-        filter2_degree = dist_p(rng);
+        // filter1_degree = dist_p(rng);
+        // filter2_degree = dist_p(rng);
         filter3_degree = dist_p(rng);
         filter4_degree = dist_p(rng);
         sink1_degree = dist_p(rng);
@@ -153,7 +155,7 @@ int main(int argc, char *argv[])
         }
         check_degree += sink1_degree;
         // prepare the test
-        PipeGraph graph("test_graph_3 (DEFAULT)", Execution_Mode_t::DEFAULT, Time_Policy_t::EVENT_TIME);
+        PipeGraph graph("test_graph_11 (DEFAULT)", Execution_Mode_t::DEFAULT, Time_Policy_t::EVENT_TIME);
         // prepare the first MultiPipe
         Source_Positive_Functor source_functor_positive(stream_len, n_keys, true);
         Source source1 = Source_Builder(source_functor_positive)
@@ -181,12 +183,12 @@ int main(int argc, char *argv[])
         }, 2);
         // prepare the second MultiPipe
         MultiPipe &pipe2 = pipe1.select(0);
-        Filter_Functor_KB filter_functor1(4);
+        Filter_Functor filter_functor1(4);
         Filter filter1 = Filter_Builder(filter_functor1)
                                 .withName("filter1")
                                 .withParallelism(filter1_degree)
-                                .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
                                 .withOutputBatchSize(dist_b(rng))
+                                .withBroadcast()
                                 .build();
         pipe2.chain(filter1);
         Map_Functor map_functor2;
@@ -198,12 +200,12 @@ int main(int argc, char *argv[])
         pipe2.chain(map2);
         // prepare the third MultiPipe
         MultiPipe &pipe3 = pipe1.select(1);
-        Filter_Functor_KB filter_functor2(5);
+        Filter_Functor filter_functor2(5);
         Filter filter2 = Filter_Builder(filter_functor2)
                                 .withName("filter2")
                                 .withParallelism(filter2_degree)
-                                .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
                                 .withOutputBatchSize(dist_b(rng))
+                                .withBroadcast()
                                 .build();
         pipe3.chain(filter2);
         // prepare the fourth MultiPipe
@@ -268,8 +270,8 @@ int main(int argc, char *argv[])
         map1_degree = dist_p(rng);
         map2_degree = dist_p(rng);
         flatmap1_degree = dist_p(rng);
-        filter1_degree = dist_p(rng);
-        filter2_degree = dist_p(rng);
+        // filter1_degree = dist_p(rng);
+        // filter2_degree = dist_p(rng);
         filter3_degree = dist_p(rng);
         filter4_degree = dist_p(rng);
         sink1_degree = dist_p(rng);
@@ -317,7 +319,7 @@ int main(int argc, char *argv[])
         }
         check_degree += sink1_degree;
         // prepare the test
-        PipeGraph graph("test_graph_3 (DETERMINISTIC)", Execution_Mode_t::DETERMINISTIC, Time_Policy_t::EVENT_TIME);
+        PipeGraph graph("test_graph_11 (DETERMINISTIC)", Execution_Mode_t::DETERMINISTIC, Time_Policy_t::EVENT_TIME);
         // prepare the first MultiPipe
         Source_Positive_Functor source_functor_positive(stream_len, n_keys, false);
         Source source1 = Source_Builder(source_functor_positive)
@@ -343,11 +345,11 @@ int main(int argc, char *argv[])
         }, 2);
         // prepare the second MultiPipe
         MultiPipe &pipe2 = pipe1.select(0);
-        Filter_Functor_KB filter_functor1(4);
+        Filter_Functor filter_functor1(4);
         Filter filter1 = Filter_Builder(filter_functor1)
                                 .withName("filter1")
                                 .withParallelism(filter1_degree)
-                                .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
+                                .withBroadcast()
                                 .build();
         pipe2.chain(filter1);
         Map_Functor map_functor2;
@@ -358,11 +360,11 @@ int main(int argc, char *argv[])
         pipe2.chain(map2);
         // prepare the third MultiPipe
         MultiPipe &pipe3 = pipe1.select(1);
-        Filter_Functor_KB filter_functor2(5);
+        Filter_Functor filter_functor2(5);
         Filter filter2 = Filter_Builder(filter_functor2)
                                 .withName("filter2")
                                 .withParallelism(filter2_degree)
-                                .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
+                                .withBroadcast()
                                 .build();
         pipe3.chain(filter2);
         // prepare the fourth MultiPipe

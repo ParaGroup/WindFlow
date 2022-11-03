@@ -75,6 +75,7 @@ private:
     size_t dropped_inputs; // number of "consecutive" dropped inputs
     uint64_t last_time_punct; // last time used to send punctuations
     Execution_Mode_t execution_mode; // execution mode of the Filter replica
+    bool copyOnWrite; // flag stating if a copy of each input must be done in case of in-place semantics
 #if defined (WF_TRACING_ENABLED)
     Stats_Record stats_record;
     double avg_td_us = 0;
@@ -87,7 +88,8 @@ public:
     Filter_Replica(filter_func_t _func,
                    std::string _opName,
                    RuntimeContext _context,
-                   std::function<void(RuntimeContext &)> _closing_func):
+                   std::function<void(RuntimeContext &)> _closing_func,
+                   bool _copyOnWrite):
                    func(_func),
                    opName(_opName),
                    input_batching(false),
@@ -96,7 +98,8 @@ public:
                    terminated(false),
                    emitter(nullptr),
                    dropped_inputs(0),
-                   execution_mode(Execution_Mode_t::DEFAULT) {}
+                   execution_mode(Execution_Mode_t::DEFAULT),
+                   copyOnWrite(_copyOnWrite) {}
 
     // Copy Constructor
     Filter_Replica(const Filter_Replica &_other):
@@ -107,7 +110,8 @@ public:
                    closing_func(_other.closing_func),
                    terminated(_other.terminated),
                    dropped_inputs(_other.dropped_inputs),
-                   execution_mode(_other.execution_mode)
+                   execution_mode(_other.execution_mode),
+                   copyOnWrite(_other.copyOnWrite)
     {
         if (_other.emitter == nullptr) {
             emitter = nullptr;
@@ -130,7 +134,8 @@ public:
                    terminated(_other.terminated),
                    emitter(std::exchange(_other.emitter, nullptr)),
                    dropped_inputs(_other.dropped_inputs),
-                   execution_mode(_other.execution_mode)
+                   execution_mode(_other.execution_mode),
+                   copyOnWrite(_other.copyOnWrite)
     {
 #if defined (WF_TRACING_ENABLED)
         stats_record = std::move(_other.stats_record);
@@ -166,6 +171,7 @@ public:
             }
             dropped_inputs = _other.dropped_inputs;
             execution_mode = _other.execution_mode;
+            copyOnWrite = _other.copyOnWrite;
 #if defined (WF_TRACING_ENABLED)
             stats_record = _other.stats_record;
 #endif
@@ -174,7 +180,7 @@ public:
     }
 
     // Move Assignment Operator
-    Filter_Replica &operator=(Filter_Replica &_other)
+    Filter_Replica &operator=(Filter_Replica &&_other)
     {
         func = std::move(_other.func);
         opName = std::move(_other.opName);
@@ -188,6 +194,7 @@ public:
         emitter = std::exchange(_other.emitter, nullptr);
         dropped_inputs = _other.dropped_inputs;
         execution_mode = _other.execution_mode;
+        copyOnWrite = _other.copyOnWrite;
 #if defined (WF_TRACING_ENABLED)
         stats_record = std::move(_other.stats_record);
 #endif
@@ -225,7 +232,13 @@ public:
             stats_record.bytes_received += batch_input->getSize() * sizeof(tuple_t);
 #endif
             for (size_t i=0; i<batch_input->getSize(); i++) { // process all the inputs within the received batch
-                process_input(batch_input->getTupleAtPos(i), batch_input->getTimestampAtPos(i), batch_input->getWatermark(context.getReplicaIndex()));
+                if (!copyOnWrite) {
+                    process_input(batch_input->getTupleAtPos(i), batch_input->getTimestampAtPos(i), batch_input->getWatermark(context.getReplicaIndex()));
+                }
+                else {
+                    tuple_t t = batch_input->getTupleAtPos(i);
+                    process_input(t, batch_input->getTimestampAtPos(i), batch_input->getWatermark(context.getReplicaIndex()));
+                }
             }
             deleteBatch_t(batch_input); // delete the input batch
         }
@@ -240,7 +253,14 @@ public:
             stats_record.inputs_received++;
             stats_record.bytes_received += sizeof(tuple_t);
 #endif
-            process_input(input);
+            if (!copyOnWrite) {
+                process_input(input);
+            }
+            else {
+                tuple_t t = input->tuple;
+                process_input(t, input->getTimestamp(), input->getWatermark(context.getReplicaIndex()));
+                deleteSingle_t(input); // delete the input Single_t
+            }
         }
 #if defined (WF_TRACING_ENABLED)
         endTS = current_time_nsecs();
@@ -557,8 +577,9 @@ public:
             std::cerr << RED << "WindFlow Error: Filter has parallelism zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
+        bool copyOnWrite = (_input_routing_mode == Routing_Mode_t::BROADCAST);
         for (size_t i=0; i<parallelism; i++) { // create the internal replicas of the Filter
-            replicas.push_back(new Filter_Replica<filter_func_t>(_func, name, RuntimeContext(parallelism, i), _closing_func));
+            replicas.push_back(new Filter_Replica<filter_func_t>(_func, name, RuntimeContext(parallelism, i), _closing_func, copyOnWrite));
         }
     }
 

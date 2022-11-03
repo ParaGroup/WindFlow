@@ -1,4 +1,5 @@
 /**************************************************************************************
+ * 
  *  Copyright (c) 2019- Gabriele Mencagli
  *  
  *  This file is part of WindFlow.
@@ -243,6 +244,10 @@ public:
         // static assert to check that new_key_t is default constructible
         static_assert(std::is_default_constructible<new_key_t>::value,
             "WindFlow Compilation Error - key type must be default constructible (Filter_Builder):\n");
+        if (input_routing_mode != Routing_Mode_t::FORWARD) {
+            std::cerr << RED << "WindFlow Error: withKeyBy() cannot be invoked more than one time in the same builder or after a withBroadcast()" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);         
+        }
         Filter_Builder<filter_func_t, new_key_t> new_builder(func);
         new_builder.name = name;
         new_builder.parallelism = parallelism;
@@ -251,6 +256,21 @@ public:
         new_builder.outputBatchSize = outputBatchSize;
         new_builder.closing_func = closing_func;
         return new_builder;
+    }
+
+    /** 
+     *  \brief Set the BROADCAST routing mode of inputs to the Filter
+     *  
+     *  \return a reference to the builder object
+     */ 
+    Filter_Builder<filter_func_t, key_t> withBroadcast()
+    {
+        if (input_routing_mode != Routing_Mode_t::FORWARD) {
+            std::cerr << RED << "WindFlow Error: withBroadcast() cannot be invoked more than one time in the same builder or after a withKeyBy()" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        input_routing_mode = Routing_Mode_t::BROADCAST;
+        return *this;
     }
 
     /** 
@@ -393,6 +413,10 @@ public:
         // static assert to check that new_key_t is default constructible
         static_assert(std::is_default_constructible<new_key_t>::value,
             "WindFlow Compilation Error - key type must be default constructible (Map_Builder):\n");
+        if (input_routing_mode != Routing_Mode_t::FORWARD) {
+            std::cerr << RED << "WindFlow Error: withKeyBy() cannot be invoked more than one time in the same builder or after a withBroadcast()" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);         
+        }
         Map_Builder<map_func_t, new_key_t> new_builder(func);
         new_builder.name = name;
         new_builder.parallelism = parallelism;
@@ -401,6 +425,21 @@ public:
         new_builder.outputBatchSize = outputBatchSize;
         new_builder.closing_func = closing_func;
         return new_builder;
+    }
+
+    /** 
+     *  \brief Set the BROADCAST routing mode of inputs to the Map
+     *  
+     *  \return a reference to the builder object
+     */ 
+    Map_Builder<map_func_t, key_t> withBroadcast()
+    {
+        if (input_routing_mode != Routing_Mode_t::FORWARD) {
+            std::cerr << RED << "WindFlow Error: withBroadcast() cannot be invoked more than one time in the same builder or after a withKeyBy()" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        input_routing_mode = Routing_Mode_t::BROADCAST;
+        return *this;
     }
 
     /** 
@@ -541,6 +580,10 @@ public:
         // static assert to check that new_key_t is default constructible
         static_assert(std::is_default_constructible<new_key_t>::value,
             "WindFlow Compilation Error - key type must be default constructible (FlatMap_Builder):\n");
+        if (input_routing_mode != Routing_Mode_t::FORWARD) {
+            std::cerr << RED << "WindFlow Error: withKeyBy() cannot be invoked more than one time in the same builder or after a withBroadcast()" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);         
+        }
         FlatMap_Builder<flatmap_func_t, new_key_t> new_builder(func);
         new_builder.name = name;
         new_builder.parallelism = parallelism;
@@ -549,6 +592,21 @@ public:
         new_builder.outputBatchSize = outputBatchSize;
         new_builder.closing_func = closing_func;
         return new_builder;
+    }
+
+    /** 
+     *  \brief Set the BROADCAST routing mode of inputs to the FlatMap
+     *  
+     *  \return a reference to the builder object
+     */ 
+    FlatMap_Builder<flatmap_func_t, key_t> withBroadcast()
+    {
+        if (input_routing_mode != Routing_Mode_t::FORWARD) {
+            std::cerr << RED << "WindFlow Error: withBroadcast() cannot be invoked more than one time in the same builder or after a withKeyBy()" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        input_routing_mode = Routing_Mode_t::BROADCAST;
+        return *this;
     }
 
     /** 
@@ -1987,6 +2045,10 @@ public:
         // static assert to check that new_key_t is default constructible
         static_assert(std::is_default_constructible<new_key_t>::value,
             "WindFlow Compilation Error - key type must be default constructible (Sink_Builder):\n");
+        if (input_routing_mode != Routing_Mode_t::FORWARD) {
+            std::cerr << RED << "WindFlow Error: withKeyBy() cannot be invoked more than one time in the same builder or after a withBroadcast()" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);         
+        }
         Sink_Builder<sink_func_t, new_key_t> new_builder(func);
         new_builder.name = name;
         new_builder.parallelism = parallelism;
@@ -1994,6 +2056,21 @@ public:
         new_builder.key_extr = _key_extr;
         new_builder.closing_func = closing_func;
         return new_builder;
+    }
+
+    /** 
+     *  \brief Set the BROADCAST routing mode of inputs to the Sink
+     *  
+     *  \return a reference to the builder object
+     */ 
+    Sink_Builder<sink_func_t, key_t> withBroadcast()
+    {
+        if (input_routing_mode != Routing_Mode_t::FORWARD) {
+            std::cerr << RED << "WindFlow Error: withBroadcast() cannot be invoked more than one time in the same builder or after a withKeyBy()" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        input_routing_mode = Routing_Mode_t::BROADCAST;
+        return *this;
     }
 
     /** 

@@ -217,7 +217,9 @@ public:
     }
 
     /** 
-     *  \brief Deliver a result (with an implicit timestamp)
+     *  \brief Send a new data item in the data-flow graph. Its timestamp is
+     *         automatically assigned by the runtime system. It can be used
+     *         with INGRESS_TIME policy only
      *  
      *  \param _r result to be delivered (copy semantics)
      */ 
@@ -228,8 +230,8 @@ public:
             startTD = current_time_nsecs();
         }
 #endif
-        if (time_policy != Time_Policy_t::INGRESS_TIME) { // push can be used with INGRESS_TIME only
-            std::cerr << RED << "WindFlow Error: generation with implicit timestamps requires INGRESS_TIME policy" << DEFAULT_COLOR << std::endl;
+        if (time_policy != Time_Policy_t::INGRESS_TIME) { // this push can be used with INGRESS_TIME policy only
+            std::cerr << RED << "WindFlow Error: push(result_t) requires INGRESS_TIME policy" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         uint64_t timestamp = current_time_usecs() - initial_time_us; // calculate the timestamp
@@ -254,7 +256,9 @@ public:
     }
 
     /** 
-     *  \brief Deliver a result (with an implicit timestamp)
+     *  \brief Send a new data item in the data-flow graph. Its timestamp is
+     *         automatically assigned by the runtime system. It can be used
+     *         with INGRESS_TIME policy only
      *  
      *  \param _r result to be delivered (move semantics)
      */ 
@@ -265,8 +269,8 @@ public:
             startTD = current_time_nsecs();
         }
 #endif
-        if (time_policy != Time_Policy_t::INGRESS_TIME) { // push can be used with INGRESS_TIME only
-            std::cerr << RED << "WindFlow Error: generation with implicit timestamps requires INGRESS_TIME policy" << DEFAULT_COLOR << std::endl;
+        if (time_policy != Time_Policy_t::INGRESS_TIME) { // this push can be used with INGRESS_TIME policy only
+            std::cerr << RED << "WindFlow Error: push(result_t) requires INGRESS_TIME policy" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         uint64_t timestamp = current_time_usecs() - initial_time_us; // calculate the timestamp
@@ -290,7 +294,8 @@ public:
     }
 
     /** 
-     *  \brief Deliver a result (with a user-defined timestamp)
+     *  \brief Send a new data item in the data-flow graph. Its timestamp is
+     *         user defined. It can be used with EVENT_TIME policy only
      *  
      *  \param _r result to be delivered (copy semantics)
      *  \param _ts timestamp value (in microseconds starting from zero)
@@ -303,8 +308,8 @@ public:
             startTD = current_time_nsecs();
         }
 #endif
-        if (time_policy != Time_Policy_t::EVENT_TIME) { // pushWithTimestamp can be used with EVENT_TIME only
-            std::cerr << RED << "WindFlow Error: generation with explicit timestamps requires EVENT_TIME policy" << DEFAULT_COLOR << std::endl;
+        if (time_policy != Time_Policy_t::EVENT_TIME) { // this pushWithTimestamp can be used with EVENT_TIME policy only
+            std::cerr << RED << "WindFlow Error: pushWithTimestamp(result_t, uint64_t) requires EVENT_TIME policy" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         if (_ts >= max_timestamp) { // check if it is the maximum timestamp emitted so far
@@ -331,7 +336,8 @@ public:
     }
 
     /** 
-     *  \brief Deliver a result (with a user-defined timestamp)
+     *  \brief Send a new data item in the data-flow graph. Its timestamp is
+     *         user defined. It can be used with EVENT_TIME policy only
      *  
      *  \param _r result to be delivered (move semantics)
      *  \param _ts timestamp value (in microseconds starting from zero)
@@ -344,8 +350,8 @@ public:
             startTD = current_time_nsecs();
         }
 #endif
-        if (time_policy != Time_Policy_t::EVENT_TIME) { // pushWithTimestamp can be used with EVENT_TIME only
-            std::cerr << RED << "WindFlow Error: generation with explicit timestamps requires EVENT_TIME policy" << DEFAULT_COLOR << std::endl;
+        if (time_policy != Time_Policy_t::EVENT_TIME) { // this pushWithTimestamp can be used with EVENT_TIME policy only
+            std::cerr << RED << "WindFlow Error: pushWithTimestamp(result_t, uint64_t) requires EVENT_TIME policy" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         if (_ts >= max_timestamp) { // check if it is the maximum timestamp emitted so far
@@ -371,16 +377,21 @@ public:
     }
 
     /** 
-     *  \brief Set the new watermark to be propagated with the next result
+     *  \brief Set the new watermark to be propagated with the next data item.
+     *         It can be used with DEFAULT execution mode and EVENT_TIME policy only
      *  
      *  \param _wm new watermark value (in microseconds starting from zero)
      */ 
     void setNextWatermark(uint64_t _wm)
     {
-        if (execution_mode != Execution_Mode_t::DEFAULT) { // check the execution mode of the PipeGraph
-            std::cerr << RED << "WindFlow Error: watermarks can be set only in DEFAULT mode" << DEFAULT_COLOR << std::endl;
+        if (execution_mode != Execution_Mode_t::DEFAULT) { // only DEFAULT mode
+            std::cerr << RED << "WindFlow Error: setNextWatermark(uint64_t) requires DEFAULT mode" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
+        if (time_policy != Time_Policy_t::EVENT_TIME) { // this emitWatermark can be used with EVENT_TIME policy only
+            std::cerr << RED << "WindFlow Error: setNextWatermark(uint64_t) requires EVENT_TIME policy" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }        
         if (_wm < watermark) { // check watermarks are monotonically increasing
             std::cerr << RED << "WindFlow Error: watermarks must be monotonically increasing" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
@@ -393,14 +404,61 @@ public:
     }
 
     /** 
-     *  \brief Emit an explicit punctuaction message converying a new watermark value
+     *  \brief Emit an explicit punctuaction message conveying a new user-defined
+     *         watermark value. It can be used with DEFAULT execution mode and
+     *         EVENT_TIME policy only
      *  
      *  \param _wm new watermark value (in microseconds starting from zero)
      */ 
     void emitWatermark(uint64_t _wm)
     {
-        setNextWatermark(_wm);
-        emitter->propagate_punctuation(_wm, node);
+        if (execution_mode != Execution_Mode_t::DEFAULT) { // only DEFAULT mode
+            std::cerr << RED << "WindFlow Error: emitWatermark(uint64_t) requires DEFAULT mode" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        if (time_policy != Time_Policy_t::EVENT_TIME) { // emitWatermark(uint64_t) can be used with EVENT_TIME policy only
+            std::cerr << RED << "WindFlow Error: emitWatermark(uint64_t) requires EVENT_TIME policy" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        if (_wm < watermark) { // check watermarks are monotonically increasing
+            std::cerr << RED << "WindFlow Error: watermarks must be monotonically increasing" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        if (_wm > max_timestamp) { // current watermark cannot be greater than the maximum emitted timestamp
+            std::cerr << RED << "WindFlow Error: watermark cannot be greater than the highest emitted timestamp" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        watermark = _wm;
+        emitter->propagate_punctuation(watermark, node);
+    }
+
+    /** 
+     *  \brief Emit an explicit punctuaction message conveying a new automatic
+     *         watermark value computed by the runtime system based on the current
+     *         system time. It can be used with DEFAULT execution mode and INGRESS_TIME
+     *         policy only
+     */ 
+    void emitWatermark()
+    {
+        if (execution_mode != Execution_Mode_t::DEFAULT) { // only DEFAULT mode
+            std::cerr << RED << "WindFlow Error: emitWatermark() requires DEFAULT mode" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        if (time_policy != Time_Policy_t::INGRESS_TIME) { // emitWatermark() can be used with INGRESS_TIME policy only
+            std::cerr << RED << "WindFlow Error: emitWatermark() requires INGRESS_TIME policy" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        uint64_t wm = current_time_usecs() - initial_time_us; // calculate the current time
+        if (wm < watermark) { // check watermarks are monotonically increasing
+            std::cerr << RED << "WindFlow Error: watermarks must be monotonically increasing" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        if (wm > max_timestamp) { // current watermark cannot be greater than the maximum emitted timestamp
+            std::cerr << RED << "WindFlow Error: watermark cannot be greater than the highest emitted timestamp" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        watermark = wm;
+        emitter->propagate_punctuation(watermark, node);
     }
 };
 

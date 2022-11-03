@@ -180,7 +180,7 @@ int main(int argc, char *argv[])
         pipe2.chain(map2);
         // prepare the third MultiPipe
         MultiPipe &pipe3 = pipe1.merge(pipe2);
-        Filter_Functor_KB filter_functor;
+        Filter_Functor_KB filter_functor(2);
         Filter filter = Filter_Builder(filter_functor)
                         .withName("filter")
                         .withParallelism(filter_degree)
@@ -330,7 +330,7 @@ int main(int argc, char *argv[])
         pipe2.chain(map2);
         // prepare the third MultiPipe
         MultiPipe &pipe3 = pipe1.merge(pipe2);
-        Filter_Functor_KB filter_functor;
+        Filter_Functor_KB filter_functor(2);
         Filter filter = Filter_Builder(filter_functor)
                         .withName("filter")
                         .withParallelism(filter_degree)

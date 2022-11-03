@@ -180,7 +180,7 @@ public:
     }
 
     // Move Assignment Operator
-    FlatMap_Replica &operator=(FlatMap_Replica &_other)
+    FlatMap_Replica &operator=(FlatMap_Replica &&_other)
     {
         func = std::move(_other.func);
         opName = std::move(_other.opName);
@@ -266,7 +266,7 @@ public:
     }
 
     // Process a single input
-    void process_input(tuple_t &_tuple,
+    void process_input(const tuple_t &_tuple,
                        uint64_t _timestamp,
                        uint64_t _watermark)
     {
@@ -296,6 +296,9 @@ public:
     // EOS management (utilized by the FastFlow runtime)
     void eosnotify(ssize_t id) override
     {
+        // To be checked if moving the closing_func here actually works!
+        closing_func(context); // call the closing function
+
         shipper->flush(); // call the flush of the shipper
         terminated = true;
 #if defined (WF_TRACING_ENABLED)
@@ -306,7 +309,7 @@ public:
     // svc_end (utilized by the FastFlow runtime)
     void svc_end() override
     {
-        closing_func(context); // call the closing function
+        // closing_func(context); // call the closing function
     }
 
     // Configure the FlatMap replica to receive batches instead of individual inputs

@@ -278,7 +278,7 @@ public:
     }
 
     // Move Assignment Operator
-    ReduceGPU_Replica &operator=(ReduceGPU_Replica &_other)
+    ReduceGPU_Replica &operator=(ReduceGPU_Replica &&_other)
     {
         func = std::move(_other.func);
         key_extr = std::move(_other.key_extr);

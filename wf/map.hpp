@@ -76,6 +76,7 @@ private:
     bool terminated; // true if the Map replica has finished its work
     Basic_Emitter *emitter; // pointer to the used emitter
     Execution_Mode_t execution_mode; // execution mode of the Map replica
+    bool copyOnWrite; // flag stating if a copy of each input must be done in case of in-place semantics
 #if defined (WF_TRACING_ENABLED)
     Stats_Record stats_record;
     double avg_td_us = 0;
@@ -88,7 +89,8 @@ public:
     Map_Replica(map_func_t _func,
                 std::string _opName,
                 RuntimeContext _context,
-                std::function<void(RuntimeContext &)> _closing_func):
+                std::function<void(RuntimeContext &)> _closing_func,
+                bool _copyOnWrite):
                 func(_func),
                 opName(_opName),
                 input_batching(false),
@@ -96,7 +98,8 @@ public:
                 closing_func(_closing_func),
                 terminated(false),
                 emitter(nullptr),
-                execution_mode(Execution_Mode_t::DEFAULT) {}
+                execution_mode(Execution_Mode_t::DEFAULT),
+                copyOnWrite(_copyOnWrite) {}
 
     // Copy Constructor
     Map_Replica(const Map_Replica &_other):
@@ -106,7 +109,8 @@ public:
                 context(_other.context),
                 closing_func(_other.closing_func),
                 terminated(_other.terminated),
-                execution_mode(_other.execution_mode)
+                execution_mode(_other.execution_mode),
+                copyOnWrite(_other.copyOnWrite)
     {
         if (_other.emitter == nullptr) {
             emitter = nullptr;
@@ -128,7 +132,8 @@ public:
                 closing_func(std::move(_other.closing_func)),
                 terminated(_other.terminated),
                 emitter(std::exchange(_other.emitter, nullptr)),
-                execution_mode(_other.execution_mode)
+                execution_mode(_other.execution_mode),
+                copyOnWrite(_other.copyOnWrite)
     {
 #if defined (WF_TRACING_ENABLED)
         stats_record = std::move(_other.stats_record);
@@ -163,6 +168,7 @@ public:
                 emitter = (_other.emitter)->clone(); // clone the emitter if it exists
             }
             execution_mode = _other.execution_mode;
+            copyOnWrite = _other.copyOnWrite;
 #if defined (WF_TRACING_ENABLED)
             stats_record = _other.stats_record;
 #endif
@@ -171,7 +177,7 @@ public:
     }
 
     // Move Assignment Operator
-    Map_Replica &operator=(Map_Replica &_other)
+    Map_Replica &operator=(Map_Replica &&_other)
     {
         func = std::move(_other.func);
         opName = std::move(_other.opName);
@@ -184,6 +190,7 @@ public:
         }
         emitter = std::exchange(_other.emitter, nullptr);
         execution_mode = _other.execution_mode;
+        copyOnWrite = _other.copyOnWrite;
 #if defined (WF_TRACING_ENABLED)
         stats_record = std::move(_other.stats_record);
 #endif
@@ -258,13 +265,29 @@ public:
     void process_input(Single_t<tuple_t> *_input)
     {
         if constexpr (isInPlaceNonRiched) { // inplace non-riched version
-            func(_input->tuple);
-            emitter->emit_inplace(_input, this);
+            if (copyOnWrite) {
+                tuple_t t = _input->tuple;
+                func(t);
+                emitter->emit(&t, 0, _input->getTimestamp(), _input->getWatermark(context.getReplicaIndex()), this);
+                deleteSingle_t(_input); // delete the input Single_t
+            }
+            else {
+                func(_input->tuple);
+                emitter->emit_inplace(_input, this);
+            }
         }
         if constexpr (isInPlaceRiched)  { // inplace riched version
             context.setContextParameters(_input->getTimestamp(), _input->getWatermark(context.getReplicaIndex())); // set the parameter of the RuntimeContext
-            func(_input->tuple, context);
-            emitter->emit_inplace(_input, this);
+            if (copyOnWrite) {
+                tuple_t t = _input->tuple;
+                func(t, context);
+                emitter->emit(&t, 0, _input->getTimestamp(), _input->getWatermark(context.getReplicaIndex()), this);
+                deleteSingle_t(_input); // delete the input Single_t
+            }
+            else {
+                func(_input->tuple, context);
+                emitter->emit_inplace(_input, this);
+            }
         }
         if constexpr (isNonInPlaceNonRiched) { // non-inplace non-riched version
             result_t res = func(_input->tuple);
@@ -285,13 +308,27 @@ public:
                        uint64_t _watermark)
     {
         if constexpr (isInPlaceNonRiched) { // inplace non-riched version
-            func(_tuple);
-            emitter->emit(&_tuple, 0, _timestamp, _watermark, this);
+            if (copyOnWrite) {
+                tuple_t t = _tuple;
+                func(t);
+                emitter->emit(&t, 0, _timestamp, _watermark, this);
+            }
+            else {
+                func(_tuple);
+                emitter->emit(&_tuple, 0, _timestamp, _watermark, this);
+            }
         }
         if constexpr (isInPlaceRiched)  { // inplace riched version
             context.setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
-            func(_tuple, context);
-            emitter->emit(&_tuple, 0, _timestamp, _watermark, this);
+            if (copyOnWrite) {
+                tuple_t t = _tuple;
+                func(t, context);
+                emitter->emit(&t, 0, _timestamp, _watermark, this);
+            }
+            else {
+                func(_tuple, context);
+                emitter->emit(&_tuple, 0, _timestamp, _watermark, this);
+            }
         }
         if constexpr (isNonInPlaceNonRiched) { // non-inplace non-riched version
             result_t res = func(_tuple);
@@ -513,8 +550,9 @@ public:
             std::cerr << RED << "WindFlow Error: Map has parallelism zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
+        bool copyOnWrite = (_input_routing_mode == Routing_Mode_t::BROADCAST);
         for (size_t i=0; i<parallelism; i++) { // create the internal replicas of the Map
-            replicas.push_back(new Map_Replica<map_func_t>(_func, name, RuntimeContext(parallelism, i), _closing_func));
+            replicas.push_back(new Map_Replica<map_func_t>(_func, name, RuntimeContext(parallelism, i), _closing_func, copyOnWrite));
         }
     }
 

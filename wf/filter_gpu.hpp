@@ -340,7 +340,7 @@ public:
     }
 
     // Move Assignment Operator
-    FilterGPU_Replica &operator=(FilterGPU_Replica &_other)
+    FilterGPU_Replica &operator=(FilterGPU_Replica &&_other)
     {
         func = std::move(_other.func);
         id_replica = _other.id_replica;
@@ -790,7 +790,7 @@ public:
     }
 
     // Move Assignment Operator
-    FilterGPU_Replica &operator=(FilterGPU_Replica &_other)
+    FilterGPU_Replica &operator=(FilterGPU_Replica &&_other)
     {
         func = std::move(_other.func);
         id_replica = _other.id_replica;

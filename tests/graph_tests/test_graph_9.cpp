@@ -189,7 +189,7 @@ int main(int argc, char *argv[])
         }, 3);
         // prepare the second MultiPipe
         MultiPipe &pipe2 = pipe1.select(0);
-        Filter_Functor_KB filter_functor1;
+        Filter_Functor_KB filter_functor1(4);
         Filter filter1 = Filter_Builder(filter_functor1)
                         .withName("filter1")
                         .withParallelism(filter1_degree)
@@ -205,7 +205,7 @@ int main(int argc, char *argv[])
         pipe2.chain(map2);
         // prepare the third MultiPipe
         MultiPipe &pipe3 = pipe1.select(1);
-        Filter_Functor_KB filter_functor2;
+        Filter_Functor_KB filter_functor2(5);
         Filter filter2 = Filter_Builder(filter_functor2)
                         .withName("filter2")
                         .withParallelism(filter2_degree)
@@ -222,7 +222,7 @@ int main(int argc, char *argv[])
         pipe3.chain(map3);
         // prepare the fourth MultiPipe
         MultiPipe &pipe4 = pipe1.select(2);
-        Filter_Functor_KB filter_functor3;
+        Filter_Functor_KB filter_functor3(7);
         Filter filter3 = Filter_Builder(filter_functor3)
                         .withName("filter3")
                         .withParallelism(filter3_degree)
@@ -375,7 +375,7 @@ int main(int argc, char *argv[])
         }, 3);
         // prepare the second MultiPipe
         MultiPipe &pipe2 = pipe1.select(0);
-        Filter_Functor_KB filter_functor1;
+        Filter_Functor_KB filter_functor1(4);
         Filter filter1 = Filter_Builder(filter_functor1)
                         .withName("filter1")
                         .withParallelism(filter1_degree)
@@ -390,7 +390,7 @@ int main(int argc, char *argv[])
         pipe2.chain(map2);
         // prepare the third MultiPipe
         MultiPipe &pipe3 = pipe1.select(1);
-        Filter_Functor_KB filter_functor2;
+        Filter_Functor_KB filter_functor2(5);
         Filter filter2 = Filter_Builder(filter_functor2)
                         .withName("filter2")
                         .withParallelism(filter2_degree)
@@ -405,7 +405,7 @@ int main(int argc, char *argv[])
         pipe3.chain(map3);
         // prepare the fourth MultiPipe
         MultiPipe &pipe4 = pipe1.select(2);
-        Filter_Functor_KB filter_functor3;
+        Filter_Functor_KB filter_functor3(7);
         Filter filter3 = Filter_Builder(filter_functor3)
                         .withName("filter3")
                         .withParallelism(filter3_degree)

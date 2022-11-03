@@ -142,7 +142,7 @@ public:
     }
 
     // Move Assignment Operator
-    Forward_Emitter &operator=(Forward_Emitter &_other)
+    Forward_Emitter &operator=(Forward_Emitter &&_other)
     {
         key_extr = std::move(_other.key_extr);
         num_dests = _other.num_dests;

@@ -163,7 +163,7 @@ int main(int argc, char *argv[])
         pipe2.chain(map2);
         // prepare the third MultiPipe
         MultiPipe &pipe3 = pipe1.merge(pipe2);
-        Filter_Functor_GPU_KB filter_functor_gpu;
+        Filter_Functor_GPU_KB filter_functor_gpu(2);
         Filter_GPU filter = FilterGPU_Builder(filter_functor_gpu)
                                 .withName("filter")
                                 .withParallelism(filter_degree)

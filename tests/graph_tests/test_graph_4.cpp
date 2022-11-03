@@ -187,7 +187,7 @@ int main(int argc, char *argv[])
         }, 2);
         // prepare the second MultiPipe
         MultiPipe &pipe2 = pipe1.select(0);
-        Filter_Functor_KB filter_functor1;
+        Filter_Functor_KB filter_functor1(4);
         Filter filter1 = Filter_Builder(filter_functor1)
                                 .withName("filter1")
                                 .withParallelism(filter1_degree)
@@ -204,7 +204,7 @@ int main(int argc, char *argv[])
         pipe2.chain(map2);
         // split
         pipe2.split([](const tuple_t &t) {
-            if (t.value % 4 == 0) {
+            if (t.value % 3 == 0) {
                 return 0;
             }
             else {
@@ -222,7 +222,7 @@ int main(int argc, char *argv[])
         pipe3.chain(map3);
         // prepare the fourth MultiPipe
         MultiPipe &pipe4 = pipe2.select(1);
-        Filter_Functor filter_functor2;
+        Filter_Functor filter_functor2(5);
         Filter filter2 = Filter_Builder(filter_functor2)
                                 .withName("filter2")
                                 .withParallelism(filter2_degree)
@@ -240,7 +240,7 @@ int main(int argc, char *argv[])
         pipe5.chain(map4);
         // prepare the sixth MultiPipe
         MultiPipe &pipe6 = pipe1.select(1);
-        Filter_Functor_KB filter_functor3;
+        Filter_Functor_KB filter_functor3(7);
         Filter filter3 = Filter_Builder(filter_functor3)
                                 .withName("filter3")
                                 .withParallelism(filter3_degree)
@@ -372,7 +372,7 @@ int main(int argc, char *argv[])
         }, 2);
         // prepare the second MultiPipe
         MultiPipe &pipe2 = pipe1.select(0);
-        Filter_Functor_KB filter_functor1;
+        Filter_Functor_KB filter_functor1(4);
         Filter filter1 = Filter_Builder(filter_functor1)
                                 .withName("filter1")
                                 .withParallelism(filter1_degree)
@@ -387,13 +387,13 @@ int main(int argc, char *argv[])
         pipe2.chain(map2);
         // split
         pipe2.split([](const tuple_t &t) {
-            if (t.value % 4 == 0) {
+            if (t.value % 3 == 0) {
                 return 0;
             }
             else {
                 return 1;
             }
-        }, 2);        
+        }, 2);       
         // prepare the third MultiPipe
         MultiPipe &pipe3 = pipe2.select(0);
         Map_Functor map_functor3;
@@ -404,7 +404,7 @@ int main(int argc, char *argv[])
         pipe3.chain(map3);
         // prepare the fourth MultiPipe
         MultiPipe &pipe4 = pipe2.select(1);
-        Filter_Functor filter_functor2;
+        Filter_Functor filter_functor2(5);
         Filter filter2 = Filter_Builder(filter_functor2)
                                 .withName("filter2")
                                 .withParallelism(filter2_degree)
@@ -420,7 +420,7 @@ int main(int argc, char *argv[])
         pipe5.chain(map4);
         // prepare the sixth MultiPipe
         MultiPipe &pipe6 = pipe1.select(1);
-        Filter_Functor_KB filter_functor3;
+        Filter_Functor_KB filter_functor3(7);
         Filter filter3 = Filter_Builder(filter_functor3)
                                 .withName("filter3")
                                 .withParallelism(filter3_degree)
