@@ -39,6 +39,7 @@
 #include<cstdint>
 #include<stddef.h>
 #include<ff/mpmc/MPMCqueues.hpp>
+#include<recycling.hpp>
 
 namespace wf {
 
@@ -99,28 +100,6 @@ struct Batch_t
     // Set the watermark of the batch related to a specific destination _node_id
     virtual void setWatermark(uint64_t _wm, size_t _node_id) = 0;
 };
-
-// Delete a Batch_CPU_t message (trying to recycle it)
-template<typename tuple_t>
-inline void deleteBatch_t(Batch_t<tuple_t> *batch_input)
-{
-#if !defined (WF_NO_RECYCLING)
-    if (batch_input->isDeletable()) {
-        if (batch_input->queue != nullptr) {
-            if (!(batch_input->queue)->push((void * const) batch_input)) {
-                delete batch_input;
-            }
-        }
-        else {
-            delete batch_input;
-        }
-    }
-#else
-    if (batch_input->isDeletable()) {
-        delete batch_input;
-    }
-#endif
-}
 
 } // namespace wf
 

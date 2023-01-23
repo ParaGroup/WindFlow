@@ -54,8 +54,9 @@ class Splitting_Emitter_GPU: public Basic_Emitter
 private:
     size_t num_dests; // number of destinations connected in output to the emitter
     size_t num_dest_mps; // number of destination MultiPipes connected in output to the emitter
-    std::vector<Basic_Emitter *> emitters; // vector of pointers to the internal emitters (one per destination MultiPipes)
-    ff::MPMC_Ptr_Queue *queue; // pointer to the recyling queue
+    std::vector<Basic_Emitter *> emitters; // vector of pointers to the internal emitters (one per destination MultiPipe)
+    using recycle_t = std::pair<ff::MPMC_Ptr_Queue *, std::atomic<int> *>;
+    recycle_t *recyle_descrs; // pointer to an array of recycling descriptors (one per destination MultiPipe)
 
 public:
     // Constructor
@@ -63,8 +64,12 @@ public:
                           num_dests(0),
                           num_dest_mps(_num_dest_mps)
     {
-        queue = new ff::MPMC_Ptr_Queue();
-        queue->init(WF_GPU_DEFAULT_RECYCLING_QUEUE_SIZE);
+        recyle_descrs = new recycle_t[num_dest_mps];
+        for (int i=0; i<num_dest_mps; i++) {
+            recyle_descrs[i].first = new ff::MPMC_Ptr_Queue();
+            (recyle_descrs[i].first)->init(DEFAULT_BUFFER_CAPACITY);
+            recyle_descrs[i].second = new std::atomic<int>(0);
+        }
     }
 
     // Copy Constructor
@@ -75,8 +80,12 @@ public:
         for (size_t i=0; i<(_other.emitters).size(); i++) { // deep copy of the internal emitters
             emitters.push_back(((_other.emitters)[i])->clone());
         }
-        queue = new ff::MPMC_Ptr_Queue();
-        queue->init(WF_GPU_DEFAULT_RECYCLING_QUEUE_SIZE);
+        recyle_descrs = new recycle_t[num_dest_mps];
+        for (int i=0; i<num_dest_mps; i++) {
+            recyle_descrs[i].first = new ff::MPMC_Ptr_Queue();
+            (recyle_descrs[i].first)->init(DEFAULT_BUFFER_CAPACITY);
+            recyle_descrs[i].second = new std::atomic<int>(0);
+        }
     }
 
     // Move Constructor
@@ -84,7 +93,7 @@ public:
                           num_dests(_other.num_dests),
                           num_dest_mps(_other.num_dest_mps),
                           emitters(std::move(_other.emitters)),
-                          queue(std::exchange(_other.queue, nullptr)) {}
+                          recyle_descrs(std::exchange(_other.recyle_descrs, nullptr)) {}
 
     // Destructor
     ~Splitting_Emitter_GPU() override
@@ -92,13 +101,19 @@ public:
         for (auto *e: emitters) {
             delete e;
         }
-        if (queue != nullptr) { // delete all the batches in the recycling queue
-            Batch_t<tuple_t> *del_batch = nullptr;
-            while (queue->pop((void **) &del_batch)) {
-                delete del_batch;
+        for (int i=0; i<num_dest_mps; i++) {
+            if (recyle_descrs[i].first != nullptr) { // delete all the batches in the recycling queue
+                Batch_t<tuple_t> *del_batch = nullptr;
+                while (recyle_descrs[i].first->pop((void **) &del_batch)) {
+                    delete del_batch;
+                }
+                delete recyle_descrs[i].first; // delete the recycling queue
             }
-            delete queue; // delete the recycling queue
+            if (recyle_descrs[i].second != nullptr) {
+                delete recyle_descrs[i].second;
+            }
         }
+        delete recyle_descrs;
     }
 
     // Copy Assignment Operator
@@ -106,6 +121,7 @@ public:
     {
         if (this != &_other) {
             num_dests = _other.num_dests;
+            int old_num_dest_mps = num_dest_mps;
             num_dest_mps = _other.num_dest_mps;
             for (auto *e: emitters) {
                 delete e;
@@ -113,6 +129,25 @@ public:
             emitters.clear();
             for (size_t i=0; i<(_other.emitters).size(); i++) { // deep copy of the emitters
                 emitters.push_back(((_other.emitters)[i])->clone());
+            }
+            for (int i=0; i<old_num_dest_mps; i++) {
+                if (recyle_descrs[i].first != nullptr) { // delete all the batches in the recycling queue
+                    Batch_t<tuple_t> *del_batch = nullptr;
+                    while (recyle_descrs[i].first->pop((void **) &del_batch)) {
+                        delete del_batch;
+                    }
+                    delete recyle_descrs[i].first; // delete the recycling queue
+                }
+                if (recyle_descrs[i].second != nullptr) {
+                    delete recyle_descrs[i].second;
+                }
+            }
+            delete recyle_descrs;
+            recyle_descrs = new recycle_t[num_dest_mps];
+            for (int i=0; i<num_dest_mps; i++) {
+                recyle_descrs[i].first = new ff::MPMC_Ptr_Queue();
+                (recyle_descrs[i].first)->init(DEFAULT_BUFFER_CAPACITY);
+                recyle_descrs[i].second = new std::atomic<int>(0);
             }
         }
         return *this;
@@ -122,19 +157,26 @@ public:
     Splitting_Emitter_GPU &operator=(Splitting_Emitter_GPU &&_other)
     {
         num_dests = _other.num_dests;
+        int old_num_dest_mps = num_dest_mps;
         num_dest_mps = _other.num_dest_mps;
         for (auto *e: emitters) {
             delete e;
         }
         emitters = std::move(_other.emitters);
-        if (queue != nullptr) {
-            Batch_t<tuple_t> *del_batch = nullptr;
-            while (queue->pop((void **) &del_batch)) {
-                delete del_batch;
+        for (int i=0; i<old_num_dest_mps; i++) {
+            if (recyle_descrs[i].first != nullptr) { // delete all the batches in the recycling queue
+                Batch_t<tuple_t> *del_batch = nullptr;
+                while (recyle_descrs[i].first->pop((void **) &del_batch)) {
+                    delete del_batch;
+                }
+                delete recyle_descrs[i].first; // delete the recycling queue
             }
-            delete queue; // delete the recycling queue
+            if (recyle_descrs[i].second != nullptr) {
+                delete recyle_descrs[i].second;
+            }
         }
-        queue = std::exchange(_other.queue, nullptr);
+        delete recyle_descrs;
+        recyle_descrs = std::exchange(_other.recyle_descrs, nullptr);
     }
 
     // Create a clone of the emitter
@@ -179,7 +221,7 @@ public:
         assert(num_dests == _node->get_num_outchannels()); // sanity check
         Batch_GPU_t<tuple_t> *input = reinterpret_cast<Batch_GPU_t<tuple_t> *>(_out);
         for (size_t i=0; i<num_dest_mps-1; i++) { // iterate across all the internal emitters (except the last one)
-            Batch_GPU_t<tuple_t> *copy_batch = allocateBatch_GPU_t<tuple_t>(input->original_size, queue); // create a new batch
+            Batch_GPU_t<tuple_t> *copy_batch = allocateBatch_GPU_t<tuple_t>(input->original_size, recyle_descrs[i].first, recyle_descrs[i].second); // create a new batch
             copy_batch->watermarks = input->watermarks;
             copy_batch->size = input->size;
 #if !defined (WF_GPU_UNIFIED_MEMORY) && !defined (WF_GPU_PINNED_MEMORY)

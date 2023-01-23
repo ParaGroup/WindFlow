@@ -175,12 +175,8 @@ public:
     __device__ bool operator()(tuple_t &t, filter_state_t &state)
     {
         state.counter++;
-        if (t.value % 2 == 0) {
-            return true;
-        }
-        else {
-            return false;
-        }
+        t.value += state.counter;
+        return true;
     }
 };
 

@@ -29,8 +29,10 @@
  *  
  *  @section Forward_Emitter_GPU (Description)
  *  
- *  The emitter is capable of receiving/sending batches from/to GPU operators by
- *  implementing the forward distribution.
+ *  The emitter implements the forward (FW) distribution in three possible scenarios:
+ *  1) CPU-GPU (source is CPU operator, destination is a GPU operator)
+ *  2) GPU-GPU (source is GPU operator, destination is a GPU operator)
+ *  3) GPU-CPU (source is GPU operator, destination is a CPU operator).
  */ 
 
 #ifndef FW_EMITTER_GPU_H
@@ -58,6 +60,7 @@ private:
     std::vector<Batch_GPU_t<tuple_t> *> batches_output; // vector of pointers to the output batches (used circularly)
     std::vector<batch_item_gpu_t<tuple_t> *> pinned_buffers_cpu; // vector of pointers to host pinned arrays (used circularly)
     ff::MPMC_Ptr_Queue *queue; // pointer to the recyling queue
+    std::atomic<int> *inTransit_counter; // pointer to the counter of in-transit batches
     size_t next_tuple_idx; // identifier where to copy the next tuple in the batch
     size_t id_r; // identifier used for overlapping purposes
     uint64_t sent_batches; // number of batches sent by the emitter
@@ -84,12 +87,13 @@ public:
         }
         assert(size > 0); // sanity check
         queue = new ff::MPMC_Ptr_Queue();
-        queue->init(WF_GPU_DEFAULT_RECYCLING_QUEUE_SIZE);
+        queue->init(DEFAULT_BUFFER_CAPACITY);
+        inTransit_counter = new std::atomic<int>(0);
         gpuErrChk(cudaMallocHost(&pinned_buffers_cpu[0], sizeof(batch_item_gpu_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>) * size));
         gpuErrChk(cudaMallocHost(&pinned_buffers_cpu[1], sizeof(batch_item_gpu_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>) * size));
     }
 
-    // Constructor II (GPU->ANY cases)
+    // Constructor II (GPU->GPU and GPU-CPU cases)
     Forward_Emitter_GPU(key_extractor_func_t _key_extr,
                         size_t _num_dests):
                         key_extr(_key_extr),
@@ -108,7 +112,8 @@ public:
             exit(EXIT_FAILURE);
         }
         queue = new ff::MPMC_Ptr_Queue();
-        queue->init(WF_GPU_DEFAULT_RECYCLING_QUEUE_SIZE);
+        queue->init(DEFAULT_BUFFER_CAPACITY);
+        inTransit_counter = new std::atomic<int>(0);
     }
 
     // Copy Constructor
@@ -125,7 +130,8 @@ public:
                         sent_batches(_other.sent_batches)
     {
         queue = new ff::MPMC_Ptr_Queue();
-        queue->init(WF_GPU_DEFAULT_RECYCLING_QUEUE_SIZE);
+        queue->init(DEFAULT_BUFFER_CAPACITY);
+        inTransit_counter = new std::atomic<int>(0);
         if constexpr (!inputGPU) {
             gpuErrChk(cudaMallocHost(&pinned_buffers_cpu[0], sizeof(batch_item_gpu_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>) * size));
             gpuErrChk(cudaMallocHost(&pinned_buffers_cpu[1], sizeof(batch_item_gpu_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>) * size));
@@ -143,6 +149,7 @@ public:
                         batches_output(std::move(_other.batches_output)),
                         pinned_buffers_cpu(std::move(_other.pinned_buffers_cpu)),
                         queue(std::exchange(_other.queue, nullptr)),
+                        inTransit_counter(std::exchange(_other.inTransit_counter, nullptr)),
                         next_tuple_idx(_other.next_tuple_idx),
                         id_r(_other.id_r),
                         sent_batches(_other.sent_batches) {}
@@ -165,6 +172,9 @@ public:
                 delete del_batch;
             }
             delete queue; // delete the recycling queue
+        }
+        if (inTransit_counter != nullptr) {
+            delete inTransit_counter;
         }
     }
 
@@ -208,6 +218,7 @@ public:
         size = _other.size;
         idx_dest = _other.idx_dest;
         useTreeMode = _other.useTreeMode;
+        assert(output_queue.size() == 0); // sanity check
         output_queue = std::move(_other.output_queue);
         for (auto *b: batches_output) {
             if (b != nullptr) {
@@ -229,6 +240,10 @@ public:
             delete queue; // delete the recycling queue
         }
         queue = std::exchange(_other.queue, nullptr);
+        if (inTransit_counter != nullptr) {
+            delete inTransit_counter;
+        }
+        inTransit_counter = std::exchange(_other.inTransit_counter, nullptr);
         next_tuple_idx = _other.next_tuple_idx;
         id_r = _other.id_r;
         sent_batches = _other.sent_batches;
@@ -299,7 +314,7 @@ public:
                  ff::ff_monode *_node)
     {
         if (batches_output[id_r] == nullptr) { // allocate the batch
-            batches_output[id_r] = allocateBatch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>(size, queue);
+            batches_output[id_r] = allocateBatch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>(size, queue, inTransit_counter);
         }
         pinned_buffers_cpu[id_r][next_tuple_idx].tuple = _tuple;
         pinned_buffers_cpu[id_r][next_tuple_idx].timestamp = _timestamp;
@@ -363,7 +378,7 @@ public:
     {
         flush(_node); // flush the internal partially filled batch (if any)
         size_t punc_size = (size == -1) ? 1 : size; // this is the size of the punctuation batch
-        Batch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))> *punc = allocateBatch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>(punc_size, queue);
+        Batch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))> *punc = allocateBatch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>(punc_size, queue, inTransit_counter);
         punc->setWatermark(_watermark);
         (punc->delete_counter).fetch_add(num_dests-1);
         assert((punc->watermarks).size() == 1); // sanity check

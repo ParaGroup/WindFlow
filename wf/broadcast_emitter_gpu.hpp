@@ -29,8 +29,8 @@
  *  
  *  @section Broadcast_Emitter_GPU (Description)
  *  
- *  The emitter is capable of receiving/sending batches from/to GPU operators by
- *  implementing the broadcast distribution.
+ *  The emitter implements the broadcast (BD) distribution in one single possible scenario:
+ *  1) GPU-CPU (source is GPU operator, destination is a CPU operator).
  */ 
 
 #ifndef BD_EMITTER_GPU_H
@@ -57,6 +57,7 @@ private:
     bool useTreeMode; // true if the emitter is used in tree-based mode
     std::vector<std::pair<void *, size_t>> output_queue; // vector of pairs (messages and destination identifiers)
     ff::MPMC_Ptr_Queue *queue; // pointer to the recyling queue
+    std::atomic<int> *inTransit_counter; // pointer to the counter of in-transit batches
 
 public:
     // Constructor (GPU->CPU case)
@@ -71,7 +72,8 @@ public:
             exit(EXIT_FAILURE);
         }
         queue = new ff::MPMC_Ptr_Queue();
-        queue->init(WF_GPU_DEFAULT_RECYCLING_QUEUE_SIZE);
+        queue->init(DEFAULT_BUFFER_CAPACITY);
+        inTransit_counter = new std::atomic<int>(0);
     }
 
     // Copy Constructor
@@ -81,7 +83,8 @@ public:
                           useTreeMode(_other.useTreeMode)
     {
         queue = new ff::MPMC_Ptr_Queue();
-        queue->init(WF_GPU_DEFAULT_RECYCLING_QUEUE_SIZE);
+        queue->init(DEFAULT_BUFFER_CAPACITY);
+        inTransit_counter = new std::atomic<int>(0);
     }
 
     // Move Constructor
@@ -90,7 +93,8 @@ public:
                           num_dests(_other.num_dests),
                           useTreeMode(_other.useTreeMode),
                           output_queue(std::move(_other.output_queue)),
-                          queue(std::exchange(_other.queue, nullptr)) {}
+                          queue(std::exchange(_other.queue, nullptr)),
+                          inTransit_counter(std::exchange(_other.inTransit_counter, nullptr)) {}
 
     // Destructor
     ~Broadcast_Emitter_GPU() override
@@ -102,7 +106,10 @@ public:
                 delete del_batch;
             }
             delete queue; // delete the recycling queue
-        }        
+        }
+        if (inTransit_counter != nullptr) {
+            delete inTransit_counter;
+        }
     }
 
     // Copy Assignment Operator
@@ -122,6 +129,7 @@ public:
         key_extr = std::move(_other.key_extr);
         num_dests = _other.num_dests;
         useTreeMode = _other.useTreeMode;
+        assert(output_queue.size() == 0); // sanity check
         output_queue = std::move(_other.output_queue);
         if (queue != nullptr) {
             Batch_t<decltype(get_tuple_t_KeyExtr(key_extr))> *del_batch = nullptr;
@@ -131,6 +139,10 @@ public:
             delete queue; // delete the recycling queue
         }
         queue = std::exchange(_other.queue, nullptr);
+        if (inTransit_counter != nullptr) {
+            delete inTransit_counter;
+        }
+        inTransit_counter = std::exchange(_other.inTransit_counter, nullptr);
         return *this;
     }
 
@@ -205,7 +217,7 @@ public:
                                ff::ff_monode * _node) override
     {
         flush(_node); // flush the internal partially filled batch (if any)
-        Batch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))> *punc = allocateBatch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>(1, queue); // punctuation batch has size 1!
+        Batch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))> *punc = allocateBatch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>(1, queue, inTransit_counter); // punctuation batch has size 1!
         punc->setWatermark(_watermark);
         (punc->delete_counter).fetch_add(num_dests-1);
         assert((punc->watermarks).size() == 1); // sanity check

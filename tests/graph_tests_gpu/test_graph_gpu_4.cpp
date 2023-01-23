@@ -225,7 +225,7 @@ int main(int argc, char *argv[])
         pipe3.chain(mapgpu3);
         // prepare the fourth MultiPipe
         MultiPipe &pipe4 = pipe2.select(1);
-        Filter_Functor_GPU_KB filter_functor_gpu2(5);
+        Filter_Functor_GPU_KB filter_functor_gpu2;
         Filter_GPU filtergpu2 = FilterGPU_Builder(filter_functor_gpu2)
                                     .withName("filtergpu2")
                                     .withParallelism(filter2_degree)

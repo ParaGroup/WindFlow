@@ -42,6 +42,7 @@
 #include<stddef.h>
 #include<limits.h>
 #include<batch_t.hpp>
+#include<recycling.hpp>
 
 namespace wf {
 
@@ -239,34 +240,6 @@ struct Batch_CPU_t: Batch_t<tuple_t>
         isPunctuation = false;
     }
 };
-
-// Allocate a Batch_CPU_t (trying to recycle an old one)
-template<typename tuple_t>
-inline Batch_CPU_t<tuple_t> *allocateBatch_CPU_t(size_t _reserved_size,
-                                                 ff::MPMC_Ptr_Queue *_queue)
-{
-    Batch_CPU_t<tuple_t> *batch_input = nullptr;
-#if !defined (WF_NO_RECYCLING)
-    if (_queue != nullptr) {
-        if (!_queue->pop((void **) &batch_input)) { // create a new batch
-            batch_input = new Batch_CPU_t<tuple_t>(_reserved_size);
-            batch_input->queue = _queue;
-            return batch_input;
-        }
-        else { // recycling a previous batch
-            batch_input->reset();
-            return batch_input;
-        }
-    }
-    else { // create a new batch
-        batch_input = new Batch_CPU_t<tuple_t>(_reserved_size);
-        return batch_input;
-    }
-#else
-    batch_input = new Batch_CPU_t<tuple_t>(_reserved_size);
-    return batch_input;
-#endif
-}
 
 } // namespace wf
 

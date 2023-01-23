@@ -41,6 +41,7 @@
 #include<cassert>
 #include<stddef.h>
 #include<ff/mpmc/MPMCqueues.hpp>
+#include<recycling.hpp>
 
 namespace wf {
 
@@ -209,59 +210,6 @@ struct Single_t
         }
     }
 };
-
-// Delete a Single_t message (trying to recycle it)
-template<typename tuple_t>
-inline void deleteSingle_t(Single_t<tuple_t> *input)
-{
-#if !defined (WF_NO_RECYCLING)
-    if (input->isDeletable()) {
-        if (input->queue != nullptr) {
-            if (!(input->queue)->push((void * const) input)) {
-                delete input;
-            }
-        }
-        else {
-            delete input;
-        }
-    }
-#else
-    if (input->isDeletable()) {
-        delete input;
-    }
-#endif
-}
-
-// Allocate a Single_t message (trying to recycle an old one)
-template<typename tuple_t>
-inline Single_t<tuple_t> *allocateSingle_t(tuple_t &&_tuple, // universal reference!
-                                           uint64_t _identifier,
-                                           uint64_t _timestamp,
-                                           uint64_t _watermark,
-                                           ff::MPMC_Ptr_Queue *_queue)
-{
-    Single_t<tuple_t> *input = nullptr;
-#if !defined (WF_NO_RECYCLING)
-    if (_queue != nullptr) {
-        if (!_queue->pop((void **) &input)) {
-            input = new Single_t<tuple_t>(std::forward<tuple_t>(_tuple), _identifier, _timestamp, _watermark);
-            input->queue = _queue;
-            return input;
-        }
-        else {
-            input->reset(std::forward<tuple_t>(_tuple), _identifier, _timestamp, _watermark);
-            return input;
-        }
-    }
-    else {
-        input = new Single_t<tuple_t>(std::forward<tuple_t>(_tuple), _identifier, _timestamp, _watermark);
-        return input;
-    }
-#else
-    input = new Single_t<tuple_t>(std::forward<tuple_t>(_tuple), _identifier, _timestamp, _watermark);
-    return input;
-#endif
-}
 
 } // namespace wf
 

@@ -160,6 +160,7 @@ private:
     cudaStream_t *cudaStream; // pointer to the CUDA stream used by the FlatFAT_GPU
     cudaDeviceProp deviceProp; // object containing the properties of the used GPU device
     int isTegra; // flag equal to 1 if the GPU (device 0) is integrated (Tegra), 0 otherwise
+    int gpu_id; // identifier of the currently used GPU
 
 public:
     // Constructor
@@ -190,8 +191,9 @@ public:
         numLeaves = n;
         leavesSizeBytes = numLeaves * sizeof(result_t);
         batchSizeBytes = batchSize * sizeof(result_t);
-        gpuErrChk(cudaGetDeviceProperties(&deviceProp, 0)); // get the properties of the GPU device with id 0
-        gpuErrChk(cudaDeviceGetAttribute(&isTegra, cudaDevAttrIntegrated, 0));
+        gpuErrChk(cudaGetDevice(&gpu_id));
+        gpuErrChk(cudaGetDeviceProperties(&deviceProp, gpu_id));
+        gpuErrChk(cudaDeviceGetAttribute(&isTegra, cudaDevAttrIntegrated, gpu_id));
 #if defined (WF_GPU_PINNED_MEMORY)
         if (!isTegra) {
             std::cerr << RED << "WindFlow Error: pinned memory support can be used on Tegra devices only" << DEFAULT_COLOR << std::endl;
@@ -237,7 +239,8 @@ public:
                 max_blocks_per_sm(_other.max_blocks_per_sm),
                 cudaStream(_other.cudaStream),
                 deviceProp(_other.deviceProp),
-                isTegra(_other.isTegra)
+                isTegra(_other.isTegra),
+                gpu_id(_other.gpu_id)
     {
 #if defined (WF_GPU_PINNED_MEMORY)
         if (!isTegra) {
@@ -286,7 +289,8 @@ public:
                 max_blocks_per_sm(_other.max_blocks_per_sm),
                 cudaStream(std::exchange(_other.cudaStream, nullptr)),
                 deviceProp(_other.deviceProp),
-                isTegra(_other.isTegra) {}
+                isTegra(_other.isTegra),
+                gpu_id(_other.gpu_id) {}
 
     // Destructor
     ~FlatFAT_GPU()
@@ -320,6 +324,7 @@ public:
             cudaStream = _other.cudaStream;
             deviceProp = _other.deviceProp;
             isTegra = _other.isTegra;
+            gpu_id = _other.gpu_id;
 #if defined (WF_GPU_PINNED_MEMORY)
             if (!isTegra) {
                 std::cerr << RED << "WindFlow Error: pinned memory support can be used on Tegra devices only" << DEFAULT_COLOR << std::endl;
@@ -371,6 +376,7 @@ public:
             cudaStream = std::exchange(_other.cudaStream, nullptr);
             deviceProp = _other.deviceProp;
             isTegra = _other.isTegra;
+            gpu_id = _other.gpu_id;
             return *this;
     }
 
@@ -392,7 +398,7 @@ public:
         }
         else if (deviceProp.concurrentManagedAccess) { // new discrete GPU models
             // prefetch the CUDA unified memory array tree_u to the GPU side
-            gpuErrChk(cudaMemPrefetchAsync(tree_u, treeSizeBytes, 0, *cudaStream)); // device_id = 0
+            gpuErrChk(cudaMemPrefetchAsync(tree_u, treeSizeBytes, gpu_id, *cudaStream));
         }
 #endif
         result_t *d_levelA = tree_u; // pointer to the first level of the tree
@@ -463,7 +469,7 @@ public:
         }
         else if (deviceProp.concurrentManagedAccess) { // new discrete GPU models
             // prefetch the CUDA unified memory array tree_u to the GPU side
-            gpuErrChk(cudaMemPrefetchAsync(tree_u, treeSizeBytes, 0, *cudaStream)); // device_id = 0
+            gpuErrChk(cudaMemPrefetchAsync(tree_u, treeSizeBytes, gpu_id, *cudaStream));
         }
 #endif
         int pow = 1;

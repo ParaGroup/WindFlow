@@ -25,11 +25,11 @@
  *  @file    batch_gpu_t.hpp
  *  @author  Gabriele Mencagli
  *  
- *  @brief Class implementing a batch of data tuples accessible by the GPU side
+ *  @brief Class implementing a batch of data tuples accessible by GPU
  *  
  *  @section Batch_GPU_t (Description)
  *  
- *  Class implementing a batch of data tuples accessible by the GPU side.
+ *  Class implementing a batch of data tuples accessible by GPU.
  */ 
 
 #ifndef BATCH_GPU_T_H
@@ -42,6 +42,7 @@
 #include<limits.h>
 #include<batch_t.hpp>
 #include<basic_gpu.hpp>
+#include<recycling_gpu.hpp>
 
 namespace wf {
 
@@ -52,7 +53,7 @@ struct Batch_GPU_t: Batch_t<tuple_t>
     std::vector<uint64_t> watermarks; // vector of watermarks of the batch (one per destination receiving the batch)
     size_t size; // actual number of meaningful items within the batch
     size_t original_size; // original size of the batch (and of its internal arrays)
-    bool isPunctuation; // flag true if the message is a punctuation, false otherwise
+    bool isPunctuation; // flag equal to true if the message is a punctuation, false otherwise
     std::atomic<size_t> delete_counter; // atomic counter to delete correctly the batch
     batch_item_gpu_t<tuple_t> *pinned_data_cpu; // host pinned array of batch items
     batch_item_gpu_t<tuple_t> *data_gpu; // GPU array of batch items
@@ -61,9 +62,11 @@ struct Batch_GPU_t: Batch_t<tuple_t>
     int *start_idxs_gpu; // GPU array of starting indexes of keys in the batch
     int *map_idxs_gpu; // GPU array to find tuples with the same key within the batch
     cudaStream_t cudaStream; // CUDA stream associated with the batch
+    std::atomic<int> *inTransit_counter; // pointer to the counter of in-transit batches
 
     // Constructor
     Batch_GPU_t(size_t _size,
+                std::atomic<int> *_inTransit_counter,
                 size_t _delete_counter=1):
                 size(_size),
                 original_size(_size),
@@ -71,13 +74,29 @@ struct Batch_GPU_t: Batch_t<tuple_t>
                 delete_counter(_delete_counter),
                 pinned_data_cpu(nullptr),
                 num_dist_keys(0),
-                dist_keys_cpu(nullptr)
+                dist_keys_cpu(nullptr),
+                inTransit_counter(_inTransit_counter)
     {
         watermarks.push_back(std::numeric_limits<uint64_t>::max());
+        if (cudaMalloc(&data_gpu, sizeof(batch_item_gpu_t<tuple_t>) * size) == cudaErrorMemoryAllocation) {
+            data_gpu = nullptr;
+            throw wf::FullGPUMemoryException();
+        }
+        if (cudaMalloc(&start_idxs_gpu, sizeof(int) * size) == cudaErrorMemoryAllocation) {
+            gpuErrChk(cudaFree(data_gpu));
+            data_gpu = nullptr;
+            start_idxs_gpu = nullptr;
+            throw wf::FullGPUMemoryException();
+        }
+        if (cudaMalloc(&map_idxs_gpu, sizeof(int) * size) == cudaErrorMemoryAllocation) {
+            gpuErrChk(cudaFree(data_gpu));
+            data_gpu = nullptr;
+            gpuErrChk(cudaFree(start_idxs_gpu));
+            start_idxs_gpu = nullptr;
+            map_idxs_gpu = nullptr;
+            throw wf::FullGPUMemoryException();
+        }
         gpuErrChk(cudaStreamCreate(&cudaStream)); // create the CUDA stream associated with this batch object
-        gpuErrChk(cudaMalloc(&data_gpu, sizeof(batch_item_gpu_t<tuple_t>) * size));
-        gpuErrChk(cudaMalloc(&start_idxs_gpu, sizeof(int) * size));
-        gpuErrChk(cudaMalloc(&map_idxs_gpu, sizeof(int) * size));
     }
 
     // Destructor
@@ -99,6 +118,9 @@ struct Batch_GPU_t: Batch_t<tuple_t>
             gpuErrChk(cudaFree(map_idxs_gpu));
         }
         gpuErrChk(cudaStreamDestroy(cudaStream));
+        if (inTransit_counter != nullptr) {
+            (*inTransit_counter)--;
+        }
     }
 
     // Check whether the batch can be deleted or not
@@ -205,43 +227,6 @@ struct Batch_GPU_t: Batch_t<tuple_t>
     Batch_GPU_t &operator=(const Batch_GPU_t &) = delete; ///< Copy assignment operator is deleted
     Batch_GPU_t &operator=(Batch_GPU_t &&) = delete; ///< Move assignment operator is deleted
 };
-
-// Allocate a Batch_GPU_t (trying to recycle an old one)
-template<typename tuple_t>
-inline Batch_GPU_t<tuple_t> *allocateBatch_GPU_t(size_t _requested_size,
-                                                 ff::MPMC_Ptr_Queue *_queue)
-{
-    Batch_GPU_t<tuple_t> *batch_input = nullptr;
-#if !defined (WF_NO_RECYCLING)
-    if (_queue != nullptr) {
-        if (!_queue->pop((void **) &batch_input)) { // create a new batch
-            batch_input = new Batch_GPU_t<tuple_t>(_requested_size);
-            batch_input->queue = _queue;
-            return batch_input;
-        }
-        else { // recycling a previous batch
-            if (_requested_size <= batch_input->original_size) {
-                batch_input->reset();
-                batch_input->size = _requested_size;
-                return batch_input;
-            }
-            else {
-                delete batch_input;
-                batch_input = new Batch_GPU_t<tuple_t>(_requested_size);
-                batch_input->queue = _queue;
-                return batch_input;
-            }
-        }
-    }
-    else { // create a new batch
-        batch_input = new Batch_GPU_t<tuple_t>(_requested_size);
-        return batch_input;
-    }
-#else
-    batch_input = new Batch_GPU_t<tuple_t>(_requested_size);
-    return batch_input;
-#endif
-}
 
 } // namespace wf
 

@@ -672,9 +672,11 @@ public:
 #endif
 #if defined (__CUDACC__)
         int max_threads_per_block = 0;
-        gpuErrChk(cudaDeviceGetAttribute(&max_threads_per_block, cudaDevAttrMaxThreadsPerBlock, 0)); // device_id = 0
+        int gpu_id;
+        gpuErrChk(cudaGetDevice(&gpu_id));
+        gpuErrChk(cudaDeviceGetAttribute(&max_threads_per_block, cudaDevAttrMaxThreadsPerBlock, gpu_id));
         if (WF_GPU_THREADS_PER_BLOCK > max_threads_per_block) {
-                std::cerr << RED << "WindFlow Error: block size (" << WF_GPU_THREADS_PER_BLOCK << ") exceeds the maximum supported by the GPU (" << max_threads_per_block << ")" << DEFAULT_COLOR << std::endl;
+                std::cerr << RED << "WindFlow Error: block size (" << WF_GPU_THREADS_PER_BLOCK << ") exceeds the maximum supported by GPU (" << max_threads_per_block << ")" << DEFAULT_COLOR << std::endl;
                 exit(EXIT_FAILURE);
         }
 #endif

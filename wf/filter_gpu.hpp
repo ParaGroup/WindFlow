@@ -210,14 +210,16 @@ public:
                       execution_mode(Execution_Mode_t::DEFAULT),
                       dropped_inputs(0)
     {
-        gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0)); // device_id = 0
-        gpuErrChk(cudaDeviceGetAttribute(&max_threads_per_sm, cudaDevAttrMaxThreadsPerMultiProcessor, 0)); // device_id = 0
+        int gpu_id;
+        gpuErrChk(cudaGetDevice(&gpu_id));
+        gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, gpu_id));
+        gpuErrChk(cudaDeviceGetAttribute(&max_threads_per_sm, cudaDevAttrMaxThreadsPerMultiProcessor, gpu_id));
 #if (__CUDACC_VER_MAJOR__ >= 11) // at least CUDA 11
-        gpuErrChk(cudaDeviceGetAttribute(&max_blocks_per_sm, cudaDevAttrMaxBlocksPerMultiprocessor, 0)); // device_id = 0
+        gpuErrChk(cudaDeviceGetAttribute(&max_blocks_per_sm, cudaDevAttrMaxBlocksPerMultiprocessor, gpu_id));
 #else
         max_blocks_per_sm = WF_GPU_MAX_BLOCKS_PER_SM;
 #endif
-        gpuErrChk(cudaDeviceGetAttribute(&threads_per_warp, cudaDevAttrWarpSize, 0)); // device_id = 0
+        gpuErrChk(cudaDeviceGetAttribute(&threads_per_warp, cudaDevAttrWarpSize, gpu_id));
     }
 
     // Copy Constructor
@@ -682,14 +684,16 @@ public:
                    execution_mode(Execution_Mode_t::DEFAULT),
                    dropped_inputs(0)
     {
-        gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0)); // device_id = 0
-        gpuErrChk(cudaDeviceGetAttribute(&max_threads_per_sm, cudaDevAttrMaxThreadsPerMultiProcessor, 0)); // device_id = 0
+        int gpu_id;
+        gpuErrChk(cudaGetDevice(&gpu_id));
+        gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, gpu_id));
+        gpuErrChk(cudaDeviceGetAttribute(&max_threads_per_sm, cudaDevAttrMaxThreadsPerMultiProcessor, gpu_id));
 #if (__CUDACC_VER_MAJOR__ >= 11) // at least CUDA 11
-        gpuErrChk(cudaDeviceGetAttribute(&max_blocks_per_sm, cudaDevAttrMaxBlocksPerMultiprocessor, 0)); // device_id = 0
+        gpuErrChk(cudaDeviceGetAttribute(&max_blocks_per_sm, cudaDevAttrMaxBlocksPerMultiprocessor, gpu_id));
 #else
         max_blocks_per_sm = WF_GPU_MAX_BLOCKS_PER_SM;
 #endif
-        gpuErrChk(cudaDeviceGetAttribute(&threads_per_warp, cudaDevAttrWarpSize, 0)); // device_id = 0
+        gpuErrChk(cudaDeviceGetAttribute(&threads_per_warp, cudaDevAttrWarpSize, gpu_id));
     }
 
     // Copy Constructor

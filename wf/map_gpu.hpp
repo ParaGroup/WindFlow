@@ -177,14 +177,16 @@ public:
                    emitter(nullptr),
                    record(nullptr)
     {
-        gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0)); // device_id = 0
-        gpuErrChk(cudaDeviceGetAttribute(&max_threads_per_sm, cudaDevAttrMaxThreadsPerMultiProcessor, 0)); // device_id = 0
+        int gpu_id;
+        gpuErrChk(cudaGetDevice(&gpu_id));
+        gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, gpu_id));
+        gpuErrChk(cudaDeviceGetAttribute(&max_threads_per_sm, cudaDevAttrMaxThreadsPerMultiProcessor, gpu_id));
 #if (__CUDACC_VER_MAJOR__ >= 11) // at least CUDA 11
-        gpuErrChk(cudaDeviceGetAttribute(&max_blocks_per_sm, cudaDevAttrMaxBlocksPerMultiprocessor, 0)); // device_id = 0
+        gpuErrChk(cudaDeviceGetAttribute(&max_blocks_per_sm, cudaDevAttrMaxBlocksPerMultiprocessor, gpu_id));
 #else
         max_blocks_per_sm = WF_GPU_MAX_BLOCKS_PER_SM;
 #endif
-        gpuErrChk(cudaDeviceGetAttribute(&threads_per_warp, cudaDevAttrWarpSize, 0)); // device_id = 0
+        gpuErrChk(cudaDeviceGetAttribute(&threads_per_warp, cudaDevAttrWarpSize, gpu_id));
     }
 
     // Copy Constructor
@@ -350,7 +352,7 @@ public:
         key_t *dist_keys = reinterpret_cast<key_t *>(input->dist_keys_cpu);
 #else
         key_t *dist_keys = reinterpret_cast<key_t *>(input->dist_keys);
-#endif        
+#endif
         for (size_t i=0; i<input->num_dist_keys; i++) { // prepare the states
             auto key = dist_keys[i];
             auto it = keymap->find(key);
@@ -506,14 +508,16 @@ public:
                    terminated(false),
                    emitter(nullptr)
     {
-        gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0)); // device_id = 0
-        gpuErrChk(cudaDeviceGetAttribute(&max_threads_per_sm, cudaDevAttrMaxThreadsPerMultiProcessor, 0)); // device_id = 0
+        int gpu_id;
+        gpuErrChk(cudaGetDevice(&gpu_id));
+        gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, gpu_id));
+        gpuErrChk(cudaDeviceGetAttribute(&max_threads_per_sm, cudaDevAttrMaxThreadsPerMultiProcessor, gpu_id));
 #if (__CUDACC_VER_MAJOR__ >= 11) // at least CUDA 11
-        gpuErrChk(cudaDeviceGetAttribute(&max_blocks_per_sm, cudaDevAttrMaxBlocksPerMultiprocessor, 0)); // device_id = 0
+        gpuErrChk(cudaDeviceGetAttribute(&max_blocks_per_sm, cudaDevAttrMaxBlocksPerMultiprocessor, gpu_id));
 #else
         max_blocks_per_sm = WF_GPU_MAX_BLOCKS_PER_SM;
 #endif
-        gpuErrChk(cudaDeviceGetAttribute(&threads_per_warp, cudaDevAttrWarpSize, 0)); // device_id = 0
+        gpuErrChk(cudaDeviceGetAttribute(&threads_per_warp, cudaDevAttrWarpSize, gpu_id));
     }
 
     // Copy Constructor

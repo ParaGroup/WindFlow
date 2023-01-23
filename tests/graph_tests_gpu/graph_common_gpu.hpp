@@ -220,23 +220,13 @@ public:
 // Filter functor on GPU with keyby distribution
 class Filter_Functor_GPU_KB
 {
-private:
-    int mod;
-
 public:
-    // constructor
-    Filter_Functor_GPU_KB(int _mod): mod(_mod) {}
-
     // operator()
     __device__ bool operator()(tuple_t &t, filter_state_t &state)
     {
         state.counter++;
-        if (t.value % mod == 0) {
-            return true;
-        }
-        else {
-            return false;
-        }
+        t.value += state.counter;
+        return true;
     }
 };
 
@@ -247,12 +237,7 @@ public:
     // operator()
     void operator()(tuple_t &t)
     {
-        if (t.value % 2 == 0) {
-            t.value = t.value + 2;
-        }
-        else {
-            t.value = t.value + 3;
-        }
+        t.value = t.value + 2;
     }
 };
 
@@ -263,12 +248,7 @@ public:
     // operator()
     __device__ void operator()(tuple_t &t)
     {
-        if (t.value % 2 == 0) {
-            t.value = t.value + 2;
-        }
-        else {
-            t.value = t.value + 3;
-        }
+        t.value = t.value + 2;
     }
 };
 
@@ -332,7 +312,6 @@ public:
             totalsum += (*out).value;
         }
         else {
-            // printf("Received: %ld results, total sum: %ld\n", received, totalsum);
             global_sum.fetch_add(totalsum);
         }
     }

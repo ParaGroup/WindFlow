@@ -86,6 +86,18 @@ enum class Win_Type_t { CB, TB };
 /// Enumeration of the routing modes of inputs to the operator replicas
 enum class Routing_Mode_t { NONE, FORWARD, KEYBY, BROADCAST };
 
+/// Forward declaration of the Single_t structure
+template<typename tuple_t>
+struct Single_t;
+
+/// Forward declaration of the Batch_t structure
+template<typename tuple_t>
+struct Batch_t;
+
+/// Forward declaration of the Batch_CPU_t structure
+template<typename tuple_t>
+struct Batch_CPU_t;
+
 /// Forward declaration of the Source operator
 template<typename source_func_t>
 class Source;

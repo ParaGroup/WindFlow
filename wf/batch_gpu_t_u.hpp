@@ -25,12 +25,12 @@
  *  @file    batch_gpu_t_u.hpp
  *  @author  Gabriele Mencagli
  *  
- *  @brief Class implementing a batch of data tuples accessible by the GPU side.
+ *  @brief Class implementing a batch of data tuples accessible by GPU.
  *         Version with CUDA Unified Memory
  *  
  *  @section Batch_GPU_t (Description)
  *  
- *  Class implementing a batch of data tuples accessible by the GPU side. Version
+ *  Class implementing a batch of data tuples accessible by GPU. Version
  *  with CUDA Unified Memory.
  */ 
 
@@ -44,6 +44,7 @@
 #include<limits.h>
 #include<batch_t.hpp>
 #include<basic_gpu.hpp>
+#include<recycling_gpu.hpp>
 
 namespace wf {
 
@@ -54,31 +55,35 @@ struct Batch_GPU_t: Batch_t<tuple_t>
     std::vector<uint64_t> watermarks; // vector of watermarks of the batch (one per destination receiving the batch)
     size_t size; // actual number of meaningful items within the batch
     size_t original_size; // original size of the batch (and of its internal arrays)
-    bool isPunctuation; // flag true if the message is a punctuation, false otherwise
+    bool isPunctuation; // flag equal to true if the message is a punctuation, false otherwise
     std::atomic<size_t> delete_counter; // atomic counter to delete correctly the batch
-    batch_item_gpu_t<tuple_t> *data_u; // array of batch items in CUDA unified memory
+    batch_item_gpu_t<tuple_t> *data_u; // array of batch items (in CUDA unified memory)
     size_t num_dist_keys; // number of distinct keys in the batch
     void *dist_keys; // untyped pointer to a host array containing the distinct keys in the batch
-    int *start_idxs_u; // array with the starting indexes of the keys in the batch in CUDA unified memory
-    int *map_idxs_u; // array to find tuples with the same key within the batch in CUDA unified memory
+    int *start_idxs_u; // array with the starting indexes of the keys in the batch (in CUDA unified memory)
+    int *map_idxs_u; // array to find tuples with the same key within the batch (in CUDA unified memory)
     cudaStream_t cudaStream; // CUDA stream associated with the batch
+    std::atomic<int> *inTransit_counter; // pointer to the counter of in-transit batches
     cudaDeviceProp deviceProp; // object containing the properties of the used GPU device
-    int isTegra; // flag equal to 1 if the GPU (device 0) is integrated (Tegra), 0 otherwise
+    int isTegra; // flag equal to 1 if the GPU is integrated (Tegra), 0 otherwise
+    int gpu_id; // identifier of the currently used GPU
 
     // Constructor
     Batch_GPU_t(size_t _size,
+                std::atomic<int> *_inTransit_counter,
                 size_t _delete_counter=1):
                 size(_size),
                 original_size(_size),
                 isPunctuation(false),
                 delete_counter(_delete_counter),
                 num_dist_keys(0),
-                dist_keys(nullptr)
+                dist_keys(nullptr),
+                inTransit_counter(_inTransit_counter)
     {
         watermarks.push_back(std::numeric_limits<uint64_t>::max());
-        gpuErrChk(cudaStreamCreate(&cudaStream)); // create the CUDA stream associated with this batch object
-        gpuErrChk(cudaGetDeviceProperties(&deviceProp, 0)); // get the properties of the GPU device with id 0
-        gpuErrChk(cudaDeviceGetAttribute(&isTegra, cudaDevAttrIntegrated, 0));
+        gpuErrChk(cudaGetDevice(&gpu_id));
+        gpuErrChk(cudaGetDeviceProperties(&deviceProp, gpu_id));
+        gpuErrChk(cudaDeviceGetAttribute(&isTegra, cudaDevAttrIntegrated, gpu_id));
 #if defined (WF_GPU_PINNED_MEMORY)
         if (!isTegra) {
             std::cerr << RED << "WindFlow Error: pinned memory support can be used on Tegra devices only" << DEFAULT_COLOR << std::endl;
@@ -86,23 +91,71 @@ struct Batch_GPU_t: Batch_t<tuple_t>
         }
         else {
             // allocate the pinned memory arrays
-            gpuErrChk(cudaMallocHost(&data_u, sizeof(batch_item_gpu_t<tuple_t>) * size));
-            gpuErrChk(cudaMallocHost(&start_idxs_u, sizeof(int) * size));
-            gpuErrChk(cudaMallocHost(&map_idxs_u, sizeof(int) * size));
+            if (cudaMallocHost(&data_u, sizeof(batch_item_gpu_t<tuple_t>) * size) == cudaErrorMemoryAllocation) {
+                data_u = nullptr;
+                throw wf::FullGPUMemoryException();
+            }
+            if (cudaMallocHost(&start_idxs_u, sizeof(int) * size) == cudaErrorMemoryAllocation) {
+                gpuErrChk(cudaFreeHost(data_u));
+                data_u = nullptr;
+                start_idxs_u = nullptr;
+                throw wf::FullGPUMemoryException();
+            }
+            if (cudaMallocHost(&map_idxs_u, sizeof(int) * size) == cudaErrorMemoryAllocation) {
+                gpuErrChk(cudaFreeHost(data_u));
+                data_u = nullptr;
+                gpuErrChk(cudaFreeHost(start_idxs_u));
+                start_idxs_u = nullptr;
+                map_idxs_u = nullptr;
+                throw wf::FullGPUMemoryException();
+            }
+            gpuErrChk(cudaStreamCreate(&cudaStream)); // create the CUDA stream associated with this batch
         }
 #else
         if (!isTegra && deviceProp.concurrentManagedAccess) { // new discrete GPU models
             // allocate the CUDA unified memory arrays
-            gpuErrChk(cudaMallocManaged(&data_u, sizeof(batch_item_gpu_t<tuple_t>) * size));
-            gpuErrChk(cudaMallocManaged(&start_idxs_u, sizeof(int) * size));
-            gpuErrChk(cudaMallocManaged(&map_idxs_u, sizeof(int) * size));
+            if (cudaMallocManaged(&data_u, sizeof(batch_item_gpu_t<tuple_t>) * size) == cudaErrorMemoryAllocation) {
+                data_u = nullptr;
+                throw wf::FullGPUMemoryException();
+            }
+            if (cudaMallocManaged(&start_idxs_u, sizeof(int) * size) == cudaErrorMemoryAllocation) {
+                gpuErrChk(cudaFree(data_u));
+                data_u = nullptr;
+                start_idxs_u = nullptr;
+                throw wf::FullGPUMemoryException();
+            }
+            if (cudaMallocManaged(&map_idxs_u, sizeof(int) * size) == cudaErrorMemoryAllocation) {
+                gpuErrChk(cudaFree(data_u));
+                data_u = nullptr;
+                gpuErrChk(cudaFree(start_idxs_u));
+                start_idxs_u = nullptr;
+                map_idxs_u = nullptr;
+                throw wf::FullGPUMemoryException();
+            }
+            gpuErrChk(cudaStreamCreate(&cudaStream)); // create the CUDA stream associated with this batch
         }
         else { // old discrete GPU models and Tegra devices
             // allocate the CUDA unified memory arrays and attach them to the host side
-            gpuErrChk(cudaMallocManaged(&data_u, sizeof(batch_item_gpu_t<tuple_t>) * size, cudaMemAttachHost));
-            gpuErrChk(cudaMallocManaged(&start_idxs_u, sizeof(int) * size, cudaMemAttachHost));
-            gpuErrChk(cudaMallocManaged(&map_idxs_u, sizeof(int) * size, cudaMemAttachHost));
-            // attach the CUDA unified memory arrays to the GPU side
+            if (cudaMallocManaged(&data_u, sizeof(batch_item_gpu_t<tuple_t>) * size, cudaMemAttachHost) == cudaErrorMemoryAllocation) {
+                data_u = nullptr;
+                throw wf::FullGPUMemoryException();
+            }
+            if (cudaMallocManaged(&start_idxs_u, sizeof(int) * size, cudaMemAttachHost) == cudaErrorMemoryAllocation) {
+                gpuErrChk(cudaFree(data_u));
+                data_u = nullptr;
+                start_idxs_u = nullptr;
+                throw wf::FullGPUMemoryException();
+            }
+            if (cudaMallocManaged(&map_idxs_u, sizeof(int) * size, cudaMemAttachHost) == cudaErrorMemoryAllocation) {
+                gpuErrChk(cudaFree(data_u));
+                data_u = nullptr;
+                gpuErrChk(cudaFree(start_idxs_u));
+                start_idxs_u = nullptr;
+                map_idxs_u = nullptr;
+                throw wf::FullGPUMemoryException();
+            }
+            gpuErrChk(cudaStreamCreate(&cudaStream)); // create the CUDA stream associated with this batch
+            // attach the CUDA unified memory arrays to GPU
             gpuErrChk(cudaStreamAttachMemAsync(cudaStream, data_u, sizeof(batch_item_gpu_t<tuple_t>) * original_size, cudaMemAttachSingle));
             gpuErrChk(cudaStreamAttachMemAsync(cudaStream, start_idxs_u, sizeof(int) * size, cudaMemAttachSingle));
             gpuErrChk(cudaStreamAttachMemAsync(cudaStream, map_idxs_u, sizeof(int) * size, cudaMemAttachSingle));
@@ -142,6 +195,9 @@ struct Batch_GPU_t: Batch_t<tuple_t>
         }
         gpuErrChk(cudaStreamDestroy(cudaStream));
 #endif
+        if (inTransit_counter != nullptr) {
+            (*inTransit_counter)--;
+        }
     }
 
     // Check whether the batch can be deleted or not
@@ -208,11 +264,11 @@ struct Batch_GPU_t: Batch_t<tuple_t>
         }
         else if (deviceProp.concurrentManagedAccess) { // new discrete GPU models
             // prefetch the CUDA unified memory array of batch items to the GPU side
-            gpuErrChk(cudaMemPrefetchAsync(data_u, sizeof(batch_item_gpu_t<tuple_t>) * size, 0, cudaStream)); // device_id = 0
+            gpuErrChk(cudaMemPrefetchAsync(data_u, sizeof(batch_item_gpu_t<tuple_t>) * size, gpu_id, cudaStream));
             if (_isKB) {
                 // prefetch the CUDA unified memory arrays used for keyby distribution to the GPU side
-                gpuErrChk(cudaMemPrefetchAsync(start_idxs_u, sizeof(int) * size, 0, cudaStream)); // device_id = 0
-                gpuErrChk(cudaMemPrefetchAsync(map_idxs_u, sizeof(int) * size, 0, cudaStream)); // device_id = 0
+                gpuErrChk(cudaMemPrefetchAsync(start_idxs_u, sizeof(int) * size, gpu_id, cudaStream));
+                gpuErrChk(cudaMemPrefetchAsync(map_idxs_u, sizeof(int) * size, gpu_id, cudaStream));
             }
         }
 #endif
@@ -284,43 +340,6 @@ struct Batch_GPU_t: Batch_t<tuple_t>
     Batch_GPU_t &operator=(const Batch_GPU_t &) = delete; ///< Copy assignment operator is deleted
     Batch_GPU_t &operator=(Batch_GPU_t &&) = delete; ///< Move assignment operator is deleted
 };
-
-// Allocate a Batch_GPU_t (trying to recycle an old one)
-template<typename tuple_t>
-inline Batch_GPU_t<tuple_t> *allocateBatch_GPU_t(size_t _requested_size,
-                                                 ff::MPMC_Ptr_Queue *_queue)
-{
-    Batch_GPU_t<tuple_t> *batch_input = nullptr;
-#if !defined (WF_NO_RECYCLING)
-    if (_queue != nullptr) {
-        if (!_queue->pop((void **) &batch_input)) { // create a new batch
-            batch_input = new Batch_GPU_t<tuple_t>(_requested_size);
-            batch_input->queue = _queue;
-            return batch_input;
-        }
-        else { // recycling a previous batch
-            if (_requested_size <= batch_input->original_size) {
-                batch_input->reset();
-                batch_input->size = _requested_size;
-                return batch_input;
-            }
-            else {
-                delete batch_input;
-                batch_input = new Batch_GPU_t<tuple_t>(_requested_size);
-                batch_input->queue = _queue;
-                return batch_input;
-            }
-        }
-    }
-    else { // create a new batch
-        batch_input = new Batch_GPU_t<tuple_t>(_requested_size);
-        return batch_input;
-    }
-#else
-    batch_input = new Batch_GPU_t<tuple_t>(_requested_size);
-    return batch_input;
-#endif
-}
 
 } // namespace wf
 

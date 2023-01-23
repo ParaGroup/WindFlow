@@ -67,8 +67,6 @@ using namespace wf;
 // global variable for the result
 extern atomic<long> global_sum;
 
-
-
 // main
 int main(int argc, char *argv[])
 {
@@ -103,7 +101,7 @@ int main(int argc, char *argv[])
     size_t min = 1;
     size_t max = 9;
     std::uniform_int_distribution<std::mt19937::result_type> dist_p(min, max);
-    std::uniform_int_distribution<std::mt19937::result_type> dist_b(100, 200);
+    std::uniform_int_distribution<std::mt19937::result_type> dist_b(1, 1);
     int map1_degree, map2_degree, flatmap_degree, filter1_degree, filter2_degree, filter3_degree, filter4_degree, sink_degree;
     size_t source1_degree = dist_p(rng);
     size_t source2_degree = dist_p(rng);
@@ -117,8 +115,6 @@ int main(int argc, char *argv[])
         filter2_degree = dist_p(rng);
         filter3_degree = dist_p(rng);
         filter4_degree = dist_p(rng);
-        map1_degree = dist_p(rng);
-        map2_degree = dist_p(rng);
         sink_degree = dist_p(rng);
         cout << "Run " << i << endl;
         cout << "                                                          +---------------------+" << std::endl;
@@ -150,7 +146,9 @@ int main(int argc, char *argv[])
         cout << "                                   +-----------+" << std::endl;
         // compute the total parallelism degree of the PipeGraph
         size_t check_degree = source1_degree;
-        check_degree += filter1_degree;
+        if (source1_degree != filter1_degree) {
+            check_degree += filter1_degree;
+        }
         check_degree += map1_degree;
         if (map1_degree != map2_degree) {
             check_degree += map2_degree;
@@ -173,15 +171,15 @@ int main(int argc, char *argv[])
                             .withOutputBatchSize(dist_b(rng))
                             .build();
         MultiPipe &pipe1 = graph.add_source(source1);
-        Filter_Functor_GPU_KB filter_functor_gpu1(2);
+        Filter_Functor_GPU filter_functor_gpu1(2);
         Filter_GPU filtergpu1 = FilterGPU_Builder(filter_functor_gpu1)
                                     .withName("filter1")
                                     .withParallelism(filter1_degree)
-                                    .withKeyBy([] __host__ __device__ (const tuple_t &t) -> size_t { return t.key; })
                                     .build();
         pipe1.chain(filtergpu1);
         // split
         pipe1.split_gpu<tuple_t>(2);
+
         // prepare the second MultiPipe
         MultiPipe &pipe2 = pipe1.select(0);
         Map_Functor_GPU_KB map_functor_gpu1;
@@ -216,7 +214,7 @@ int main(int argc, char *argv[])
                                 .withOutputBatchSize(dist_b(rng))
                                 .build();
         pipe4.chain(flatmap);
-        Filter_Functor_GPU filter_functor_gpu4(5);
+        Filter_Functor_GPU filter_functor_gpu4(1);
         Filter_GPU filter4 = FilterGPU_Builder(filter_functor_gpu4)
                                 .withName("filter4")
                                 .withParallelism(filter4_degree)
@@ -230,7 +228,7 @@ int main(int argc, char *argv[])
                             .withOutputBatchSize(dist_b(rng))
                             .build();
         MultiPipe &pipe5 = graph.add_source(source2); 
-        Filter_Functor_GPU_KB filter_functor_gpu2(2);
+        Filter_Functor_GPU_KB filter_functor_gpu2;
         Filter_GPU filter2 = FilterGPU_Builder(filter_functor_gpu2)
                                     .withName("filter2")
                                     .withParallelism(filter2_degree)

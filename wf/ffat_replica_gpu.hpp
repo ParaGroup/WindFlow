@@ -193,9 +193,11 @@ public:
             slide_len = slide_len / quantum;            
         }
         gpuErrChk(cudaStreamCreate(&cudaStream));
-        gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0)); // device_id = 0
+        int gpu_id;
+        gpuErrChk(cudaGetDevice(&gpu_id));
+        gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, gpu_id));
 #if (__CUDACC_VER_MAJOR__ >= 11) // at least CUDA 11
-        gpuErrChk(cudaDeviceGetAttribute(&max_blocks_per_sm, cudaDevAttrMaxBlocksPerMultiprocessor, 0)); // device_id = 0
+        gpuErrChk(cudaDeviceGetAttribute(&max_blocks_per_sm, cudaDevAttrMaxBlocksPerMultiprocessor, gpu_id));
 #else
         max_blocks_per_sm = WF_GPU_MAX_BLOCKS_PER_SM;
 #endif

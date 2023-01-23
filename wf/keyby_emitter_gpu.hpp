@@ -29,8 +29,10 @@
  *  
  *  @section KeyBy_Emitter_GPU (Description)
  *  
- *  The emitter is capable of receiving/sending batches from/to GPU operators
- *  by preparing them for a keyby processing.
+ *  The emitter implements the keyby (KB) distribution in three possible scenarios:
+ *  1) CPU-GPU (source is CPU operator, destination is a GPU operator)
+ *  2) GPU-GPU (source is GPU operator, destination is a GPU operator)
+ *  3) GPU-CPU (source is GPU operator, destination is a CPU operator).
  */ 
 
 #ifndef KB_EMITTER_GPU_H
@@ -153,6 +155,7 @@ private:
     std::vector<key_t *> dist_keys_gpu; // vector of pointers to GPU arrays of distinct keys (used circularly)
     std::vector<int *> sequence_gpu; // vector of pointers to GPU arrays of progressive indexes (used circularly)
     ff::MPMC_Ptr_Queue *queue; // pointer to the recyling queue
+    std::atomic<int> *inTransit_counter; // pointer to the counter of in-transit batches
     std::vector<size_t> internal_sizes; // vector of internal size values (used circularly)
     size_t next_tuple_idx; // identifier where to copy the next tuple in the batch
     size_t id_r; // identifier used for overlapping purposes
@@ -190,12 +193,13 @@ public:
         }
         assert(size > 0); // sanity check
         queue = new ff::MPMC_Ptr_Queue();
-        queue->init(WF_GPU_DEFAULT_RECYCLING_QUEUE_SIZE);
+        queue->init(DEFAULT_BUFFER_CAPACITY);
+        inTransit_counter = new std::atomic<int>(0);
         records_kb[0] = new record_kb_t(size);
         records_kb[1] = new record_kb_t(size);
     }
 
-    // Constructor II (GPU->ANY cases)
+    // Constructor II (GPU->GPU and GPU->CPU cases)
     KeyBy_Emitter_GPU(key_extractor_func_t _key_extr,
                       size_t _num_dests):
                       key_extr(_key_extr),
@@ -219,10 +223,13 @@ public:
             exit(EXIT_FAILURE);
         }
         queue = new ff::MPMC_Ptr_Queue();
-        queue->init(WF_GPU_DEFAULT_RECYCLING_QUEUE_SIZE);
-        gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, 0)); // device_id = 0
+        queue->init(DEFAULT_BUFFER_CAPACITY);
+        inTransit_counter = new std::atomic<int>(0);
+        int gpu_id;
+        gpuErrChk(cudaGetDevice(&gpu_id));
+        gpuErrChk(cudaDeviceGetAttribute(&numSMs, cudaDevAttrMultiProcessorCount, gpu_id));
 #if (__CUDACC_VER_MAJOR__ >= 11) // at least CUDA 11
-        gpuErrChk(cudaDeviceGetAttribute(&max_blocks_per_sm, cudaDevAttrMaxBlocksPerMultiprocessor, 0)); // device_id = 0
+        gpuErrChk(cudaDeviceGetAttribute(&max_blocks_per_sm, cudaDevAttrMaxBlocksPerMultiprocessor, gpu_id));
 #else
         max_blocks_per_sm = WF_GPU_MAX_BLOCKS_PER_SM;
 #endif
@@ -249,7 +256,8 @@ public:
                       max_blocks_per_sm(_other.max_blocks_per_sm)
     {
         queue = new ff::MPMC_Ptr_Queue();
-        queue->init(WF_GPU_DEFAULT_RECYCLING_QUEUE_SIZE);
+        queue->init(DEFAULT_BUFFER_CAPACITY);
+        inTransit_counter = new std::atomic<int>(0);
         if constexpr (!inputGPU) {
             records_kb[0] = new record_kb_t(size);
             records_kb[1] = new record_kb_t(size);
@@ -272,6 +280,7 @@ public:
                       dist_keys_gpu(std::move(_other.dist_keys_gpu)),
                       sequence_gpu(std::move(_other.sequence_gpu)),
                       queue(std::exchange(_other.queue, nullptr)),
+                      inTransit_counter(std::exchange(_other.inTransit_counter, nullptr)),
                       internal_sizes(std::move(_other.internal_sizes)),
                       next_tuple_idx(_other.next_tuple_idx),
                       id_r(_other.id_r),
@@ -316,6 +325,9 @@ public:
                 delete del_batch;
             }
             delete queue; // delete the recycling queue
+        }
+        if (inTransit_counter != nullptr) {
+            delete inTransit_counter;
         }
     }
 
@@ -385,6 +397,7 @@ public:
         size = _other.size;
         idx_dest = _other.idx_dest;
         useTreeMode = _other.useTreeMode;
+        assert(output_queue.size() == 0); // sanity check
         output_queue = std::move(_other.output_queue);
         dist_map = std::move(_other.dist_map);
         for (auto *p: records_kb) {
@@ -429,6 +442,10 @@ public:
             delete queue; // delete the recycling queue
         }
         queue = std::exchange(_other.queue, nullptr);
+        if (inTransit_counter != nullptr) {
+            delete inTransit_counter;
+        }
+        inTransit_counter = std::exchange(_other.inTransit_counter, nullptr);
         internal_sizes = std::move(_other.internal_sizes);
         next_tuple_idx = _other.next_tuple_idx;
         id_r = _other.id_r;
@@ -524,7 +541,7 @@ public:
         }
         next_tuple_idx++;
         if (next_tuple_idx == size) { // batch is complete
-            Batch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))> *batch = allocateBatch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>(size, queue); // allocate the new batch
+            Batch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))> *batch = allocateBatch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>(size, queue, inTransit_counter); // allocate the new batch
             batch->num_dist_keys = record.num_dist_keys;
             batch->setWatermark(record.watermark, 0);
             if (sent_batches > 0) { // wait the copy of the previous batch to be sent
@@ -721,7 +738,7 @@ public:
             }
         }
         else { // CPU->GPU and GPU->GPU cases
-            Batch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))> *punc = allocateBatch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>(punc_size, queue);
+            Batch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))> *punc = allocateBatch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>(punc_size, queue, inTransit_counter);
             punc->setWatermark(_watermark);
             (punc->delete_counter).fetch_add(num_dests-1);
             assert((punc->watermarks).size() == 1); // sanity check
@@ -757,7 +774,7 @@ public:
             assert(batch_tobe_sent == nullptr); // sanity check
             if (next_tuple_idx > 0) { // partial batch to be sent
                 auto &record = *(records_kb[id_r]);
-                Batch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))> *batch = allocateBatch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>(size, queue); // allocate the new batch
+                Batch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))> *batch = allocateBatch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>(size, queue, inTransit_counter); // allocate the new batch
                 batch->size = next_tuple_idx; // set the real size of the last batch
                 batch->num_dist_keys = record.num_dist_keys;
                 errChkMalloc(batch->dist_keys_cpu = (void *) malloc(sizeof(key_t) * record.num_dist_keys)); // allocate space for the keys

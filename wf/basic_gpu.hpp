@@ -39,10 +39,15 @@
 /// includes
 #include<cassert>
 #include<iostream>
+#include<exception>
 #include<stdint.h>
 #include<basic.hpp>
 
 namespace wf {
+
+/// Forward declaration of the Batch_GPU_t structure
+template<typename tuple_t>
+struct Batch_GPU_t;
 
 /// Forward declaration of the Map_GPU operator
 template<typename mapgpu_func_t, typename key_extractor_func_t>
@@ -72,9 +77,9 @@ class FFAT_Aggregator_GPU;
     #define WF_GPU_THREADS_PER_BLOCK 256
 #endif
 
-// Default size of the feedback recycling queues (for GPU operators only)
-#if !defined (WF_GPU_DEFAULT_RECYCLING_QUEUE_SIZE)
-    #define WF_GPU_DEFAULT_RECYCLING_QUEUE_SIZE 8192
+// Default threshold for the available GPU memory (in percentage)
+#if !defined (WF_GPU_FREE_MEMORY_LIMIT)
+    #define WF_GPU_FREE_MEMORY_LIMIT 0.2 // default 10%
 #endif
 
 // Compute the next power of two greater than a 32-bit integer
@@ -112,6 +117,16 @@ inline void gpuAssert(cudaError_t code,
                             std::cerr << RED << "WindFlow Error: error malloc() call" << DEFAULT_COLOR << std::endl; \
                             exit(EXIT_FAILURE); \
                           }
+
+// FullGPUMemoryException exception class
+struct FullGPUMemoryException: public std::exception
+{
+    // what method
+    const char * what() const throw ()
+    {
+        return "FullGPUMemoryException";
+    }
+};
 
 // Struct of a data item used by GPU batches
 template<typename tuple_t>
@@ -164,7 +179,7 @@ struct wrapper_state_t
     wrapper_state_t()
     {
         gpuErrChk(cudaMalloc(&state_gpu, sizeof(state_t)));
-        Build_State_Kernel<<<1, WF_GPU_THREADS_PER_BLOCK>>>(state_gpu); // use the default CUDA stream
+        Build_State_Kernel<<<1, WF_GPU_THREADS_PER_BLOCK>>>(state_gpu); // use the default CUDA stream!
         gpuErrChk(cudaPeekAtLastError());
         gpuErrChk(cudaDeviceSynchronize());
     }
@@ -173,7 +188,7 @@ struct wrapper_state_t
     wrapper_state_t(const wrapper_state_t &_other)
     {
         gpuErrChk(cudaMalloc(&state_gpu, sizeof(state_t)));
-        Copy_State_Kernel<<<1, WF_GPU_THREADS_PER_BLOCK>>>(state_gpu, _other.state_gpu); // use the default CUDA stream
+        Copy_State_Kernel<<<1, WF_GPU_THREADS_PER_BLOCK>>>(state_gpu, _other.state_gpu); // use the default CUDA stream!
         gpuErrChk(cudaPeekAtLastError());
         gpuErrChk(cudaDeviceSynchronize());
     }
@@ -186,7 +201,7 @@ struct wrapper_state_t
     ~wrapper_state_t()
     {
         if (state_gpu != nullptr) {
-            Destroy_State_Kernel<<<1, WF_GPU_THREADS_PER_BLOCK, 0>>>(state_gpu); // use the default CUDA stream
+            Destroy_State_Kernel<<<1, WF_GPU_THREADS_PER_BLOCK, 0>>>(state_gpu); // use the default CUDA stream!
             gpuErrChk(cudaPeekAtLastError());
             gpuErrChk(cudaDeviceSynchronize());
             gpuErrChk(cudaFree(state_gpu));
@@ -197,13 +212,13 @@ struct wrapper_state_t
     wrapper_state_t &operator=(const wrapper_state_t &_other)
     {
         if (state_gpu != nullptr) {
-            Destroy_State_Kernel<<<1, WF_GPU_THREADS_PER_BLOCK, 0>>>(state_gpu); // use the default CUDA stream
+            Destroy_State_Kernel<<<1, WF_GPU_THREADS_PER_BLOCK, 0>>>(state_gpu); // use the default CUDA stream!
             gpuErrChk(cudaPeekAtLastError());
             gpuErrChk(cudaDeviceSynchronize());
             gpuErrChk(cudaFree(state_gpu));
         }
         gpuErrChk(cudaMalloc(&state_gpu, sizeof(state_t)));
-        Copy_State_Kernel<<<1, WF_GPU_THREADS_PER_BLOCK>>>(state_gpu, _other.state_gpu); // use the default CUDA stream
+        Copy_State_Kernel<<<1, WF_GPU_THREADS_PER_BLOCK>>>(state_gpu, _other.state_gpu); // use the default CUDA stream!
         gpuErrChk(cudaPeekAtLastError());
         gpuErrChk(cudaDeviceSynchronize());
         return *this;
