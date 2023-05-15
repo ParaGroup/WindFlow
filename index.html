@@ -7,9 +7,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <link rel="shortcut icon" type="image/png" href="favicon.png">
     
-	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?6936">
-	<link rel="stylesheet" type="text/css" href="style.css?800">
-	<link rel="stylesheet" type="text/css" href="./css/prism.css?3085">
+	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?563">
+	<link rel="stylesheet" type="text/css" href="style.css?8539">
+	<link rel="stylesheet" type="text/css" href="./css/prism.css?8667">
 	
 	<link rel="stylesheet" type="text/css" href="./css/font-awesome.min.css">
 	
@@ -51,13 +51,13 @@
 								<a href="operators.html" class="btn btn-lg btn-glossy btn-azure">Operators</a>
 							</li>
 							<li>
-								<a href="usage.html" class="btn btn-lg btn-glossy btn-azure">Usage<br></a>
+								<a href="usage.html" class="btn btn-lg btn-glossy btn-azure">API<br></a>
 							</li>
 							<li>
-								<a href="usage_gpu.html" class="btn btn-lg btn-glossy btn-azure">Usage GPU</a>
+								<a href="usage_gpu.html" class="btn btn-lg btn-glossy btn-azure">API GPU</a>
 							</li>
 							<li>
-								<a href="special.html" class="btn btn-lg btn-glossy btn-azure">Kafka<br></a>
+								<a href="special.html" class="btn btn-lg btn-glossy btn-azure">API Kafka<br></a>
 							</li>
 							<li>
 								<a href="dashboard.html" class="btn btn-lg btn-glossy btn-azure">Dashboard</a>
@@ -103,12 +103,12 @@
 					<strong>Overview</strong>
 				</h2>
 				<p class="text-justify">
-					<strong>WindFlow</strong> is a library for parallel data stream processing on shared-memory systems and NVIDIA GPUs. Data stream processing is a popular computing paradigm supported by several existing open-source frameworks (e.g., Apache Storm, Apache Flink and Spark Streaming). All existing solutions target distributed systems (e.g., clusters of server machines) and are based on the Java Virtual Machine (JVM) for easing the development of streaming applications on distributed architectures. However, as recognized by recent publications [1,2], they are not effective to exploit at best the potential of scale-up architectures such as single machines equipped with several multi-core CPUs and co-processors like GPUs and FPGAs.<br><br>The library proposed in this web page tries to fill this gap by providing an easy-to-use tool with the following distinguishable features:<br>
+					<strong>WindFlow</strong> is a library for parallel data stream processing on shared-memory systems and NVIDIA GPUs (distributed support is under development at the moment). Data stream processing is a popular computing paradigm supported by several existing open-source frameworks (e.g., Apache Storm, Apache Flink and Spark Streaming). All existing solutions target distributed systems (e.g., clusters of server machines) and are based on the Java Virtual Machine (JVM) for easing the development of streaming applications on distributed architectures. However, as recognized by recent publications [1,2], they are not effective to exploit at best the potential of scale-up architectures such as single machines equipped with several multi-core CPUs and co-processors like GPUs and FPGAs.<br><br>The library proposed in this web page tries to fill this gap by providing an easy-to-use tool with the following distinguishable features:<br>
 				</p>
 				<div >
 					<ul>
 <li>it provides a clear API fully compliant with the recent <b>C++17</b> standard;</li>
-<li>as in most of the existing systems, applications are represented by <i>data-flow graphs</i> of interconnected operators. The library provides common streaming operators like map, filter, flatmap and many others. To instantiate operators, the programmer must provide the business logic code required to do the processing (provided via lambda expressions, functor objects or plain functions). Therefore, operators run arbitrary <b>user-defined functions</b> and not only predefined tasks (like relational algebra operators of old-style Data Stream Management Systems);</li>
+<li>as in most of the existing systems, applications are represented by <i>data-flow graphs</i> of interconnected operators. The library provides common streaming operators like map, filter, flatmap and many others. To instantiate operators, the programmer must provide the business logic code required to do the processing (provided via lambda expressions, functor objects or plain functions). Therefore, operators run arbitrary <b>user-defined functions</b> and not only predefined transformations (like relational algebra operators of old-style Data Stream Management Systems);</li>
 <li>the library provides <b>window-based operators</b> with a rich parallel semantics to accelerate continuous analytics on data streams;
 </li><li>operators can be composed using the <b>MultiPipe</b> programming construct, which provides a <b> compositional interface</b> to build applications (i.e., to create operators and to connect them).</li>
 </ul>
@@ -121,7 +121,7 @@
 						<strong>How to Cite</strong>
 					</h2>
 				<p>
-						The main paper describing the WindFlow API and its run-time system has been published in <strong>IEEE Transactions on Parallel and Distributed Systems</strong>:<br>
+						Below the list of the major scientific publications related to WindFlow:
 					</p>
 				<div >
 						<ul>
@@ -177,7 +177,7 @@
 			<div class="col-md-3 col-sm-6">
 				<h4 class="mg-md text-sm-left text-center">
 					Get the library
-				</h4><a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/3.1.0.zip" class="a-btn a-block footer-link ltc-azure">Download</a><a href="https://github.com/ParaGroup/WindFlow" class="a-btn a-block footer-link ltc-azure">GitHub</a>
+				</h4><a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/3.6.0.zip" class="a-btn a-block footer-link ltc-azure">Download</a><a href="https://github.com/ParaGroup/WindFlow" class="a-btn a-block footer-link ltc-azure">GitHub</a>
 			</div>
 		</div>
 	</div>
@@ -189,11 +189,11 @@
     
 
 <!-- Additional JS -->
-<script src="./js/jquery-3.5.1.min.js?7694"></script>
-<script src="./js/bootstrap.bundle.min.js?4114"></script>
-<script src="./js/blocs.min.js?2484"></script>
+<script src="./js/jquery-3.5.1.min.js?2362"></script>
+<script src="./js/bootstrap.bundle.min.js?1328"></script>
+<script src="./js/blocs.min.js?6299"></script>
 <script src="./js/lazysizes.min.js" defer></script>
-<script src="./js/prism.js?4551"></script>
+<script src="./js/prism.js?676"></script>
 <!-- Additional JS END -->
 
 

@@ -7,9 +7,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <link rel="shortcut icon" type="image/png" href="favicon.png">
     
-	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?2543">
-	<link rel="stylesheet" type="text/css" href="style.css?9627">
-	<link rel="stylesheet" type="text/css" href="./css/prism.css?5489">
+	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?7261">
+	<link rel="stylesheet" type="text/css" href="style.css?9457">
+	<link rel="stylesheet" type="text/css" href="./css/prism.css?9061">
 	
 	<link rel="stylesheet" type="text/css" href="./css/font-awesome.min.css">
 	
@@ -51,13 +51,13 @@
 								<a href="operators.html" class="btn btn-lg btn-glossy btn-azure">Operators</a>
 							</li>
 							<li>
-								<a href="usage.html" class="btn btn-lg btn-glossy btn-azure">Usage<br></a>
+								<a href="usage.html" class="btn btn-lg btn-glossy btn-azure">API<br></a>
 							</li>
 							<li>
-								<a href="usage_gpu.html" class="btn btn-lg btn-glossy btn-azure">Usage GPU</a>
+								<a href="usage_gpu.html" class="btn btn-lg btn-glossy btn-azure">API GPU</a>
 							</li>
 							<li>
-								<a href="special.html" class="btn btn-lg btn-glossy btn-azure">Kafka<br></a>
+								<a href="special.html" class="btn btn-lg btn-glossy btn-azure">API Kafka<br></a>
 							</li>
 							<li>
 								<a href="dashboard.html" class="btn btn-lg btn-glossy btn-azure">Dashboard</a>
@@ -104,7 +104,7 @@
 				</h2>
 				<p class="text-justify">
 					WindFlow provides a quite rich set of operators like popular streaming frameworks (e.g, Apache Flink). The figure below shows the list of operators and a brief description of each of them.
-				</p><img src="img/lazyload-ph.png" data-src="img/operators.jpg" class="img-fluid mx-auto d-block img-operato-style mg-md lazyload" alt="Operator suite of WindFlow" />
+				</p><img src="img/lazyload-ph.png" data-src="img/operators_list.jpg" class="img-fluid mx-auto d-block img-operato-style mg-md lazyload" alt="Operator suite of WindFlow" />
 				<h2 class="mg-md tc-davys-grey-2 tc-davys-grey">
 					<strong>Operator Parallelism</strong>
 				</h2>
@@ -120,25 +120,25 @@
 					
 				</div>
 				<p class="text-justify">
-						The idea of these approaches&nbsp;is sketched in the figure below. For simplicity, we show an example with <strong>count-based windows</strong> of length of six items sliding every two items. However, the library also provides support to <strong>time-based windows</strong> (with event time semantics) instantiated with both non-incremental and incremental queries.
+						The idea of these approaches&nbsp;is sketched in the figure below. For simplicity, we show an example with <strong>count-based windows</strong> of length of six items sliding every two items. However, the library also provides support to <strong>time-based windows</strong> (with event time semantics only at the moment) instantiated with both non-incremental and incremental queries.
 					</p><img src="img/lazyload-ph.png" data-src="img/windows.jpg" class="img-fluid mx-auto d-block img-windo-style mg-md lazyload" alt="Parallelism exploitation patterns on sliding windows" />
 				<p class="text-justify">
 						Intra-window parallelism needs additional explanations. The library supports operators enabling the parallel processing within each window. The first is based on the <strong>paned approach</strong> [3], where each window is split into tumbling windows called <i>panes</i> with length equal to the greatest common divisor<i>&nbsp;</i>between the window length and its slide (in the example, each pane is two items long). The operator computes a partial result per pane (by processing them in parallel if possible), and the pane results are eventually aggregated to produce window-wise results (in the example three pane results are needed per window). A good point in favor of this approach is that pane results shared by consecutive windows do not need to be recomputed by improving the computation performance.<br><br>The second approach to intra-window parallelism is based on the <strong>map-reduce pattern</strong>: each window is split into partitions, and a partial result is computed per partition. Then, partition results are aggregated into window-wise results. Although similar to the paned approach, here the size of the partitions depends on the number of parallel replicas involved in the processing of the operator (two in the figure below, right-hand side), leading to the possibility to decrease the processing latency proportionally to the parallelism level used by the operator. However, differently from the paned approach, windows are recomputed from scratch although in parallel.<br>
 					</p><img src="img/lazyload-ph.png" data-src="img/windows-2.jpg" class="img-fluid mx-auto d-block img-windows-style mg-md lazyload" alt="Intra-window parallelism" />
 				<p class="text-justify">
-						We point out that the existing frameworks do not provide all these parallel operators in an integrated and easy-to-use manner. As an example, Apache Storm and Apache Flink provide key-based parallelism natively, while intra-window parallelism is naturally provided in Spark Streaming as a derivation from the Spark engine for batch processing and map-reduce computations.<br><br>Starting from version 2.8 of the library, WindFlow provides a further window-based operator called <strong>FFAT_Aggregator</strong>. As for the Keyed_Windows operator, the FFAT_Aggregator operator processes windows of different keyed substreams in parallel on different cores of the CPU. However, windows of the same substream are processed using the Flat Fixed-size Aggregator approach (Flat-FAT) based on balanced binary trees. The approach avoids recomputing windows from scratch. Further details can be found in the paper presenting this approach for the first time [4].<br>
+						We point out that the existing frameworks do not provide all these parallel operators in an integrated and easy-to-use manner. As an example, Apache Storm and Apache Flink provide key-based parallelism natively, while intra-window parallelism is naturally provided in Spark Streaming as a derivation from the Spark engine for batch processing and map-reduce computations.<br><br>Starting from version 2.8 of the library, WindFlow provides a further window-based operator called <strong>FFAT_Windows</strong>. As for the Keyed_Windows operator, this operator processes windows of different keyed substreams in parallel on different cores of the CPU. However, windows of the same substream are processed using the Flat Fixed-size Aggregator approach (Flat-FAT) based on balanced binary trees. The approach avoids recomputing windows from scratch. Further details can be found in the paper presenting this approach for the first time [4].<br>
 					</p>
 				<h2 class="mg-md tc-davys-grey-2 tc-davys-grey">
 						<strong>GPU Operators</strong>
 					</h2>
 				<p class="text-justify">
-						WindFlow version 3.x supports operators targeting NVIDIA GPU devices. The idea is that the processing of hotspot computationally intensive operators can be accelerated leveraging GPU devices and small <strong>batching approaches</strong>. A GPU operator receives a batch of inputs from the preceding operators in the dataflow graph and processes each batch in parallel on a GPU.<br><br>For <strong>stateless operators</strong>, i.e., the one created without a keyby modifier, all inputs within the batch are processed in parallel on the GPU by a CUDA thread each. This idea is shown in the figure below.<br>
+						WindFlow version 3.x supports operators targeting NVIDIA GPU devices. The idea is that the processing of hotspot computationally intensive operators can be accelerated leveraging GPU devices and small <strong>batching approaches</strong>. A GPU operator receives a batch of inputs from the preceding operators in the dataflow graph and processes each batch in parallel on GPU.<br><br>For <strong>stateless operators</strong>, i.e., the one created without a keyby modifier, all inputs within the batch are processed in parallel on GPU by a CUDA thread each. This idea is shown in the figure below.<br>
 					</p><img src="img/lazyload-ph.png" data-src="img/gpu_stateless.jpg" class="img-fluid mx-auto d-block img-gpu-statele-style mg-md lazyload" alt="GPU stateless processing" />
 				<p class="text-justify">
-						<strong>Stateful operators</strong> require a keyby distribution and maintain a state per key. The general requirement is that all the inputs belonging to the same substream are processed sequentially by reading and modifying the associated state. WindFlow provides a clever approach to do that on GPU, by keeping a device object per key representing the state, and by enforcing the stateful constraints in the design of the internal CUDA kernels.<br>
+						<strong>Stateful operators</strong> require a keyby distribution and maintain a state partition per key. The general requirement is that all inputs belonging to the same substream are processed sequentially by reading and modifying the associated state. WindFlow provides a clever approach to do that on GPU, by keeping a device object per key representing the state partition, and enforcing the stateful constraints in the design of the internal CUDA kernels.<br>
 					</p><img src="img/lazyload-ph.png" data-src="img/gpu_stateful.jpg" class="img-fluid mx-auto d-block img-gpu-statef-style mg-md lazyload" alt="GPU stateful processing" />
 				<p>
-						From the release 3.0.0, WindFlow supports both&nbsp;<strong>Map</strong> and&nbsp;<strong>Filter</strong> operators on GPU. Furthermore, a GPU variant of the FFAT_Aggregator has also been provided (<strong>FFAT_Aggregator_GPU</strong>), which uses a modified version of the FlatFAT structure that can efficiently be computed on GPU.
+						From the release 3.0.0, WindFlow supports both&nbsp;<strong>Map</strong> and&nbsp;<strong>Filter</strong> operators on GPU. Furthermore, a GPU variant of the FFAT_Windows has also been provided (<strong>FFAT_Windows_GPU</strong>), which uses a modified version of the FlatFAT structure that can efficiently be computed on GPU.
 					</p>
 				<h2 class="mg-md h3-color tc-davys-grey">
 						<strong>References</strong>
@@ -189,7 +189,7 @@
 			<div class="col-md-3 col-sm-6">
 				<h4 class="mg-md text-sm-left text-center">
 					Get the library
-				</h4><a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/3.1.0.zip" class="a-btn a-block footer-link ltc-azure">Download</a><a href="https://github.com/ParaGroup/WindFlow" class="a-btn a-block footer-link ltc-azure">GitHub</a>
+				</h4><a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/3.6.0.zip" class="a-btn a-block footer-link ltc-azure">Download</a><a href="https://github.com/ParaGroup/WindFlow" class="a-btn a-block footer-link ltc-azure">GitHub</a>
 			</div>
 		</div>
 	</div>
@@ -201,11 +201,11 @@
     
 
 <!-- Additional JS -->
-<script src="./js/jquery-3.5.1.min.js?7694"></script>
-<script src="./js/bootstrap.bundle.min.js?4114"></script>
-<script src="./js/blocs.min.js?2484"></script>
+<script src="./js/jquery-3.5.1.min.js?2362"></script>
+<script src="./js/bootstrap.bundle.min.js?1328"></script>
+<script src="./js/blocs.min.js?6299"></script>
 <script src="./js/lazysizes.min.js" defer></script>
-<script src="./js/prism.js?9618"></script>
+<script src="./js/prism.js?4303"></script>
 <!-- Additional JS END -->
 
 
