@@ -41,6 +41,6 @@
 #include<map_gpu.hpp>
 #include<filter_gpu.hpp>
 #include<reduce_gpu.hpp>
-#include<ffat_aggregator_gpu.hpp>
+#include<ffat_windows_gpu.hpp>
 
 #endif

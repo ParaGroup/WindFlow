@@ -45,9 +45,29 @@ namespace wf {
 // class Basic_Emitter
 class Basic_Emitter
 {
+protected:
+    ff::MPMC_Ptr_Queue *queue; // pointer to the recyling queue
+
+    // Constructor
+    Basic_Emitter()
+    {
+        queue = new ff::MPMC_Ptr_Queue();
+        queue->init(DEFAULT_BUFFER_CAPACITY);
+    }
+
+    // Copy Constructor
+    Basic_Emitter(const Basic_Emitter &_other)
+    {
+        queue = new ff::MPMC_Ptr_Queue();
+        queue->init(DEFAULT_BUFFER_CAPACITY);
+    }
+
 public:
     // Destructor
-    virtual ~Basic_Emitter() = default;
+    virtual ~Basic_Emitter()
+    {
+        delete queue;
+    }
 
     // Create a clone of the emitter
     virtual Basic_Emitter *clone() const = 0;
@@ -78,6 +98,10 @@ public:
 
     // Get the number of internal emitters (meaningful in tree-based mode only)
     virtual size_t getNumInternalEmitters() const { return 0; }
+
+    Basic_Emitter(Basic_Emitter &&) = delete; ///< Move constructor is deleted
+    Basic_Emitter &operator=(const Basic_Emitter &) = delete; ///< Copy assignment operator is deleted
+    Basic_Emitter &operator=(Basic_Emitter &&) = delete; ///< Move assignment operator is deleted
 };
 
 } // namespace wf

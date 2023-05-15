@@ -103,7 +103,7 @@ class Map_Functor_GPU
 {
 public:
     // operator()
-    __device__ void operator()(tuple_t &t)
+    __host__ __device__ void operator()(tuple_t &t)
     {
         if (t.value % 2 == 0) {
             t.value = t.value + 2;

@@ -31,7 +31,8 @@
  *  
  *  This file implements the classes used by the WindFlow library to support
  *  streaming windows. The library supports count-based and time-based
- *  (tumbling, sliding or hopping) models.
+ *  (tumbling, sliding or hopping) models. It is used by some of the window-based
+ *  operators of the library.
  */ 
 
 #ifndef WINDOW_H

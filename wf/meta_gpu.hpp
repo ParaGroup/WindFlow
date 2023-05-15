@@ -187,6 +187,22 @@ std::false_type get_tuple_t_ReduceGPU(...); // black hole
 /*****************************************************************************************************************************/
 
 /**************************************************** WINDOWED OPERATORS *****************************************************/
+
+// declaration of functions to extract the tuple type from the signature of the lift function
+template<typename F_t, typename Arg1, typename Arg2> // lift function
+Arg1 get_tuple_t_LiftGPU(void (F_t::*)(const Arg1&, Arg2&) const);
+
+template<typename F_t, typename Arg1, typename Arg2> // lift function
+Arg1 get_tuple_t_LiftGPU(void (F_t::*)(const Arg1&, Arg2&));
+
+// template<typename Arg1, typename Arg2> // lift function
+// Arg1 get_tuple_t_LiftGPU(void (*)(const Arg1&, Arg2&));
+
+template<typename F_t>
+decltype(get_tuple_t_LiftGPU(&F_t::operator())) get_tuple_t_LiftGPU(F_t);
+
+std::false_type get_tuple_t_LiftGPU(...); // black hole
+
 // declaration of functions to extract the tuple type from the signature of the combine function
 template<typename F_t, typename Arg> // combine function
 Arg get_tuple_t_CombGPU(void (F_t::*)(const Arg&, const Arg&, Arg&) const);
@@ -195,21 +211,42 @@ template<typename F_t, typename Arg> // combine function
 Arg get_tuple_t_CombGPU(void (F_t::*)(const Arg&, const Arg&, Arg&));
 
 // template<typename Arg> // combine function
-// Arg get_tuple_t_CombGPU(void (*)(const Arg&, const Arg&, Arg&));
-
-template<typename F_t, typename Arg> // combine riched function
-Arg get_tuple_t_CombGPU(void (F_t::*)(const Arg&, const Arg&, Arg&, RuntimeContext&) const);
-
-template<typename F_t, typename Arg> // combine riched function
-Arg get_tuple_t_CombGPU(void (F_t::*)(const Arg&, const Arg&, Arg&, RuntimeContext&));
-
-// template<typename Arg> // combine riched function
-// Arg get_tuple_t_CombGPU(void (*)(const Arg&, const Arg&, Arg&, RuntimeContext&));
+// Arg get_tuple_t_CombGPU(vid (*)(const Arg&, const Arg&, Arg));
 
 template<typename F_t>
-decltype(get_tuple_t_Comb(&F_t::operator())) get_tuple_t_CombGPU(F_t);
+decltype(get_tuple_t_CombGPU(&F_t::operator())) get_tuple_t_CombGPU(F_t);
 
 std::false_type get_tuple_t_CombGPU(...); // black hole
+
+// declaration of functions to extract the result type from the signature of the lift function
+template<typename F_t, typename Arg1, typename Arg2> // lift function
+Arg2 get_result_t_LiftGPU(void (F_t::*)(const Arg1&, Arg2&) const);
+
+template<typename F_t, typename Arg1, typename Arg2> // lift function
+Arg2 get_result_t_LiftGPU(void (F_t::*)(const Arg1&, Arg2&));
+
+// template<typename Arg1, typename Arg2> // lift function
+// Arg2 get_result_t_LiftGPU(void (*)(const Arg1&, Arg2&));
+
+template<typename F_t>
+decltype(get_result_t_LiftGPU(&F_t::operator())) get_result_t_LiftGPU(F_t);
+
+std::false_type get_result_t_LiftGPU(...); // black holes
+
+// declaration of functions to extract the result type from the signature of the combine function
+template<typename F_t, typename Arg> // combine function
+Arg get_result_t_CombGPU(void (F_t::*)(const Arg&, const Arg&, Arg &) const);
+
+template<typename F_t, typename Arg> // combine function
+Arg get_result_t_CombGPU(void (F_t::*)(const Arg&, const Arg&, Arg&));
+
+// template<typename Arg> // combine function
+// Arg get_result_t_CombGPU(void (*)(const Arg&, const Arg&, Arg&));
+
+template<typename F_t>
+decltype(get_result_t_CombGPU(&F_t::operator())) get_result_t_CombGPU(F_t);
+
+std::false_type get_result_t_CombGPU(...); // black hole
 /*****************************************************************************************************************************/
 
 } // namespace wf

@@ -8,7 +8,7 @@ set(CMAKE_CUDA_FLAGS_DEBUG "-w --expt-extended-lambda --expt-relaxed-constexpr -
 set(CMAKE_CUDA_FLAGS_RELEASE "-w --expt-extended-lambda --expt-relaxed-constexpr -O3 -g -Wno-deprecated-gpu-targets")
 
 # Macros to be provided to the compiler
-add_definitions(-DFF_BOUNDED_BUFFER -DDEFAULT_BUFFER_CAPACITY=16)
+add_definitions(-DFF_BOUNDED_BUFFER)
 
 # Header files of WindFlow, FastFlow and TBB
 include_directories(${PROJECT_SOURCE_DIR}/wf ${ff_root_dir} ${TBB_TBB_INCLUDE_DIR})
@@ -17,7 +17,7 @@ include_directories(${PROJECT_SOURCE_DIR}/wf ${ff_root_dir} ${TBB_TBB_INCLUDE_DI
 link_directories(${TBB_TBB_LIBRARY_RELEASE})
 
 # Linking to pthread
-link_libraries(pthread tbb gvc cgraph)
+link_libraries(pthread tbb)
 
 # Set output directory
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ../../bin/merge_tests_gpu)

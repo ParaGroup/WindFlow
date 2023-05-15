@@ -74,13 +74,13 @@ struct AppNode
 class PipeGraph
 {
 private:
-    friend class MultiPipe; // friendship with the MultiPipe class
-    friend class MonitoringThread; // friendship with the MonitoringThread class
-    friend inline MultiPipe *merge_multipipes_func(PipeGraph *, std::vector<MultiPipe *>); // friendship with the merge_multipipes_func function
-    friend inline std::vector<MultiPipe *> split_multipipe_func(PipeGraph *, MultiPipe *); // friendship with the split_multipipe_func function
-    friend inline bool is_ended_func(PipeGraph *); // friendship with the is_ended_func function
-    friend inline std::string get_diagram(PipeGraph *); // friendship with the get_diagram function
-    friend inline std::string get_stats_report(PipeGraph *); // friendship with the get_stats_report function
+    friend class MultiPipe;
+    friend class MonitoringThread;
+    friend inline MultiPipe *merge_multipipes_func(PipeGraph *, std::vector<MultiPipe *>);
+    friend inline std::vector<MultiPipe *> split_multipipe_func(PipeGraph *, MultiPipe *);
+    friend inline bool is_ended_func(PipeGraph *);
+    friend inline std::string get_diagram(PipeGraph *);
+    friend inline std::string get_stats_report(PipeGraph *);
     std::string name; // name of the PipeGraph
     AppNode *root; // pointer to the root of the Application Tree
     std::vector<MultiPipe *> toBeDeteled; // vector of MultiPipe instances to be deleted
@@ -97,8 +97,7 @@ private:
 #endif
 
     // Find the AppNode containing the MultiPipe _mp in the tree rooted at _node
-    AppNode *find_AppNode(AppNode *_node,
-                          MultiPipe *_mp)
+    AppNode *find_AppNode(AppNode *_node, MultiPipe *_mp)
     {
         if (_node->mp == _mp) { // base case
             return _node;
@@ -133,8 +132,7 @@ private:
     }
 
     // Find the LCA of a set of _leaves starting from _node
-    AppNode *get_LCA(AppNode *_node,
-                     std::vector<AppNode *> _leaves)
+    AppNode *get_LCA(AppNode *_node, std::vector<AppNode *> _leaves)
     {
         for (auto *child: _node->children) { // compute the leaves rooted at each child of _node
             auto child_leaves = get_LeavesList(child);
@@ -166,8 +164,7 @@ private:
     }
 
     // Prepare the right list of AppNodes to be merged (case merge-ind and merge-full)
-    bool get_MergedNodes1(std::vector<MultiPipe *> _toBeMerged,
-                          std::vector<AppNode *> &_rightList)
+    bool get_MergedNodes1(std::vector<MultiPipe *> _toBeMerged, std::vector<AppNode *> &_rightList)
     {
         assert(_toBeMerged.size() > 1); // sanity check
         std::vector<AppNode *> inputNodes;
@@ -215,8 +212,7 @@ private:
     }
 
     // Prepare the right list of AppNode instances to be merged (case merge-partial)
-    AppNode *get_MergedNodes2(std::vector<MultiPipe *> _toBeMerged,
-                              std::vector<AppNode *> &_rightList)
+    AppNode *get_MergedNodes2(std::vector<MultiPipe *> _toBeMerged, std::vector<AppNode *> &_rightList)
     {
         assert(_toBeMerged.size() > 1); // sanity check
         std::vector<AppNode *> inputNodes; 
@@ -785,7 +781,7 @@ public:
      *  \brief Check if the PipeGraph has been started
      *  \return true if the PipeGraph has been started, false otherwise
      */ 
-    bool isStarted() const
+    bool hasStarted() const
     {
         return started;
     }
@@ -794,7 +790,7 @@ public:
      *  \brief Check if the PipeGraph execution has finished
      *  \return true if the PipeGraph execution has finished, false otherwise
      */ 
-    bool isEnded() const
+    bool hasEnded() const
     {
         return ended;
     }
@@ -808,15 +804,13 @@ public:
 //@cond DOXY_IGNORE
 
 // Implementation of the merge_multipipes_func function
-inline MultiPipe *merge_multipipes_func(PipeGraph *graph,
-                                        std::vector<MultiPipe *> _toBeMerged)
+inline MultiPipe *merge_multipipes_func(PipeGraph *graph, std::vector<MultiPipe *> _toBeMerged)
 {
     return graph->execute_Merge(_toBeMerged);
 }
 
 // Implementation of the split_multipipe_func function
-inline std::vector<MultiPipe *> split_multipipe_func(PipeGraph *graph,
-                                                     MultiPipe *_mp)
+inline std::vector<MultiPipe *> split_multipipe_func(PipeGraph *graph, MultiPipe *_mp)
 {
     return graph->execute_Split(_mp);
 }
@@ -825,7 +819,7 @@ inline std::vector<MultiPipe *> split_multipipe_func(PipeGraph *graph,
     // Implementation of the is_ended_func function
     inline bool is_ended_func(PipeGraph *graph)
     {
-        return graph->isEnded();
+        return graph->hasEnded();
     }
 
     // Implementation of the get_diagram function

@@ -30,7 +30,7 @@
  *  @section Iterable (Description)
  *  
  *  An Iterable object gives to the user a view of the tuples belonging to a window
- *  to be processed. This is used for traditional window-based operators instantiated
+ *  to be processed. This is used for some of the window-based operators instantiated
  *  with non-incremental processing logic.
  */ 
 

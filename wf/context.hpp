@@ -54,14 +54,14 @@ namespace wf {
 class RuntimeContext
 {
 private:
-    template<typename T> friend class Source_Replica; // friendship with Source_Replica class
-    template<typename T1> friend class Map_Replica; // friendship with Map_Replica class
-    template<typename T1> friend class Filter_Replica; // friendship with Filter_Replica class
-    template<typename T1, typename T2> friend class Reduce_Replica; // friendship with Reduce_Replica class
-    template<typename T1> friend class FlatMap_Replica; // friendship with FlatMap_Replica class
-    template<typename T1> friend class Sink_Replica; // friendship with Sink_Replica class
-    template<typename T1, typename T2> friend class Window_Replica; // friendship with Window_Replica class
-    template<typename T1, typename T2, typename T3> friend class FFAT_Replica; // friendship with FFAT_Replica class
+    template<typename T> friend class Source_Replica;
+    template<typename T1> friend class Map_Replica;
+    template<typename T1> friend class Filter_Replica;
+    template<typename T1, typename T2> friend class Reduce_Replica;
+    template<typename T1> friend class FlatMap_Replica;
+    template<typename T1> friend class Sink_Replica;
+    template<typename T1, typename T2> friend class Window_Replica;
+    template<typename T1, typename T2, typename T3> friend class FFAT_Replica;
     size_t parallelism; // parallelism of the operator
     size_t index; // index of the replica
     LocalStorage storage; // local storage object
@@ -69,17 +69,22 @@ private:
     uint64_t watermark; // last received watermark
 
     // Set the configuration parameters
-    void setContextParameters(uint64_t _ts,
-                              uint64_t _wm)
+    void setContextParameters(uint64_t _ts, uint64_t _wm)
     {
         timestamp = _ts;
         watermark = _wm;
     }
 
 public:
-    /// Constructor
-    RuntimeContext(size_t _parallelism,
-                   size_t _index):
+    /// Constructor I
+    RuntimeContext():
+                   parallelism(0),
+                   index(0),
+                   timestamp(0),
+                   watermark(0) {}
+
+    /// Constructor II
+    RuntimeContext(size_t _parallelism, size_t _index):
                    parallelism(_parallelism),
                    index(_index),
                    timestamp(0),
@@ -91,18 +96,6 @@ public:
                    index(_other.index),
                    timestamp(_other.timestamp),
                    watermark(_other.watermark) {}
-
-    /// Copy Assignment Operator
-    RuntimeContext &operator=(const RuntimeContext &_other) // do not copy the storage
-    {
-        if (this != &_other) {
-            parallelism = _other.parallelism;
-            index = _other.index;
-            timestamp = _other.timestamp;
-            watermark = _other.watermark;
-        }
-        return *this;
-    }
 
     /** 
      *  \brief Get the parallelism of the operator
@@ -152,6 +145,10 @@ public:
     {
         return watermark;
     }
+
+    RuntimeContext(RuntimeContext &&) = delete; ///< Move constructor is deleted
+    RuntimeContext &operator=(const RuntimeContext &) = delete; ///< Copy assignment operator is deleted
+    RuntimeContext &operator=(RuntimeContext &&) = delete; ///< Move assignment operator is deleted
 };
 
 } // namespace wf

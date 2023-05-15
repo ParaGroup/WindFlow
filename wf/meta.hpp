@@ -128,30 +128,6 @@ template<typename F_t>
 decltype(get_tuple_t_Filter(&F_t::operator())) get_tuple_t_Filter(F_t);
 
 std::false_type get_tuple_t_Filter(...); // black hole
-
-// declaration of functions to extract the output type of the Filter operator
-template<typename F_t, typename Arg>
-Arg get_result_t_Filter(bool (F_t::*)(Arg&) const); // inplace version
-
-template<typename F_t, typename Arg>
-Arg get_result_t_Filter(bool (F_t::*)(Arg&)); // inplace version
-
-template<typename Arg>
-Arg get_result_t_Filter(bool (*)(Arg&)); // inplace version
-
-template<typename F_t, typename Arg>
-Arg get_result_t_Filter(bool (F_t::*)(Arg&, RuntimeContext&) const); // inplace riched version
-
-template<typename F_t, typename Arg>
-Arg get_result_t_Filter(bool (F_t::*)(Arg&, RuntimeContext&)); // inplace riched version
-
-template<typename Arg>
-Arg get_result_t_Filter(bool (*)(Arg&, RuntimeContext&)); // inplace riched version
-
-template<typename F_t>
-decltype(get_result_t_Filter(&F_t::operator())) get_result_t_Filter(F_t);
-
-std::false_type get_result_t_Filter(...); // black hole
 /*****************************************************************************************************************************/
 
 /****************************************************** MAP OPERATOR *********************************************************/
@@ -582,30 +558,6 @@ template<typename F_t>
 decltype(get_result_t_Lift(&F_t::operator())) get_result_t_Lift(F_t);
 
 std::false_type get_result_t_Lift(...); // black holes
-
-// declaration of functions to extract the result type from the signature of the combine function
-template<typename F_t, typename Arg> // combine function
-Arg get_result_t_Comb(void (F_t::*)(const Arg&, const Arg&, Arg&) const);
-
-template<typename F_t, typename Arg> // combine function
-Arg get_result_t_Comb(void (F_t::*)(const Arg&, const Arg&, Arg&));
-
-template<typename Arg> // combine function
-Arg get_result_t_Comb(void (*)(const Arg&, const Arg&, Arg&));
-
-template<typename F_t, typename Arg> // combine riched function
-Arg get_result_t_Comb(void (F_t::*)(const Arg&, const Arg&, Arg&, RuntimeContext&) const);
-
-template<typename F_t, typename Arg> // combine riched function
-Arg get_result_t_Comb(void (F_t::*)(const Arg&, const Arg&, Arg&, RuntimeContext&));
-
-template<typename Arg> // combine riched function
-Arg get_result_t_Comb(void (*)(const Arg&, const Arg&, Arg&, RuntimeContext&));
-
-template<typename F_t>
-decltype(get_result_t_Comb(&F_t::operator())) get_result_t_Comb(F_t);
-
-std::false_type get_result_t_Comb(...); // black hole
 /*****************************************************************************************************************************/
 
 /******************************************************** CLOSING ************************************************************/

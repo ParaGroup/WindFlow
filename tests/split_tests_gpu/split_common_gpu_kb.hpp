@@ -128,7 +128,7 @@ class Map_Functor_GPU
 {
 public:
     // operator()
-    __device__ void operator()(tuple_t &t)
+    __host__ __device__ void operator()(tuple_t &t)
     {
         if (isVowel(t.key)) {
             t.value++;
@@ -141,7 +141,7 @@ class Map_Functor_GPU_KB
 {
 public:
     // operator()
-    __device__ void operator()(tuple_t &t, map_state_t &state)
+    __host__ __device__ void operator()(tuple_t &t, map_state_t &state)
     {
         if (isVowel(t.key)) {
             state.counter++;

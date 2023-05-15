@@ -48,12 +48,12 @@
 namespace wf {
 
 // class KSlack_Collector
-template<typename key_extractor_func_t>
+template<typename keyextr_func_t>
 class KSlack_Collector: public ff::ff_minode
 {
 private:
     template<typename T> class Comparator_t; // forward declaration of the inner struct Comparator_t
-    key_extractor_func_t key_extr; // key extractor
+    keyextr_func_t key_extr; // key extractor
     using tuple_t = decltype(get_tuple_t_KeyExtr(key_extr)); // extracting the tuple_t type and checking the admissible singatures
     uint64_t K = 0; // K parameter of the slack
     uint64_t tcurr = 0; // highest timestamp of the inputs seen so far
@@ -144,9 +144,9 @@ private:
                 return next;
             }
             else {
-                bufferedInputs.erase(bufferedInputs.begin(), next_input_it);   
+                bufferedInputs.erase(bufferedInputs.begin(), next_input_it);
                 toEmit = false;
-                return nullptr; 
+                return nullptr;
             }
         }
     }
@@ -163,7 +163,7 @@ private:
 
 public:
     // Constructor
-    KSlack_Collector(key_extractor_func_t _key_extr,
+    KSlack_Collector(keyextr_func_t _key_extr,
                      ordering_mode_t _ordering_mode,
                      size_t _id_collector,
                      std::atomic<unsigned long> *_atomic_num_dropped=nullptr):
@@ -180,7 +180,7 @@ public:
     // svc method (utilized by the FastFlow runtime)
     void *svc(void *_in) override
     {
-        Single_t<decltype(get_tuple_t_KeyExtr(key_extr))> *input = reinterpret_cast<Single_t<decltype(get_tuple_t_KeyExtr(key_extr))> *>(_in); // cast the input to a Single_t structure
+        Single_t<tuple_t> *input = reinterpret_cast<Single_t<tuple_t> *>(_in); // cast the input to a Single_t structure
         this->insertInput(input);  // add the input to the buffer
         received_inputs++;
         auto *next = this->extractInput(); // extract inputs from the buffer (likely in order)

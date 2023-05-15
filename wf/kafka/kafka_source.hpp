@@ -124,10 +124,10 @@ public:
 
 // class KafkaSource_Replica
 template<typename kafka_deser_func_t>
-class KafkaSource_Replica: public ff::ff_monode
+class KafkaSource_Replica: public Basic_Replica
 {
 private:
-    template<typename T> friend class Kafka_Source; // friendship with all the instances of the Kafka_Source template
+    template<typename T> friend class Kafka_Source;
     kafka_deser_func_t func; // logic for deserializing messages from Apache Kafka
     using result_t = decltype(get_result_t_KafkaSource(func)); // extracting the result_t type and checking the admissible signatures
     // static predicates to check the type of the deserialization logic to be invoked
@@ -136,11 +136,8 @@ private:
     // check the presence of a valid deserialization logic
     static_assert(isNonRiched || isRiched,
         "WindFlow Compilation Error - KafkaSource_Replica does not have a valid deserialization logic:\n");
-    std::string opName; // name of the Kafka_Source containing the replica
-    KafkaRuntimeContext context; // KafkaRuntimeContext object
-    std::function<void(KafkaRuntimeContext &)> closing_func; // closing functional logic used by the Kafka_Source replica
-    bool terminated; // true if the Kafka_Source replica has finished its work
-    Execution_Mode_t execution_mode;// execution mode of the Kafka_Source replica
+    KafkaRuntimeContext kafka_context; // KafkaRuntimeContext object
+    std::function<void(KafkaRuntimeContext &)> kafka_closing_func; // closing functional logic used by the Kafka_Source replica
     Time_Policy_t time_policy; // time policy of the Kafka_Source replica
     Source_Shipper<result_t> *shipper; // pointer to the shipper object used by the Kafka_Source replica to send outputs
     RdKafka::KafkaConsumer *consumer; // pointer to the consumer object
@@ -154,15 +151,12 @@ private:
     ExampleRebalanceCb ex_rebalance_cb; // partiotion manager
     std::vector<std::string> topics; // list of topic names
     pthread_barrier_t *bar; // pointer to a barrier object ot synchronize the replicas
-#if defined (WF_TRACING_ENABLED)
-    Stats_Record stats_record;
-#endif
 
 public:
     // Constructor
     KafkaSource_Replica(kafka_deser_func_t _func,
                         std::string _opName,
-                        KafkaRuntimeContext _context,
+                        KafkaRuntimeContext _kafka_context,
                         size_t _outputBatchSize,
                         std::string _brokers,
                         std::vector<std::string> _topics,
@@ -172,13 +166,11 @@ public:
                         int _idleTime,
                         std::vector<int> _offsets,
                         pthread_barrier_t *_bar,
-                        std::function<void(KafkaRuntimeContext &)> _closing_func):
+                        std::function<void(KafkaRuntimeContext &)> _kafka_closing_func):
+                        Basic_Replica(_opName, _kafka_context, [](RuntimeContext &context) -> void { return; }, false),
                         func(_func),
-                        opName(_opName),
-                        context(_context),
-                        closing_func(_closing_func),
-                        terminated(false),
-                        execution_mode(Execution_Mode_t::DEFAULT),
+                        kafka_context(_kafka_context),
+                        kafka_closing_func(_kafka_closing_func),
                         time_policy(Time_Policy_t::INGRESS_TIME),
                         shipper(nullptr),
                         consumer(nullptr),
@@ -194,12 +186,10 @@ public:
 
     // Copy Constructor
     KafkaSource_Replica(const KafkaSource_Replica &_other):
+                        Basic_Replica(_other),
                         func(_other.func),
-                        opName(_other.opName),
-                        context(_other.context),
-                        closing_func(_other.closing_func),
-                        terminated(_other.terminated),
-                        execution_mode(_other.execution_mode),
+                        kafka_context(_other.kafka_context),
+                        kafka_closing_func(_other.kafka_closing_func),
                         time_policy(_other.time_policy),
                         consumer(nullptr),
                         conf(nullptr),
@@ -213,10 +203,10 @@ public:
                         bar(_other.bar)            
     {
         if (_other.shipper != nullptr) {
-            shipper = new Source_Shipper<decltype(get_result_t_KafkaSource(func))>(*(_other.shipper));
+            shipper = new Source_Shipper<result_t>(*(_other.shipper));
             shipper->node = this; // change the node referred by the shipper
 #if defined (WF_TRACING_ENABLED)
-            shipper->setStatsRecord(&stats_record); // change the Stats_Record referred by the shipper
+            shipper->setStatsRecord(&(this->stats_record)); // change the Stats_Record referred by the shipper
 #endif
         }
         else {
@@ -224,37 +214,8 @@ public:
         }
     }
 
-    // Move Constructor
-    KafkaSource_Replica(KafkaSource_Replica &&_other):
-                        func(std::move(_other.func)),
-                        opName(std::move(_other.opName)),
-                        context(std::move(_other.context)),
-                        closing_func(std::move(_other.closing_func)),
-                        terminated(_other.terminated),
-                        execution_mode(_other.execution_mod),
-                        time_policy(_other.time_policy),
-                        consumer(std::exchange(_other.consumer, nullptr)),
-                        conf(std::exchange(_other.conf, nullptr)),
-                        idleTime(_other.idleTime),
-                        brokers(std::move(_other.brokers)),
-                        groupid(std::move(_other.groupid)),
-                        strat(std::move(_other.strat)),
-                        offsets(std::move(_other.offsets)),
-                        parallelism(_other.parallelism),
-                        topics(std::move(_other.topics)),
-                        bar(std::exchange(_other.bar, nullptr))          
-    {
-        shipper = std::exchange(_other.shipper, nullptr);
-        if (shipper != nullptr) {
-            shipper->node = this; // change the node referred by the shipper
-#if defined (WF_TRACING_ENABLED)
-            shipper->setStatsRecord(&stats_record); // change the Stats_Record referred by the shipper
-#endif
-        }
-    }
-
     // Destructor
-    ~KafkaSource_Replica()
+    ~KafkaSource_Replica() override
     {
         if (shipper != nullptr) {
             delete shipper;
@@ -264,76 +225,6 @@ public:
         }
         if (conf != nullptr) {
             delete conf;
-        }
-    }
-
-    // Copy Assignment Operator
-    KafkaSource_Replica &operator=(const KafkaSource_Replica &_other)
-    {
-        if (this != &_other) {
-            func = _other.func;
-            opName = _other.opName;
-            context = _other.context;
-            closing_func = _other.closing_func;
-            terminated = _other.terminated;
-            execution_mode = _other.execution_mode;
-            time_policy = _other.time_policy;
-            consumer = nullptr;
-            conf = nullptr;
-            idleTime = _other.idleTime;
-            brokers = _other.brokers;
-            groupid = _other.groupid;
-            strat = _other.strat;
-            offsets = _other.offsets;
-            parallelism = _other.parallelism;
-            topics = _other.topics;
-            bar = _other.bar;
-            if (shipper != nullptr) {
-                delete shipper;
-            }
-            if (_other.shipper != nullptr) {
-                shipper = new Source_Shipper<decltype(get_result_t_KafkaSource(func))>(*(_other.shipper));
-                shipper->node = this; // change the node referred by the shipper
-    #if defined (WF_TRACING_ENABLED)
-                shipper->setStatsRecord(&stats_record); // change the Stats_Record referred by the shipper
-    #endif
-            }
-            else {
-                shipper = nullptr;
-            }
-        }
-        return *this;
-    }
-
-    // Move Assignment Operator
-    KafkaSource_Replica &operator=(KafkaSource_Replica &&_other)
-    {
-        func = std::move(_other.func);
-        opName = std::move(_other.opName);
-        context = std::move(_other.context);
-        closing_func = std::move(_other.closing_func);
-        terminated = _other.terminated;
-        execution_mode = _other.execution_mode;
-        time_policy = _other.time_policy;
-        consumer = std::exchange(_other.consumer, nullptr);
-        conf = std::exchange(_other.conf, nullptr);
-        idleTime = _other.idleTime;
-        brokers = std::move(_other.brokers);
-        groupid = std::move(_other.groupid);
-        strat = std::move(_other.strat);
-        offsets = std::move(_other.offsets);
-        parallelism = _other.parallelism;
-        topics = std::move(_other.topics);
-        bar = std::exchange(_other.bar, nullptr);
-        if (shipper != nullptr) {
-            delete shipper;
-        }
-        shipper = std::exchange(_other.shipper, nullptr);
-        if (shipper != nullptr) {
-            shipper->node = this; // change the node referred by the shipper
-#if defined (WF_TRACING_ENABLED)
-            shipper->setStatsRecord(&stats_record); // change the Stats_Record referred by the shipper
-#endif
         }
     }
 
@@ -369,10 +260,10 @@ public:
             std::cerr << RED << "WindFlow Error: subscribing to the topics in Kafka_Source failed, error: " << errstr << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        context.setConsumer(consumer);
+        kafka_context.setConsumer(consumer);
         consumer->poll(0);
 #if defined (WF_TRACING_ENABLED)
-        stats_record = Stats_Record(opName, std::to_string(context.getReplicaIndex()), false, false);
+        stats_record = Stats_Record(this->opName, std::to_string(kafka_context.getReplicaIndex()), false, false);
 #endif
         shipper->setInitialTime(current_time_usecs()); // set the initial time
         pthread_barrier_wait(bar); // barrier with the other replicas
@@ -391,7 +282,7 @@ public:
                         run = func(std::nullopt, *shipper);
                     }
                     if constexpr (isRiched) {
-                        run = func(std::nullopt, *shipper, context);
+                        run = func(std::nullopt, *shipper, kafka_context);
                     }
                     break;
                 case RdKafka::ERR_NO_ERROR: // got a new message
@@ -399,29 +290,29 @@ public:
                         run = func(*msg, *shipper);
                     }
                     if constexpr (isRiched) {
-                        run = func(*msg, *shipper, context);
+                        run = func(*msg, *shipper, kafka_context);
                     }
                     break;
             }
             delete msg;
         }
-
-        // To be checked if moving the closing_func here actually works!
-        closing_func(context); // call the closing function
-
+        kafka_closing_func(kafka_context); // call the closing function
         shipper->flush(); // call the flush of the shipper
+        this->terminated = true;
 #if defined (WF_TRACING_ENABLED)
-        stats_record.setTerminated();
+        (this->stats_record).setTerminated();
 #endif
         return this->EOS; // end-of-stream
     }
+
+    // eosnotify (utilized by the FastFlow runtime)
+    void eosnotify(ssize_t id) override {} // no actions here (it is a Kafka_Source)
 
     // svc_end (utilized by the FastFlow runtime)
     void svc_end() override
     {
         consumer->close(); // close the consumer
         RdKafka::wait_destroyed(5000); // waiting for RdKafka to decommission
-        // closing_func(context); // call the closing function
     }
 
     // Set the emitter used to route outputs generated by the Kafka_Source replica
@@ -431,37 +322,26 @@ public:
         if (shipper != nullptr) {
             delete shipper;
         }
-        shipper = new Source_Shipper<decltype(get_result_t_KafkaSource(func))>(_emitter, this, execution_mode, time_policy); // create the shipper
+        shipper = new Source_Shipper<result_t>(_emitter, this, this->execution_mode, time_policy); // create the shipper
         shipper->setInitialTime(current_time_usecs()); // set the initial time
 #if defined (WF_TRACING_ENABLED)
-        shipper->setStatsRecord(&stats_record);
+        shipper->setStatsRecord(&(this->stats_record));
 #endif
-    }
-
-    // Check the termination of the Kafka_Source replica
-    bool isTerminated() const
-    {
-        return terminated;
     }
 
     // Set the execution and time mode of the Kafka_Source replica
-    void setConfiguration(Execution_Mode_t _execution_mode,
-                          Time_Policy_t _time_policy)
+    void setConfiguration(Execution_Mode_t _execution_mode, Time_Policy_t _time_policy)
     {
-        execution_mode = _execution_mode;
+        this->setExecutionMode(_execution_mode);
         time_policy = _time_policy;
         if (shipper != nullptr) {
-            shipper->setConfiguration(execution_mode, time_policy);
+            shipper->setConfiguration(_execution_mode, time_policy);
         }
     }
 
-#if defined (WF_TRACING_ENABLED)
-    // Get a copy of the Stats_Record of the Kafka_Source replica
-    Stats_Record getStatsRecord() const
-    {
-        return stats_record;
-    }
-#endif
+    KafkaSource_Replica(KafkaSource_Replica &&) = delete; ///< Move constructor is deleted
+    KafkaSource_Replica &operator=(const KafkaSource_Replica &) = delete; ///< Copy assignment operator is deleted
+    KafkaSource_Replica &operator=(KafkaSource_Replica &&) = delete; ///< Move assignment operator is deleted
 };
 
 //@endcond
@@ -478,13 +358,10 @@ template<typename kafka_deser_func_t>
 class Kafka_Source: public Basic_Operator
 {
 private:
-    friend class MultiPipe; // friendship with the MultiPipe class
-    friend class PipeGraph; // friendship with the PipeGraph class
+    friend class MultiPipe;
+    friend class PipeGraph;
     kafka_deser_func_t func; // functional logic to deserialize messages from Apache Kafka
     using result_t = decltype(get_result_t_KafkaSource(func)); // extracting the result_t type and checking the admissible signatures
-    size_t parallelism; // parallelism of the Kafka_Source
-    std::string name; // name of the Kafka_Source
-    size_t outputBatchSize; // batch size of the outputs produced by the Kafka_Source
     std::vector<KafkaSource_Replica<kafka_deser_func_t>*> replicas; // vector of pointers to the replicas of the Kafka_Source
     pthread_barrier_t *bar; // pointer to a barrier used to synchronize the Kafka_Source replicas
 
@@ -513,9 +390,8 @@ private:
         return terminated;
     }
 
-    // Set the execution mode and the time policy of the Kafka_Source (i.e., the ones of its PipeGraph)
-    void setConfiguration(Execution_Mode_t _execution_mode,
-                          Time_Policy_t _time_policy)
+    // Set the execution mode and the time policy of the Kafka_Source
+    void setConfiguration(Execution_Mode_t _execution_mode, Time_Policy_t _time_policy)
     {
         for(auto *r: replicas) {
             r->setConfiguration(_execution_mode, _time_policy);
@@ -523,38 +399,12 @@ private:
     }
 
 #if defined (WF_TRACING_ENABLED)
-    // Dump the log file (JSON format) of statistics of the Kafka_Source
-    void dumpStats() const override
-    {
-        std::ofstream logfile; // create and open the log file in the LOG_DIR directory
-#if defined (LOG_DIR)
-        std::string log_dir = std::string(STRINGIFY(LOG_DIR));
-        std::string filename = std::string(STRINGIFY(LOG_DIR)) + "/" + std::to_string(getpid()) + "_" + name + ".json";
-#else
-        std::string log_dir = std::string("log");
-        std::string filename = "log/" + std::to_string(getpid()) + "_" + name + ".json";
-#endif
-        if (mkdir(log_dir.c_str(), 0777) != 0) { // create the log directory
-            struct stat st;
-            if((stat(log_dir.c_str(), &st) != 0) || !S_ISDIR(st.st_mode)) {
-                std::cerr << RED << "WindFlow Error: directory for log files cannot be created" << DEFAULT_COLOR << std::endl;
-                exit(EXIT_FAILURE);
-            }
-        }
-        logfile.open(filename);
-        rapidjson::StringBuffer buffer; // create the rapidjson writer
-        rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
-        this->appendStats(writer); // append the statistics of the Kafka_Source
-        logfile << buffer.GetString();
-        logfile.close();
-    }
-
     // Append the statistics (JSON format) of the Kafka_Source to a PrettyWriter
     void appendStats(rapidjson::PrettyWriter<rapidjson::StringBuffer> &writer) const override
     {
         writer.StartObject(); // create the header of the JSON file
         writer.Key("Operator_name");
-        writer.String(name.c_str());
+        writer.String((this->name).c_str());
         writer.Key("Operator_type");
         writer.String("Kafka_Source");
         writer.Key("Distribution");
@@ -566,9 +416,9 @@ private:
         writer.Key("isGPU");
         writer.Bool(false);
         writer.Key("Parallelism");
-        writer.Uint(parallelism);
+        writer.Uint(this->parallelism);
         writer.Key("OutputBatchSize");
-        writer.Uint(outputBatchSize);
+        writer.Uint(this->outputBatchSize);
         writer.Key("Replicas");
         writer.StartArray();
         for (auto *r: replicas) { // append the statistics from all the replicas of the Kafka_Source
@@ -584,7 +434,7 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _func deserialization logic of the Kafak_Source (a function or a callable type)
+     *  \param _func deserialization logic of the Kafak_Source (a function or any callable type)
      *  \param _name name of the Kafka Source
      *  \param _outBatchSize size (in num of tuples) of the batches produced by this operator (0 for no batching)
      *  \param _brokers ip addresses of the kafka brokers (concatenated by commas)
@@ -594,7 +444,7 @@ public:
      *  \param _idleTime interval in milliseconds used as a timeout
      *  \param _parallelism internal parallelism of the Kafka_Source
      *  \param _offsets vector of offsets one per topic
-     *  \param _closing_func closing functional logic of the Kafka_Source (a function or callable type)
+     *  \param _kafka_closing_func closing functional logic of the Kafka_Source (a function or any callable type)
      */ 
     Kafka_Source(kafka_deser_func_t _func,
                  std::string _name,
@@ -606,37 +456,29 @@ public:
                  int _idleTime,
                  int32_t _parallelism,
                  std::vector<int> _offsets,
-                 std::function<void(KafkaRuntimeContext &)> _closing_func):
-                 func(_func),
-                 name(_name),
-                 outputBatchSize(_outputBatchSize),
-                 parallelism(_parallelism)
+                 std::function<void(KafkaRuntimeContext &)> _kafka_closing_func):
+                 Basic_Operator(_parallelism, _name, Routing_Mode_t::NONE, _outputBatchSize),
+                 func(_func)
     {
-        if (parallelism == 0) { // check the validity of the parallelism value
-            std::cerr << RED << "WindFlow Error: Kafka_Source has parallelism zero" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
         if (_offsets.size() < _topics.size()) {
             std::cerr << RED << "WindFlow Error: number of offsets (used by Kafka_Source) are less than the number of topics" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         bar = new pthread_barrier_t();
-        pthread_barrier_init(bar, NULL, parallelism);
-        for (size_t i=0; i<parallelism; i++) { // create the internal replicas of the Kafka_Source
-            replicas.push_back(new KafkaSource_Replica<kafka_deser_func_t>(_func, name, KafkaRuntimeContext(parallelism, i), outputBatchSize, _brokers, _topics, _groupid, _strat, parallelism, _idleTime, _offsets, bar, _closing_func));
+        pthread_barrier_init(bar, NULL, this->parallelism);
+        for (size_t i=0; i<this->parallelism; i++) { // create the internal replicas of the Kafka_Source
+            replicas.push_back(new KafkaSource_Replica<kafka_deser_func_t>(_func, this->name, KafkaRuntimeContext(this->parallelism, i), this->outputBatchSize, _brokers, _topics, _groupid, _strat, this->parallelism, _idleTime, _offsets, bar, _kafka_closing_func));
         }
     }
 
     /// Copy constructor
     Kafka_Source(const Kafka_Source &_other):
-                 func(_other.func),
-                 parallelism(_other.parallelism),
-                 name(_other.name),
-                 outputBatchSize(_other.outputBatchSize)
+                 Basic_Operator(_other),
+                 func(_other.func)
     {
         bar = new pthread_barrier_t();
-        pthread_barrier_init(bar, NULL, parallelism);       
-        for (size_t i=0; i<parallelism; i++) { // deep copy of the pointers to the Kafka_Source replicas
+        pthread_barrier_init(bar, NULL, this->parallelism);       
+        for (size_t i=0; i<this->parallelism; i++) { // deep copy of the pointers to the Kafka_Source replicas
             replicas.push_back(new KafkaSource_Replica<kafka_deser_func_t>(*(_other.replicas[i])));
         }
         for (auto *r: replicas) {
@@ -656,53 +498,6 @@ public:
         }
     }
 
-    /// Copy assignment operator
-    Kafka_Source& operator=(const Kafka_Source &_other)
-    {
-        if (this != &_other) {
-            func = _other.func;
-            parallelism = _other.parallelism;
-            name = _other.name;
-            outputBatchSize = _other.outputBatchSize;
-            for (auto *r: replicas) { // delete all the replicas
-                delete r;
-            }
-            replicas.clear();
-            if (bar != nullptr) {
-                pthread_barrier_destroy(bar); // destroy the barrier
-                delete bar; // deallocate the barrier               
-            }
-            bar = new pthread_barrier_t();
-            pthread_barrier_init(bar, NULL, parallelism);     
-            for (size_t i=0; i<parallelism; i++) { // deep copy of the pointers to the Source replicas
-                replicas.push_back(new KafkaSource_Replica<kafka_deser_func_t>(*(_other.replicas[i])));
-            }
-            for (auto *r: replicas) {
-                r->bar = bar;
-            }            
-        }
-        return *this;
-    }
-
-    /// Move assignment operator
-    Kafka_Source& operator=(Kafka_Source &&_other)
-    {
-        func = std::move(_other.func);
-        parallelism = _other.parallelism;
-        name = std::move(_other.name);
-        outputBatchSize = _other.outputBatchSize;
-        for (auto *r: replicas) { // delete all the replicas
-            delete r;
-        }
-        replicas = std::move(_other.replicas);
-        if (bar != nullptr) {
-            pthread_barrier_destroy(bar); // destroy the barrier
-            delete bar; // deallocate the barrier               
-        }
-        bar = std::exchange(_other.bar, nullptr);
-        return *this;
-    }
-
     /** 
      *  \brief Get the type of the Kafka_Source as a string
      *  \return type of the Kafka_Source
@@ -712,41 +507,9 @@ public:
         return std::string("Kafka_Source");
     }
 
-    /** 
-     *  \brief Get the name of the Kafka_Source as a string
-     *  \return name of the Kafka_Source
-     */ 
-    std::string getName() const override
-    {
-        return name;
-    }
-
-    /** 
-     *  \brief Get the total parallelism of the Kafka_Source
-     *  \return total parallelism of the Kafka_Source
-     */  
-    size_t getParallelism() const override
-    {
-        return parallelism;
-    }
-
-    /** 
-     *  \brief Return the input routing mode of the Kafka_Source
-     *  \return routing mode used to send inputs to the Kafka_Source
-     */ 
-    Routing_Mode_t getInputRoutingMode() const override
-    {
-        return Routing_Mode_t::NONE;
-    }
-
-    /** 
-     *  \brief Return the size of the output batches that the Kafka_Source should produce
-     *  \return output batch size in number of tuples
-     */ 
-    size_t getOutputBatchSize() const override
-    {
-        return outputBatchSize;
-    }
+    Kafka_Source(Kafka_Source &&) = delete; ///< Move constructor is deleted
+    Kafka_Source &operator=(const Kafka_Source &) = delete; ///< Copy assignment operator is deleted
+    Kafka_Source &operator=(Kafka_Source &&) = delete; ///< Move assignment operator is deleted
 };
 
 } // namespace wf

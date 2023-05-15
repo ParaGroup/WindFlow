@@ -101,7 +101,7 @@ int main(int argc, char *argv[])
     size_t min = 1;
     size_t max = 9;
     std::uniform_int_distribution<std::mt19937::result_type> dist_p(min, max);
-    std::uniform_int_distribution<std::mt19937::result_type> dist_b(1, 1);
+    std::uniform_int_distribution<std::mt19937::result_type> dist_b(100, 200);
     int map1_degree, map2_degree, flatmap_degree, filter1_degree, filter2_degree, filter3_degree, filter4_degree, sink_degree;
     size_t source1_degree = dist_p(rng);
     size_t source2_degree = dist_p(rng);

@@ -47,37 +47,20 @@ namespace wf {
 template<typename tuple_t>
 struct Batch_t
 {
-    ff::MPMC_Ptr_Queue *queue = nullptr; // pointer to the recyling queue
+public:
+    ff::MPMC_Ptr_Queue *queue; // pointer to the recyling queue
 
+protected:
     // Constructor
-    Batch_t() {}
+    Batch_t(): queue(nullptr) {}
 
     // Copy Constructor
     Batch_t(const Batch_t &_other):
             queue(_other.queue) {}
 
-    // Move Constructor
-    Batch_t(Batch_t &&_other):
-            queue(std::exchange(_other.queue, nullptr)) {}
-
+public:
     // Destructor
     virtual ~Batch_t() = default;
-
-    // Copy Assignment Operator
-    Batch_t &operator=(const Batch_t &_other)
-    {
-        if (this != &_other) {
-            queue = _other.queue;
-        }
-        return *this;
-    }
-
-    // Move Assignment Operator
-    Batch_t &operator=(Batch_t &&_other)
-    {
-        queue = std::exchange(_other.queue, nullptr);
-        return *this;
-    }
 
     // Check whether the batch can be deleted or not
     virtual bool isDeletable() = 0;
@@ -99,6 +82,10 @@ struct Batch_t
 
     // Set the watermark of the batch related to a specific destination _node_id
     virtual void setWatermark(uint64_t _wm, size_t _node_id) = 0;
+
+    Batch_t(Batch_t &&) = delete; ///< Move constructor is deleted
+    Batch_t &operator=(const Batch_t &) = delete; ///< Copy assignment operator is deleted
+    Batch_t &operator=(Batch_t &&) = delete; ///< Move assignment operator is deleted
 };
 
 } // namespace wf

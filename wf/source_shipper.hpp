@@ -59,8 +59,8 @@ template<typename result_t>
 class Source_Shipper
 {
 private:
-    template<typename T1> friend class Source_Replica; // friendship with the Source_Replica class
-    template<typename T1> friend class KafkaSource_Replica; // friendship with the Kafka_Source_Replica class
+    template<typename T1> friend class Source_Replica;
+    template<typename T1> friend class KafkaSource_Replica;
     Basic_Emitter *emitter; // pointer to the emitter used for the delivery of messages
     ff::ff_monode *node; // pointer to the fastflow node to be passed to the emitter
     Execution_Mode_t execution_mode; // execution mode of the PipeGraph
@@ -109,72 +109,12 @@ private:
 #endif
     }
 
-    // Move Constructor
-    Source_Shipper(Source_Shipper &&_other):
-                   emitter(std::exchange(_other.emitter, nullptr)),
-                   node(std::exchange(_other.node, nullptr)),
-                   execution_mode(_other.execution_mode),
-                   time_policy(_other.time_policy),
-                   num_delivered(_other.num_delivered),
-                   max_timestamp(_other.max_timestamp),
-                   watermark(_other.watermark)
-    {
-#if defined (WF_TRACING_ENABLED)
-        stats_record = std::exchange(_other.stats_record, nullptr);
-#endif
-    }
-
     // Destructor
     ~Source_Shipper()
     {
         if (emitter != nullptr) {
             delete emitter;
         }
-    }
-
-    // Copy Assignment Operator
-    Source_Shipper &operator=(const Source_Shipper &_other)
-    {
-        if (this != &_other) {
-            if (emitter != nullptr) {
-                delete emitter;
-            }
-            if (_other.emitter != nullptr) {
-                emitter = (_other.emitter)->clone();
-            }
-            else {
-                emitter = nullptr;
-            }
-            node = _other.node;
-            execution_mode = _other.execution_mode;
-            time_policy = _other.time_policy;
-            num_delivered = _other.num_delivered;
-            max_timestamp = _other.max_timestamp;
-            watermark = _other.watermark;
-#if defined (WF_TRACING_ENABLED)
-            stats_record = _other.stats_record;
-#endif
-        }
-        return *this;
-    }
-
-    // Move Assignment Operator
-    Source_Shipper &operator=(Source_Shipper &&_other)
-    {
-        if (emitter != nullptr) {
-            delete emitter;
-        }
-        emitter = std::exchange(_other.emitter, nullptr);
-        node = std::exchange(_other.node, nullptr);
-        execution_mode = _other.execution_mode;
-        time_policy = _other.time_policy;
-        num_delivered = _other.num_delivered;
-        max_timestamp = _other.max_timestamp;
-        watermark = _other.watermark;
-#if defined (WF_TRACING_ENABLED)
-        stats_record = std::exchange(_other.stats_record, nullptr);
-#endif
-        return *this;
     }
 
     // Set the initial time in usec
@@ -184,8 +124,7 @@ private:
     }
 
     // Set the execution and time mode of the Source_Shipper
-    void setConfiguration(Execution_Mode_t _execution_mode,
-                          Time_Policy_t _time_policy)
+    void setConfiguration(Execution_Mode_t _execution_mode, Time_Policy_t _time_policy)
     {
         execution_mode = _execution_mode;
         time_policy = _time_policy;
@@ -300,8 +239,7 @@ public:
      *  \param _r result to be delivered (copy semantics)
      *  \param _ts timestamp value (in microseconds starting from zero)
      */ 
-    void pushWithTimestamp(const result_t &_r,
-                           uint64_t _ts)
+    void pushWithTimestamp(const result_t &_r, uint64_t _ts)
     {
 #if defined (WF_TRACING_ENABLED)
         if (stats_record->outputs_sent == 0) {
@@ -342,8 +280,7 @@ public:
      *  \param _r result to be delivered (move semantics)
      *  \param _ts timestamp value (in microseconds starting from zero)
      */ 
-    void pushWithTimestamp(result_t &&_r,
-                           uint64_t _ts)
+    void pushWithTimestamp(result_t &&_r, uint64_t _ts)
     {
 #if defined (WF_TRACING_ENABLED)
         if (stats_record->outputs_sent == 0) {

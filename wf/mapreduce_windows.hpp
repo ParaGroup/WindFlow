@@ -63,26 +63,23 @@ namespace wf {
  *  partitions. Results of the partitions are used to compute results of whole
  *  windows.
  */ 
-template<typename map_func_t, typename reduce_func_t, typename key_extractor_func_t>
+template<typename map_func_t, typename reduce_func_t, typename keyextr_func_t>
 class MapReduce_Windows: public Basic_Operator
 {
 private:
-    friend class MultiPipe; // friendship with the MultiPipe class
-    friend class PipeGraph; // friendship with the PipeGraph class
+    friend class MultiPipe;
+    friend class PipeGraph;
     map_func_t map_func; // functional logic of the MAP stage
     reduce_func_t reduce_func; // functional logic of the REDUCE stage
-    key_extractor_func_t key_extr; // logic to extract the key attribute from the tuple_t
+    keyextr_func_t key_extr; // logic to extract the key attribute from the tuple_t
     size_t map_parallelism; // parallelism of the MAP stage
     size_t reduce_parallelism; // parallelism of the REDUCE stage
-    std::string name; // name of the MapReduce_Windows
-    bool input_batching; // if true, the MapReduce_Windows expects to receive batches instead of individual inputs
-    size_t outputBatchSize; // batch size of the outputs produced by the MapReduce_Windows
     uint64_t win_len; // window length (in no. of tuples or in time units)
     uint64_t slide_len; // slide length (in no. of tuples or in time units)
     uint64_t lateness; // triggering delay in time units (meaningful for TB windows in DEFAULT mode)
     Win_Type_t winType; // window type (CB or TB)
-    Parallel_Windows<map_func_t, key_extractor_func_t> map; // MAP sub-operator
-    Parallel_Windows<reduce_func_t, key_extractor_func_t> reduce; // REDUCE sub-operator
+    Parallel_Windows<map_func_t, keyextr_func_t> map; // MAP sub-operator
+    Parallel_Windows<reduce_func_t, keyextr_func_t> reduce; // REDUCE sub-operator
 
     // Configure the MapReduce_Windows to receive batches instead of individual inputs
     void receiveBatches(bool _input_batching) override
@@ -114,7 +111,7 @@ private:
         return terminated;
     }
 
-    // Set the execution mode of the MapReduce_Windows (i.e., the one of its PipeGraph)
+    // Set the execution mode of the MapReduce_Windows
     void setExecutionMode(Execution_Mode_t _execution_mode)
     {
         map.setExecutionMode(_execution_mode);
@@ -122,44 +119,18 @@ private:
     }
 
     // Get the logic to extract the key attribute from the tuple_t
-    key_extractor_func_t getKeyExtractor() const
+    keyextr_func_t getKeyExtractor() const
     {
         return key_extr;
     }
 
 #if defined (WF_TRACING_ENABLED)
-    // Dump the log file (JSON format) of statistics of the MapReduce_Windows
-    void dumpStats() const override
-    {
-        std::ofstream logfile; // create and open the log file in the WF_LOG_DIR directory
-#if defined (WF_LOG_DIR)
-        std::string log_dir = std::string(STRINGIFY(WF_LOG_DIR));
-        std::string filename = std::string(STRINGIFY(WF_LOG_DIR)) + "/" + std::to_string(getpid()) + "_" + name + ".json";
-#else
-        std::string log_dir = std::string("log");
-        std::string filename = "log/" + std::to_string(getpid()) + "_" + name + ".json";
-#endif
-        if (mkdir(log_dir.c_str(), 0777) != 0) { // create the log directory
-            struct stat st;
-            if((stat(log_dir.c_str(), &st) != 0) || !S_ISDIR(st.st_mode)) {
-                std::cerr << RED << "WindFlow Error: directory for log files cannot be created" << DEFAULT_COLOR << std::endl;
-                exit(EXIT_FAILURE);
-            }
-        }
-        logfile.open(filename);
-        rapidjson::StringBuffer buffer; // create the rapidjson writer
-        rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
-        this->appendStats(writer); // append the statistics of the Map
-        logfile << buffer.GetString();
-        logfile.close();
-    }
-
     // Append the statistics (JSON format) of the MapReduce_Windows to a PrettyWriter
     void appendStats(rapidjson::PrettyWriter<rapidjson::StringBuffer> &writer) const override
     {
         writer.StartObject(); // create the header of the JSON file
         writer.Key("Operator_name");
-        writer.String(name.c_str());
+        writer.String((this->name).c_str());
         writer.Key("Operator_type");
         writer.String("MapReduce_Windows");
         writer.Key("Distribution");
@@ -205,7 +176,7 @@ private:
         writer.Key("Parallelism_2");
         writer.Uint(reduce_parallelism);
         writer.Key("OutputBatchSize");
-        writer.Uint(outputBatchSize);
+        writer.Uint(this->outputBatchSize);
         writer.Key("Replicas_2");
         writer.StartArray();
         for (auto *r: reduce.replicas) { // append the statistics from all the REDUCE replicas of the MapReduce_Windows
@@ -221,14 +192,14 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _map_func functional logic of the MAP stage (a function or a callable type)
-     *  \param _reduce_func functional logic of the REDUCE stage (a function or a callable type)
-     *  \param _key_extr key extractor (a function or a callable type)
+     *  \param _map_func functional logic of the MAP stage (a function or any callable type)
+     *  \param _reduce_func functional logic of the REDUCE stage (a function or any callable type)
+     *  \param _key_extr key extractor (a function or any callable type)
      *  \param _map_parallelism internal parallelism of the MAP stage
      *  \param _reduce_parallelism internal parallelism of the REDUCE stage
      *  \param _name name of the MapReduce_Windows
      *  \param _outputBatchSize size (in num of tuples) of the batches produced by this operator (0 for no batching)
-     *  \param _closing_func closing functional logic of the MapReduce_Windows (a function or callable type)
+     *  \param _closing_func closing functional logic of the MapReduce_Windows (a function or any callable type)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _lateness (lateness in time units, meaningful for TB windows in DEFAULT mode)
@@ -236,7 +207,7 @@ public:
      */ 
     MapReduce_Windows(map_func_t _map_func,
                       reduce_func_t _reduce_func,
-                      key_extractor_func_t _key_extr,
+                      keyextr_func_t _key_extr,
                       size_t _map_parallelism,
                       size_t _reduce_parallelism,
                       std::string _name,
@@ -246,20 +217,18 @@ public:
                       uint64_t _slide_len,
                       uint64_t _lateness,
                       Win_Type_t _winType):
+                      Basic_Operator(_map_parallelism+_reduce_parallelism, _name, Routing_Mode_t::BROADCAST, _outputBatchSize),
                       map_func(_map_func),
                       reduce_func(_reduce_func),
                       key_extr(_key_extr),
                       map_parallelism(_map_parallelism),
                       reduce_parallelism(_reduce_parallelism),
-                      name(_name),
-                      input_batching(false),
-                      outputBatchSize(_outputBatchSize),
                       win_len(_win_len),
                       slide_len(_slide_len),
                       lateness(_lateness),
                       winType(_winType),
-                      map(_map_func, _key_extr, _map_parallelism, _name + "_map", 0, _closing_func, win_len, slide_len, _lateness, winType, role_t::MAP),
-                      reduce(_reduce_func, _key_extr, _reduce_parallelism, _name + "_reduce", outputBatchSize, _closing_func, _map_parallelism, _map_parallelism, 0, Win_Type_t::CB, role_t::REDUCE)
+                      map(_map_func, _key_extr, _map_parallelism, _name + "_map", 0, _closing_func, _win_len, _slide_len, _lateness, _winType, role_t::MAP),
+                      reduce(_reduce_func, _key_extr, _reduce_parallelism, _name + "_reduce", _outputBatchSize, _closing_func, _map_parallelism, _map_parallelism, 0, Win_Type_t::CB, role_t::REDUCE)
     {
         if (map_parallelism == 0) { // check the validity of the MAP parallelism value
             std::cerr << RED << "WindFlow Error: MapReduce_Windows has MAP parallelism zero" << DEFAULT_COLOR << std::endl;
@@ -278,6 +247,21 @@ public:
         reduce.type = "Parallel_Windows_REDUCE";
     }
 
+    /// Copy constructor
+    MapReduce_Windows(const MapReduce_Windows &_other):
+                      Basic_Operator(_other),
+                      map_func(_other.map_func),
+                      reduce_func(_other.reduce_func),
+                      key_extr(_other.key_extr),
+                      map_parallelism(_other.map_parallelism),
+                      reduce_parallelism(_other.reduce_parallelism),
+                      win_len(_other.win_len),
+                      slide_len(_other.slide_len),
+                      lateness(_other.lateness),
+                      winType(_other.winType),
+                      map(_other.map),
+                      reduce(_other.reduce) {}
+
     /** 
      *  \brief Get the type of the MapReduce_Windows as a string
      *  \return type of the MapReduce_Windows
@@ -285,42 +269,6 @@ public:
     std::string getType() const override
     {
         return std::string("MapReduce_Windows");
-    }
-
-    /** 
-     *  \brief Get the name of the MapReduce_Windows as a string
-     *  \return name of the MapReduce_Windows
-     */ 
-    std::string getName() const override
-    {
-        return name;
-    }
-
-    /** 
-     *  \brief Get the total parallelism of the MapReduce_Windows
-     *  \return total parallelism of the MapReduce_Windows
-     */  
-    size_t getParallelism() const override
-    {
-        return map_parallelism + reduce_parallelism;
-    }
-
-    /** 
-     *  \brief Return the input routing mode of the MapReduce_Windows
-     *  \return routing mode used to send inputs to the MapReduce_Windows
-     */ 
-    Routing_Mode_t getInputRoutingMode() const override
-    {
-        return Routing_Mode_t::BROADCAST;
-    }
-
-    /** 
-     *  \brief Return the size of the output batches that the MapReduce_Windows should produce
-     *  \return output batch size in number of tuples
-     */ 
-    size_t getOutputBatchSize() const override
-    {
-        return outputBatchSize;
     }
 
     /** 
@@ -340,6 +288,10 @@ public:
     {
         return map->getNumIgnoredTuples();
     }
+
+    MapReduce_Windows(MapReduce_Windows &&) = delete; ///< Move constructor is deleted
+    MapReduce_Windows &operator=(const MapReduce_Windows &) = delete; ///< Copy assignment operator is deleted
+    MapReduce_Windows &operator=(MapReduce_Windows &&) = delete; ///< Move assignment operator is deleted
 };
 
 } // namespace wf

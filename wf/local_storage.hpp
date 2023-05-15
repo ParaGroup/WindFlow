@@ -63,11 +63,6 @@ public:
     /// Constructor
     LocalStorage(): num_fields(0) {}
 
-    /// Move Constructor
-    LocalStorage(LocalStorage &&_other):
-                 num_fields(std::exchange(_other.num_fields, 0)),
-                 storage(std::move(_other.storage)) {}
-
     /** 
      *  \brief Get a reference to the data field with type type_t and name _name
      *         in the storage. If the data field is not in the storage, it creates
@@ -136,6 +131,7 @@ public:
     }
 
     LocalStorage(const LocalStorage &) = delete; ///< Copy constructor is deleted
+    LocalStorage(LocalStorage &&) = delete; ///< Move constructor is deleted
     LocalStorage &operator=(const LocalStorage &) = delete; ///< Copy assignment operator is deleted
     LocalStorage &operator=(LocalStorage &&_other) = delete; ///< Move assignment operator is deleted
 };

@@ -1,4 +1,4 @@
-# Try to find Graphviz cgraph library
+# Try to find Graphviz and cgraph libraries
 
 # Check GRAPHVIZ_ROOT
 if(EXISTS "$ENV{GRAPHVIZ_ROOT}")

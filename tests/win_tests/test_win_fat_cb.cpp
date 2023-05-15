@@ -22,7 +22,7 @@
  */
 
 /*  
- *  Test of the FFAT_Aggregator operator with count-based windows.
+ *  Test of the Ffat_Windows operator with count-based windows.
  *  
  *  +-----------------------------------------------------------------+
  *  |  +-----+   +-----+   +------+   +-----+   +--------+   +-----+  |
@@ -134,7 +134,7 @@ int main(int argc, char *argv[])
         mp.chain(map);
         Lift_Functor lift_functor;
         Comb_Functor comb_functor;
-        FFAT_Aggregator fatagg = FFAT_Aggregator_Builder(lift_functor, comb_functor)
+        Ffat_Windows fatagg = Ffat_Windows_Builder(lift_functor, comb_functor)
                                     .withName("ffat_agg")
                                     .withParallelism(fat_degree)
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })

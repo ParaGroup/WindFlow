@@ -81,10 +81,73 @@ enum class Execution_Mode_t { DEFAULT, DETERMINISTIC, PROBABILISTIC };
 enum class Time_Policy_t { INGRESS_TIME, EVENT_TIME };
 
 /// Supported window types of window-based operators
-enum class Win_Type_t { CB, TB };
+enum class Win_Type_t { CB, TB }; // CB = count based, TB = time based
 
-/// Enumeration of the routing modes of inputs to the operator replicas
-enum class Routing_Mode_t { NONE, FORWARD, KEYBY, BROADCAST };
+/// Routing modes to distribute inputs to the replicas of an operator
+enum class Routing_Mode_t { NONE, FORWARD, KEYBY, BROADCAST, REBALANCING };
+
+/// Forward declaration of the Source operator
+template<typename source_func_t>
+class Source;
+
+/// Forward declaration of the Kafka_Source operator
+template<typename kafka_deser_func_t>
+class Kafka_Source;
+
+/// Forward declaration of the Filter operator
+template<typename filter_func_t, typename keyextr_func_t>
+class Filter;
+
+/// Forward declaration of the Map operator
+template<typename map_func_t, typename keyextr_func_t>
+class Map;
+
+/// Forward declaration of the FlatMap operator
+template<typename flatmap_func_t, typename keyextr_func_t>
+class FlatMap;
+
+/// Forward declaration of the Reduce operator
+template<typename reduce_func_t, typename keyextr_func_t>
+class Reduce;
+
+/// Forward declaration of the Sink operator
+template<typename sink_func_t, typename keyextr_func_t>
+class Sink;
+
+/// Forward declaration of the Kafka_Sink operator
+template<typename kafka_ser_func_t, typename keyextr_func_t>
+class Kafka_Sink;
+
+/// Forward declaration of the Keyed_Windows operator
+template<typename win_func_t, typename keyextr_func_t>
+class Keyed_Windows;
+
+/// Forward declaration of the Parallel_Windows operator
+template<typename win_func_t, typename keyextr_func_t>
+class Parallel_Windows;
+
+/// Forward declaration of the Paned_Windows operator
+template<typename plq_func_t, typename wlq_func_t, typename keyextr_func_t>
+class Paned_Windows;
+
+/// Forward declaration of the MapReduce_Windows operator
+template<typename map_func_t, typename reduce_func_t, typename keyextr_func_t>
+class MapReduce_Windows;
+
+/// Forward declaration of the Ffat_Windows operator
+template<typename lift_func_t, typename comb_func_t, typename keyextr_func_t>
+class Ffat_Windows;
+
+/// Forward declaration of the MultiPipe construct
+class MultiPipe;
+
+/// Forward declaration of the PipeGraph construct
+class PipeGraph;
+
+/// Forward declaration of the RuntimeContext class
+class RuntimeContext;
+
+//@cond DOXY_IGNORE
 
 /// Forward declaration of the Single_t structure
 template<typename tuple_t>
@@ -97,69 +160,6 @@ struct Batch_t;
 /// Forward declaration of the Batch_CPU_t structure
 template<typename tuple_t>
 struct Batch_CPU_t;
-
-/// Forward declaration of the Source operator
-template<typename source_func_t>
-class Source;
-
-/// Forward declaration of the Kafka_Source operator
-template<typename kafka_deser_func_t>
-class Kafka_Source;
-
-/// Forward declaration of the Filter operator
-template<typename filter_func_t, typename key_extractor_func_t>
-class Filter;
-
-/// Forward declaration of the Map operator
-template<typename map_func_t, typename key_extractor_func_t>
-class Map;
-
-/// Forward declaration of the FlatMap operator
-template<typename flatmap_func_t, typename key_extractor_func_t>
-class FlatMap;
-
-/// Forward declaration of the Reduce operator
-template<typename reduce_func_t, typename key_extractor_func_t>
-class Reduce;
-
-/// Forward declaration of the Sink operator
-template<typename sink_func_t, typename key_extractor_func_t>
-class Sink;
-
-/// Forward declaration of the Kafka_Sink operator
-template<typename kafka_ser_func_t, typename key_extractor_func_t>
-class Kafka_Sink;
-
-/// Forward declaration of the Keyed_Windows operator
-template<typename win_func_t, typename key_extractor_func_t>
-class Keyed_Windows;
-
-/// Forward declaration of the Parallel_Windows operator
-template<typename win_func_t, typename key_extractor_func_t>
-class Parallel_Windows;
-
-/// Forward declaration of the Paned_Windows operator
-template<typename plq_func_t, typename wlq_func_t, typename key_extractor_func_t>
-class Paned_Windows;
-
-/// Forward declaration of the MapReduce_Windows operator
-template<typename map_func_t, typename reduce_func_t, typename key_extractor_func_t>
-class MapReduce_Windows;
-
-/// Forward declaration of the FFAT_Aggregator operator
-template<typename lift_func_t, typename comb_func_t, typename key_extractor_func_t>
-class FFAT_Aggregator;
-
-/// Forward declaration of the MultiPipe construct
-class MultiPipe;
-
-/// Forward declaration of the PipeGraph construct
-class PipeGraph;
-
-/// Forward declaration of the RuntimeContext class
-class RuntimeContext;
-
-//@cond DOXY_IGNORE
 
 // Default capacity of vectors used internally by the library
 #if !defined (WF_DEFAULT_VECTOR_CAPACITY)
@@ -191,7 +191,7 @@ enum class win_event_t { OLD, IN, FIRED };
 // Supported ordering modes
 enum class ordering_mode_t { ID, TS };
 
-// Supported roles of the Win_Seq/Win_Seq_GPU replicas
+// Supported roles of the Window_Replica nodes
 enum class role_t { SEQ, PLQ, WLQ, MAP, REDUCE };
 
 // Macros for the linux terminal colors
@@ -243,7 +243,7 @@ struct TypeName
     }
 };
 
-// Struct implementing the empty_key_t
+// Struct implementing the empty_key_t type
 struct empty_key_t
 {
     int key_value;
@@ -253,22 +253,19 @@ struct empty_key_t
 };
 
 // Operator< for the empty_key_t type
-inline bool operator<(const empty_key_t &l,
-                      const empty_key_t &r)
+inline bool operator<(const empty_key_t &l, const empty_key_t &r)
 {
     return (l.key_value < r.key_value);
 }
 
 // Equality operator of empty_key_t
-inline bool operator==(const empty_key_t &k1,
-                       const empty_key_t &k2)
+inline bool operator==(const empty_key_t &k1, const empty_key_t &k2)
 {
     return k1.key_value == k2.key_value;
 }
 
-// Function to compute the compute_gcd
-inline uint64_t compute_gcd(uint64_t u,
-                            uint64_t v)
+// Function to compute the gcd
+inline uint64_t compute_gcd(uint64_t u, uint64_t v)
 {
     while (v != 0) {
         unsigned long r = u % v;
@@ -283,19 +280,16 @@ template<typename tuple_t>
 struct wrapper_tuple_t
 {
     tuple_t tuple; // tuple
-    uint64_t index; // identifier or timestamp depending on the window semantics
+    uint64_t index; // identifier (CB) or timestamp (TB)
 
     // Constructor
-    wrapper_tuple_t(const tuple_t &_tuple,
-                    uint64_t _index):
-                    tuple(_tuple),
-                    index(_index) {}
+    wrapper_tuple_t(const tuple_t &_tuple, uint64_t _index):
+                    tuple(_tuple), index(_index) {}
 };
 
 // Function to create a window result
 template<typename result_t, typename key_t>
-inline result_t create_win_result_t(key_t _key,
-                                    uint64_t _id=0)
+inline result_t create_win_result_t(key_t _key, uint64_t _id=0)
 {
     if constexpr (std::is_same<key_t, empty_key_t>::value) { // case without key
         result_t res(_id); // constructor with id parameter
@@ -309,7 +303,7 @@ inline result_t create_win_result_t(key_t _key,
 
 } // namespace wf
 
-// Hash function of the empty_key_t
+// Hash function of the empty_key_t type
 namespace std
 {
     template<>

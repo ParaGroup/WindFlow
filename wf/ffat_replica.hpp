@@ -25,11 +25,11 @@
  *  @file    ffat_replica.hpp
  *  @author  Gabriele Mencagli and Elia Ruggeri
  *  
- *  @brief FFAT_Replica implements the replica of the FFAT_Aggregator
+ *  @brief FFAT_Replica implements the replica of the Ffat_Windows operator
  *  
  *  @section FFAT_Replica (Description)
  *  
- *  This file implements the FFAT_Replica representing the replica of the FFAT_Aggregator
+ *  This file implements the FFAT_Replica representing the replica of the Ffat_Windows
  *  operator.
  */ 
 
@@ -41,7 +41,6 @@
 #include<string>
 #include<functional>
 #include<unordered_map>
-#include<ff/multinode.hpp>
 #include<flatfat.hpp>
 #include<context.hpp>
 #include<batch_t.hpp>
@@ -56,14 +55,14 @@
 namespace wf {
 
 // class FFAT_Replica
-template<typename lift_func_t, typename comb_func_t, typename key_extractor_func_t>
-class FFAT_Replica: public ff::ff_monode
+template<typename lift_func_t, typename comb_func_t, typename keyextr_func_t>
+class FFAT_Replica: public Basic_Replica
 {
 private:
-    template<typename T1, typename T2, typename T3> friend class FFAT_Aggregator; // friendship with the FFAT_Aggregator class
+    template<typename T1, typename T2, typename T3> friend class Ffat_Windows;
     lift_func_t lift_func; // functional logic of the lift
     comb_func_t comb_func; // functional logic of the combine
-    key_extractor_func_t key_extr; // logic to extract the key attribute from the tuple_t
+    keyextr_func_t key_extr; // logic to extract the key attribute from the tuple_t
     using tuple_t = decltype(get_tuple_t_Lift(lift_func)); // extracting the tuple_t type and checking the admissible signatures
     using result_t = decltype(get_result_t_Lift(lift_func)); // extracting the result_t type and checking the admissible signatures
     using key_t = decltype(get_key_t_KeyExtr(key_extr)); // extracting the key_t type and checking the admissible singatures
@@ -76,6 +75,7 @@ private:
     // check the presence of a valid functional logic
     static_assert(isNonRichedLift || isRichedLift || isNonRichedComb || isRichedComb,
         "WindFlow Compilation Error - FFAT_Replica does not have a valid functional logic:\n");
+
     struct Key_Descriptor // struct of a key descriptor
     {
         fat_t fat; // FlatFAT of this key
@@ -101,12 +101,7 @@ private:
                        next_lwid(0),
                        next_input_id(0) {}
     };
-    std::string opName; // name of the FFAT_Aggregator containing the replica
-    bool input_batching; // if true, the FFAT_Replica expects to receive batches instead of individual inputs
-    RuntimeContext context; // RuntimeContext object
-    std::function<void(RuntimeContext &)> closing_func; // closing functional logic used by the FFAT_Replica
-    bool terminated; // true if the replica has finished its work
-    Basic_Emitter *emitter; // pointer to the used emitter
+
     uint64_t win_len; // window length (no. of tuples or in time units)
     uint64_t slide_len; // slide length (no. of tuples or in time units)
     uint64_t lateness; // triggering delay in time units (meaningful for TB windows in DEFAULT mode)
@@ -114,20 +109,13 @@ private:
     uint64_t quantum; // quantum value (for time-based windows only)
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     size_t ignored_tuples; // number of ignored tuples
-    Execution_Mode_t execution_mode; // execution mode of the FFAT_Aggregator replica
     uint64_t last_time; // last received timestamp or watermark
-#if defined (WF_TRACING_ENABLED)
-    Stats_Record stats_record;
-    double avg_td_us = 0;
-    double avg_ts_us = 0;
-    volatile uint64_t startTD, startTS, endTD, endTS;
-#endif
 
 public:
     // Constructor
     FFAT_Replica(lift_func_t _lift_func,
                  comb_func_t _comb_func,
-                 key_extractor_func_t _key_extr,
+                 keyextr_func_t _key_extr,
                  std::string _opName,
                  RuntimeContext _context,
                  std::function<void(RuntimeContext &)> _closing_func,
@@ -135,21 +123,15 @@ public:
                  uint64_t _slide_len,
                  uint64_t _lateness,
                  Win_Type_t _winType):
+                 Basic_Replica(_opName, _context, _closing_func, true),
                  lift_func(_lift_func),
                  comb_func(_comb_func),
                  key_extr(_key_extr),
-                 opName(_opName),
-                 input_batching(false),
-                 context(_context),
-                 closing_func(_closing_func),
-                 terminated(false),
-                 emitter(nullptr),
                  win_len(_win_len),
                  slide_len(_slide_len),
                  lateness(_lateness),
                  winType(_winType),
                  ignored_tuples(0),
-                 execution_mode(Execution_Mode_t::DEFAULT),
                  last_time(0)
     {
         if (winType == Win_Type_t::TB) { // set the quantum value (for time-based windows only)
@@ -159,19 +141,15 @@ public:
         }
         else {
             quantum = 0; // zero, quantum is never used
-        }        
+        }
     }
 
     // Copy Constructor
     FFAT_Replica(const FFAT_Replica &_other):
+                 Basic_Replica(_other),
                  lift_func(_other.lift_func),
                  comb_func(_other.comb_func),
                  key_extr(_other.key_extr),
-                 opName(_other.opName),
-                 input_batching(_other.input_batching),
-                 context(_other.context),
-                 closing_func(_other.closing_func),
-                 terminated(_other.terminated),
                  win_len(_other.win_len),
                  slide_len(_other.slide_len),
                  lateness(_other.lateness),
@@ -179,194 +157,57 @@ public:
                  quantum(_other.quantum),
                  keyMap(_other.keyMap),
                  ignored_tuples(_other.ignored_tuples),
-                 execution_mode(_other.execution_mode),
-                 last_time(_other.last_time)
-    {
-        if (_other.emitter == nullptr) {
-            emitter = nullptr;
-        }
-        else {
-            emitter = (_other.emitter)->clone(); // clone the emitter if it exists
-        }
-#if defined (WF_TRACING_ENABLED)
-        stats_record = _other.stats_record;
-#endif
-    }
-
-    // Move Constructor
-    FFAT_Replica(FFAT_Replica &&_other):
-                 lift_func(std::move(_other.lift_func)),
-                 comb_func(std::move(_other.comb_func)),
-                 key_extr(std::move(_other.key_extr)),
-                 opName(std::move(_other.opName)),
-                 input_batching(_other.input_batching),
-                 context(std::move(_other.context)),
-                 closing_func(std::move(_other.closing_func)),
-                 terminated(_other.terminated),
-                 emitter(std::exchange(_other.emitter, nullptr)),
-                 win_len(_other.win_len),
-                 slide_len(_other.slide_len),
-                 lateness(_other.lateness),
-                 winType(_other.winType),
-                 quantum(_other.quantum),
-                 keyMap(std::move(_other.keyMap)),
-                 ignored_tuples(_other.ignored_tuples),
-                 execution_mode(_other.execution_mode),
-                 last_time(_other.last_time)
-    {
-#if defined (WF_TRACING_ENABLED)
-        stats_record = std::move(_other.stats_record);
-#endif
-    }
-
-    // Destructor
-    ~FFAT_Replica()
-    {
-        if (emitter != nullptr) {
-            delete emitter;
-        }
-    }
-
-    // Copy Assignment Operator
-    FFAT_Replica &operator=(const FFAT_Replica &_other)
-    {
-        if (this != &_other) {
-            lift_func = _other.lift_func;
-            comb_func = _other.comb_func;
-            key_extr = _other.key_extr;
-            opName = _other.opName;
-            input_batching = _other.input_batching;
-            context = _other.context;
-            closing_func = _other.closing_func;
-            terminated = _other.terminated;
-            if (emitter != nullptr) {
-                delete emitter;
-            }
-            if (_other.emitter == nullptr) {
-                emitter = nullptr;
-            }
-            else {
-                emitter = (_other.emitter)->clone(); // clone the emitter if it exists
-            }
-            win_len = _other.win_len;
-            slide_len = _other.slide_len;
-            lateness = _other.lateness;
-            winType = _other.winType;
-            quantum = _other.quantum;
-            keyMap = _other.keyMap;
-            ignored_tuples = _other.ignored_tuples;
-            execution_mode = _other.execution_mode;
-            last_time = _other.last_time; 
-#if defined (WF_TRACING_ENABLED)
-            stats_record = _other.stats_record;
-#endif
-        }
-        return *this;
-    }
-
-    // Move Assignment Operator
-    FFAT_Replica &operator=(FFAT_Replica &&_other)
-    {
-        lift_func = std::move(_other.lift_func);
-        comb_func = std::move(_other.comb_func);
-        key_extr = std::move(_other.key_extr);
-        opName = std::move(_other.opName);
-        input_batching = _other.input_batching;
-        context = std::move(_other.context);
-        closing_func = std::move(_other.closing_func);
-        terminated = _other.terminated;
-        if (emitter != nullptr) {
-            delete emitter;
-        }
-        emitter = std::exchange(_other.emitter, nullptr);
-        win_len = _other.win_len;
-        slide_len = _other.slide_len;
-        lateness = _other.lateness;
-        winType = _other.winType;
-        quantum = _other.quantum;
-        keyMap = std::move(_other.keyMap);
-        ignored_tuples = _other.ignored_tuples;
-        execution_mode = _other.execution_mode;
-        last_time = _other.last_time; 
-#if defined (WF_TRACING_ENABLED)
-        stats_record = std::move(_other.stats_record);
-#endif
-        return *this;
-    }
-
-    // svc_init method (utilized by the FastFlow runtime)
-    int svc_init() override
-    {
-#if defined (WF_TRACING_ENABLED)
-        stats_record = Stats_Record(opName, std::to_string(this->get_my_id()), true, false);
-#endif
-        return 0;
-    }
+                 last_time(_other.last_time) {}
 
     // svc (utilized by the FastFlow runtime)
     void *svc(void *_in) override
     {
-#if defined (WF_TRACING_ENABLED)
-        startTS = current_time_nsecs();
-        if (stats_record.inputs_received == 0) {
-            startTD = current_time_nsecs();
-        }
-#endif
-        if (input_batching) { // receiving a batch
-            Batch_t<decltype(get_tuple_t_Lift(lift_func))> *batch_input = reinterpret_cast<Batch_t<decltype(get_tuple_t_Lift(lift_func))> *>(_in);
+        this->startStatsRecording();
+        if (this->input_batching) { // receiving a batch
+            Batch_t<tuple_t> *batch_input = reinterpret_cast<Batch_t<tuple_t> *>(_in);
             if (batch_input->isPunct()) { // if it is a punctuaton
-                emitter->propagate_punctuation(batch_input->getWatermark(context.getReplicaIndex()), this); // propagate the received punctuation
-                assert(last_time <= batch_input->getWatermark(context.getReplicaIndex())); // sanity check
-                last_time = batch_input->getWatermark(context.getReplicaIndex());
+                (this->emitter)->propagate_punctuation(batch_input->getWatermark((this->context).getReplicaIndex()), this); // propagate the received punctuation
+                assert(last_time <= batch_input->getWatermark((this->context).getReplicaIndex())); // sanity check
+                last_time = batch_input->getWatermark((this->context).getReplicaIndex());
                 deleteBatch_t(batch_input); // delete the punctuation
                 return this->GO_ON;
             }
 #if defined (WF_TRACING_ENABLED)
-            stats_record.inputs_received += batch_input->getSize();
-            stats_record.bytes_received += batch_input->getSize() * sizeof(tuple_t);
+            (this->stats_record).inputs_received += batch_input->getSize();
+            (this->stats_record).bytes_received += batch_input->getSize() * sizeof(tuple_t);
 #endif
             for (size_t i=0; i<batch_input->getSize(); i++) { // process all the inputs within the received batch
                 if (winType == Win_Type_t::CB) { // count-based windows
-                    process_input_cb(batch_input->getTupleAtPos(i), batch_input->getTimestampAtPos(i), batch_input->getWatermark(context.getReplicaIndex()));
+                    process_input_cb(batch_input->getTupleAtPos(i), batch_input->getTimestampAtPos(i), batch_input->getWatermark((this->context).getReplicaIndex()));
                 }
                 else { // time-based windows
-                    process_input_tb(batch_input->getTupleAtPos(i), batch_input->getTimestampAtPos(i), batch_input->getWatermark(context.getReplicaIndex()));
+                    process_input_tb(batch_input->getTupleAtPos(i), batch_input->getTimestampAtPos(i), batch_input->getWatermark((this->context).getReplicaIndex()));
                 }
             }
             deleteBatch_t(batch_input); // delete the input batch
         }
         else { // receiving a single input
-            Single_t<decltype(get_tuple_t_Lift(lift_func))> *input = reinterpret_cast<Single_t<decltype(get_tuple_t_Lift(lift_func))> *>(_in);
+            Single_t<tuple_t> *input = reinterpret_cast<Single_t<tuple_t> *>(_in);
             if (input->isPunct()) { // if it is a punctuaton
-                emitter->propagate_punctuation(input->getWatermark(context.getReplicaIndex()), this); // propagate the received punctuation
-                assert(last_time <= input->getWatermark(context.getReplicaIndex())); // sanity check
-                last_time = input->getWatermark(context.getReplicaIndex());
+                (this->emitter)->propagate_punctuation(input->getWatermark((this->context).getReplicaIndex()), this); // propagate the received punctuation
+                assert(last_time <= input->getWatermark((this->context).getReplicaIndex())); // sanity check
+                last_time = input->getWatermark((this->context).getReplicaIndex());
                 deleteSingle_t(input); // delete the punctuation
                 return this->GO_ON;
             }
 #if defined (WF_TRACING_ENABLED)
-            stats_record.inputs_received++;
-            stats_record.bytes_received += sizeof(tuple_t);
+            (this->stats_record).inputs_received++;
+            (this->stats_record).bytes_received += sizeof(tuple_t);
 #endif
             if (winType == Win_Type_t::CB) { // count-based windows
-                process_input_cb(input->tuple, input->getTimestamp(), input->getWatermark(context.getReplicaIndex()));
+                process_input_cb(input->tuple, input->getTimestamp(), input->getWatermark((this->context).getReplicaIndex()));
             }
             else { // time-based windows
-                process_input_tb(input->tuple, input->getTimestamp(), input->getWatermark(context.getReplicaIndex()));
+                process_input_tb(input->tuple, input->getTimestamp(), input->getWatermark((this->context).getReplicaIndex()));
             }
             deleteSingle_t(input); // delete the input Single_t
         }
-#if defined (WF_TRACING_ENABLED)
-        endTS = current_time_nsecs();
-        endTD = current_time_nsecs();
-        double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
-        avg_ts_us += (1.0 / stats_record.inputs_received) * (elapsedTS_us - avg_ts_us);
-        double elapsedTD_us = ((double) (endTD - startTD)) / 1000;
-        avg_td_us += (1.0 / stats_record.inputs_received) * (elapsedTD_us - avg_td_us);
-        stats_record.service_time = std::chrono::duration<double, std::micro>(avg_ts_us);
-        stats_record.eff_service_time = std::chrono::duration<double, std::micro>(avg_td_us);
-        startTD = current_time_nsecs();
-#endif
+        this->endStatsRecording();
         return this->GO_ON;
     }
 
@@ -375,7 +216,7 @@ public:
                           uint64_t _timestamp,
                           uint64_t _watermark)
     {
-        if (execution_mode == Execution_Mode_t::DEFAULT) {
+        if (this->execution_mode == Execution_Mode_t::DEFAULT) {
             assert(last_time <= _watermark); // sanity check
             last_time = _watermark;
         }
@@ -386,22 +227,22 @@ public:
         auto key = key_extr(_tuple); // get the key attribute of the input tuple
         auto it = keyMap.find(key); // find the corresponding key_descriptor (or allocate it if does not exist)
         if (it == keyMap.end()) {
-            auto p = keyMap.insert(std::make_pair(key, Key_Descriptor(&comb_func, key, win_len, &context))); // create the state of the key
+            auto p = keyMap.insert(std::make_pair(key, Key_Descriptor(&comb_func, key, win_len, &(this->context)))); // create the state of the key
             it = p.first;
         }
         Key_Descriptor &key_d = (*it).second;
         key_d.next_input_id++; // set the progressive identifier of the tuple (per key basis)
         key_d.rcv_counter++;
         key_d.slide_counter++;
-        result_t res = create_win_result_t<decltype(get_result_t_Lift(lift_func)), decltype(key)>(key);
+        result_t res = create_win_result_t<result_t, key_t>(key);
         if constexpr (isRichedLift || isRichedComb) {
-            context.setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
+            (this->context).setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
         }
         if constexpr (isNonRichedLift) {
             lift_func(_tuple, res);
         }
         if constexpr (isRichedLift) {
-            lift_func(_tuple, res, context);
+            lift_func(_tuple, res, this->context);
         }
         (key_d.pending_tuples).push_back(res);
         // check whether the current window has been fired
@@ -426,12 +267,12 @@ public:
             (key_d.pending_tuples).clear(); // clear the vector of pending tuples
             result_t out = ((key_d.fat).getResult(gwid)); // get a copy of the result of the fired window
             (key_d.fat).remove(slide_len); // purge the tuples in the last slide from FlatFAT
-            uint64_t used_ts = (execution_mode != Execution_Mode_t::DEFAULT) ? _timestamp : _watermark;
-            uint64_t used_wm = (execution_mode != Execution_Mode_t::DEFAULT) ? 0 : _watermark;
-            emitter->emit(&out, 0, used_ts, used_wm, this);
+            uint64_t used_ts = (this->execution_mode != Execution_Mode_t::DEFAULT) ? _timestamp : _watermark;
+            uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : _watermark;
+            (this->emitter)->emit(&out, 0, used_ts, used_wm, this);
 #if defined (WF_TRACING_ENABLED)
-            stats_record.outputs_sent++;
-            stats_record.bytes_sent += sizeof(result_t);
+            (this->stats_record).outputs_sent++;
+            (this->stats_record).bytes_sent += sizeof(result_t);
 #endif
         }
     }
@@ -441,7 +282,7 @@ public:
                           uint64_t _timestamp,
                           uint64_t _watermark)
     {
-        if (execution_mode == Execution_Mode_t::DEFAULT) {
+        if (this->execution_mode == Execution_Mode_t::DEFAULT) {
             assert(last_time <= _watermark); // sanity check
             last_time = _watermark;
         }
@@ -452,7 +293,7 @@ public:
         auto key = key_extr(_tuple); // get the key attribute of the input tuple
         auto it = keyMap.find(key); // find the corresponding key_descriptor (or allocate it if does not exist)
         if (it == keyMap.end()) {
-            auto p = keyMap.insert(std::make_pair(key, Key_Descriptor(&comb_func, key, win_len, &context))); // create the state of the key
+            auto p = keyMap.insert(std::make_pair(key, Key_Descriptor(&comb_func, key, win_len, &(this->context)))); // create the state of the key
             it = p.first;
         }
         Key_Descriptor &key_d = (*it).second;
@@ -470,26 +311,26 @@ public:
         auto &acc_results = key_d.acc_results;
         int64_t distance = quantum_id - key_d.last_quantum;
         for (size_t i=acc_results.size(); i<=distance; i++) { // resize acc_results properly
-            result_t r = create_win_result_t<decltype(get_result_t_Lift(lift_func)), decltype(key)>(key);
+            result_t r = create_win_result_t<result_t, key_t>(key);
             acc_results.push_back(r);
         }
-        result_t tmp = create_win_result_t<decltype(get_result_t_Lift(lift_func)), decltype(key)>(key);
+        result_t tmp = create_win_result_t<result_t, key_t>(key);
         if constexpr (isRichedLift || isRichedComb) {
-            context.setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
+            (this->context).setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
         }
         if constexpr (isNonRichedLift) {
             lift_func(_tuple, tmp);
         }
         if constexpr (isRichedLift) {
-            lift_func(_tuple, tmp, context);
+            lift_func(_tuple, tmp, this->context);
         }
         size_t id = quantum_id - key_d.last_quantum; // compute the identifier of the corresponding quantum
-        result_t tmp2 = create_win_result_t<decltype(get_result_t_Lift(lift_func)), decltype(key)>(key);
+        result_t tmp2 = create_win_result_t<result_t, key_t>(key);
         if constexpr (isNonRichedComb) {
             comb_func(acc_results[id], tmp, tmp2);
         }
         if constexpr (isRichedComb) {
-            comb_func(acc_results[id], tmp, tmp2, context);
+            comb_func(acc_results[id], tmp, tmp2, this->context);
         }
         acc_results[id] = tmp2;
         size_t n_completed = 0;
@@ -539,9 +380,9 @@ public:
             (key_d.pending_tuples).clear(); // clear the vector of pending tuples
             result_t out = ((key_d.fat).getResult(gwid)); // get a copy of the result of the fired window
             (key_d.fat).remove(slide_len); // purge the tuples in the last slide from FlatFAT
-            uint64_t used_ts = (execution_mode != Execution_Mode_t::DEFAULT) ? _timestamp : _watermark;
-            uint64_t used_wm = (execution_mode != Execution_Mode_t::DEFAULT) ? 0 : _watermark;
-            emitter->emit(&out, 0, used_ts, used_wm, this);
+            uint64_t used_ts = (this->execution_mode != Execution_Mode_t::DEFAULT) ? _timestamp : _watermark;
+            uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : _watermark;
+            (this->emitter)->emit(&out, 0, used_ts, used_wm, this);
 #if defined (WF_TRACING_ENABLED)
             stats_record.outputs_sent++;
             stats_record.bytes_sent += sizeof(result_t);
@@ -558,11 +399,7 @@ public:
         else {
             eosnotifyTBWindows(id); // count-based eos logic
         }
-        emitter->flush(this); // call the flush of the emitter
-        terminated = true;
-#if defined (WF_TRACING_ENABLED)
-        stats_record.setTerminated();
-#endif
+        Basic_Replica::eosnotify(id);
     }
 
     // Eosnotify with count-based windows
@@ -579,11 +416,11 @@ public:
                 key_d.next_lwid++;
                 result_t out = fat.getResult(gwid); // get a copy of the result of the fired window
                 fat.remove(slide_len); // purge the tuples in the last slide from FlatFAT
-                uint64_t used_wm = (execution_mode != Execution_Mode_t::DEFAULT) ? 0 : last_time;
-                emitter->emit(&out, 0, last_time, used_wm, this);
+                uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : last_time;
+                (this->emitter)->emit(&out, 0, last_time, used_wm, this);
 #if defined (WF_TRACING_ENABLED)
-                stats_record.outputs_sent++;
-                stats_record.bytes_sent += sizeof(result_t);
+                (this->stats_record).outputs_sent++;
+                (this->stats_record).bytes_sent += sizeof(result_t);
 #endif
             }
         }
@@ -599,7 +436,7 @@ public:
             auto &fat = key_d.fat;
             auto &acc_results = key_d.acc_results;
             for (size_t i=0; i<acc_results.size(); i++) { // add all the accumulated results
-                uint64_t used_wm = (execution_mode != Execution_Mode_t::DEFAULT) ? 0 : last_time;
+                uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : last_time;
                 processCompleteTBWindows(key_d, acc_results[i], key, last_time, used_wm);
                 key_d.last_quantum++;
             }
@@ -610,44 +447,14 @@ public:
                 key_d.next_lwid++;
                 result_t out = fat.getResult(gwid); // get a copy the result of the fired window
                 fat.remove(slide_len); // purge the tuples from Flat FAT
-                uint64_t used_wm = (execution_mode != Execution_Mode_t::DEFAULT) ? 0 : last_time;
-                emitter->emit(&out, 0, last_time, used_wm, this);
+                uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : last_time;
+                (this->emitter)->emit(&out, 0, last_time, used_wm, this);
 #if defined (WF_TRACING_ENABLED)
-                stats_record.outputs_sent++;
-                stats_record.bytes_sent += sizeof(result_t);
+                (this->stats_record).outputs_sent++;
+                (this->stats_record).bytes_sent += sizeof(result_t);
 #endif
             }
         }
-    }
-
-    // svc_end method (utilized by the FastFlow runtime)
-    void svc_end() override
-    {
-        closing_func(context); // call the closing function
-    }
-
-    // Configure the Window_Replica to receive batches instead of individual inputs
-    void receiveBatches(bool _input_batching)
-    {
-        input_batching = _input_batching;
-    }
-
-    // Set the emitter used to route outputs from the FFAT_Aggregator replica
-    void setEmitter(Basic_Emitter *_emitter)
-    {
-        emitter = _emitter;
-    }
-
-    // Check the termination of the Window_Replica
-    bool isTerminated() const
-    {
-        return terminated;
-    }
-
-    // Set the execution mode of the FFAT_Aggregator replica
-    void setExecutionMode(Execution_Mode_t _execution_mode)
-    {
-        execution_mode = _execution_mode;
     }
 
     // Get the number of ignored tuples
@@ -656,13 +463,9 @@ public:
         return ignored_tuples;
     }
 
-#if defined (WF_TRACING_ENABLED)
-    // Get a copy of the Stats_Record of the FFAT_Replica
-    Stats_Record getStatsRecord() const
-    {
-        return stats_record;
-    }
-#endif
+    FFAT_Replica(FFAT_Replica &&) = delete; ///< Move constructor is deleted
+    FFAT_Replica &operator=(const FFAT_Replica &) = delete; ///< Copy assignment operator is deleted
+    FFAT_Replica &operator=(FFAT_Replica &&) = delete; ///< Move assignment operator is deleted
 };
 
 } // namespace wf

@@ -25,11 +25,11 @@
  *  @file    window_replica.hpp
  *  @author  Gabriele Mencagli
  *  
- *  @brief Window_Replica is the replica of traditional window-based operators
+ *  @brief Window_Replica is the replica of most of the window-based operators
  *  
  *  @section Window_Replica (Description)
  *  
- *  This file implements the Window_Replica representing the replica of traditional
+ *  This file implements the Window_Replica representing the replica of most of the
  *  window-based operators (i.e., Keyed_Windows, Parallel_Windows, Paned_Windows and
  *  MapReduce_Windows).
  */ 
@@ -42,7 +42,6 @@
 #include<string>
 #include<functional>
 #include<unordered_map>
-#include<ff/multinode.hpp>
 #include<context.hpp>
 #include<batch_t.hpp>
 #include<single_t.hpp>
@@ -58,14 +57,14 @@
 namespace wf {
 
 // class Window_Replica
-template<typename win_func_t, typename key_extractor_func_t>
-class Window_Replica: public ff::ff_monode
+template<typename win_func_t, typename keyextr_func_t>
+class Window_Replica: public Basic_Replica
 {
 private:
-    template<typename T1, typename T2> friend class Keyed_Windows; // friendship with the Keyed_Windows class
-    template<typename T1, typename T2> friend class Parallel_Windows; // friendship with the Parallel_Windows class
+    template<typename T1, typename T2> friend class Keyed_Windows;
+    template<typename T1, typename T2> friend class Parallel_Windows;
     win_func_t func; // functional logic used by the Window_Replica
-    key_extractor_func_t key_extr; // logic to extract the key attribute from the tuple_t
+    keyextr_func_t key_extr; // logic to extract the key attribute from the tuple_t
     using tuple_t = decltype(get_tuple_t_Win(func)); // extracting the tuple_t type and checking the admissible signatures
     using result_t = decltype(get_result_t_Win(func)); // extracting the result_t type and checking the admissible signatures
     using key_t = decltype(get_key_t_KeyExtr(key_extr)); // extracting the key_t type and checking the admissible singatures
@@ -81,6 +80,7 @@ private:
     using input_iterator_t = typename std::deque<wrapper_t>::iterator; // iterator type for accessing wrapped tuples in the archive
     using win_t = Window<tuple_t, result_t, key_t>; // window type used by the Window_Replica
     using compare_func_t = std::function<bool(const wrapper_t &, const wrapper_t &)>; // function type to compare two wrapped tuples
+
     struct Key_Descriptor // struct of a key descriptor
     {
         StreamArchive<tuple_t> archive; // archive of tuples of this key
@@ -102,12 +102,7 @@ private:
             wins.reserve(WF_DEFAULT_VECTOR_CAPACITY);
         }
     };
-    std::string opName; // name of the window-based operator containing the replica
-    bool input_batching; // if true, the Window_Replica expects to receive batches instead of individual inputs
-    RuntimeContext context; // RuntimeContext object
-    std::function<void(RuntimeContext &)> closing_func; // closing functional logic used by the Window_Replica
-    bool terminated; // true if the Window_Replica has finished its work
-    Basic_Emitter *emitter; // pointer to the used emitter
+
     compare_func_t compare_func; // function to compare two wrapped tuples
     uint64_t win_len; // window length (in no. of tuples or in time units)
     uint64_t slide_len; // slide length (in no. of tuples or in time units)
@@ -119,19 +114,12 @@ private:
     size_t num_inner; // num_inner value
     std::pair<size_t, size_t> map_indexes; // indexes useful is the role is MAP
     size_t ignored_tuples; // number of ignored tuples
-    Execution_Mode_t execution_mode; // execution mode of the Window_Replica
     uint64_t last_time; // last received timestamp or watermark
-#if defined (WF_TRACING_ENABLED)
-    Stats_Record stats_record;
-    double avg_td_us = 0;
-    double avg_ts_us = 0;
-    volatile uint64_t startTD, startTS, endTD, endTS;
-#endif
 
 public:
     // Constructor
     Window_Replica(win_func_t _func,
-                   key_extractor_func_t _key_extr,
+                   keyextr_func_t _key_extr,
                    std::string _opName,
                    RuntimeContext _context,
                    std::function<void(RuntimeContext &)> _closing_func,
@@ -142,14 +130,9 @@ public:
                    role_t _role,
                    size_t _id_inner,
                    size_t _num_inner):
+                   Basic_Replica(_opName, _context, _closing_func, true),
                    func(_func),
                    key_extr(_key_extr),
-                   opName(_opName),
-                   input_batching(false),
-                   context(_context),
-                   closing_func(_closing_func),
-                   terminated(false),
-                   emitter(nullptr),
                    win_len(_win_len),
                    slide_len(_slide_len),
                    lateness(_lateness),
@@ -159,7 +142,6 @@ public:
                    num_inner(_num_inner),
                    map_indexes(std::make_pair(0, 1)),
                    ignored_tuples(0),
-                   execution_mode(Execution_Mode_t::DEFAULT),
                    last_time(0)
     {
         compare_func = [](const wrapper_t &w1, const wrapper_t &w2) { // comparator function of wrapped tuples
@@ -173,13 +155,9 @@ public:
 
     // Copy Constructor
     Window_Replica(const Window_Replica &_other):
+                   Basic_Replica(_other),
                    func(_other.func),
                    key_extr(_other.key_extr),
-                   opName(_other.opName),
-                   input_batching(_other.input_batching),
-                   context(_other.context),
-                   closing_func(_other.closing_func),
-                   terminated(_other.terminated),
                    compare_func(_other.compare_func),
                    win_len(_other.win_len),
                    slide_len(_other.slide_len),
@@ -191,204 +169,58 @@ public:
                    num_inner(_other.num_inner),
                    map_indexes(_other.map_indexes),
                    ignored_tuples(_other.ignored_tuples),
-                   execution_mode(_other.execution_mode),
-                   last_time(_other.last_time)
-    {
-        if (_other.emitter == nullptr) {
-            emitter = nullptr;
-        }
-        else {
-            emitter = (_other.emitter)->clone(); // clone the emitter if it exists
-        }
-#if defined (WF_TRACING_ENABLED)
-        stats_record = _other.stats_record;
-#endif
-    }
-
-    // Move Constructor
-    Window_Replica(Window_Replica &&_other):
-                   func(std::move(_other.func)),
-                   key_extr(std::move(_other.key_extr)),
-                   opName(std::move(_other.opName)),
-                   input_batching(_other.input_batching),
-                   context(std::move(_other.context)),
-                   closing_func(std::move(_other.closing_func)),
-                   terminated(_other.terminated),
-                   compare_func(std::move(_other.compare_func)),
-                   emitter(std::exchange(_other.emitter, nullptr)),
-                   win_len(_other.win_len),
-                   slide_len(_other.slide_len),
-                   lateness(_other.lateness),
-                   winType(_other.winType),
-                   role(_other.role),
-                   keyMap(std::move(_other.keyMap)),
-                   id_inner(_other.id_inner),
-                   num_inner(_other.num_inner),
-                   map_indexes(std::move(_other.map_indexes)),
-                   ignored_tuples(_other.ignored_tuples),
-                   execution_mode(_other.execution_mode),
-                   last_time(_other.last_time)
-    {
-#if defined (WF_TRACING_ENABLED)
-        stats_record = std::move(_other.stats_record);
-#endif
-    }
-
-    // Destructor
-    ~Window_Replica()
-    {
-        if (emitter != nullptr) {
-            delete emitter;
-        }
-    }
-
-    // Copy Assignment Operator
-    Window_Replica &operator=(const Window_Replica &_other)
-    {
-        if (this != &_other) {
-            func = _other.func;
-            key_extr = _other.key_extr;
-            opName = _other.opName;
-            input_batching = _other.input_batching;
-            context = _other.context;
-            closing_func = _other.closing_func;
-            terminated = _other.terminated;
-            compare_func = _other.compare_func;
-            if (emitter != nullptr) {
-                delete emitter;
-            }      
-            if (_other.emitter == nullptr) {
-                emitter = nullptr;
-            }
-            else {
-                emitter = (_other.emitter)->clone(); // clone the emitter if it exists
-            }
-            win_len = _other.win_len;
-            slide_len = _other.slide_len;
-            lateness = _other.lateness;
-            winType = _other.winType;
-            role = _other.role;
-            keyMap = _other.keyMap;
-            id_inner = _other.id_inner;
-            num_inner = _other.num_inner;
-            map_indexes = _other.map_indexes;
-            ignored_tuples = _other.ignored_tuples;
-            execution_mode = _other.execution_mode;
-            last_time = _other.last_time; 
-#if defined (WF_TRACING_ENABLED)
-            stats_record = _other.stats_record;
-#endif
-        }
-        return *this;
-    }
-
-    // Move Assignment Operator
-    Window_Replica &operator=(Window_Replica &&_other)
-    {
-        func = std::move(_other.func);
-        key_extr = std::move(_other.key_extr);
-        opName = std::move(_other.opName);
-        input_batching = _other.input_batching;
-        context = std::move(_other.context);
-        closing_func = std::move(_other.closing_func);
-        terminated = _other.terminated;
-        compare_func = std::move(_other.compare_func);
-        if (emitter != nullptr) {
-            delete emitter;
-        }
-        emitter = std::exchange(_other.emitter, nullptr);
-        win_len = _other.win_len;
-        slide_len = _other.slide_len;
-        lateness = _other.lateness;
-        winType = _other.winType;
-        role = _other.role;
-        keyMap = std::move(_other.keyMap);
-        id_inner = _other.id_inner;
-        num_inner = _other.num_inner;
-        map_indexes = std::move(_other.map_indexes);
-        ignored_tuples = _other.ignored_tuples;
-        execution_mode = _other.execution_mode;
-        last_time = _other.last_time;
-#if defined (WF_TRACING_ENABLED)
-        stats_record = std::move(_other.stats_record);
-#endif
-        return *this;
-    }
-
-    // svc_init method (utilized by the FastFlow runtime)
-    int svc_init() override
-    {
-#if defined (WF_TRACING_ENABLED)
-            stats_record = Stats_Record(opName, std::to_string(context.getReplicaIndex()), true, false);
-#endif
-        return 0;
-    }
+                   last_time(_other.last_time) {}
 
     // svc (utilized by the FastFlow runtime)
     void *svc(void *_in) override
     {
-#if defined (WF_TRACING_ENABLED)
-        startTS = current_time_nsecs();
-        if (stats_record.inputs_received == 0) {
-            startTD = current_time_nsecs();
-        }
-#endif
-        if (input_batching) { // receiving a batch
-            Batch_t<decltype(get_tuple_t_Win(func))> *batch_input = reinterpret_cast<Batch_t<decltype(get_tuple_t_Win(func))> *>(_in);
+        this->startStatsRecording();
+        if (this->input_batching) { // receiving a batch
+            Batch_t<tuple_t> *batch_input = reinterpret_cast<Batch_t<tuple_t> *>(_in);
             if (batch_input->isPunct()) { // if it is a punctuaton
-                emitter->propagate_punctuation(batch_input->getWatermark(context.getReplicaIndex()), this); // propagate the received punctuation
-                assert(last_time <= batch_input->getWatermark(context.getReplicaIndex())); // sanity check
-                last_time = batch_input->getWatermark(context.getReplicaIndex());
+                (this->emitter)->propagate_punctuation(batch_input->getWatermark((this->context).getReplicaIndex()), this); // propagate the received punctuation
+                assert(last_time <= batch_input->getWatermark((this->context).getReplicaIndex())); // sanity check
+                last_time = batch_input->getWatermark((this->context).getReplicaIndex());
                 deleteBatch_t(batch_input); // delete the punctuation
                 return this->GO_ON;
             }
 #if defined (WF_TRACING_ENABLED)
-            stats_record.inputs_received += batch_input->getSize();
-            stats_record.bytes_received += batch_input->getSize() * sizeof(tuple_t);
+            (this->stats_record).inputs_received += batch_input->getSize();
+            (this->stats_record).bytes_received += batch_input->getSize() * sizeof(tuple_t);
 #endif
             assert(role != role_t::WLQ && role != role_t::REDUCE); // sanity check
             for (size_t i=0; i<batch_input->getSize(); i++) { // process all the inputs within the received batch
-                process_input(batch_input->getTupleAtPos(i), 0, batch_input->getTimestampAtPos(i), batch_input->getWatermark(context.getReplicaIndex()));
+                process_input(batch_input->getTupleAtPos(i), 0, batch_input->getTimestampAtPos(i), batch_input->getWatermark((this->context).getReplicaIndex()));
             }
             deleteBatch_t(batch_input); // delete the input batch
         }
         else { // receiving a single input
-            Single_t<decltype(get_tuple_t_Win(func))> *input = reinterpret_cast<Single_t<decltype(get_tuple_t_Win(func))> *>(_in);
+            Single_t<tuple_t> *input = reinterpret_cast<Single_t<tuple_t> *>(_in);
             if (input->isPunct()) { // if it is a punctuaton
-                emitter->propagate_punctuation(input->getWatermark(context.getReplicaIndex()), this); // propagate the received punctuation
-                assert(last_time <= input->getWatermark(context.getReplicaIndex())); // sanity check
-                last_time = input->getWatermark(context.getReplicaIndex());
+                (this->emitter)->propagate_punctuation(input->getWatermark((this->context).getReplicaIndex()), this); // propagate the received punctuation
+                assert(last_time <= input->getWatermark((this->context).getReplicaIndex())); // sanity check
+                last_time = input->getWatermark((this->context).getReplicaIndex());
                 deleteSingle_t(input); // delete the punctuation
                 return this->GO_ON;
             }
 #if defined (WF_TRACING_ENABLED)
-            stats_record.inputs_received++;
-            stats_record.bytes_received += sizeof(tuple_t);
+            (this->stats_record).inputs_received++;
+            (this->stats_record).bytes_received += sizeof(tuple_t);
 #endif
-            if ((role == role_t::WLQ || role == role_t::REDUCE) && execution_mode != Execution_Mode_t::DEFAULT) { // special case
+            if ((role == role_t::WLQ || role == role_t::REDUCE) && this->execution_mode != Execution_Mode_t::DEFAULT) { // special case
                 assert(winType == Win_Type_t::CB); // sanity check
-                process_input(input->tuple, input->getIdentifier(), input->getWatermark(context.getReplicaIndex()), 0);
+                process_input(input->tuple, input->getIdentifier(), input->getWatermark((this->context).getReplicaIndex()), 0);
             }
-            else if ((role == role_t::WLQ || role == role_t::REDUCE) && execution_mode == Execution_Mode_t::DEFAULT) { // special case
+            else if ((role == role_t::WLQ || role == role_t::REDUCE) && this->execution_mode == Execution_Mode_t::DEFAULT) { // special case
                 assert(winType == Win_Type_t::CB); // sanity check
-                process_input(input->tuple, input->getIdentifier(), input->getWatermark(context.getReplicaIndex()), input->getWatermark(context.getReplicaIndex()));
+                process_input(input->tuple, input->getIdentifier(), input->getWatermark((this->context).getReplicaIndex()), input->getWatermark((this->context).getReplicaIndex()));
             }
             else {
-                process_input(input->tuple, 0, input->getTimestamp(), input->getWatermark(context.getReplicaIndex()));
+                process_input(input->tuple, 0, input->getTimestamp(), input->getWatermark((this->context).getReplicaIndex()));
             }
             deleteSingle_t(input); // delete the input Single_t
         }
-#if defined (WF_TRACING_ENABLED)
-        endTS = current_time_nsecs();
-        endTD = current_time_nsecs();
-        double elapsedTS_us = ((double) (endTS - startTS)) / 1000;
-        avg_ts_us += (1.0 / stats_record.inputs_received) * (elapsedTS_us - avg_ts_us);
-        double elapsedTD_us = ((double) (endTD - startTD)) / 1000;
-        avg_td_us += (1.0 / stats_record.inputs_received) * (elapsedTD_us - avg_td_us);
-        stats_record.service_time = std::chrono::duration<double, std::micro>(avg_ts_us);
-        stats_record.eff_service_time = std::chrono::duration<double, std::micro>(avg_td_us);
-        startTD = current_time_nsecs();
-#endif
+        this->endStatsRecording();
         return this->GO_ON;
     }
 
@@ -398,7 +230,7 @@ public:
                        uint64_t _timestamp,
                        uint64_t _watermark)
     {
-        if (execution_mode == Execution_Mode_t::DEFAULT) {
+        if (this->execution_mode == Execution_Mode_t::DEFAULT) {
             assert(last_time <= _watermark); // sanity check
             last_time = _watermark;
         }
@@ -408,7 +240,7 @@ public:
             }
         }
         auto key = key_extr(_tuple); // get the key attribute of the input tuple
-        size_t hashcode = std::hash<decltype(key)>()(key); // compute the hashcode of the key
+        size_t hashcode = std::hash<key_t>()(key); // compute the hashcode of the key
         auto it = keyMap.find(key); // find the corresponding key_descriptor (or allocate it if does not exist)
         if (it == keyMap.end()) {
             auto p = keyMap.insert(std::make_pair(key, Key_Descriptor(compare_func, role == role_t::MAP ? map_indexes.first : 0))); // create the state of the key
@@ -465,12 +297,12 @@ public:
                     func(_tuple, win.getResult());
                 }
                 if constexpr (isIncRiched) { // incremental and riched
-                    context.setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
-                    func(_tuple, win.getResult(), context);
+                    (this->context).setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
+                    func(_tuple, win.getResult(), this->context);
                 }
             }
             else if (event == win_event_t::FIRED) { // window is fired
-                if ((winType == Win_Type_t::CB) || (execution_mode != Execution_Mode_t::DEFAULT) || (win.getResultTimestamp() + lateness < _watermark)) {
+                if ((winType == Win_Type_t::CB) || (this->execution_mode != Execution_Mode_t::DEFAULT) || (win.getResultTimestamp() + lateness < _watermark)) {
                     std::optional<wrapper_t> t_s = win.getFirstTuple();
                     std::optional<wrapper_t> t_e = win.getLastTuple();
                     if constexpr (isNonIncNonRiched || isNonIncRiched) { // non-incremental
@@ -482,13 +314,13 @@ public:
                         else { // non-empty window
                             its = (key_d.archive).getWinRange(*t_s, *t_e);
                         }
-                        Iterable<decltype(get_tuple_t_Win(func))> iter(its.first, its.second);
+                        Iterable<tuple_t> iter(its.first, its.second);
                         if constexpr (isNonIncNonRiched) { // non-riched
                             func(iter, win.getResult());
                         }
                         if constexpr (isNonIncRiched) { // riched
-                            context.setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
-                            func(iter, win.getResult(), context);
+                            (this->context).setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
+                            func(iter, win.getResult(), this->context);
                         }
                     }
                     if (t_s) { // purge tuples from the archive
@@ -496,23 +328,23 @@ public:
                     }
                     cnt_fired++;
                     key_d.last_lwid++;
-                    uint64_t used_ts = (execution_mode != Execution_Mode_t::DEFAULT) ? _timestamp : _watermark;
-                    uint64_t used_wm = (execution_mode != Execution_Mode_t::DEFAULT) ? 0 : _watermark;
+                    uint64_t used_ts = (this->execution_mode != Execution_Mode_t::DEFAULT) ? _timestamp : _watermark;
+                    uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : _watermark;
                     if (role == role_t::MAP) { // special case: role is MAP
-                        emitter->emit(&(win.getResult()), key_d.next_res_id, used_ts, used_wm, this);
+                        (this->emitter)->emit(&(win.getResult()), key_d.next_res_id, used_ts, used_wm, this);
                         key_d.next_res_id += map_indexes.second;
                     }
                     else if (role == role_t::PLQ) { // special case: role is PLQ
                         uint64_t new_id = ((id_inner - (hashcode % num_inner) + num_inner) % num_inner) + (key_d.next_res_id * num_inner);
-                        emitter->emit(&(win.getResult()), new_id, used_ts, used_wm, this);
+                        (this->emitter)->emit(&(win.getResult()), new_id, used_ts, used_wm, this);
                         key_d.next_res_id++;
                     }
                     else { // standard case
-                        emitter->emit(&(win.getResult()), 0, used_ts, used_wm, this);
+                        (this->emitter)->emit(&(win.getResult()), 0, used_ts, used_wm, this);
                     }
 #if defined (WF_TRACING_ENABLED)
-                    stats_record.outputs_sent++;
-                    stats_record.bytes_sent += sizeof(result_t);
+                    (this->stats_record).outputs_sent++;
+                    (this->stats_record).bytes_sent += sizeof(result_t);
 #endif
                 }
             }
@@ -544,69 +376,35 @@ public:
                             its = ((k.second).archive).getWinRange(*t_s, *t_e);
                         }
                     }
-                    Iterable<decltype(get_tuple_t_Win(func))> iter(its.first, its.second);
+                    Iterable<tuple_t> iter(its.first, its.second);
                     if constexpr (isNonIncNonRiched) { // non-riched
                         func(iter, win.getResult());
                     }
                     if constexpr (isNonIncRiched) { // riched
-                        func(iter, win.getResult(), context);
+                        func(iter, win.getResult(), this->context);
                     }
                 }
-                uint64_t used_wm = (execution_mode != Execution_Mode_t::DEFAULT) ? 0 : last_time;
+                uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : last_time;
                 if (role == role_t::MAP) { // special case: role is MAP
-                    emitter->emit(&(win.getResult()), key_d.next_res_id, last_time, used_wm, this);
+                    (this->emitter)->emit(&(win.getResult()), key_d.next_res_id, last_time, used_wm, this);
                     key_d.next_res_id += map_indexes.second;
                 }
                 else if (role == role_t::PLQ) { // special case: role is PLQ
-                    size_t hashcode = std::hash<typename std::remove_const<decltype(k.first)>::type>()(k.first); // compute the hashcode of the key
+                    size_t hashcode = std::hash<typename std::remove_const<key_t>::type>()(k.first); // compute the hashcode of the key
                     uint64_t new_id = ((id_inner - (hashcode % num_inner) + num_inner) % num_inner) + (key_d.next_res_id * num_inner);
-                    emitter->emit(&(win.getResult()), new_id, last_time, used_wm, this);
+                    (this->emitter)->emit(&(win.getResult()), new_id, last_time, used_wm, this);
                     key_d.next_res_id++;
                 }
                 else { // standard case
-                    emitter->emit(&(win.getResult()), 0, last_time, used_wm, this);
+                    (this->emitter)->emit(&(win.getResult()), 0, last_time, used_wm, this);
                 }
 #if defined (WF_TRACING_ENABLED)
-                stats_record.outputs_sent++;
-                stats_record.bytes_sent += sizeof(result_t);
+                (this->stats_record).outputs_sent++;
+                (this->stats_record).bytes_sent += sizeof(result_t);
 #endif
             }
         }
-        emitter->flush(this); // call the flush of the emitter
-        terminated = true;
-#if defined (WF_TRACING_ENABLED)
-        stats_record.setTerminated();
-#endif
-    }
-
-    // svc_end method (utilized by the FastFlow runtime)
-    void svc_end() override
-    {
-        closing_func(context); // call the closing logic
-    }
-
-    // Configure the Window_Replica to receive batches instead of individual inputs
-    void receiveBatches(bool _input_batching)
-    {
-        input_batching = _input_batching;
-    }
-
-    // Set the emitter used to route outputs from the Window_Replica
-    void setEmitter(Basic_Emitter *_emitter)
-    {
-        emitter = _emitter;
-    }
-
-    // Check the termination of the Window_Replica
-    bool isTerminated() const
-    {
-        return terminated;
-    }
-
-    // Set the execution mode of the Window_Replica
-    void setExecutionMode(Execution_Mode_t _execution_mode)
-    {
-        execution_mode = _execution_mode;
+        Basic_Replica::eosnotify(id);
     }
 
     // Get the number of ignored tuples
@@ -615,13 +413,9 @@ public:
         return ignored_tuples;
     }
 
-#if defined (WF_TRACING_ENABLED)
-    // Get a copy of the Stats_Record of the Window_Replica
-    Stats_Record getStatsRecord() const
-    {
-        return stats_record;
-    }
-#endif
+    Window_Replica(Window_Replica &&) = delete; ///< Move constructor is deleted
+    Window_Replica &operator=(const Window_Replica &) = delete; ///< Copy assignment operator is deleted
+    Window_Replica &operator=(Window_Replica &&) = delete; ///< Move assignment operator is deleted
 };
 
 } // namespace wf

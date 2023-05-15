@@ -206,7 +206,7 @@ public:
     Filter_Functor_GPU(int _mod): mod(_mod) {}
 
     // operator()
-    __device__ bool operator()(tuple_t &t)
+    __host__ __device__ bool operator()(tuple_t &t)
     {
         if (t.value % mod == 0) {
             return true;
@@ -222,7 +222,7 @@ class Filter_Functor_GPU_KB
 {
 public:
     // operator()
-    __device__ bool operator()(tuple_t &t, filter_state_t &state)
+    __host__ __device__ bool operator()(tuple_t &t, filter_state_t &state)
     {
         state.counter++;
         t.value += state.counter;
@@ -246,7 +246,7 @@ class Map_Functor_GPU
 {
 public:
     // operator()
-    __device__ void operator()(tuple_t &t)
+    __host__ __device__ void operator()(tuple_t &t)
     {
         t.value = t.value + 2;
     }
@@ -257,7 +257,7 @@ class Map_Functor_GPU_KB
 {
 public:
     // operator()
-    __device__ void operator()(tuple_t &t, map_state_t &state)
+    __host__ __device__ void operator()(tuple_t &t, map_state_t &state)
     {
         state.counter++;
         t.value += state.counter;
@@ -269,7 +269,7 @@ class Reduce_Functor_GPU
 {
 public:
     // operator()
-    __device__ tuple_t operator()(const tuple_t &t1, const tuple_t &t2)
+    __host__ __device__ tuple_t operator()(const tuple_t &t1, const tuple_t &t2)
     {
         tuple_t result;
         result.key = t1.key;

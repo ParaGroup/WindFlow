@@ -63,26 +63,23 @@ namespace wf {
  *  to be split into disjoint panes, whose processing result is shared between
  *  consecutive windows.
  */ 
-template<typename plq_func_t, typename wlq_func_t, typename key_extractor_func_t>
+template<typename plq_func_t, typename wlq_func_t, typename keyextr_func_t>
 class Paned_Windows: public Basic_Operator
 {
 private:
-    friend class MultiPipe; // friendship with the MultiPipe class
-    friend class PipeGraph; // friendship with the PipeGraph class
+    friend class MultiPipe;
+    friend class PipeGraph;
     plq_func_t plq_func; // functional logic of the PLQ stage
     wlq_func_t wlq_func; // functional logic of the WLQ stage
-    key_extractor_func_t key_extr; // logic to extract the key attribute from the tuple_t
+    keyextr_func_t key_extr; // logic to extract the key attribute from the tuple_t
     size_t plq_parallelism; // parallelism of the PLQ stage
     size_t wlq_parallelism; // parallelism of the WLQ stage
-    std::string name; // name of the Paned_Windows
-    bool input_batching; // if true, the Paned_Windows expects to receive batches instead of individual inputs
-    size_t outputBatchSize; // batch size of the outputs produced by the Paned_Windows
     uint64_t win_len; // window length (in no. of tuples or in time units)
     uint64_t slide_len; // slide length (in no. of tuples or in time units)
     uint64_t lateness; // triggering delay in time units (meaningful for TB windows in DEFAULT mode)
     Win_Type_t winType; // window type (CB or TB)
-    Parallel_Windows<plq_func_t, key_extractor_func_t> plq; // PLQ sub-operator
-    Parallel_Windows<wlq_func_t, key_extractor_func_t> wlq; // WLQ sub-operator
+    Parallel_Windows<plq_func_t, keyextr_func_t> plq; // PLQ sub-operator
+    Parallel_Windows<wlq_func_t, keyextr_func_t> wlq; // WLQ sub-operator
 
     // Configure the Paned_Windows to receive batches instead of individual inputs
     void receiveBatches(bool _input_batching) override
@@ -114,7 +111,7 @@ private:
         return terminated;
     }
 
-    // Set the execution mode of the Paned_Windows (i.e., the one of its PipeGraph)
+    // Set the execution mode of the Paned_Windows
     void setExecutionMode(Execution_Mode_t _execution_mode)
     {
         plq.setExecutionMode(_execution_mode);
@@ -122,44 +119,18 @@ private:
     }
 
     // Get the logic to extract the key attribute from the tuple_t
-    key_extractor_func_t getKeyExtractor() const
+    keyextr_func_t getKeyExtractor() const
     {
         return key_extr;
     }
 
 #if defined (WF_TRACING_ENABLED)
-    // Dump the log file (JSON format) of statistics of the Paned_Windows
-    void dumpStats() const override
-    {
-        std::ofstream logfile; // create and open the log file in the WF_LOG_DIR directory
-#if defined (WF_LOG_DIR)
-        std::string log_dir = std::string(STRINGIFY(WF_LOG_DIR));
-        std::string filename = std::string(STRINGIFY(WF_LOG_DIR)) + "/" + std::to_string(getpid()) + "_" + name + ".json";
-#else
-        std::string log_dir = std::string("log");
-        std::string filename = "log/" + std::to_string(getpid()) + "_" + name + ".json";
-#endif
-        if (mkdir(log_dir.c_str(), 0777) != 0) { // create the log directory
-            struct stat st;
-            if((stat(log_dir.c_str(), &st) != 0) || !S_ISDIR(st.st_mode)) {
-                std::cerr << RED << "WindFlow Error: directory for log files cannot be created" << DEFAULT_COLOR << std::endl;
-                exit(EXIT_FAILURE);
-            }
-        }
-        logfile.open(filename);
-        rapidjson::StringBuffer buffer; // create the rapidjson writer
-        rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
-        this->appendStats(writer); // append the statistics of the Map
-        logfile << buffer.GetString();
-        logfile.close();
-    }
-
     // Append the statistics (JSON format) of the Paned_Windows to a PrettyWriter
     void appendStats(rapidjson::PrettyWriter<rapidjson::StringBuffer> &writer) const override
     {
         writer.StartObject(); // create the header of the JSON file
         writer.Key("Operator_name");
-        writer.String(name.c_str());
+        writer.String((this->name).c_str());
         writer.Key("Operator_type");
         writer.String("Paned_Windows");
         writer.Key("Distribution");
@@ -205,7 +176,7 @@ private:
         writer.Key("Parallelism_2");
         writer.Uint(wlq_parallelism);
         writer.Key("OutputBatchSize");
-        writer.Uint(outputBatchSize);
+        writer.Uint(this->outputBatchSize);
         writer.Key("Replicas_2");
         writer.StartArray();
         for (auto *r: wlq.replicas) { // append the statistics from all the WLQ replicas of the Paned_Windows
@@ -221,14 +192,14 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _plq_func functional logic of the PLQ stage (a function or a callable type)
-     *  \param _wlq_func functional logic of the WLQ stage (a function or a callable type)
-     *  \param _key_extr key extractor (a function or a callable type)
+     *  \param _plq_func functional logic of the PLQ stage (a function or any callable type)
+     *  \param _wlq_func functional logic of the WLQ stage (a function or any callable type)
+     *  \param _key_extr key extractor (a function or any callable type)
      *  \param _plq_parallelism internal parallelism of the PLQ stage
      *  \param _wlq_parallelism internal parallelism of the WLQ stage
      *  \param _name name of the Paned_Windows
      *  \param _outputBatchSize size (in num of tuples) of the batches produced by this operator (0 for no batching)
-     *  \param _closing_func closing functional logic of the Paned_Windows (a function or callable type)
+     *  \param _closing_func closing functional logic of the Paned_Windows (a function or any callable type)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _lateness (lateness in time units, meaningful for TB windows in DEFAULT mode)
@@ -236,7 +207,7 @@ public:
      */ 
     Paned_Windows(plq_func_t _plq_func,
                   wlq_func_t _wlq_func,
-                  key_extractor_func_t _key_extr,
+                  keyextr_func_t _key_extr,
                   size_t _plq_parallelism,
                   size_t _wlq_parallelism,
                   std::string _name,
@@ -246,20 +217,18 @@ public:
                   uint64_t _slide_len,
                   uint64_t _lateness,
                   Win_Type_t _winType):
+                  Basic_Operator(_plq_parallelism+_wlq_parallelism, _name, Routing_Mode_t::BROADCAST, _outputBatchSize),
                   plq_func(_plq_func),
                   wlq_func(_wlq_func),
                   key_extr(_key_extr),
                   plq_parallelism(_plq_parallelism),
                   wlq_parallelism(_wlq_parallelism),
-                  name(_name),
-                  input_batching(false),
-                  outputBatchSize(_outputBatchSize),
                   win_len(_win_len),
                   slide_len(_slide_len),
                   lateness(_lateness),
                   winType(_winType),
-                  plq(_plq_func, _key_extr, _plq_parallelism, _name + "_plq", 0, _closing_func, compute_gcd(win_len, slide_len), compute_gcd(win_len, slide_len), _lateness, winType, role_t::PLQ),
-                  wlq(_wlq_func, _key_extr, _wlq_parallelism, _name + "_wlq", outputBatchSize, _closing_func, win_len/compute_gcd(win_len, slide_len), slide_len/compute_gcd(win_len, slide_len), 0, Win_Type_t::CB, role_t::WLQ)
+                  plq(_plq_func, _key_extr, _plq_parallelism, _name + "_plq", 0, _closing_func, compute_gcd(_win_len, _slide_len), compute_gcd(_win_len, _slide_len), _lateness, _winType, role_t::PLQ),
+                  wlq(_wlq_func, _key_extr, _wlq_parallelism, _name + "_wlq", _outputBatchSize, _closing_func, _win_len/compute_gcd(_win_len, _slide_len), _slide_len/compute_gcd(_win_len, _slide_len), 0, Win_Type_t::CB, role_t::WLQ)
     {
         if (plq_parallelism == 0) { // check the validity of the PLQ parallelism value
             std::cerr << RED << "WindFlow Error: Paned_Windows has PLQ parallelism zero" << DEFAULT_COLOR << std::endl;
@@ -282,6 +251,21 @@ public:
         wlq.type = "Parallel_Windows_WLQ";
     }
 
+    /// Copy constructor
+    Paned_Windows(const Paned_Windows &_other):
+                  Basic_Operator(_other),
+                  plq_func(_other.plq_func),
+                  wlq_func(_other.wlq_func),
+                  key_extr(_other.key_extr),
+                  plq_parallelism(_other.plq_parallelism),
+                  wlq_parallelism(_other.wlq_parallelism),
+                  win_len(_other.win_len),
+                  slide_len(_other.slide_len),
+                  lateness(_other.lateness),
+                  winType(_other.winType),
+                  plq(_other.plq),
+                  wlq(_other.wlq) {}
+
     /** 
      *  \brief Get the type of the Paned_Windows as a string
      *  \return type of the Paned_Windows
@@ -289,42 +273,6 @@ public:
     std::string getType() const override
     {
         return std::string("Paned_Windows");
-    }
-
-    /** 
-     *  \brief Get the name of the Paned_Windows as a string
-     *  \return name of the Paned_Windows
-     */ 
-    std::string getName() const override
-    {
-        return name;
-    }
-
-    /** 
-     *  \brief Get the total parallelism of the Paned_Windows
-     *  \return total parallelism of the Paned_Windows
-     */  
-    size_t getParallelism() const override
-    {
-        return plq_parallelism + wlq_parallelism;
-    }
-
-    /** 
-     *  \brief Return the input routing mode of the Paned_Windows
-     *  \return routing mode used to send inputs to the Paned_Windows
-     */ 
-    Routing_Mode_t getInputRoutingMode() const override
-    {
-        return Routing_Mode_t::BROADCAST;
-    }
-
-    /** 
-     *  \brief Return the size of the output batches that the Paned_Windows should produce
-     *  \return output batch size in number of tuples
-     */ 
-    size_t getOutputBatchSize() const override
-    {
-        return outputBatchSize;
     }
 
     /** 
@@ -344,6 +292,10 @@ public:
     {
         return plq->getNumIgnoredTuples();
     }
+
+    Paned_Windows(Paned_Windows &&) = delete; ///< Move constructor is deleted
+    Paned_Windows &operator=(const Paned_Windows &) = delete; ///< Copy assignment operator is deleted
+    Paned_Windows &operator=(Paned_Windows &&) = delete; ///< Move assignment operator is deleted
 };
 
 } // namespace wf

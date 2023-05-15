@@ -30,7 +30,7 @@
  *  @section Parallel_Windows (Description)
  *  
  *  This file implements the Parallel_Windows operator able to execute incremental
- *  or non-incremental queries on count- or time-based windows. If created with
+ *  or non-incremental queries over count- or time-based windows. If created with
  *  parallelism greater than one, distinct windows are executed in parallel (both
  *  of different and of the same keyed substreams).
  */ 
@@ -58,26 +58,22 @@ namespace wf {
  *  \brief Parallel_Windows operator
  *  
  *  This class implements the Parallel_Windows operator executing incremental or
- *  non-incremental queries on streaming windows. The operator allows distinct
+ *  non-incremental queries over streaming windows. The operator allows distinct
  *  windows to be processed in parallel (both of the same and of different
  *  keyed substreams).
  */ 
-template<typename win_func_t, typename key_extractor_func_t>
+template<typename win_func_t, typename keyextr_func_t>
 class Parallel_Windows: public Basic_Operator
 {
 private:
-    friend class MultiPipe; // friendship with the MultiPipe class
-    friend class PipeGraph; // friendship with the PipeGraph class
-    template<typename T1, typename T2, typename T3> friend class Paned_Windows; // friendship with the Paned_Windows class
-    template<typename T1, typename T2, typename T3> friend class MapReduce_Windows; // friendship with the MapReduce_Windows class
+    friend class MultiPipe;
+    friend class PipeGraph;
+    template<typename T1, typename T2, typename T3> friend class Paned_Windows;
+    template<typename T1, typename T2, typename T3> friend class MapReduce_Windows;
     win_func_t func; // functional logic used by the Parallel_Windows
-    key_extractor_func_t key_extr; // logic to extract the key attribute from the tuple_t
-    size_t parallelism; // parallelism of the Parallel_Windows
+    keyextr_func_t key_extr; // logic to extract the key attribute from the tuple_t
     std::string type; // string describing the type of the Parallel_Windows
-    std::string name; // name of the Parallel_Windows
-    bool input_batching; // if true, the Parallel_Windows expects to receive batches instead of individual inputs
-    size_t outputBatchSize; // batch size of the outputs produced by the Parallel_Windows
-    std::vector<Window_Replica<win_func_t, key_extractor_func_t>*> replicas; // vector of pointers to the replicas of the Parallel_Windows
+    std::vector<Window_Replica<win_func_t, keyextr_func_t>*> replicas; // vector of pointers to the replicas of the Parallel_Windows
     uint64_t win_len; // window length (in no. of tuples or in time units)
     uint64_t slide_len; // slide length (in no. of tuples or in time units)
     uint64_t lateness; // triggering delay in time units (meaningful for TB windows in DEFAULT mode)
@@ -110,7 +106,7 @@ private:
         return terminated;
     }
 
-    // Set the execution mode of the Parallel_Windows (i.e., the one of its PipeGraph)
+    // Set the execution mode of the Parallel_Windows
     void setExecutionMode(Execution_Mode_t _execution_mode)
     {
         for (auto *r: replicas) {
@@ -119,44 +115,18 @@ private:
     }
 
     // Get the logic to extract the key attribute from the tuple_t
-    key_extractor_func_t getKeyExtractor() const
+    keyextr_func_t getKeyExtractor() const
     {
         return key_extr;
     }
 
 #if defined (WF_TRACING_ENABLED)
-    // Dump the log file (JSON format) of statistics of the Parallel_Windows
-    void dumpStats() const override
-    {
-        std::ofstream logfile; // create and open the log file in the WF_LOG_DIR directory
-#if defined (WF_LOG_DIR)
-        std::string log_dir = std::string(STRINGIFY(WF_LOG_DIR));
-        std::string filename = std::string(STRINGIFY(WF_LOG_DIR)) + "/" + std::to_string(getpid()) + "_" + name + ".json";
-#else
-        std::string log_dir = std::string("log");
-        std::string filename = "log/" + std::to_string(getpid()) + "_" + name + ".json";
-#endif
-        if (mkdir(log_dir.c_str(), 0777) != 0) { // create the log directory
-            struct stat st;
-            if((stat(log_dir.c_str(), &st) != 0) || !S_ISDIR(st.st_mode)) {
-                std::cerr << RED << "WindFlow Error: directory for log files cannot be created" << DEFAULT_COLOR << std::endl;
-                exit(EXIT_FAILURE);
-            }
-        }
-        logfile.open(filename);
-        rapidjson::StringBuffer buffer; // create the rapidjson writer
-        rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
-        this->appendStats(writer); // append the statistics of the Map
-        logfile << buffer.GetString();
-        logfile.close();
-    }
-
     // Append the statistics (JSON format) of the Parallel_Windows to a PrettyWriter
     void appendStats(rapidjson::PrettyWriter<rapidjson::StringBuffer> &writer) const override
     {
         writer.StartObject(); // create the header of the JSON file
         writer.Key("Operator_name");
-        writer.String(name.c_str());
+        writer.String((this->name).c_str());
         writer.Key("Operator_type");
         writer.String("Parallel_Windows");
         writer.Key("Distribution");
@@ -181,11 +151,11 @@ private:
         writer.Key("Window_slide");
         writer.Uint(slide_len);
         writer.Key("Parallelism");
-        writer.Uint(parallelism);        
+        writer.Uint(this->parallelism);        
         writer.Key("areNestedOPs"); // this for backward compatibility
         writer.Bool(false);
         writer.Key("OutputBatchSize");
-        writer.Uint(outputBatchSize);
+        writer.Uint(this->outputBatchSize);
         writer.Key("Replicas");
         writer.StartArray();
         for (auto *r: replicas) { // append the statistics from all the replicas of the Keyed_Windows
@@ -199,7 +169,7 @@ private:
 
     // Private Constructor
     Parallel_Windows(win_func_t _func,
-                     key_extractor_func_t _key_extr,
+                     keyextr_func_t _key_extr,
                      size_t _parallelism,
                      std::string _name,
                      size_t _outputBatchSize,
@@ -209,32 +179,25 @@ private:
                      uint64_t _lateness,
                      Win_Type_t _winType,
                      role_t _role):
+                     Basic_Operator(_parallelism, _name, Routing_Mode_t::BROADCAST, _outputBatchSize),
                      func(_func),
                      key_extr(_key_extr),
-                     parallelism(_parallelism),
                      type("Parallel_Windows"),
-                     name(_name),
-                     input_batching(false),
-                     outputBatchSize(_outputBatchSize),
                      win_len(_win_len),
                      slide_len(_slide_len),
                      lateness(_lateness),
                      winType(_winType)
     {
-        if (parallelism == 0) { // check the validity of the parallelism value
-            std::cerr << RED << "WindFlow Error: Parallel_Windows has parallelism zero" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
         if (win_len == 0 || slide_len == 0) { // check the validity of the windowing parameters
             std::cerr << RED << "WindFlow Error: Parallel_Windows used with window length or slide equal to zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         if (_role != role_t::MAP) {
-            for (size_t i=0; i<parallelism; i++) { // create the internal replicas of the Parallel_Windows
-                replicas.push_back(new Window_Replica<win_func_t, key_extractor_func_t>(func, 
+            for (size_t i=0; i<this->parallelism; i++) { // create the internal replicas of the Parallel_Windows
+                replicas.push_back(new Window_Replica<win_func_t, keyextr_func_t>(func, 
                                                                                         key_extr,
-                                                                                        name,
-                                                                                        RuntimeContext(parallelism, i),
+                                                                                        this->name,
+                                                                                        RuntimeContext(this->parallelism, i),
                                                                                         _closing_func,
                                                                                         win_len,
                                                                                         slide_len * parallelism,
@@ -242,15 +205,15 @@ private:
                                                                                         winType,
                                                                                         _role,
                                                                                         i,
-                                                                                        parallelism));
+                                                                                        this->parallelism));
             }
         }
         else {
-            for (size_t i=0; i<parallelism; i++) { // create the internal replicas of the Parallel_Windows
-                replicas.push_back(new Window_Replica<win_func_t, key_extractor_func_t>(func, 
+            for (size_t i=0; i<this->parallelism; i++) { // create the internal replicas of the Parallel_Windows
+                replicas.push_back(new Window_Replica<win_func_t, keyextr_func_t>(func, 
                                                                                         key_extr,
-                                                                                        name,
-                                                                                        RuntimeContext(parallelism, i),
+                                                                                        this->name,
+                                                                                        RuntimeContext(this->parallelism, i),
                                                                                         _closing_func,
                                                                                         win_len,
                                                                                         slide_len,
@@ -267,19 +230,19 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _func functional logic of the Parallel_Windows (a function or a callable type)
-     *  \param _key_extr key extractor (a function or a callable type)
+     *  \param _func functional logic of the Parallel_Windows (a function or any callable type)
+     *  \param _key_extr key extractor (a function or any callable type)
      *  \param _parallelism internal parallelism of the Parallel_Windows
      *  \param _name name of the Parallel_Windows
      *  \param _outputBatchSize size (in num of tuples) of the batches produced by this operator (0 for no batching)
-     *  \param _closing_func closing functional logic of the Parallel_Windows (a function or callable type)
+     *  \param _closing_func closing functional logic of the Parallel_Windows (a function or any callable type)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _lateness (lateness in time units, meaningful for TB windows in DEFAULT mode)
      *  \param _winType window type (count-based CB or time-based TB)
      */ 
     Parallel_Windows(win_func_t _func,
-                     key_extractor_func_t _key_extr,
+                     keyextr_func_t _key_extr,
                      size_t _parallelism,
                      std::string _name,
                      size_t _outputBatchSize,
@@ -292,20 +255,17 @@ public:
 
     /// Copy constructor
     Parallel_Windows(const Parallel_Windows &_other):
+                     Basic_Operator(_other),
                      func(_other.func),
                      key_extr(_other.key_extr),
-                     parallelism(_other.parallelism),
                      type(_other.type),
-                     name(_other.name),
-                     input_batching(_other.input_batching),
-                     outputBatchSize(_other.outputBatchSize),
                      win_len(_other.win_len),
                      slide_len(_other.slide_len),
                      lateness(_other.lateness),
                      winType(_other.winType)
     {
-        for (size_t i=0; i<parallelism; i++) { // deep copy of the pointers to the Keyed_Windows replicas
-            replicas.push_back(new Window_Replica<win_func_t, key_extractor_func_t>(*(_other.replicas[i])));
+        for (size_t i=0; i<this->parallelism; i++) { // deep copy of the pointers to the Keyed_Windows replicas
+            replicas.push_back(new Window_Replica<win_func_t, keyextr_func_t>(*(_other.replicas[i])));
         }
     }
 
@@ -317,53 +277,6 @@ public:
         }
     }
 
-    /// Copy Assignment Operator
-    Parallel_Windows& operator=(const Parallel_Windows &_other)
-    {
-        if (this != &_other) {
-            func = _other.func;
-            key_extr = _other.key_extr;
-            parallelism = _other.parallelism;
-            type = _other.type;
-            name = _other.name;
-            input_batching = _other.input_batching;
-            outputBatchSize = _other.outputBatchSize;
-            win_len = _other.win_len;
-            slide_len = _other.slide_len;
-            lateness = _other.lateness;
-            winType = _other.winType;
-            for (auto *r: replicas) { // delete all the replicas
-                delete r;
-            }
-            replicas.clear();
-            for (size_t i=0; i<parallelism; i++) { // deep copy of the pointers to the Parallel_Windows replicas
-                replicas.push_back(new Window_Replica<win_func_t, key_extractor_func_t>(*(_other.replicas[i])));
-            }
-        }
-        return *this;
-    }
-
-    /// Move Assignment Operator
-    Parallel_Windows& operator=(Parallel_Windows &&_other)
-    {
-        func = std::move(_other.func);
-        key_extr = std::move(_other.key_extr);
-        parallelism = _other.parallelism;
-        type = std::move(_other.type);
-        name = std::move(_other.name);
-        input_batching = _other.input_batching;
-        outputBatchSize = _other.outputBatchSize;
-        win_len = _other.win_len;
-        slide_len = _other.slide_len;
-        lateness = _other.lateness;
-        winType = _other.winType;
-        for (auto *r: replicas) { // delete all the replicas
-            delete r;
-        }
-        replicas = std::move(_other.replicas);
-        return *this;
-    }
-
     /** 
      *  \brief Get the type of the Parallel_Windows as a string
      *  \return type of the Parallel_Windows
@@ -371,42 +284,6 @@ public:
     std::string getType() const override
     {
         return type;
-    }
-
-    /** 
-     *  \brief Get the name of the Parallel_Windows as a string
-     *  \return name of the Parallel_Windows
-     */ 
-    std::string getName() const override
-    {
-        return name;
-    }
-
-    /** 
-     *  \brief Get the total parallelism of the Parallel_Windows
-     *  \return total parallelism of the Parallel_Windows
-     */  
-    size_t getParallelism() const override
-    {
-        return parallelism;
-    }
-
-    /** 
-     *  \brief Return the input routing mode of the Parallel_Windows
-     *  \return routing mode used to send inputs to the Parallel_Windows
-     */ 
-    Routing_Mode_t getInputRoutingMode() const override
-    {
-        return Routing_Mode_t::BROADCAST;
-    }
-
-    /** 
-     *  \brief Return the size of the output batches that the Parallel_Windows should produce
-     *  \return output batch size in number of tuples
-     */ 
-    size_t getOutputBatchSize() const override
-    {
-        return outputBatchSize;
     }
 
     /** 
@@ -430,6 +307,10 @@ public:
         }
         return count;
     }
+
+    Parallel_Windows(Parallel_Windows &&) = delete; ///< Move constructor is deleted
+    Parallel_Windows &operator=(const Parallel_Windows &) = delete; ///< Copy assignment operator is deleted
+    Parallel_Windows &operator=(Parallel_Windows &&) = delete; ///< Move assignment operator is deleted
 };
 
 } // namespace wf

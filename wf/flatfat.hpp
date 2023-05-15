@@ -55,6 +55,7 @@ class FlatFAT
 {
 private:
     comb_func_t *comb_func; // pointer to the combine function
+    key_t key; // key attribute used by this FlatFAT
     using result_t = decltype(get_tuple_t_Comb(*comb_func)); // extracting the result_t type and checking the admissible signatures
     // static predicates to check the type of the functional logic to be invoked
     static constexpr bool isNonRiched = std::is_invocable<decltype(*comb_func), const result_t &, const result_t &, result_t &>::value;
@@ -67,7 +68,6 @@ private:
     size_t root; // position of the root in the flat array
     bool isEmpty; // flag stating whether the tree is empty or not
     RuntimeContext *context; // pointer to the RuntimeContext
-    key_t key; // key attribute used by this FlatFAT
 
     // Get the index of the left child of pos
     size_t left_child(size_t pos) const { return pos << 1; }
@@ -93,7 +93,7 @@ private:
                left child is so we pass acc unmodified. */
             if (i == right_child(p)) {
                 result_t tmp = acc;
-                acc = create_win_result_t<decltype(get_tuple_t_Comb(*comb_func)), key_t>(key);
+                acc = create_win_result_t<result_t, key_t>(key);
                 if constexpr (isNonRiched) {
                     (*comb_func)(tree[left_child(p)], tmp, acc);
                 }
@@ -118,7 +118,7 @@ private:
             size_t p = parent(i);
             if (i == left_child(p)) {
                 result_t tmp = acc;
-                acc = create_win_result_t<decltype(get_tuple_t_Comb(*comb_func)), key_t>(key);
+                acc = create_win_result_t<result_t, key_t>(key);
                 if constexpr (isNonRiched) {
                     (*comb_func)(tmp, tree[right_child(p)], acc);
                 }
@@ -140,7 +140,7 @@ private:
         while (nextNode != 0) {
             size_t lc = left_child(nextNode);
             size_t rc = right_child(nextNode);
-            tree[nextNode] = create_win_result_t<decltype(get_tuple_t_Comb(*comb_func)), key_t>(key); // empty result with the right key
+            tree[nextNode] = create_win_result_t<result_t, key_t>(key); // empty result with the right key
             if constexpr (isNonRiched) {
                 (*comb_func)(tree[lc], tree[rc], tree[nextNode]);
             }
@@ -169,7 +169,7 @@ public:
         n = 1 << noBits;
         front = n-1;
         back = n-1;
-        tree.resize(n*2, create_win_result_t<decltype(get_tuple_t_Comb(*comb_func)), key_t>(key)); // all the elements are empty with the right key
+        tree.resize(n*2, create_win_result_t<result_t, key_t>(key)); // all the elements are empty with the right key
     }
 
     // Add a new element to the FlatFAT
@@ -233,7 +233,7 @@ public:
             nodesToUpdate.pop_front();
             size_t lc = left_child(nextNode);
             size_t rc = right_child(nextNode);
-            tree[nextNode] = create_win_result_t<decltype(get_tuple_t_Comb(*comb_func)), key_t>(key);; // empty result with the right key
+            tree[nextNode] = create_win_result_t<result_t, key_t>(key);; // empty result with the right key
             if constexpr (isNonRiched) {
                 (*comb_func)(tree[lc], tree[rc], tree[nextNode]);
             }
@@ -252,7 +252,7 @@ public:
     {
         /* it removes the element by inserting in its place
            a default constructed element. */
-        tree[front] = create_win_result_t<decltype(get_tuple_t_Comb(*comb_func)), key_t>(key); // empty result with the right key
+        tree[front] = create_win_result_t<result_t, key_t>(key); // empty result with the right key
         update(front); // update all the required internal nodes of the tree
         if (front == back) {
             front = back = n - 1;
@@ -271,7 +271,7 @@ public:
     {
         std::list<size_t> nodesToUpdate;
         for (size_t i=0; i<count; i++) {
-            tree[front] = create_win_result_t<decltype(get_tuple_t_Comb(*comb_func)), key_t>(key);; // empty result with the right key
+            tree[front] = create_win_result_t<result_t, key_t>(key);; // empty result with the right key
             size_t p = parent(front);
             if ((front != root) && (nodesToUpdate.empty() || nodesToUpdate.back() != p)) {
                 nodesToUpdate.push_back(p);
@@ -293,7 +293,7 @@ public:
             nodesToUpdate.pop_front();
             size_t lc = left_child(nextNode);
             size_t rc = right_child(nextNode);
-            tree[nextNode] = create_win_result_t<decltype(get_tuple_t_Comb(*comb_func)), key_t>(key); // empty result with the right key
+            tree[nextNode] = create_win_result_t<result_t, key_t>(key); // empty result with the right key
             if constexpr (isNonRiched) {
                 (*comb_func)(tree[lc], tree[rc], tree[nextNode]);
             }
@@ -310,7 +310,7 @@ public:
     // Get the result of the whole window
     result_t getResult(uint64_t _gwid) const
     {
-        result_t res = create_win_result_t<decltype(get_tuple_t_Comb(*comb_func)), key_t>(key, _gwid); // empty result with the right key
+        result_t res = create_win_result_t<result_t, key_t>(key, _gwid); // empty result with the right key
         if (isCommutative || front <= back) {
             /* the elements are in the correct order so the result
                in the root is valid. */

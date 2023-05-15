@@ -58,7 +58,7 @@ template<typename result_t>
 class Shipper
 {
 private:
-    template<typename T1> friend class FlatMap_Replica; // friendship with FlatMap_Replica class
+    template<typename T1> friend class FlatMap_Replica;
     Basic_Emitter *emitter; // pointer to the emitter used for the delivery of messages
     ff::ff_monode *node; // pointer to the fastflow node to be passed to the emitter
     uint64_t num_delivered; // counter of the delivered results
@@ -101,66 +101,12 @@ private:
 #endif
     }
 
-    // Move Constructor
-    Shipper(Shipper &&_other):
-            emitter(std::exchange(_other.emitter, nullptr)),
-            node(std::exchange(_other.node, nullptr)),
-            num_delivered(_other.num_delivered),
-            timestamp(_other.timestamp),
-            watermark(_other.watermark)
-    {
-#if defined (WF_TRACING_ENABLED)
-        stats_record = std::exchange(_other.stats_record, nullptr);
-#endif
-    }
-
     // Destructor
     ~Shipper()
     {
         if (emitter != nullptr) {
             delete emitter;
         }
-    }
-
-    // Copy Assignment Operator
-    Shipper &operator=(const Shipper &_other)
-    {
-        if (this != &_other) {
-            if (emitter != nullptr) {
-                delete emitter;
-            }
-            if (_other.emitter != nullptr) {
-                emitter = (_other.emitter)->clone();
-            }
-            else {
-                emitter = nullptr;
-            }
-            node = _other.node;
-            num_delivered = _other.num_delivered;
-            timestamp = _other.timestamp;
-            watermark = _other.watermark;
-#if defined (WF_TRACING_ENABLED)
-            stats_record = _other.stats_record;
-#endif
-        }
-        return *this;
-    }
-
-    // Move Assignment Operator
-    Shipper &operator=(Shipper &&_other)
-    {
-        if (emitter != nullptr) {
-            delete emitter;
-        }
-        emitter = std::exchange(_other.emitter, nullptr);
-        node = std::exchange(_other.node, nullptr);
-        num_delivered = _other.num_delivered;
-        timestamp = _other.timestamp;
-        watermark = _other.watermark;
-#if defined (WF_TRACING_ENABLED)
-        stats_record = std::exchange(_other.stats_record, nullptr);
-#endif
-        return *this;
     }
 
     // Set the configuration parameters
@@ -219,6 +165,10 @@ public:
         stats_record->bytes_sent += sizeof(result_t);
 #endif
     }
+
+    Shipper(Shipper &&) = delete; ///< Move constructor is deleted
+    Shipper &operator=(const Shipper &) = delete; ///< Copy assignment operator is deleted
+    Shipper &operator=(Shipper &&) = delete; ///< Move assignment operator is deleted
 };
 
 } // namespace wf

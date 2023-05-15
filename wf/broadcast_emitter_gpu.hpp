@@ -25,12 +25,13 @@
  *  @file    broadcast_emitter_gpu.hpp
  *  @author  Gabriele Mencagli
  *  
- *  @brief Emitter implementing the broadcast (BD) distribution for GPU operators
+ *  @brief Emitter implementing the broadcast (BD) distribution of GPU operators
  *  
  *  @section Broadcast_Emitter_GPU (Description)
  *  
  *  The emitter implements the broadcast (BD) distribution in one single possible scenario:
- *  1) GPU-CPU (source is GPU operator, destination is a CPU operator).
+ *  1) GPU-CPU (source is GPU operator, destination is a CPU operator). The distribution
+ *  is done without copies (so it is the pointer to the same batch that is broadcasted).
  */ 
 
 #ifndef BD_EMITTER_GPU_H
@@ -47,22 +48,20 @@
 namespace wf {
 
 // class Broadcast_Emitter_GPU
-template<typename key_extractor_func_t, bool inputGPU, bool outputGPU>
+template<typename keyextr_func_t, bool inputGPU, bool outputGPU>
 class Broadcast_Emitter_GPU: public Basic_Emitter
 {
 private:
-    key_extractor_func_t key_extr; // functional logic to extract the key attribute from the tuple_t
+    keyextr_func_t key_extr; // functional logic to extract the key attribute from the tuple_t
     using tuple_t = decltype(get_tuple_t_KeyExtrGPU(key_extr)); // extracting the tuple_t type and checking the admissible signatures
     size_t num_dests; // number of destinations connected in output to the emitter
     bool useTreeMode; // true if the emitter is used in tree-based mode
     std::vector<std::pair<void *, size_t>> output_queue; // vector of pairs (messages and destination identifiers)
-    ff::MPMC_Ptr_Queue *queue; // pointer to the recyling queue
     std::atomic<int> *inTransit_counter; // pointer to the counter of in-transit batches
 
 public:
     // Constructor (GPU->CPU case)
-    Broadcast_Emitter_GPU(key_extractor_func_t _key_extr,
-                          size_t _num_dests):
+    Broadcast_Emitter_GPU(keyextr_func_t _key_extr, size_t _num_dests):
                           key_extr(_key_extr),
                           num_dests(_num_dests),
                           useTreeMode(false)
@@ -71,85 +70,36 @@ public:
             std::cerr << RED << "WindFlow Error: Broadcast_Emitter_GPU created in an invalid manner" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        queue = new ff::MPMC_Ptr_Queue();
-        queue->init(DEFAULT_BUFFER_CAPACITY);
         inTransit_counter = new std::atomic<int>(0);
     }
 
     // Copy Constructor
     Broadcast_Emitter_GPU(const Broadcast_Emitter_GPU &_other):
+                          Basic_Emitter(_other),
                           key_extr(_other.key_extr),
                           num_dests(_other.num_dests),
                           useTreeMode(_other.useTreeMode)
     {
-        queue = new ff::MPMC_Ptr_Queue();
-        queue->init(DEFAULT_BUFFER_CAPACITY);
         inTransit_counter = new std::atomic<int>(0);
     }
-
-    // Move Constructor
-    Broadcast_Emitter_GPU(Broadcast_Emitter_GPU &&_other):
-                          key_extr(std::move(_other.key_extr)),
-                          num_dests(_other.num_dests),
-                          useTreeMode(_other.useTreeMode),
-                          output_queue(std::move(_other.output_queue)),
-                          queue(std::exchange(_other.queue, nullptr)),
-                          inTransit_counter(std::exchange(_other.inTransit_counter, nullptr)) {}
 
     // Destructor
     ~Broadcast_Emitter_GPU() override
     {
         assert(output_queue.size() == 0); // sanity check
-        if (queue != nullptr) {
-            Batch_t<decltype(get_tuple_t_KeyExtr(key_extr))> *del_batch = nullptr;
-            while (queue->pop((void **) &del_batch)) {
-                delete del_batch;
-            }
-            delete queue; // delete the recycling queue
+        Batch_t<tuple_t> *batch = nullptr;
+        while ((this->queue)->pop((void **) &batch)) {
+            delete batch;
         }
         if (inTransit_counter != nullptr) {
             delete inTransit_counter;
         }
-    }
-
-    // Copy Assignment Operator
-    Broadcast_Emitter_GPU &operator=(const Broadcast_Emitter_GPU &_other)
-    {
-        if (this != &_other) {
-            key_extr = _other.key_extr;
-            num_dests = _other.num_dests;
-            useTreeMode = _other.useTreeMode;
-        }
-        return *this;
-    }
-
-    // Move Assignment Operator
-    Broadcast_Emitter_GPU &operator=(Broadcast_Emitter_GPU &&_other)
-    {
-        key_extr = std::move(_other.key_extr);
-        num_dests = _other.num_dests;
-        useTreeMode = _other.useTreeMode;
-        assert(output_queue.size() == 0); // sanity check
-        output_queue = std::move(_other.output_queue);
-        if (queue != nullptr) {
-            Batch_t<decltype(get_tuple_t_KeyExtr(key_extr))> *del_batch = nullptr;
-            while (queue->pop((void **) &del_batch)) {
-                delete del_batch;
-            }
-            delete queue; // delete the recycling queue
-        }
-        queue = std::exchange(_other.queue, nullptr);
-        if (inTransit_counter != nullptr) {
-            delete inTransit_counter;
-        }
-        inTransit_counter = std::exchange(_other.inTransit_counter, nullptr);
-        return *this;
     }
 
     // Create a clone of the emitter
     Basic_Emitter *clone() const override
     {
-        auto *copy = new Broadcast_Emitter_GPU<key_extractor_func_t, inputGPU, outputGPU>(*this);
+        auto *copy = new Broadcast_Emitter_GPU<keyextr_func_t, inputGPU, outputGPU>(*this);
         return copy;
     }
 
@@ -182,17 +132,15 @@ public:
     }
 
     // Emit method (in-place version)
-    void emit_inplace(void *_out,
-                      ff::ff_monode *_node) override
+    void emit_inplace(void *_out, ff::ff_monode *_node) override
     {
-        Batch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))> *output = reinterpret_cast<Batch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))> *>(_out);
+        Batch_GPU_t<tuple_t> *output = reinterpret_cast<Batch_GPU_t<tuple_t> *>(_out);
         routing<inputGPU, outputGPU>(output, _node);
     }
 
     // Routing GPU->CPU
     template<bool b1, bool b2>
-    void routing(typename std::enable_if<b1 && !b2, Batch_GPU_t<tuple_t>>::type *_output,
-                 ff::ff_monode *_node)
+    void routing(typename std::enable_if<b1 && !b2, Batch_GPU_t<tuple_t>>::type *_output, ff::ff_monode *_node)
     {
         (_output->delete_counter).fetch_add(num_dests-1);
         assert((_output->watermarks).size() == 1); // sanity check
@@ -213,11 +161,10 @@ public:
     }
 
     // Punctuation propagation method
-    void propagate_punctuation(uint64_t _watermark,
-                               ff::ff_monode * _node) override
+    void propagate_punctuation(uint64_t _watermark, ff::ff_monode * _node) override
     {
         flush(_node); // flush the internal partially filled batch (if any)
-        Batch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))> *punc = allocateBatch_GPU_t<decltype(get_tuple_t_KeyExtrGPU(key_extr))>(1, queue, inTransit_counter); // punctuation batch has size 1!
+        Batch_GPU_t<tuple_t> *punc = allocateBatch_GPU_t<tuple_t>(1, this->queue, inTransit_counter); // punctuation batch has size 1!
         punc->setWatermark(_watermark);
         (punc->delete_counter).fetch_add(num_dests-1);
         assert((punc->watermarks).size() == 1); // sanity check

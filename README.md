@@ -8,9 +8,11 @@
 <p align="center"><img src="https://paragroup.github.io/WindFlow/img/logo_white.png" width="400" title="WindFlow Logo"></p>
 
 # Introduction
-WindFlow is a C++17 header-only library for parallel data stream processing targeting heterogeneous shared-memory architectures equipped with multi-core CPUs and NVIDIA GPUs. The library provides traditional stream processing operators like map, flatmap, filter, fold/reduce as well as sliding-window operators. The API allows building streaming applications through the <b>MultiPipe</b> and the <b>PipeGraph</b> programming constructs. The first is used to create parallel pipelines (with shuffle connections), while the second allows several <b>MultiPipe</b> instances to be interconnected through <b>merge</b> and <b>split</b> operations, in order to create complex directed acyclic graphs of interconnected operators.
+WindFlow is a C++17 header-only library for parallel data stream processing targeting heterogeneous shared-memory architectures equipped with multi-core CPUs and NVIDIA GPUs. The library provides traditional stream processing operators like map, flatmap, filter, reduce as well as window-based operators. The API allows building streaming applications through the <b>MultiPipe</b> and the <b>PipeGraph</b> programming constructs. The first is used to create parallel pipelines (with shuffle connections), while the second allows several <b>MultiPipe</b> instances to be interconnected through <b>merge</b> and <b>split</b> operations, in order to create complex directed acyclic graphs of interconnected operators.
 
-As for the existing popular streaming engines like Apache Storm and FLink, WindFlow supports general-purpose streaming applications by enabling operators to run user-defined code. In terms of runtime system, WindFlow is suitable for embedded architectures equipped with low-power multi-core CPUs and integrated NVIDIA GPUs (like the Jetson family of NVIDIA boards). However, it works also on traditional multi-core servers equipped with discrete NVIDIA GPUs.
+Analogously to existing popular stream processing engines like Apache Storm and FLink, WindFlow supports general-purpose streaming applications by enabling operators to run user-defined code. The WindFlow runtime system has been designed to be suitable for embedded architectures equipped with low-power multi-core CPUs and integrated NVIDIA GPUs (like the Jetson family of NVIDIA boards). However, it works well also on traditional multi-core servers equipped with discrete NVIDIA GPUs.
+
+At the moment WindFlow is for single-node execution. We are working to a distributed implementation.
 
 The web site of the library is available at: https://paragroup.github.io/WindFlow/.
 
@@ -18,24 +20,24 @@ The web site of the library is available at: https://paragroup.github.io/WindFlo
 The library requires the following dependencies:
 * <strong>a C++ compiler</strong> with full support for C++17 (WindFlow tests have been successfully compiled with both GCC and CLANG)
 * <strong>FastFlow</strong> version >= 3.0 (https://github.com/fastflow/fastflow)
-* <strong>CUDA</strong> (for using operators targeting GPUs)
+* <strong>CUDA</strong> (version >= 11.5 is preferred for using operators targeting GPUs)
 * <strong>libtbb-dev</strong> required by GPU operators only
-* <strong>libgraphviz-dev</strong> and <strong>rapidjson-dev</strong> when compiling with -DWF_TRACING_ENABLED to report statistics and using the Web Dashboard
+* <strong>libgraphviz-dev</strong> and <strong>rapidjson-dev</strong> when compiling with -DWF_TRACING_ENABLED to report statistics and to use the Web Dashboard for monitoring purposes
 * <strong>librdkafka-dev</strong> for using the integration with Kafka (special Kafka_Source and Kafka_Sink operators)
 * <strong>doxygen</strong> (to generate the documentation)
 
 <b>Important about the FastFlow dependency</b> -> after downloading FastFlow, the user needs to configure the library for the underlying multi-core environment. By default, FastFlow pins its threads onto the cores of the machine. To make FastFlow aware of the ordering of cores, and their correspondence in CPUs and NUMA regions, it is important to run (just one time) the script <strong>"mapping_string.sh"</strong> in the folder <tt>fastflow/ff</tt> before compiling your WindFlow programs.
 
 # Macros
-WindFlow, and its underlying level FastFlow, come with some important macros that can be used during compilation to enable specific behaviors:
+WindFlow, and its underlying level FastFlow, come with some important macros that can be used during compilation to enable specific behaviors. Some of them are reported below:
 * <strong>-DWF_TRACING_ENABLED</strong> -> enables tracing (logging) at the WindFlow level (operator replicas), and allows streaming applications to continuously report statistics to a Web Dashboard (which is a separate sub-project). Outputs are also written in log files at the end of the processing
 * <strong>-DTRACE_FASTFLOW</strong> -> enables tracing (logging) at the FastFlow level (raw threads and FastFlow nodes). Outputs are written in log files at the end of the processing
 * <strong>-DFF_BOUNDED_BUFFER</strong> -> enables the use of bounded lock-free queues for pointer passing between threads. Otherwise, queues are unbounded (no backpressure mechanism)
-* <strong>-DDEFAULT_BUFFER_CAPACITY=VALUE</strong> -> set the size of the lock-free queues capacity. The default size of the queues is of 2048 entries. We suggest the users to significantly reduce this size in applications that use GPU operators (e.g., using values between 16 to 128 depending on the available GPU memory)
-* <strong>-DNO_DEFAULT_MAPPING</strong> -> if set, FastFlow threads are not pinned onto CPU cores, but they are scheduled by the Operating System
-* <strong>-DBLOCKING_MODE</strong> -> if set, FastFlow queues use the blocking concurrency mode (pushing to a full queue or polling from an empty queue might suspend the underlying thread). If not set, waiting conditions are implemented by busy-waiting spin loops.
+* <strong>-DDEFAULT_BUFFER_CAPACITY=VALUE</strong> -> set the size of the lock-free queues capacity. The default size of the queues is of 2048 entries
+* <strong>-DNO_DEFAULT_MAPPING</strong> -> if this macro is enabled, FastFlow threads are not pinned onto CPU cores, but they are scheduled by the Operating System
+* <strong>-DBLOCKING_MODE</strong> -> if this macro is enabled, FastFlow queues use the blocking concurrency mode (pushing to a full queue or polling from an empty queue might suspend the underlying thread). If not set, waiting conditions are implemented by busy-waiting spin loops.
 
-Some macros are useful to configure the run-time system when GPU operators are utilized in your application. The default version of the GPU support is based on explicit CUDA memory management and overlapped data transfers, which is a version suitable for a wide range of NVIDIA GPU models. However, the developer might want to switch to a different implementation that makes use of the CUDA unified memory support. This can be done by compiling with the macro <strong>-DWF_GPU_UNIFIED_MEMORY</strong>. Alternatively, the user can configure the runtime system to use pinned memory on NVIDIA System-on-Chip devices (e.g., Jetson Nano and Jetson Xavier), where pinned memory is directly accessed by CPU and GPU without extra copies. This can be done by compiling with the macro <strong>-DWF_GPU_PINNED_MEMORY</strong>.
+Some macros are useful to configure the runtime system when GPU operators are utilized in your application. The default version of the GPU support is based on explicit CUDA memory management and overlapped data transfers, which is a version suitable for a wide range of NVIDIA GPU models. However, the developer might want to switch to a different implementation that makes use of the CUDA unified memory support. This can be done by compiling with the macro <strong>-DWF_GPU_UNIFIED_MEMORY</strong>. Alternatively, the user can configure the runtime system to use pinned memory on NVIDIA System-on-Chip devices (e.g., Jetson Nano and Jetson Xavier), where pinned memory is directly accessed by CPU and GPU without extra copies. This can be done by compiling with the macro <strong>-DWF_GPU_PINNED_MEMORY</strong>.
 
 # Build the Examples
 WindFlow is a header-only template library. To build your applications you have to include the main header of the library (<tt>windflow.hpp</tt>). For using the operators targeting GPUs, you further have to include the <tt>windflow_gpu.hpp</tt> header file and compile using the <code>nvcc</code> CUDA compiler (or through <code>clang</code> with CUDA support). The source code in this repository includes several examples that can be used to understand the use of the API and the advanced features of the library. The examples can be found in the <tt>tests</tt> folder. To compile them:
@@ -50,7 +52,7 @@ WindFlow is a header-only template library. To build your applications you have 
     $ make docs # generate the doxygen documentation (if doxygen has been installed)
 ```
 
-In order to use Kafka integration, done with special Source and Sink operators, the developer has to include the additional header <tt>kafka/windflow_kafka.hpp</tt> and properly link the library <tt>librdkafka-dev</tt>.
+In order to use the Kafka integration, consisting of special Source and Sink operators, the developer has to include the additional header <tt>kafka/windflow_kafka.hpp</tt> and properly link the library <tt>librdkafka-dev</tt>.
 
 # Docker Images
 Two Docker images are available in the WindFlow GitHub repository. The images contain all the synthetic tests compiled and ready to be executed. To build the first image (the one without tests using GPU operators) execute the following commands:
@@ -72,7 +74,7 @@ The second image contains all synthetic tests with GPU operators. To use your GP
 Again, the last command executes one of the synthetic experiments (test_graph_gpu_1). You can execute any of the compiled tests in the same mannner.
 
 # Web Dashboard
-WindFlow has its own Web Dashboard that can be used to profile the execution of running WindFlow applications. The dashboard code is in the sub-folder <tt>WINDFLOW_ROOT/dashboard</tt>. It is a Java package based on Spring (for the Web Server) and developed using React for the front-end part. To start the Web Dashboard run the following commands:
+WindFlow has its own Web Dashboard that can be used to profile and monitor the execution of running WindFlow applications. The dashboard code is in the sub-folder <tt>WINDFLOW_ROOT/dashboard</tt>. It is a Java package based on Spring (for the Web Server) and developed using React for the front-end part. To start the Web Dashboard run the following commands:
 ```
     cd <WINDFLOW_ROOT>/dashboard/Server
     mvn spring-boot:run

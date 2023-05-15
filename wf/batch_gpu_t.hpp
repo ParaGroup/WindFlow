@@ -117,6 +117,7 @@ struct Batch_GPU_t: Batch_t<tuple_t>
         if (map_idxs_gpu != nullptr) {
             gpuErrChk(cudaFree(map_idxs_gpu));
         }
+        gpuErrChk(cudaStreamSynchronize(cudaStream)); // <- not really needed, but safer
         gpuErrChk(cudaStreamDestroy(cudaStream));
         if (inTransit_counter != nullptr) {
             (*inTransit_counter)--;
@@ -147,7 +148,7 @@ struct Batch_GPU_t: Batch_t<tuple_t>
         return size;
     }
 
-    // Trasfering of the batch items to a host pinned memory array
+    // Synchronous transferring of the batch items to a host pinned memory array inside the batch
     void transfer2CPU()
     {
         if (pinned_data_cpu == nullptr) { // create the host pinned array if it does not exist yet
@@ -187,8 +188,7 @@ struct Batch_GPU_t: Batch_t<tuple_t>
     }
 
     // Set the watermark of the batch related to a specific destination _node_id
-    void setWatermark(uint64_t _wm,
-                      size_t _node_id=0) override
+    void setWatermark(uint64_t _wm, size_t _node_id=0) override
     {
         if(_node_id < watermarks.size()) {
             watermarks[_node_id] = _wm;

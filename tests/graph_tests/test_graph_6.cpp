@@ -132,13 +132,9 @@ int main(int argc, char *argv[])
         cout << "                                +---------------------+" << endl;
         // compute the total parallelism degree of the PipeGraph
         size_t check_degree = source_degree;
-        if (source_degree != map1_degree) {
-            check_degree += map1_degree;
-        }
+        check_degree += map1_degree;
         check_degree += filter1_degree;
-        if (filter1_degree != map2_degree) {
-            check_degree += map2_degree;
-        }
+        check_degree += map2_degree;
         check_degree += filter2_degree;
         if (filter2_degree != map3_degree) {
             check_degree += map3_degree;
@@ -167,6 +163,7 @@ int main(int argc, char *argv[])
                         .withName("map1")
                         .withParallelism(map1_degree)
                         .withOutputBatchSize(dist_b(rng))
+                        .withRebalancing()
                         .build();
         pipe1.chain(map1);
         // split
@@ -198,6 +195,7 @@ int main(int argc, char *argv[])
                         .withName("map2")
                         .withParallelism(map2_degree)
                         .withOutputBatchSize(dist_b(rng))
+                        .withRebalancing()
                         .build();
         pipe2.chain(map2);
         // prepare the third MultiPipe
@@ -311,13 +309,9 @@ int main(int argc, char *argv[])
         cout << "                                +---------------------+" << endl;
         // compute the total parallelism degree of the PipeGraph
         size_t check_degree = source_degree;
-        if (source_degree != map1_degree) {
-            check_degree += map1_degree;
-        }
+        check_degree += map1_degree;
         check_degree += filter1_degree;
-        if (filter1_degree != map2_degree) {
-            check_degree += map2_degree;
-        }
+        check_degree += map2_degree;
         check_degree += filter2_degree;
         if (filter2_degree != map3_degree) {
             check_degree += map3_degree;
@@ -344,6 +338,7 @@ int main(int argc, char *argv[])
         Map map1 = Map_Builder(map_functor1)
                         .withName("map1")
                         .withParallelism(map1_degree)
+                        .withRebalancing()
                         .build();
         pipe1.chain(map1);
         // split
@@ -373,6 +368,7 @@ int main(int argc, char *argv[])
         Map map2 = Map_Builder(map_functor2)
                         .withName("map2")
                         .withParallelism(map2_degree)
+                        .withRebalancing()
                         .build();
         pipe2.chain(map2);
         // prepare the third MultiPipe

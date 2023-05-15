@@ -46,27 +46,27 @@
 namespace wf {
 
 // class KeyBy_Emitter
-template<typename key_extractor_func_t>
+template<typename keyextr_func_t>
 class KeyBy_Emitter: public Basic_Emitter
 {
 private:
-    key_extractor_func_t key_extr; // functional logic to extract the key attribute from the tuple_t
+    keyextr_func_t key_extr; // functional logic to extract the key attribute from the tuple_t
     using tuple_t = decltype(get_tuple_t_KeyExtr(key_extr)); // extracting the tuple_t type and checking the admissible signatures
+    using key_t = decltype(get_key_t_KeyExtr(key_extr)); // extracting the key_t type and checking the admissible signatures
     size_t num_dests; // number of destinations connected in output to the emitter
     size_t size; // if >0 the emitter works in batched more, otherwise in a per-tuple basis
     bool useTreeMode; // true if the emitter is used in tree-based mode
     std::vector<std::pair<void *, size_t>> output_queue; // vector of pairs (messages and destination identifiers)
     std::vector<Batch_CPU_t<tuple_t> *> batches_output; // vector of pointers to the output batches one per destination (meaningful if size > 0)
-    ff::MPMC_Ptr_Queue *queue; // pointer to the recyling queue
-    Execution_Mode_t execution_mode; // execution mode of the emitter
+    Execution_Mode_t execution_mode; // execution mode of the PipeGraph
     uint64_t last_time_punct; // last time used to send punctuations
-    std::vector<int> delivered; // delivered[i] is the number of outputs delivered to destination i during the last sample
+    std::vector<int> delivered; // delivered[i] is the number of outputs delivered to the i-th destination during the last sample
     uint64_t received_inputs; // total number of inputs received by the emitter
-    std::vector<uint64_t> last_sent_wms; // vector of the last sent watermarks, one per destination;
+    std::vector<uint64_t> last_sent_wms; // vector of the last sent watermarks, one per destination
 
 public:
     // Constructor
-    KeyBy_Emitter(key_extractor_func_t _key_extr,
+    KeyBy_Emitter(keyextr_func_t _key_extr,
                   size_t _num_dests,
                   Execution_Mode_t _execution_mode,
                   size_t _size=0):
@@ -79,14 +79,11 @@ public:
                   last_time_punct(current_time_usecs()),
                   delivered(_num_dests, 0),
                   received_inputs(0),
-                  last_sent_wms(_num_dests, 0)
-    {
-        queue = new ff::MPMC_Ptr_Queue();
-        queue->init(DEFAULT_BUFFER_CAPACITY);
-    }
+                  last_sent_wms(_num_dests, 0) {}
 
     // Copy Constructor
     KeyBy_Emitter(const KeyBy_Emitter &_other):
+                  Basic_Emitter(_other),
                   key_extr(_other.key_extr),
                   num_dests(_other.num_dests),
                   size(_other.size),
@@ -96,26 +93,7 @@ public:
                   last_time_punct(_other.last_time_punct),
                   delivered(_other.delivered),
                   received_inputs(_other.received_inputs),
-                  last_sent_wms(_other.last_sent_wms)
-    {
-        queue = new ff::MPMC_Ptr_Queue();
-        queue->init(DEFAULT_BUFFER_CAPACITY);
-    }
-
-    // Move Constructor
-    KeyBy_Emitter(KeyBy_Emitter &&_other):
-                  key_extr(std::move(_other.key_extr)),
-                  num_dests(_other.num_dests),
-                  size(_other.size),
-                  useTreeMode(_other.useTreeMode),
-                  output_queue(std::move(_other.output_queue)),
-                  batches_output(std::move(_other.batches_output)),
-                  queue(std::exchange(_other.queue, nullptr)),
-                  execution_mode(_other.execution_mode),
-                  last_time_punct(_other.last_time_punct),
-                  delivered(std::move(_other.delivered)),
-                  received_inputs(_other.received_inputs),
-                  last_sent_wms(std::move(_other.last_sent_wms)) {}
+                  last_sent_wms(_other.last_sent_wms) {}
 
     // Destructor
     ~KeyBy_Emitter() override
@@ -125,94 +103,23 @@ public:
             assert(b == nullptr); // sanity check
         }
         if (size == 0) { // delete all the Single_t items in the recycling queue
-            if (queue != nullptr) {
-                Single_t<decltype(get_tuple_t_KeyExtr(key_extr))> *del_single = nullptr;
-                while (queue->pop((void **) &del_single)) {
-                    delete del_single;
-                }
-                delete queue; // delete the recycling queue
+            Single_t<tuple_t> *msg = nullptr;
+            while ((this->queue)->pop((void **) &msg)) {
+                delete msg;
             }
         }
         else { // delete all the batches in the recycling queue
-            if (queue != nullptr) {
-                Batch_t<decltype(get_tuple_t_KeyExtr(key_extr))> *del_batch = nullptr;
-                while (queue->pop((void **) &del_batch)) {
-                    delete del_batch;
-                }
-                delete queue; // delete the recycling queue
+            Batch_t<tuple_t> *batch = nullptr;
+            while ((this->queue)->pop((void **) &batch)) {
+                delete batch;
             }
         }  
-    }
-
-    // Copy Assignment Operator
-    KeyBy_Emitter &operator=(const KeyBy_Emitter &_other)
-    {
-        if (this != &_other) {
-            key_extr = _other.key_extr;
-            num_dests = _other.num_dests;
-            size = _other.size;
-            useTreeMode = _other.useTreeMode;
-            for (auto *b: batches_output) {
-                if (b != nullptr) {
-                    delete b;
-                }
-            }
-            batches_output.clear();
-            batches_output.insert(batches_output.end(), num_dests, nullptr);
-            execution_mode = _other.execution_mode;
-            last_time_punct = _other.last_time_punct;
-            delivered = _other.delivered;
-            received_inputs = _other.received_inputs;
-            last_sent_wms = _other.last_sent_wms;
-        }
-        return *this;
-    }
-
-    // Move Assignment Operator
-    KeyBy_Emitter &operator=(KeyBy_Emitter &&_other)
-    {
-        key_extr = std::move(_other.key_extr);
-        num_dests = _other.num_dests;
-        size = _other.size;
-        useTreeMode = _other.useTreeMode;
-        output_queue = std::move(_other.output_queue);
-        for (auto *b: batches_output) {
-            if (b != nullptr) {
-                delete b;
-            }
-        }
-        batches_output = std::move(_other.batches_output);
-        if (size == 0) { // delete all the Single_t items in the recycling queue
-            if (queue != nullptr) {
-                Single_t<decltype(get_tuple_t_KeyExtr(key_extr))> *del_single = nullptr;
-                while (queue->pop((void **) &del_single)) {
-                    delete del_single;
-                }
-                delete queue; // delete the recycling queue
-            }
-        }
-        else { // delete all the batches in the recycling queue
-            if (queue != nullptr) {
-                Batch_t<decltype(get_tuple_t_KeyExtr(key_extr))> *del_batch = nullptr;
-                while (queue->pop((void **) &del_batch)) {
-                    delete del_batch;
-                }
-                delete queue; // delete the recycling queue
-            }
-        }
-        queue = std::exchange(_other.queue, nullptr);
-        execution_mode = _other.execution_mode;
-        last_time_punct = _other.last_time_punct;
-        delivered = std::move(_other.delivered);
-        received_inputs = _other.received_inputs;
-        last_sent_wms = std::move(_other.last_sent_wms);
-        return *this;
     }
 
     // Create a clone of the emitter
     Basic_Emitter *clone() const override
     {
-        KeyBy_Emitter<key_extractor_func_t> *copy = new KeyBy_Emitter<key_extractor_func_t>(*this);
+        KeyBy_Emitter<keyextr_func_t> *copy = new KeyBy_Emitter<keyextr_func_t>(*this);
         return copy;
     }
 
@@ -242,9 +149,9 @@ public:
               ff::ff_monode *_node) override
     {
         received_inputs++;
-        decltype(get_tuple_t_KeyExtr(key_extr)) *tuple = reinterpret_cast<decltype(get_tuple_t_KeyExtr(key_extr)) *>(_out);
+        tuple_t *tuple = reinterpret_cast<tuple_t *>(_out);
         if (size == 0) { // no batching
-            Single_t<decltype(get_tuple_t_KeyExtr(key_extr))> *output = allocateSingle_t(std::move(*tuple), _identifier, _timestamp, _watermark, queue);
+            Single_t<tuple_t> *output = allocateSingle_t(std::move(*tuple), _identifier, _timestamp, _watermark, this->queue);
             routing(output, _node);
         }
         else { // batching
@@ -253,11 +160,10 @@ public:
     }
 
     // Emit method (in-place version)
-    void emit_inplace(void *_out,
-                      ff::ff_monode *_node) override
+    void emit_inplace(void *_out, ff::ff_monode *_node) override
     {
         received_inputs++;
-        Single_t<decltype(get_tuple_t_KeyExtr(key_extr))> *output = reinterpret_cast<Single_t<decltype(get_tuple_t_KeyExtr(key_extr))> *>(_out);
+        Single_t<tuple_t> *output = reinterpret_cast<Single_t<tuple_t> *>(_out);
         if (size == 0) { // no batching
             routing(output, _node);
         }
@@ -268,14 +174,13 @@ public:
     }
 
     // Routing method
-    void routing(Single_t<tuple_t> *_output,
-                 ff::ff_monode *_node)
+    void routing(Single_t<tuple_t> *_output, ff::ff_monode *_node)
     {
         if ((execution_mode == Execution_Mode_t::DEFAULT) && (received_inputs % WF_DEFAULT_WM_AMOUNT == 0)) { // check punctuaction generation logic
             generate_punctuation(_output->getWatermark(), _node);
         }
         auto key = key_extr(_output->tuple); // extract the key attribute of the tuple
-        size_t hashcode = std::hash<decltype(key)>()(key); // compute the hashcode of the key
+        size_t hashcode = std::hash<key_t>()(key); // compute the hashcode of the key
         size_t dest_id = hashcode % num_dests; // compute the destination identifier associated with the key attribute
         assert(last_sent_wms[dest_id] <= _output->getWatermark()); // sanity check
         last_sent_wms[dest_id] = _output->getWatermark(); // save the last watermark emitted to this destination
@@ -299,10 +204,10 @@ public:
             generate_punctuation(_watermark, _node);
         }
         auto key = key_extr(_tuple); // extract the key attribute of the tuple
-        size_t hashcode = std::hash<decltype(key)>()(key); // compute the hashcode of the key
+        size_t hashcode = std::hash<key_t>()(key); // compute the hashcode of the key
         size_t dest_id = hashcode % num_dests; // compute the destination identifier associated with the key attribute
         if (batches_output[dest_id] == nullptr) { // the batch must be allocated
-            batches_output[dest_id] = allocateBatch_CPU_t<decltype(get_tuple_t_KeyExtr(key_extr))>(size, queue);
+            batches_output[dest_id] = allocateBatch_CPU_t<tuple_t>(size, this->queue);
         }
         batches_output[dest_id]->addTuple(std::move(_tuple), _timestamp, _watermark);
         if (batches_output[dest_id]->getSize() == size) { // batch is complete and must be sent
@@ -321,13 +226,12 @@ public:
     }
 
     // Punctuation propagation method
-    void propagate_punctuation(uint64_t _watermark,
-                               ff::ff_monode * _node) override
+    void propagate_punctuation(uint64_t _watermark, ff::ff_monode * _node) override
     {
         flush(_node); // flush all the internal partially filled batches (if any)
         if (size == 0) { // no batching
-            tuple_t t; // create an empty tuple
-            Single_t<decltype(get_tuple_t_KeyExtr(key_extr))> *punc = allocateSingle_t(std::move(t), 0, 0, _watermark, queue);
+            tuple_t t; // create an empty tuple (default constructor needed!)
+            Single_t<tuple_t> *punc = allocateSingle_t(std::move(t), 0, 0, _watermark, this->queue);
             (punc->delete_counter).fetch_add(num_dests-1);
             assert((punc->fields).size() == 3); // sanity check
             (punc->fields).insert((punc->fields).end(), num_dests-1, (punc->fields)[2]); // copy the watermark (having one per destination)
@@ -344,8 +248,8 @@ public:
             }
         }
         else { // batching
-            tuple_t t; // create an empty tuple
-            Batch_CPU_t<decltype(get_tuple_t_KeyExtr(key_extr))> *punc = allocateBatch_CPU_t<decltype(get_tuple_t_KeyExtr(key_extr))>(size, queue);
+            tuple_t t; // create an empty tuple (default constructor needed!)
+            Batch_CPU_t<tuple_t> *punc = allocateBatch_CPU_t<tuple_t>(size, this->queue);
             punc->addTuple(std::move(t), 0, _watermark);
             (punc->delete_counter).fetch_add(num_dests-1);
             assert((punc->watermarks).size() == 1); // sanity check
@@ -365,8 +269,7 @@ public:
     }
 
     // Punctuation generation method
-    void generate_punctuation(uint64_t _watermark,
-                              ff::ff_monode *_node)
+    void generate_punctuation(uint64_t _watermark, ff::ff_monode *_node)
     {
         if (current_time_usecs() - last_time_punct >= WF_DEFAULT_WM_INTERVAL_USEC) { // check the end of the sample
             std::vector<int> idxs;
@@ -399,8 +302,8 @@ public:
                 return;
             }
             if (size == 0) { // no batching
-                tuple_t t; // create an empty tuple
-                Single_t<decltype(get_tuple_t_KeyExtr(key_extr))> *punc = allocateSingle_t(std::move(t), 0, 0, _watermark, queue);
+                tuple_t t; // create an empty tuple (default constructor needed!)
+                Single_t<tuple_t> *punc = allocateSingle_t(std::move(t), 0, 0, _watermark, this->queue);
                 (punc->delete_counter).fetch_add(idxs.size()-1);
                 assert((punc->fields).size() == 3); // sanity check
                 (punc->fields).insert((punc->fields).end(), num_dests-1, (punc->fields)[2]); // copy the watermark (having one per destination)
@@ -417,8 +320,8 @@ public:
                 }
             }
             else { // batching
-                tuple_t t; // create an empty tuple
-                Batch_CPU_t<decltype(get_tuple_t_KeyExtr(key_extr))> *punc = allocateBatch_CPU_t<decltype(get_tuple_t_KeyExtr(key_extr))>(size, queue);
+                tuple_t t; // create an empty tuple (default constructor needed!)
+                Batch_CPU_t<tuple_t> *punc = allocateBatch_CPU_t<tuple_t>(size, this->queue);
                 punc->addTuple(std::move(t), 0, _watermark);
                 (punc->delete_counter).fetch_add(idxs.size()-1);
                 assert((punc->watermarks).size() == 1); // sanity check
@@ -461,6 +364,10 @@ public:
             }
         }
     }
+
+    KeyBy_Emitter(KeyBy_Emitter &&) = delete; ///< Move constructor is deleted
+    KeyBy_Emitter &operator=(const KeyBy_Emitter &) = delete; ///< Copy assignment operator is deleted
+    KeyBy_Emitter &operator=(KeyBy_Emitter &&) = delete; ///< Move assignment operator is deleted
 };
 
 } // namespace wf

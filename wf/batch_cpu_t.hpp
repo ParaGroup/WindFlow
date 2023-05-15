@@ -25,11 +25,11 @@
  *  @file    batch_cpu_t.hpp
  *  @author  Gabriele Mencagli
  *  
- *  @brief Class implementing a batch containing data tuples
+ *  @brief Class implementing a batch containing data tuples accessible by CPU
  *  
  *  @section Batch_CPU_t (Description)
  *  
- *  Class implementing a batch containing data tuples.
+ *  Class implementing a batch containing data tuples accessible by CPU.
  */ 
 
 #ifndef BATCH_CPU_T_H
@@ -56,16 +56,12 @@ struct Batch_CPU_t: Batch_t<tuple_t>
         uint64_t timestamp;
 
         // Constructor I (copy semantics of the tuple)
-        batch_item_t(const tuple_t &_tuple,
-                     uint64_t _timestamp):
-                     tuple(_tuple),
-                     timestamp(_timestamp) {}
+        batch_item_t(const tuple_t &_tuple, uint64_t _timestamp):
+                     tuple(_tuple), timestamp(_timestamp) {}
 
         // Constructor II (move semantics of the tuple)
-        batch_item_t(tuple_t &&_tuple,
-                     uint64_t _timestamp):
-                     tuple(std::move(_tuple)),
-                     timestamp(_timestamp) {}
+        batch_item_t(tuple_t &&_tuple, uint64_t _timestamp):
+                     tuple(std::move(_tuple)), timestamp(_timestamp) {}
     };
     std::vector<batch_item_t> batch_data; // vector of batch items
     std::vector<uint64_t> watermarks; // vector of watermarks of the batch (one per destination receiving the batch)
@@ -74,8 +70,7 @@ struct Batch_CPU_t: Batch_t<tuple_t>
     bool isPunctuation; // flag true if the message is a punctuation, false otherwise
 
     // Constructor
-    Batch_CPU_t(size_t _reserved_size,
-                size_t _delete_counter=1):
+    Batch_CPU_t(size_t _reserved_size, size_t _delete_counter=1):
                 delete_counter(_delete_counter),
                 size(0),
                 isPunctuation(false)
@@ -93,43 +88,8 @@ struct Batch_CPU_t: Batch_t<tuple_t>
                 size(_other.size),
                 isPunctuation(_other.isPunctuation) {}
 
-    // Move Constructor
-    Batch_CPU_t(Batch_CPU_t &&_other): // do not move delete_counter
-                Batch_t<tuple_t>(std::move(_other)),
-                batch_data(std::move(_other.batch_data)),
-                watermarks(std::move(watermarks)),
-                delete_counter(1),
-                size(std::exchange(_other.size, 0)),
-                isPunctuation(_other.isPunctuation) {}
-
     // Destructor
     ~Batch_CPU_t() override = default;
-
-    // Copy Assignment Operator
-    Batch_CPU_t &operator=(const Batch_CPU_t &_other) // do not copy delete_counter
-    {
-        if (this != &_other) {
-            Batch_t<tuple_t>::operator=(_other);
-            batch_data = _other.batch_data;
-            watermarks = _other.watermarks;
-            delete_counter = 1;
-            size = _other.size;
-            isPunctuation = _other.isPunctuation;
-        }
-        return *this;
-    }
-
-    // Move Assignment Operator
-    Batch_CPU_t &operator=(Batch_CPU_t &&_other) // do not move delete_counter
-    {
-        Batch_t<tuple_t>::operator=(std::move(_other));
-        batch_data = std::move(_other.batch_data);
-        watermarks = std::move(_other.watermarks);
-        delete_counter = 1;
-        size = std::exchange(_other.size, 0);
-        isPunctuation = _other.isPunctuation;
-        return *this;
-    }
 
     // Check whether the batch can be deleted or not
     bool isDeletable() override
@@ -181,8 +141,7 @@ struct Batch_CPU_t: Batch_t<tuple_t>
     }
 
     // Set the watermark of the batch related to a specific destination _node_id
-    void setWatermark(uint64_t _wm,
-                      size_t _node_id=0) override
+    void setWatermark(uint64_t _wm, size_t _node_id=0) override
     {
         if(_node_id < watermarks.size()) {
             watermarks[_node_id] = _wm;
@@ -205,7 +164,7 @@ struct Batch_CPU_t: Batch_t<tuple_t>
             batch_data.emplace_back(_tuple, _timestamp);
         }
         size++;
-        assert(watermarks.size() == 1);
+        assert(watermarks.size() == 1); // sanity check
         if (watermarks[0] > _watermark) {
             watermarks[0] = _watermark;
         }
@@ -224,13 +183,13 @@ struct Batch_CPU_t: Batch_t<tuple_t>
             batch_data.emplace_back(std::move(_tuple), _timestamp);
         }
         size++;
-        assert(watermarks.size() == 1);
+        assert(watermarks.size() == 1); // sanity check
         if (watermarks[0] > _watermark) {
             watermarks[0] = _watermark;
         }
     }
 
-    // Reset the batch content
+    // Reset the batch
     void reset(size_t _delete_counter=1)
     {
         size = 0;
@@ -239,6 +198,10 @@ struct Batch_CPU_t: Batch_t<tuple_t>
         delete_counter = _delete_counter;
         isPunctuation = false;
     }
+
+    Batch_CPU_t(Batch_CPU_t &&) = delete; ///< Move constructor is deleted
+    Batch_CPU_t &operator=(const Batch_CPU_t &) = delete; ///< Copy assignment operator is deleted
+    Batch_CPU_t &operator=(Batch_CPU_t &&) = delete; ///< Move assignment operator is deleted
 };
 
 } // namespace wf

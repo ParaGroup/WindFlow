@@ -31,7 +31,8 @@
  *  @section Splitting_Emitter_GPU (Description)
  *  
  *  This file implements the splitting emitter in charge of splitting a MultiPipe.
- *  This version assumes to receive Batch_GPU_t messages.
+ *  This version assumes to receive Batch_GPU_t structures. Each input batch is
+ *  broadcasted (by copy) to all destination MultiPipes.
  */ 
 
 #ifndef SPLITTING_GPU_H
@@ -74,6 +75,7 @@ public:
 
     // Copy Constructor
     Splitting_Emitter_GPU(const Splitting_Emitter_GPU &_other):
+                          Basic_Emitter(_other),
                           num_dests(_other.num_dests),
                           num_dest_mps(_other.num_dest_mps)
     {
@@ -88,13 +90,6 @@ public:
         }
     }
 
-    // Move Constructor
-    Splitting_Emitter_GPU(Splitting_Emitter_GPU &&_other):
-                          num_dests(_other.num_dests),
-                          num_dest_mps(_other.num_dest_mps),
-                          emitters(std::move(_other.emitters)),
-                          recyle_descrs(std::exchange(_other.recyle_descrs, nullptr)) {}
-
     // Destructor
     ~Splitting_Emitter_GPU() override
     {
@@ -103,9 +98,9 @@ public:
         }
         for (int i=0; i<num_dest_mps; i++) {
             if (recyle_descrs[i].first != nullptr) { // delete all the batches in the recycling queue
-                Batch_t<tuple_t> *del_batch = nullptr;
-                while (recyle_descrs[i].first->pop((void **) &del_batch)) {
-                    delete del_batch;
+                Batch_t<tuple_t> *batch = nullptr;
+                while (recyle_descrs[i].first->pop((void **) &batch)) {
+                    delete batch;
                 }
                 delete recyle_descrs[i].first; // delete the recycling queue
             }
@@ -114,69 +109,6 @@ public:
             }
         }
         delete recyle_descrs;
-    }
-
-    // Copy Assignment Operator
-    Splitting_Emitter_GPU &operator=(const Splitting_Emitter_GPU &_other)
-    {
-        if (this != &_other) {
-            num_dests = _other.num_dests;
-            int old_num_dest_mps = num_dest_mps;
-            num_dest_mps = _other.num_dest_mps;
-            for (auto *e: emitters) {
-                delete e;
-            }
-            emitters.clear();
-            for (size_t i=0; i<(_other.emitters).size(); i++) { // deep copy of the emitters
-                emitters.push_back(((_other.emitters)[i])->clone());
-            }
-            for (int i=0; i<old_num_dest_mps; i++) {
-                if (recyle_descrs[i].first != nullptr) { // delete all the batches in the recycling queue
-                    Batch_t<tuple_t> *del_batch = nullptr;
-                    while (recyle_descrs[i].first->pop((void **) &del_batch)) {
-                        delete del_batch;
-                    }
-                    delete recyle_descrs[i].first; // delete the recycling queue
-                }
-                if (recyle_descrs[i].second != nullptr) {
-                    delete recyle_descrs[i].second;
-                }
-            }
-            delete recyle_descrs;
-            recyle_descrs = new recycle_t[num_dest_mps];
-            for (int i=0; i<num_dest_mps; i++) {
-                recyle_descrs[i].first = new ff::MPMC_Ptr_Queue();
-                (recyle_descrs[i].first)->init(DEFAULT_BUFFER_CAPACITY);
-                recyle_descrs[i].second = new std::atomic<int>(0);
-            }
-        }
-        return *this;
-    }
-
-    // Move Assignment Operator
-    Splitting_Emitter_GPU &operator=(Splitting_Emitter_GPU &&_other)
-    {
-        num_dests = _other.num_dests;
-        int old_num_dest_mps = num_dest_mps;
-        num_dest_mps = _other.num_dest_mps;
-        for (auto *e: emitters) {
-            delete e;
-        }
-        emitters = std::move(_other.emitters);
-        for (int i=0; i<old_num_dest_mps; i++) {
-            if (recyle_descrs[i].first != nullptr) { // delete all the batches in the recycling queue
-                Batch_t<tuple_t> *del_batch = nullptr;
-                while (recyle_descrs[i].first->pop((void **) &del_batch)) {
-                    delete del_batch;
-                }
-                delete recyle_descrs[i].first; // delete the recycling queue
-            }
-            if (recyle_descrs[i].second != nullptr) {
-                delete recyle_descrs[i].second;
-            }
-        }
-        delete recyle_descrs;
-        recyle_descrs = std::exchange(_other.recyle_descrs, nullptr);
     }
 
     // Create a clone of the emitter
@@ -215,8 +147,7 @@ public:
     }
 
     // Emit method (in-place version)
-    void emit_inplace(void *_out,
-                      ff::ff_monode *_node) override
+    void emit_inplace(void *_out, ff::ff_monode *_node) override
     {
         assert(num_dests == _node->get_num_outchannels()); // sanity check
         Batch_GPU_t<tuple_t> *input = reinterpret_cast<Batch_GPU_t<tuple_t> *>(_out);
@@ -232,8 +163,8 @@ public:
                                       copy_batch->cudaStream));
             gpuErrChk(cudaStreamSynchronize(copy_batch->cudaStream));
 #else
-            memcpy(copy_batch->data_u,
-                   input->data_u,
+            memcpy(copy_batch->data_gpu,
+                   input->data_gpu,
                    sizeof(batch_item_gpu_t<tuple_t>) * input->size);
             copy_batch->prefetch2GPU(false); // <-- this is not always the best choice!
 #endif
@@ -263,8 +194,7 @@ public:
     }
 
     // Punctuation propagation method
-    void propagate_punctuation(uint64_t _watermark,
-                               ff::ff_monode * _node) override
+    void propagate_punctuation(uint64_t _watermark, ff::ff_monode * _node) override
     {
         for (size_t i=0; i<emitters.size(); i++) {
             emitters[i]->propagate_punctuation(_watermark, _node); // call the logic of the emitter at position i
@@ -314,6 +244,10 @@ public:
     {
         return emitters.size();
     }
+
+    Splitting_Emitter_GPU(Splitting_Emitter_GPU &&) = delete; ///< Move constructor is deleted
+    Splitting_Emitter_GPU &operator=(const Splitting_Emitter_GPU &) = delete; ///< Copy assignment operator is deleted
+    Splitting_Emitter_GPU &operator=(Splitting_Emitter_GPU &&) = delete; ///< Move assignment operator is deleted
 };
 
 } // namespace wf

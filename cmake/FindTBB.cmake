@@ -1,4 +1,4 @@
-# Try to find INTEL TBB libraries
+# Try to find Intel TBB libraries
 
 if(NOT TBB_FIND_QUIETLY)
     set(_TBB_FIND_STATUS "Looking for TBB")

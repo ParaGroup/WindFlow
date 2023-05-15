@@ -45,11 +45,11 @@
 namespace wf {
 
 // class Forward_Emitter
-template<typename key_extractor_func_t>
+template<typename keyextr_func_t>
 class Forward_Emitter: public Basic_Emitter
 {
 private:
-    key_extractor_func_t key_extr; // functional logic to extract the key attribute from the tuple_t
+    keyextr_func_t key_extr; // functional logic to extract the key attribute from the tuple_t
     using tuple_t = decltype(get_tuple_t_KeyExtr(key_extr)); // extracting the tuple_t type and checking the admissible signatures
     size_t num_dests; // number of destinations connected in output to the emitter
     size_t size; // if >0 the emitter works in batched more, otherwise in a per-tuple basis
@@ -57,11 +57,10 @@ private:
     bool useTreeMode; // true if the emitter is used in tree-based mode
     std::vector<std::pair<void *, size_t>> output_queue; // vector of pairs (messages and destination identifiers)
     Batch_CPU_t<tuple_t> *batch_output; // pointer to the output batch (meaningful if size > 0)
-    ff::MPMC_Ptr_Queue *queue; // pointer to the recyling queue
 
 public:
     // Constructor
-    Forward_Emitter(key_extractor_func_t _key_extr,
+    Forward_Emitter(keyextr_func_t _key_extr,
                     size_t _num_dests,
                     size_t _size=0):
                     key_extr(_key_extr),
@@ -69,35 +68,17 @@ public:
                     size(_size),
                     idx_dest(0),
                     useTreeMode(false),
-                    batch_output(nullptr)
-    {
-        queue = new ff::MPMC_Ptr_Queue();
-        queue->init(DEFAULT_BUFFER_CAPACITY);
-    }
+                    batch_output(nullptr) {}
 
     // Copy Constructor
     Forward_Emitter(const Forward_Emitter &_other):
+                    Basic_Emitter(_other),
                     key_extr(_other.key_extr),
                     num_dests(_other.num_dests),
                     size(_other.size),
                     idx_dest(_other.idx_dest),
                     useTreeMode(_other.useTreeMode),
-                    batch_output(nullptr)
-    {
-        queue = new ff::MPMC_Ptr_Queue();
-        queue->init(DEFAULT_BUFFER_CAPACITY);
-    }
-
-    // Move Constructor
-    Forward_Emitter(Forward_Emitter &&_other):
-                    key_extr(std::move(_other.key_extr)),
-                    num_dests(_other.num_dests),
-                    size(_other.size),
-                    idx_dest(_other.idx_dest),
-                    useTreeMode(_other.useTreeMode),
-                    output_queue(std::move(_other.output_queue)),
-                    batch_output(std::exchange(_other.batch_output, nullptr)),
-                    queue(std::exchange(_other.queue, nullptr)) {}
+                    batch_output(nullptr) {}
 
     // Destructor
     ~Forward_Emitter() override
@@ -105,81 +86,23 @@ public:
         assert(output_queue.size() == 0); // sanity check
         assert(batch_output == nullptr); // sanity check
         if (size == 0) { // delete all the Single_t items in the recycling queue
-            if (queue != nullptr) {
-                Single_t<decltype(get_tuple_t_KeyExtr(key_extr))> *del_single = nullptr;
-                while (queue->pop((void **) &del_single)) {
-                    delete del_single;
-                }
-                delete queue; // delete the recycling queue
+            Single_t<tuple_t> *msg = nullptr;
+            while ((this->queue)->pop((void **) &msg)) {
+                delete msg;
             }
         }
         else { // delete all the batches in the recycling queue
-            if (queue != nullptr) {
-                Batch_t<decltype(get_tuple_t_KeyExtr(key_extr))> *del_batch = nullptr;
-                while (queue->pop((void **) &del_batch)) {
-                    delete del_batch;
-                }
-                delete queue; // delete the recycling queue
+            Batch_t<tuple_t> *batch = nullptr;
+            while ((this->queue)->pop((void **) &batch)) {
+                delete batch;
             }
         }
-    }
-
-    // Copy Assignment Operator
-    Forward_Emitter &operator=(const Forward_Emitter &_other)
-    {
-        if (this != &_other) {
-            key_extr = _other.key_extr;
-            num_dests = _other.num_dests;
-            size = _other.size;
-            idx_dest = _other.idx_dest;
-            useTreeMode = _other.useTreeMode;
-            if (batch_output != nullptr) {
-                delete batch_output;
-            }
-            batch_output = nullptr;
-        }
-        return *this;
-    }
-
-    // Move Assignment Operator
-    Forward_Emitter &operator=(Forward_Emitter &&_other)
-    {
-        key_extr = std::move(_other.key_extr);
-        num_dests = _other.num_dests;
-        size = _other.size;
-        idx_dest = _other.idx_dest;
-        useTreeMode = _other.useTreeMode;
-        output_queue = std::move(_other.output_queue);
-        if (batch_output != nullptr) {
-            delete batch_output;
-        }
-        batch_output = std::exchange(_other.batch_output, nullptr);
-        if (size == 0) { // delete all the Single_t items in the recycling queue
-            if (queue != nullptr) {
-                Single_t<decltype(get_tuple_t_KeyExtr(key_extr))> *del_single = nullptr;
-                while (queue->pop((void **) &del_single)) {
-                    delete del_single;
-                }
-                delete queue; // delete the recycling queue
-            }
-        }
-        else { // delete all the batches in the recycling queue
-            if (queue != nullptr) {
-                Batch_t<decltype(get_tuple_t_KeyExtr(key_extr))> *del_batch = nullptr;
-                while (queue->pop((void **) &del_batch)) {
-                    delete del_batch;
-                }
-                delete queue; // delete the recycling queue
-            }
-        }
-        queue = std::exchange(_other.queue, nullptr);
-        return *this;
     }
 
     // Create a clone of the emitter
     Basic_Emitter *clone() const override
     {
-        Forward_Emitter<key_extractor_func_t> *copy = new Forward_Emitter<key_extractor_func_t>(*this);
+        Forward_Emitter<keyextr_func_t> *copy = new Forward_Emitter<keyextr_func_t>(*this);
         return copy;
     }
 
@@ -208,9 +131,9 @@ public:
               uint64_t _watermark,
               ff::ff_monode *_node) override
     {
-        decltype(get_tuple_t_KeyExtr(key_extr)) *tuple = reinterpret_cast<decltype(get_tuple_t_KeyExtr(key_extr)) *>(_out);
+        tuple_t *tuple = reinterpret_cast<tuple_t *>(_out);
         if (size == 0) { // no batching
-            Single_t<decltype(get_tuple_t_KeyExtr(key_extr))> *output = allocateSingle_t(std::move(*tuple), _identifier, _timestamp, _watermark, queue);
+            Single_t<tuple_t> *output = allocateSingle_t(std::move(*tuple), _identifier, _timestamp, _watermark, this->queue);
             routing(output, _node);
         }
         else { // batching
@@ -219,10 +142,9 @@ public:
     }
 
     // Emit method (in-place version)
-    void emit_inplace(void *_out,
-                      ff::ff_monode *_node) override
+    void emit_inplace(void *_out, ff::ff_monode *_node) override
     {
-        Single_t<decltype(get_tuple_t_KeyExtr(key_extr))> *output = reinterpret_cast<Single_t<decltype(get_tuple_t_KeyExtr(key_extr))> *>(_out);
+        Single_t<tuple_t> *output = reinterpret_cast<Single_t<tuple_t> *>(_out);
         if (size == 0) { // no batching
             routing(output, _node);
         }
@@ -233,8 +155,7 @@ public:
     }
 
     // Routing method
-    void routing(Single_t<tuple_t> *_output,
-                 ff::ff_monode *_node)
+    void routing(Single_t<tuple_t> *_output, ff::ff_monode *_node)
     {
         if (!useTreeMode) { // real send
             _node->ff_send_out(_output);
@@ -252,7 +173,7 @@ public:
                          ff::ff_monode *_node)
     {
         if (batch_output == nullptr) {
-            batch_output = allocateBatch_CPU_t<decltype(get_tuple_t_KeyExtr(key_extr))>(size, queue);
+            batch_output = allocateBatch_CPU_t<tuple_t>(size, this->queue);
         }
         batch_output->addTuple(std::move(_tuple), _timestamp, _watermark);
         if (batch_output->getSize() == size) { // batch is ready to be sent
@@ -268,13 +189,12 @@ public:
     }
 
     // Punctuation propagation method
-    void propagate_punctuation(uint64_t _watermark,
-                               ff::ff_monode * _node) override
+    void propagate_punctuation(uint64_t _watermark, ff::ff_monode * _node) override
     {
         flush(_node); // flush the internal partially filled batch (if any)
         if (size == 0) { // no batching
-            tuple_t t; // create an empty tuple
-            Single_t<decltype(get_tuple_t_KeyExtr(key_extr))> *punc = allocateSingle_t(std::move(t), 0, 0, _watermark, queue);
+            tuple_t t; // create an empty tuple (default constructor needed!)
+            Single_t<tuple_t> *punc = allocateSingle_t(std::move(t), 0, 0, _watermark, this->queue);
             (punc->delete_counter).fetch_add(num_dests-1);
             assert((punc->fields).size() == 3); // sanity check
             (punc->fields).insert((punc->fields).end(), num_dests-1, (punc->fields)[2]); // copy the watermark (having one per destination)
@@ -289,8 +209,8 @@ public:
             }
         }
         else { // batching
-            tuple_t t; // create an empty tuple
-            Batch_CPU_t<decltype(get_tuple_t_KeyExtr(key_extr))> *punc = allocateBatch_CPU_t<decltype(get_tuple_t_KeyExtr(key_extr))>(size, queue);
+            tuple_t t; // create an empty tuple (default constructor needed!)
+            Batch_CPU_t<tuple_t> *punc = allocateBatch_CPU_t<tuple_t>(size, this->queue);
             punc->addTuple(std::move(t), 0, _watermark);
             (punc->delete_counter).fetch_add(num_dests-1);
             assert((punc->watermarks).size() == 1); // sanity check
@@ -324,6 +244,10 @@ public:
             }
         }
     }
+
+    Forward_Emitter(Forward_Emitter &&) = delete; ///< Move constructor is deleted
+    Forward_Emitter &operator=(const Forward_Emitter &) = delete; ///< Copy assignment operator is deleted
+    Forward_Emitter &operator=(Forward_Emitter &&) = delete; ///< Move assignment operator is deleted
 };
 
 } // namespace wf

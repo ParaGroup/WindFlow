@@ -1,4 +1,4 @@
-# Try to find librdkafka
+# Try to find librdkafka library
 
 macro(HEXCHAR2DEC VAR VAL)
     if(${VAL} MATCHES "[0-9]")

@@ -25,12 +25,12 @@
  *  @file    stats_record.hpp
  *  @author  Gabriele Mencagli
  *  
- *  @brief Record of statistics of the operator replica
+ *  @brief Record of statistics used by operator replicas
  *  
  *  @section Statistics Record (Description)
  *  
- *  This file implements the record of statistics gathered by a specific
- *  replica of an operator within a WindFlow application.
+ *  This file implements the record of statistics gathered by operator
+ *  replicas of WindFlow applications.
  */ 
 
 #ifndef STATS_RECORD_H
@@ -75,7 +75,7 @@ public:
     std::chrono::duration<double, std::micro> service_time; // average ideal service time (microseconds)
     std::chrono::duration<double, std::micro> eff_service_time; // effective service time (microseconds)
     bool isWinOP; // true if the replica belongs to a window-based operator
-    bool isGPUReplica; // true if the replica offloads the processing on a GPU device
+    bool isGpuOP; // true if the replica offloads the processing on a GPU device
     /* Variables for GPU replicas */
     uint64_t num_kernels = 0; // number of kernels calls
     uint64_t bytes_copied_hd = 0; // bytes copied from Host to Device
@@ -89,20 +89,20 @@ public:
                  start_time(std::chrono::system_clock::now()),
                  terminated(false),
                  isWinOP(false),
-                 isGPUReplica(false) {}
+                 isGpuOP(false) {}
 
     // Contructor II
     Stats_Record(std::string _nameOP,
                  std::string _nameReplica,
                  bool _isWinOP,
-                 bool _isGPUReplica):
+                 bool _isGpuOP):
                  nameOP(_nameOP),
                  nameReplica(_nameReplica),
                  start_time_string(return_current_time_and_date()),
                  start_time(std::chrono::system_clock::now()),
                  terminated(false),
                  isWinOP(_isWinOP),
-                 isGPUReplica(_isGPUReplica) {}
+                 isGpuOP(_isGpuOP) {}
 
     // Set the statistics recording as terminated
     void setTerminated()
@@ -148,7 +148,7 @@ public:
         writer.Double(service_time.count());
         writer.Key("Eff_Service_time_usec");
         writer.Double(eff_service_time.count());
-        if (isGPUReplica) {
+        if (isGpuOP) {
             writer.Key("Kernels_launched");
             writer.Uint64(num_kernels);
             writer.Key("Bytes_H2D");

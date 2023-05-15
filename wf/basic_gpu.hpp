@@ -50,20 +50,20 @@ template<typename tuple_t>
 struct Batch_GPU_t;
 
 /// Forward declaration of the Map_GPU operator
-template<typename mapgpu_func_t, typename key_extractor_func_t>
+template<typename map_func_gpu_t, typename keyextr_func_gpu_t>
 class Map_GPU;
 
 /// Forward declaration of the Filter_GPU operator
-template<typename filtergpu_func_t, typename key_extractor_func_t>
+template<typename filter_func_gpu_t, typename keyextr_func_gpu_t>
 class Filter_GPU;
 
 /// Forward declaration of the Reduce_GPU operator
-template<typename reducegpu_func_t, typename key_extractor_func_t>
+template<typename reduce_func_gpu_t, typename keyextr_func_gpu_t>
 class Reduce_GPU;
 
-/// Forward declaration of the FFAT_Aggregator_GPU operator
-template<typename liftgpu_func_t, typename combgpu_func_t, typename key_extractor_func_t>
-class FFAT_Aggregator_GPU;
+/// Forward declaration of the Ffat_Windows_GPU operator
+template<typename lift_func_gpu_t, typename comb_func_gpu_t, typename keyextr_func_gpu_t>
+class Ffat_Windows_GPU;
 
 //@cond DOXY_IGNORE
 
@@ -132,7 +132,7 @@ struct FullGPUMemoryException: public std::exception
 template<typename tuple_t>
 struct batch_item_gpu_t
 {
-    tuple_t tuple;
+    tuple_t tuple; // default constructible
     uint64_t timestamp;
 
     // Constructor
@@ -179,7 +179,7 @@ struct wrapper_state_t
     wrapper_state_t()
     {
         gpuErrChk(cudaMalloc(&state_gpu, sizeof(state_t)));
-        Build_State_Kernel<<<1, WF_GPU_THREADS_PER_BLOCK>>>(state_gpu); // use the default CUDA stream!
+        Build_State_Kernel<<<1, WF_GPU_THREADS_PER_BLOCK>>>(state_gpu); // we use the default CUDA stream!
         gpuErrChk(cudaPeekAtLastError());
         gpuErrChk(cudaDeviceSynchronize());
     }
@@ -234,8 +234,7 @@ struct wrapper_state_t
 
 // Function to create a window result on GPU
 template<typename result_t, typename key_t>
-__device__ inline result_t create_win_result_t_gpu(key_t _key,
-                                                   uint64_t _id=0)
+__host__ __device__ inline result_t create_win_result_t_gpu(key_t _key, uint64_t _id=0)
 {
     if constexpr (std::is_same<key_t, empty_key_t>::value) { // case without key
         result_t res(_id); // constructor with id parameter

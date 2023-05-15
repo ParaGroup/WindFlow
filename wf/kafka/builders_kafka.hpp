@@ -124,8 +124,8 @@ struct vectorTopicOffsets
  *  
  *  Builder class to ease the creation of the Kafka_Source operator.
  */ 
-template<typename kafka_deser_func_t>
-class KafkaSource_Builder
+template<typename kafka_deser_func_t, typename key_t=empty_key_t>
+class KafkaSource_Builder: public Basic_Builder<KafkaSource_Builder, kafka_deser_func_t, key_t>
 {
 private:
     kafka_deser_func_t func; // deserialization logic of the Kafka_Source
@@ -139,10 +139,7 @@ private:
     static_assert(std::is_default_constructible<result_t>::value,
         "WindFlow Compilation Error - result_t type must be default constructible (KafkaSource_Builder):\n");
     using kafka_source_t = Kafka_Source<kafka_deser_func_t>; // type of the Kafka_Source to be created by the builder
-    using closing_func_t = std::function<void(KafkaRuntimeContext&)>; // type of the closing functional logic
-    std::string name = "kafka_source"; // name of the Kafka_Source
-    size_t parallelism = 1; // parallelism of the Kafka_Source
-    size_t outputBatchSize = 0; // output batch size of the Kafka_Source
+    using kafka_closing_func_t = std::function<void(KafkaRuntimeContext&)>; // type of the closing functional logic
     stringLabels broker_names; // struct containing the broker names
     std::string brokers; // concatenated string with broker names
     std::string groupid; // group identifier of the Kafka_Souce
@@ -152,67 +149,35 @@ private:
     std::vector<int> offsets; // vector of offsets
     vectorLabels topic_values; // struct containing the topic names
     std::vector<std::string> topics; // vector of topic names
-    closing_func_t closing_func = [](KafkaRuntimeContext &r) -> void { return; }; // closing function logic of the Kafka_Source
+    kafka_closing_func_t kafka_closing_func = [](KafkaRuntimeContext &r) -> void { return; }; // closing function logic of the Kafka_Source
 
 public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _func functional logic of the Kafka_Source (a function or a callable type)
+     *  \param _func functional logic of the Kafka_Source (a function or any callable type)
      */ 
     KafkaSource_Builder(kafka_deser_func_t _func):
                         func(_func) {}
 
-    /** 
-     *  \brief Set the name of the Kafka_Source
-     *  
-     *  \param _name of the Kafka_Source
-     *  \return a reference to the builder object
-     */ 
-    KafkaSource_Builder<kafka_deser_func_t> &withName(std::string _name)
-    {
-        name = _name;
-        return *this;
-    }
-
-    /** 
-     *  \brief Set the output batch size of the Kafka_Source
-     *  
-     *  \param _outputBatchSize number of outputs per batch (zero means no batching)
-     *  \return a reference to the builder object
-     */ 
-    KafkaSource_Builder<kafka_deser_func_t> &withOutputBatchSize(size_t _outputBatchSize)
-    {
-        outputBatchSize = _outputBatchSize;
-        return *this;
-    }
+    /// Delete withClosingFunction method
+    template<typename closing_F_t>
+    KafkaSource_Builder<kafka_deser_func_t> &withClosingFunction(closing_F_t _closing_func) = delete;
 
     /** 
      *  \brief Set the closing functional logic used by the Kafka_Source
      *  
-     *  \param _closing_func closing functional logic (a function or a callable type)
+     *  \param _kafka_closing_func closing functional logic (a function or any callable type)
      *  \return a reference to the builder object
      */ 
-    template<typename closing_F_t>
-    KafkaSource_Builder<kafka_deser_func_t> &withClosingFunction(closing_F_t _closing_func)
+    template<typename kafka_closing_F_t>
+    auto &withKafkaClosingFunction(kafka_closing_F_t _kafka_closing_func)
     {
         // static assert to check the signature
-        static_assert(!std::is_same<decltype(check_kafka_closing_t(_closing_func)), std::false_type>::value,
-            "WindFlow Compilation Error - unknown signature passed to withClosingFunction (KafkaSource_Builder):\n"
+        static_assert(!std::is_same<decltype(check_kafka_closing_t(_kafka_closing_func)), std::false_type>::value,
+            "WindFlow Compilation Error - unknown signature passed to withKafkaClosingFunction (KafkaSource_Builder):\n"
             "  Candidate : void(KafkaRuntimeContext &)\n");
-        closing_func = _closing_func;
-        return *this;
-    }
-
-    /** 
-     *  \brief Set the parallelism of the Kafka_Source
-     *  
-     *  \param _parallelism of the Kafka_Source
-     *  \return a reference to the builder object
-     */ 
-    KafkaSource_Builder<kafka_deser_func_t> &withParallelism(size_t _parallelism)
-    {
-        parallelism = _parallelism;
+        kafka_closing_func = _kafka_closing_func;
         return *this;
     }
 
@@ -223,7 +188,7 @@ public:
      *  \return a reference to the builder object
      */ 
     template<typename G, typename... Args>
-    KafkaSource_Builder<kafka_deser_func_t> &withTopics(G first, Args... Ts)
+    auto &withTopics(G first, Args... Ts)
     {
         topic_values.add_strings(first, Ts...);
         topics = topic_values.strs;
@@ -237,7 +202,7 @@ public:
      *  \return a reference to the builder object
      */ 
     template<typename O, typename... OSets>
-    KafkaSource_Builder<kafka_deser_func_t> &withOffsets(O first, OSets... Os)
+    auto &withOffsets(O first, OSets... Os)
     {
         offset_values.add_ints(first, Os...);
         offsets = offset_values.offsets;
@@ -251,7 +216,7 @@ public:
      *  \return a reference to the builder object
      */ 
     template<typename H, typename... Args>
-    KafkaSource_Builder<kafka_deser_func_t> &withBrokers(H first, Args... Ts)
+    auto &withBrokers(H first, Args... Ts)
     {
         broker_names.add_strings(first, Ts...);
         broker_names.strs.pop_back(); // delete the last char
@@ -266,7 +231,7 @@ public:
      *  \param _groupid of the consumer
      *  \return a reference to the builder object
      */ 
-    KafkaSource_Builder<kafka_deser_func_t> &withGroupID(std::string _groupid)
+    auto &withGroupID(std::string _groupid)
     {
         groupid = _groupid;
         return *this;
@@ -278,7 +243,7 @@ public:
      *  \param _strat string defining the assignment strategy
      *  \return a reference to the builder object
      */ 
-    KafkaSource_Builder<kafka_deser_func_t> &withAssignmentPolicy(std::string _strat)
+    auto &withAssignmentPolicy(std::string _strat)
     {
         strat = _strat;
         return *this;
@@ -290,7 +255,7 @@ public:
      *  \param _idelTime idle period (in milliseconds)
      *  \return a reference to the builder object
      */ 
-    KafkaSource_Builder<kafka_deser_func_t> &withIdleness(std::chrono::milliseconds _idleTime)
+    auto &withIdleness(std::chrono::milliseconds _idleTime)
     {
         idleTime = _idleTime.count();
         return *this;
@@ -301,19 +266,19 @@ public:
      *  
      *  \return a new Kafka_Source instance
      */ 
-    kafka_source_t build()
+    auto build()
     {
         return kafka_source_t(func,
-                              name,
-                              outputBatchSize,
+                              this->name,
+                              this->outputBatchSize,
                               brokers,
                               topics,
                               groupid,
                               strat,
                               idleTime,
-                              parallelism,
+                              this->parallelism,
                               offsets,
-                              closing_func);
+                              kafka_closing_func);
     }
 };
 
@@ -325,7 +290,7 @@ public:
  *  Builder class to ease the creation of the Kafka_Sink operator.
  */ 
 template<typename kafka_ser_func_t, typename key_t=empty_key_t>
-class KafkaSink_Builder
+class KafkaSink_Builder: public Basic_Builder<KafkaSink_Builder, kafka_ser_func_t, key_t>
 {
 private:
     template<typename T1, typename T2> friend class KafkaSink_Builder;
@@ -339,14 +304,12 @@ private:
     // static assert to check that the result_t type must be default constructible
     static_assert(std::is_default_constructible<tuple_t>::value,
         "WindFlow Compilation Error - tuple_t type must be default constructible (KafkaSink_Builder):\n");
-    using key_extractor_func_t = std::function<key_t(const tuple_t&)>; // type of the key extractor
-    using kafka_sink_t = Kafka_Sink<kafka_ser_func_t, key_extractor_func_t>; // type of the Kafka_Sink to be created by the builder
+    using keyextr_func_t = std::function<key_t(const tuple_t&)>; // type of the key extractor
+    using kafka_sink_t = Kafka_Sink<kafka_ser_func_t, keyextr_func_t>; // type of the Kafka_Sink to be created by the builder
     using kafka_closing_func_t = std::function<void(wf::KafkaRuntimeContext&)>; // type of the closing functional logic
-    std::string name = "kafka_sink"; // name of the Kafka_Sink
-    size_t parallelism = 1; // parallelism of the Kafka_Sink
     Routing_Mode_t input_routing_mode = Routing_Mode_t::FORWARD; // routing mode of inputs to the Kafka_Sink
-    key_extractor_func_t key_extr = [](const tuple_t &t) -> key_t { return key_t(); }; // key extractor
-    kafka_closing_func_t closing_func = [](KafkaRuntimeContext &r) -> void { return; }; // closing functional logic
+    keyextr_func_t key_extr = [](const tuple_t &t) -> key_t { return key_t(); }; // key extractor
+    kafka_closing_func_t kafka_closing_func = [](KafkaRuntimeContext &r) -> void { return; }; // closing functional logic
     stringLabels broker_names; // struct containing the topic names
     std::string brokers; // string with the topic names
 
@@ -354,49 +317,29 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _func functional logic of the Kafka_Sink (a function or a callable type)
+     *  \param _func functional logic of the Kafka_Sink (a function or any callable type)
      */ 
     KafkaSink_Builder(kafka_ser_func_t _func):
                       func(_func) {}
 
-    /** 
-     *  \brief Set the name of the Kafka_Sink
-     *  
-     *  \param _name of the Kafka_Sink
-     *  \return a reference to the builder object
-     */ 
-    KafkaSink_Builder<kafka_ser_func_t, key_t> &withName(std::string _name)
-    {
-        name = _name;
-        return *this;
-    }
+    /// Delete withClosingFunction method
+    template<typename closing_F_t>
+    KafkaSink_Builder<kafka_ser_func_t, key_t> &withClosingFunction(closing_F_t _closing_func) = delete;
 
     /** 
      *  \brief Set the closing functional logic used by the Kafka_Sink
      *  
-     *  \param _closing_func closing functional logic (a function or a callable type)
+     *  \param _closing_func closing functional logic (a function or any callable type)
      *  \return a reference to the builder object
      */ 
-    template<typename closing_F_t>
-    KafkaSink_Builder<kafka_ser_func_t, key_t> &withClosingFunction(closing_F_t _closing_func)
+    template<typename kafka_closing_F_t>
+    auto &withKafkaClosingFunction(kafka_closing_F_t _kafka_closing_func)
     {
         // static assert to check the signature
-        static_assert(!std::is_same<decltype(check_kafka_closing_t(_closing_func)), std::false_type>::value,
+        static_assert(!std::is_same<decltype(check_kafka_closing_t(_kafka_closing_func)), std::false_type>::value,
             "WindFlow Compilation Error - unknown signature passed to withClosingFunction (KafkaSink_Builder):\n"
             "  Candidate : void(KafkaRuntimeContext &)\n");
-        closing_func = _closing_func;
-        return *this;
-    }
-
-    /** 
-     *  \brief Set the parallelism
-     *  
-     *  \param _parallelism for the Kafka_Sink
-     *  \return a reference to the builder object
-     */ 
-    KafkaSink_Builder<kafka_ser_func_t> &withParallelism(size_t _parallelism)
-    {
-        parallelism = _parallelism;
+        kafka_closing_func = _kafka_closing_func;
         return *this;
     }
 
@@ -407,7 +350,7 @@ public:
      *  \return a reference to the builder object
      */ 
     template<typename H, typename... Args>
-    KafkaSink_Builder<kafka_ser_func_t> &withBrokers(H first, Args... Ts)
+    auto &withBrokers(H first, Args... Ts)
     {
         broker_names.add_strings(first, Ts...);
         broker_names.strs.pop_back(); // delete the last char
@@ -419,11 +362,11 @@ public:
     /** 
      *  \brief Set the KEYBY routing mode of inputs to the Kafka_Sink
      *  
-     *  \param _key_extr key extractor functional logic (a function or a callable type)
+     *  \param _key_extr key extractor functional logic (a function or any callable type)
      *  \return a new builder object with the right key type
      */ 
-    template<typename new_key_extractor_func_t>
-    auto withKeyBy(new_key_extractor_func_t _key_extr)
+    template<typename new_keyextr_func_t>
+    auto withKeyBy(new_keyextr_func_t _key_extr)
     {
         // static assert to check the signature
         static_assert(!std::is_same<decltype(get_tuple_t_KeyExtr(_key_extr)), std::false_type>::value,
@@ -440,30 +383,49 @@ public:
         static_assert(std::is_default_constructible<new_key_t>::value,
             "WindFlow Compilation Error - key type must be default constructible (KafkaSink_Builder):\n");
         KafkaSink_Builder<kafka_ser_func_t, new_key_t> new_builder(func);
-        new_builder.name = name;
-        new_builder.parallelism = parallelism;
+        new_builder.name = this->name;
+        new_builder.parallelism = this->parallelism;
         new_builder.input_routing_mode = Routing_Mode_t::KEYBY;
         new_builder.key_extr = _key_extr;
-        new_builder.closing_func = closing_func;
+        new_builder.kafka_closing_func = kafka_closing_func;
         new_builder.broker_names = broker_names;
         new_builder.brokers = brokers;
         return new_builder;
     }
 
     /** 
+     *  \brief Set the REBALANCING routing mode of inputs to the Kafka_Sink
+     *         (it forces a re-shuffling before this new operator)
+     *  
+     *  \return a reference to the builder object
+     */ 
+    auto &withRebalancing()
+    {
+        if (input_routing_mode == Routing_Mode_t::KEYBY) {
+            std::cerr << RED << "WindFlow Error: wrong use of withRebalancing() in the KafkaSink_Builder" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        input_routing_mode = Routing_Mode_t::REBALANCING;
+        return *this;
+    }
+
+    /// Delete withOutputBatchSize method
+    KafkaSink_Builder<kafka_ser_func_t> &withOutputBatchSize(size_t _outputBatchSize) = delete;
+
+    /** 
      *  \brief Create the Kafka_Sink
      *  
      *  \return a new Kafka_Sink instance
      */ 
-    kafka_sink_t build()
+    auto build()
     {
         return kafka_sink_t(func,
                             key_extr,
-                            parallelism,
+                            this->parallelism,
                             brokers,
-                            name,
+                            this->name,
                             input_routing_mode,
-                            closing_func);
+                            kafka_closing_func);
     }
 };
 

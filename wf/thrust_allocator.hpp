@@ -53,11 +53,25 @@ namespace wf {
 // class Thurst_Allocator
 class Thurst_Allocator
 {
+private:
+    typedef std::multimap<std::ptrdiff_t, char*> free_blocks_type; // multimap of the free blocks
+    typedef std::map<char*, std::ptrdiff_t> allocated_blocks_type; // hashmap of the allocated blocks
+    free_blocks_type free_blocks;
+    allocated_blocks_type allocated_blocks;
+
+    // Free all the blocks of the allocator (both free and used ones)
+    void free_all()
+    { 
+        for (free_blocks_type::iterator i = free_blocks.begin(); i != free_blocks.end(); i++) {
+            thrust::cuda::free(thrust::cuda::pointer<char>(i->second)); // transform the pointer to cuda::pointer before calling cuda::free
+        }
+        for (allocated_blocks_type::iterator i = allocated_blocks.begin(); i != allocated_blocks.end(); i++) {
+            thrust::cuda::free(thrust::cuda::pointer<char>(i->first)); // transform the pointer to cuda::pointer before calling cuda::free
+        }
+    }
+
 public:
     typedef char value_type; // value_type alias
-
-    // Constructor
-    Thurst_Allocator() {}
 
     // Destructor
     ~Thurst_Allocator()
@@ -94,23 +108,6 @@ public:
         std::ptrdiff_t num_bytes = iter->second;
         allocated_blocks.erase(iter);
         free_blocks.insert(std::make_pair(num_bytes, ptr)); // insert the block into the free blocks map
-    }
-
-private:
-    typedef std::multimap<std::ptrdiff_t, char*> free_blocks_type; // multimap of the free blocks
-    typedef std::map<char*, std::ptrdiff_t> allocated_blocks_type; // hashmap of the allocated blocks
-    free_blocks_type free_blocks;
-    allocated_blocks_type allocated_blocks;
-
-    // Free all the blocks of the allocator (both free and used ones)
-    void free_all()
-    { 
-        for (free_blocks_type::iterator i = free_blocks.begin(); i != free_blocks.end(); i++) {
-            thrust::cuda::free(thrust::cuda::pointer<char>(i->second)); // transform the pointer to cuda::pointer before calling cuda::free
-        }
-        for (allocated_blocks_type::iterator i = allocated_blocks.begin(); i != allocated_blocks.end(); i++) {
-            thrust::cuda::free(thrust::cuda::pointer<char>(i->first)); // transform the pointer to cuda::pointer before calling cuda::free
-        }
     }
 };
 

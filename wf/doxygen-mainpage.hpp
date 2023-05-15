@@ -4,9 +4,9 @@
  * 
  * WindFlow is a C++17 library for parallel data stream processing targeting heterogeneous shared-memory architectures
  * equipped with multi-core CPUs and NVIDIA GPUs. The library provides traditional stream processing operators like map,
- * flatmap, filter, fold/reduce as well as sliding-window operators. The API allows building streaming applications through
+ * flatmap, filter, reduce as well as window-based operators. The API allows building streaming applications through
  * the MultiPipe and the PipeGraph programming constructs. The first is used to create parallel pipelines, while the second
- * one allows several MultiPipe instances to be interconnected through merge and split operations, in ordee to create complex
+ * one allows several MultiPipe instances to be interconnected through merge and split operations, in order to create complex
  * directed acyclic graphs of interconnected operators.
  * 
  * WindFlow does not support streaming analytics applications only (e.g., the ones written with relational algebra query languages,

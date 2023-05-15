@@ -207,7 +207,7 @@ class Map_Functor_GPU
 {
 public:
     // operator()
-    __device__ void operator()(tuple_t &t)
+    __host__ __device__ void operator()(tuple_t &t)
     {
         t.value = t.value + 2;
     }
@@ -218,7 +218,7 @@ class Map_Functor_GPU_KB
 {
 public:
     // operator()
-    __device__ void operator()(tuple_t &t, map_state_t &state)
+    __host__ __device__ void operator()(tuple_t &t, map_state_t &state)
     {
         state.counter++;
         t.value++;
@@ -292,24 +292,13 @@ public:
 };
 
 // Lift functor
-class Lift_Functor
+class Lift_Functor_GPU
 {
 public:
     // operator()
-    void operator()(const tuple_t &tuple, result_t &result)
+    __host__ __device__ void operator()(const tuple_t &tuple, result_t &result)
     {
         result.value = tuple.value;
-    }
-};
-
-// Combine functor
-class Comb_Functor
-{
-public:
-    // operator()
-    void operator()(const result_t &input1, const result_t &input2, result_t &output)
-    {
-        output.value = input1.value + input2.value;
     }
 };
 

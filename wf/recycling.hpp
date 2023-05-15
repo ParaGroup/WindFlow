@@ -117,8 +117,7 @@ inline Single_t<tuple_t> *allocateSingle_t(tuple_t &&_tuple, // universal refere
 
 // Allocate a Batch_CPU_t (trying to recycle an old one if possible)
 template<typename tuple_t>
-inline Batch_CPU_t<tuple_t> *allocateBatch_CPU_t(size_t _reserved_size,
-                                                 ff::MPMC_Ptr_Queue *_queue)
+inline Batch_CPU_t<tuple_t> *allocateBatch_CPU_t(size_t _reserved_size, ff::MPMC_Ptr_Queue *_queue)
 {
     Batch_CPU_t<tuple_t> *batch_input = nullptr;
 #if !defined (WF_NO_RECYCLING)

@@ -3,17 +3,17 @@
 #################################################################################################
 
 This file lists all the possible signatures that can be used to create WindFlow operators. In case
-you provide a wrong signature during the creation of an operator (through its builder), you receive
-a specific error message during the compilation phase (through some static asserts).
+you provide a functional logic having a wrong signature during the creation of an operator (through
+its builder), you receive a specific error message during the compilation phase (through some static
+asserts).
 
 For basic and window-based operators, the functional logic, as well as the key extractor and the
 closing logic can be provided as functions, lambdas or functor objects providing operator() with
 the right signatures.
 
-For GPU operators, the functional logic must be provided as a __host__ __device__ lambda or through
-a functor object exposing a __device__ operator() method with the right signature. The key extractor
-logic must be provided using a __host__ __device__ lambda or through a functor object with the right
-__host__ __device__ operator() method.
+For GPU operators, the functional logic and the key extractor logic must be provided as a __host__
+__device__ lambda or through a functor object exposing a __host__ __device__ operator() method
+with the right signatures.
 
 SOURCE
 ------
@@ -32,8 +32,8 @@ bool(tuple_t &, RuntimeContext &);
 
 FILTER_GPU
 ----------
-[__host__] __device__ bool(tuple_t &);
-[__host__] __device__ bool(tuple_t &, state_t &);
+__host__ __device__ bool(tuple_t &);
+__host__ __device__ bool(tuple_t &, state_t &);
 
 MAP
 ---
@@ -44,8 +44,8 @@ result_t(const tuple_t &, RuntimeContext &);
 
 MAP_GPU
 -------
-[__host__] __device__ void(tuple_t &);
-[__host__] __device__ void(tuple_t &, state_t &);
+__host__ __device__ void(tuple_t &);
+__host__ __device__ void(tuple_t &, state_t &);
 
 FLATMAP
 -------
@@ -59,10 +59,10 @@ void(const tuple_t &, result_t &, RuntimeContext &);
 
 REDUCE_GPU
 ----------
-[__host__] __device__ tuple_t (const tuple_t &, const tuple_t &);
+__host__ __device__ tuple_t(const tuple_t &, const tuple_t &);
 
-KEYED_WINDOWS, PARALLEL_WINDOWS
--------------------------------
+KEYED_WINDOWS and PARALLEL_WINDOWS
+----------------------------------
 void(const Iterable<tuple_t> &, result_t &);
 void(const Iterable<tuple_t> &, result_t &, RuntimeContext &);
 void(const tuple_t &, result_t &);
@@ -100,8 +100,8 @@ The corresponding builder needs two parameters (for the MAP and REDUCE logics) w
     void(const tuple_t &, result_t &);
     void(const tuple_t &, result_t &, RuntimeContext &);
 
-FFAT_AGGREGATOR
----------------
+FFAT_Windows
+------------
 The corresponding builder needs two parameters (for the lift and combine logics) with the following accepted signatures:
 
  * Lift
@@ -112,12 +112,12 @@ The corresponding builder needs two parameters (for the lift and combine logics)
     void(const result_t &, const result_t &, result_t &);
     void(const result_t &, const result_t &, result_t &, RuntimeContext &);
 
-FFAT_AGGREGATOR_GPU
--------------------
+FFAT_Windows_GPU
+----------------
 The corresponding builder needs two parameters (for the lift and combine logics) with the following accepted signatures:
 
  * Lift
-    void(const tuple_t &, result_t &);
+    __host__ __device__ void(const tuple_t &, result_t &);
 
  * Combine
     __host__ __device__ void(const result_t &, const result_t &, result_t &);
@@ -144,8 +144,11 @@ void(KafkaRuntimeContext &);
 
 KEY EXTRACTOR
 -------------
-key_t(const tuple_t &); // for all the CPU operators
-__host__ __device__ key_t(const tuple_t &); // only for GPU operators
+key_t(const tuple_t &); -> for CPU operators
+__host__ __device__ key_t(const tuple_t &); // for GPU operators
+
+Nota bene: for GPU operators, the user must provide a __device__ implementation of
+operator()== and operator()< functions defined for the key type key_t.
 
 SPLITTING LOGIC
 ---------------
@@ -154,4 +157,4 @@ std::vector<integral_t>(const tuple_t &);
 integral_t(tuple_t &);
 std::vector<integral_t>(tuple_t &);
 
-Where integral_t is any C++ integral type (e.g., short, int, long, and so forth).
+Nota bene: integral_t is any C++ integral type (e.g., short, int, long, and so forth).

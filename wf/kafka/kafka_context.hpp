@@ -58,8 +58,8 @@ namespace wf {
 class KafkaRuntimeContext: public RuntimeContext
 {
 private:
-    template<typename T> friend class KafkaSource_Replica; // friendship with KafkaSource_Replica class
-    template<typename T> friend class KafkaSink_Replica; // friendship with KafkaSink_Replica class
+    template<typename T> friend class KafkaSource_Replica;
+    template<typename T> friend class KafkaSink_Replica;
     RdKafka::KafkaConsumer *consumer; // pointer to the consumer object
     RdKafka::Producer *producer; // pointer to the producer object
 
@@ -79,7 +79,9 @@ public:
     /// Constructor
     KafkaRuntimeContext(size_t _parallelism,
                         size_t _index):
-                        RuntimeContext(_parallelism, _index) {}
+                        RuntimeContext(_parallelism, _index),
+                        consumer(nullptr),
+                        producer(nullptr) {}
 
     /** 
      *  \brief Get the pointer to the consumer object

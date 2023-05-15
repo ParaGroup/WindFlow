@@ -47,14 +47,15 @@
 namespace wf {
 
 // class Ordering_Collector
-template<typename key_extractor_func_t>
+template<typename keyextr_func_t>
 class Ordering_Collector: public ff::ff_minode
 {
 private:
     template<typename tuple_t> class Comparator_t; // forward declaration of the inner struct Comparator_t
-    key_extractor_func_t key_extr; // key extractor
+    keyextr_func_t key_extr; // key extractor
     using tuple_t = decltype(get_tuple_t_KeyExtr(key_extr)); // extracting the tuple_t type and checking the admissible singatures
     using key_t = decltype(get_key_t_KeyExtr(key_extr)); // extracting the key_t type and checking the admissible singatures
+
     struct Key_Descriptor // struct of the key descriptor
     {
         std::vector<uint64_t> maxs; // maximum identifiers/timestamps for each input stream (key basis)
@@ -67,6 +68,7 @@ private:
                        maxs(_num_inputs, 0),
                        queue(Comparator_t<tuple_t>(_ordering_mode)) {}
     };
+
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table mapping keys onto key descriptors
     Execution_Mode_t execution_mode; // execution mode of the PipeGraph
     ordering_mode_t ordering_mode; // ordering mode used by the Ordering_Collector
@@ -124,7 +126,7 @@ private:
 
 public:
     // Constructor
-    Ordering_Collector(key_extractor_func_t _key_extr,
+    Ordering_Collector(keyextr_func_t _key_extr,
                        ordering_mode_t _ordering_mode,
                        Execution_Mode_t _execution_mode,
                        size_t _id_collector):
@@ -154,7 +156,7 @@ public:
     // svc method (utilized by the FastFlow runtime)
     void *svc(void *_in) override
     {
-        Single_t<decltype(get_tuple_t_KeyExtr(key_extr))> *input = reinterpret_cast<Single_t<decltype(get_tuple_t_KeyExtr(key_extr))> *>(_in); // cast the input to a Single_t structure
+        Single_t<tuple_t> *input = reinterpret_cast<Single_t<tuple_t> *>(_in); // cast the input to a Single_t structure
         size_t source_id = this->get_channel_id(); // get the index of the source's stream
         if (ordering_mode == ordering_mode_t::ID) { // ordering based on identifiers
             auto key = key_extr(input->tuple); // extract the key
@@ -184,7 +186,7 @@ public:
             min_id = getMinimum(key_d.maxs);
             (key_d.queue).push(input); // add the new input in the priority queue of the key
             while (!(key_d.queue).empty()) { // check if buffered inputs of the key can be emitted in order
-                Single_t<decltype(get_tuple_t_KeyExtr(key_extr))> *next = (key_d.queue).top(); // read the next input in the queue of the key
+                Single_t<tuple_t> *next = (key_d.queue).top(); // read the next input in the queue of the key
                 if (next->getIdentifier() > min_id) {
                     break;
                 }
@@ -203,7 +205,7 @@ public:
             min_ts = getMinimum(globalMaxs);
             globalQueue.push(input); // add the new input in the global priority queue
             while (!globalQueue.empty()) { // check if buffered inputs can be emitted in order
-                Single_t<decltype(get_tuple_t_KeyExtr(key_extr))> *next = globalQueue.top(); // read the next input in the global queue
+                Single_t<tuple_t> *next = globalQueue.top(); // read the next input in the global queue
                 if (next->getTimestamp() > min_ts) {
                     break;
                 }
@@ -227,7 +229,7 @@ public:
         }
         if (ordering_mode != ordering_mode_t::ID) { // ordering based on timestamps
             while (!globalQueue.empty()) {
-                Single_t<decltype(get_tuple_t_KeyExtr(key_extr))> *next = globalQueue.top(); // read the next input in the global queue
+                Single_t<tuple_t> *next = globalQueue.top(); // read the next input in the global queue
                 globalQueue.pop(); // extract the next input from the global queue
                 this->ff_send_out(next);
             }
@@ -236,7 +238,7 @@ public:
             for (auto &k: keyMap) {
                 auto &key_d = (k.second);
                 while (!(key_d.queue).empty()) {
-                    Single_t<decltype(get_tuple_t_KeyExtr(key_extr))> *next = (key_d.queue).top(); // read the next input in the queue of the key
+                    Single_t<tuple_t> *next = (key_d.queue).top(); // read the next input in the queue of the key
                     (key_d.queue).pop(); // extract the next input from the queue of the key
                     next->setWatermark(getMinimum(globalMaxs), id_collector);
                     this->ff_send_out(next);               

@@ -30,11 +30,12 @@
  *  @section Splitting_Emitter (Description)
  *  
  *  This file implements the splitting emitter in charge of splitting a MultiPipe.
- *  This version assumes to receive single tuples.
+ *  This version assumes to receive single tuples which are transmitted (by copy)
+ *  to zero, one or more than one destination MultiPipes.
  */ 
 
-#ifndef SPLITTING_H
-#define SPLITTING_H
+#ifndef SPLITTING_EMITTER_H
+#define SPLITTING_EMITTER_H
 
 // includes
 #include<basic.hpp>
@@ -64,7 +65,7 @@ private:
     std::vector<Basic_Emitter *> emitters; // vector of pointers to the internal emitters (one per destination MultiPipes)
     Execution_Mode_t execution_mode; // execution mode of the PipeGraph
     uint64_t last_time_punct; // last time used to send punctuations
-    std::vector<int> delivered; // delivered[i] is the number of outputs delivered to the MultiPipe i during the last sample
+    std::vector<int> delivered; // delivered[i] is the number of outputs delivered to the i-th MultiPipe during the last sample
     uint64_t received_inputs; // total number of inputs received by the emitter
 
     // Call the splitting function (used if it returns a single identifier)
@@ -73,7 +74,7 @@ private:
                                splitting_func_t>::type &_func,
                                tuple_t &_t)
     {
-        std::vector<decltype(get_return_t_Split(splitting_func))> dests;
+        std::vector<return_t> dests;
         auto dest = _func(_t);
         dests.push_back(dest);
         return dests;
@@ -103,6 +104,7 @@ public:
 
     // Copy Constructor
     Splitting_Emitter(const Splitting_Emitter &_other):
+                      Basic_Emitter(_other),
                       splitting_func(_other.splitting_func),
                       num_dests(_other.num_dests),
                       num_dest_mps(_other.num_dest_mps),
@@ -116,61 +118,12 @@ public:
         }
     }
 
-    // Move Constructor
-    Splitting_Emitter(Splitting_Emitter &&_other):
-                      splitting_func(std::move(_other.splitting_func)),
-                      num_dests(_other.num_dests),
-                      num_dest_mps(_other.num_dest_mps),
-                      execution_mode(_other.execution_mode),
-                      emitters(std::move(_other.emitters)),
-                      last_time_punct(_other.last_time_punct),
-                      delivered(std::move(_other.delivered)),
-                      received_inputs(_other.received_inputs) {}
-
     // Destructor
     ~Splitting_Emitter() override
     {
         for (auto *e: emitters) {
             delete e;
         }
-    }
-
-    // Copy Assignment Operator
-    Splitting_Emitter &operator=(const Splitting_Emitter &_other)
-    {
-        if (this != &_other) {
-            splitting_func = _other.splitting_func;
-            num_dests = _other.num_dests;
-            num_dest_mps = _other.num_dest_mps;
-            execution_mode = _other.execution_mode;
-            for (auto *e: emitters) {
-                delete e;
-            }
-            emitters.clear();
-            for (size_t i=0; i<(_other.emitters).size(); i++) { // deep copy of the emitters
-                emitters.push_back(((_other.emitters)[i])->clone());
-            }
-            last_time_punct = _other.last_time_punct;
-            delivered = _other.delivered;
-            received_inputs = _other.received_inputs;
-        }
-        return *this;
-    }
-
-    // Move Assignment Operator
-    Splitting_Emitter &operator=(Splitting_Emitter &&_other)
-    {
-        splitting_func = std::move(_other.splitting_func);
-        num_dests = _other.num_dests;
-        num_dest_mps = _other.num_dest_mps;
-        execution_mode = _other.execution_mode;
-        for (auto *e: emitters) {
-            delete e;
-        }
-        emitters = std::move(_other.emitters);
-        last_time_punct = _other.last_time_punct;
-        delivered = std::move(_other.delivered);
-        received_inputs = _other.received_inputs;
     }
 
     // Create a clone of the emitter
@@ -206,16 +159,15 @@ public:
               ff::ff_monode *_node) override
     {
         received_inputs++;
-        decltype(get_tuple_t_Split(splitting_func)) *tuple = reinterpret_cast<decltype(get_tuple_t_Split(splitting_func)) *>(_out);
+        tuple_t *tuple = reinterpret_cast<tuple_t *>(_out);
         routing(*tuple, _timestamp, _watermark, _node);
     }
 
     // Emit method (in-place version)
-    void emit_inplace(void *_out,
-                      ff::ff_monode *_node) override
+    void emit_inplace(void *_out, ff::ff_monode *_node) override
     {
         received_inputs++;
-        Single_t<decltype(get_tuple_t_Split(splitting_func))> *output = reinterpret_cast<Single_t<decltype(get_tuple_t_Split(splitting_func))> *>(_out);
+        Single_t<tuple_t> *output = reinterpret_cast<Single_t<tuple_t> *>(_out);
         routing(output->tuple, output->getTimestamp(), output->getWatermark(), _node);
         deleteSingle_t(output); // delete the input Single_t
     }
@@ -258,8 +210,7 @@ public:
     }
 
     // Punctuation propagation method
-    void propagate_punctuation(uint64_t _watermark,
-                               ff::ff_monode * _node) override
+    void propagate_punctuation(uint64_t _watermark, ff::ff_monode * _node) override
     {
         for (size_t i=0; i<emitters.size(); i++) {
             emitters[i]->propagate_punctuation(_watermark, _node);
@@ -277,8 +228,7 @@ public:
     }
 
     // Punctuation generation method
-    void generate_punctuation(uint64_t _watermark,
-                              ff::ff_monode *_node)
+    void generate_punctuation(uint64_t _watermark, ff::ff_monode *_node)
     {
         if (current_time_usecs() - last_time_punct >= WF_DEFAULT_WM_INTERVAL_USEC) { // check the end of the sample
             std::vector<int> idxs;
@@ -343,6 +293,10 @@ public:
     {
         return emitters.size();
     }
+
+    Splitting_Emitter(Splitting_Emitter &&) = delete; ///< Move constructor is deleted
+    Splitting_Emitter &operator=(const Splitting_Emitter &) = delete; ///< Copy assignment operator is deleted
+    Splitting_Emitter &operator=(Splitting_Emitter &&) = delete; ///< Move assignment operator is deleted
 };
 
 } // namespace wf

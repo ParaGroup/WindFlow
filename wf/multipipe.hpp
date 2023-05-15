@@ -57,14 +57,9 @@
 #if defined (__CUDACC__)
     #include<basic_gpu.hpp>
     #include<broadcast_emitter_gpu.hpp>
+    #include<forward_emitter_gpu.hpp>
+    #include<keyby_emitter_gpu.hpp>
     #include<splitting_emitter_gpu.hpp>
-    #if !defined (WF_GPU_UNIFIED_MEMORY) && !defined(WF_GPU_PINNED_MEMORY)
-        #include<keyby_emitter_gpu.hpp> // version with CUDA explicit memory transfers
-        #include<forward_emitter_gpu.hpp> // version with CUDA explicit memory transfers
-    #else
-        #include<keyby_emitter_gpu_u.hpp> // version with CUDA unified memory support
-        #include<forward_emitter_gpu_u.hpp> // version with CUDA unified memory support
-    #endif
 #endif
 
 namespace wf {
@@ -100,7 +95,7 @@ struct selfkiller_node: ff::ff_minode
 class MultiPipe: public ff::ff_pipeline
 {
 private:
-    friend class PipeGraph; // friendship with the PipeGraph class
+    friend class PipeGraph;
     PipeGraph *graph; // pointer to the PipeGraph
     Execution_Mode_t execution_mode; // execution mode of the PipeGraph
     Time_Policy_t time_policy; // time policy of the PipeGraph
@@ -238,8 +233,8 @@ private:
 
 #if !defined (__CUDACC__)
     // Create the right emitter to be used to connect to the next operator
-    template<typename key_extractor_func_t, bool isDestGPUType>
-    Basic_Emitter *create_emitter(typename std::enable_if<!isDestGPUType, key_extractor_func_t>::type _key_extr,
+    template<typename keyextr_func_t, bool isDestGPUType>
+    Basic_Emitter *create_emitter(typename std::enable_if<!isDestGPUType, keyextr_func_t>::type _key_extr,
                                   Routing_Mode_t _routing_mode,
                                   size_t _num_dests,
                                   size_t _outputBatchSize,
@@ -250,18 +245,24 @@ private:
         if (_routing_mode == Routing_Mode_t::FORWARD) { // FW
             return new Forward_Emitter<decltype(_key_extr)>(_key_extr, _num_dests, _outputBatchSize);
         }
+        else if (_routing_mode == Routing_Mode_t::REBALANCING) { // RB
+            return new Forward_Emitter<decltype(_key_extr)>(_key_extr, _num_dests, _outputBatchSize);
+        }
         else if (_routing_mode == Routing_Mode_t::KEYBY) { // KB
             return new KeyBy_Emitter<decltype(_key_extr)>(_key_extr, _num_dests, execution_mode, _outputBatchSize);
         }
-        else { // BD
+        else if (_routing_mode == Routing_Mode_t::BROADCAST) { // BD
             return new Broadcast_Emitter<decltype(_key_extr)>(_key_extr, _num_dests, _outputBatchSize);
+        }
+        else {
+            abort();
         }
     }
 
 #else
     // Create the right emitter to be used to connect to the next operator
-    template<typename key_extractor_func_t, bool isDestGPUType>
-    Basic_Emitter *create_emitter(typename std::enable_if<!isDestGPUType, key_extractor_func_t>::type _key_extr,
+    template<typename keyextr_func_t, bool isDestGPUType>
+    Basic_Emitter *create_emitter(typename std::enable_if<!isDestGPUType, keyextr_func_t>::type _key_extr,
                                   Routing_Mode_t _routing_mode,
                                   size_t _num_dests,
                                   size_t _outputBatchSize,
@@ -273,22 +274,34 @@ private:
             if (_routing_mode == Routing_Mode_t::FORWARD) { // FW
                 return new Forward_Emitter<decltype(_key_extr)>(_key_extr, _num_dests, _outputBatchSize);
             }
+            else if (_routing_mode == Routing_Mode_t::REBALANCING) { // RB
+                return new Forward_Emitter<decltype(_key_extr)>(_key_extr, _num_dests, _outputBatchSize);
+            }
             else if (_routing_mode == Routing_Mode_t::KEYBY) { // KB
                 return new KeyBy_Emitter<decltype(_key_extr)>(_key_extr, _num_dests, execution_mode, _outputBatchSize);
             }
-            else { // BD
+            else if (_routing_mode == Routing_Mode_t::BROADCAST) { // BD
                 return new Broadcast_Emitter<decltype(_key_extr)>(_key_extr, _num_dests, _outputBatchSize);
+            }
+            else {
+                abort();
             }
         }
         else if (isSourceGPU && !isDestGPU) { // GPU -> CPU case
             if (_routing_mode == Routing_Mode_t::FORWARD) { // FW
                 return new Forward_Emitter_GPU<decltype(_key_extr), true, false>(_key_extr, _num_dests);
             }
+            else if (_routing_mode == Routing_Mode_t::REBALANCING) { // RB
+                return new Forward_Emitter_GPU<decltype(_key_extr), true, false>(_key_extr, _num_dests);
+            }
             else if (_routing_mode == Routing_Mode_t::KEYBY) { // KB
                 return new KeyBy_Emitter_GPU<decltype(_key_extr), true, false>(_key_extr, _num_dests);
             }
-            else { // BD
+            else if (_routing_mode == Routing_Mode_t::BROADCAST) { // BD
                 return new Broadcast_Emitter_GPU<decltype(_key_extr), true, false>(_key_extr, _num_dests);
+            }
+            else {
+                abort();
             }
         }
         else {
@@ -297,29 +310,41 @@ private:
     }
 
     // Create the right emitter to be used to connect to the next operator
-    template<typename key_extractor_func_t, bool isDestGPUType>
-    Basic_Emitter *create_emitter(typename std::enable_if<isDestGPUType, key_extractor_func_t>::type _key_extr,
+    template<typename keyextr_func_t, bool isDestGPUType>
+    Basic_Emitter *create_emitter(typename std::enable_if<isDestGPUType, keyextr_func_t>::type _key_extr,
                                   Routing_Mode_t _routing_mode,
                                   size_t _num_dests,
                                   size_t _outputBatchSize,
                                   bool isSourceGPU,
                                   bool isDestGPU) const
     {
-        assert(isDestGPU); // sanity chekc
+        assert(isDestGPU); // sanity check
         if (isSourceGPU && isDestGPU) { // GPU -> GPU case
             if (_routing_mode == Routing_Mode_t::FORWARD) { // FW
                 return new Forward_Emitter_GPU<decltype(_key_extr), true, true>(_key_extr, _num_dests);
             }
-            else { // KB
+            else if (_routing_mode == Routing_Mode_t::REBALANCING) { // RB
+                return new Forward_Emitter_GPU<decltype(_key_extr), true, true>(_key_extr, _num_dests);
+            }
+            else if (_routing_mode == Routing_Mode_t::KEYBY) { // KB
                 return new KeyBy_Emitter_GPU<decltype(_key_extr), true, true>(_key_extr, _num_dests);
+            }
+            else {
+                abort();
             }
         }
         else { // CPU -> GPU case
             if (_routing_mode == Routing_Mode_t::FORWARD) { // FW
                 return new Forward_Emitter_GPU<decltype(_key_extr), false, true>(_key_extr, _num_dests, _outputBatchSize);
             }
-            else { // KB
+            else if (_routing_mode == Routing_Mode_t::REBALANCING) { // RB
+                return new Forward_Emitter_GPU<decltype(_key_extr), false, true>(_key_extr, _num_dests, _outputBatchSize);
+            }
+            else if (_routing_mode == Routing_Mode_t::KEYBY) { // KB
                 return new KeyBy_Emitter_GPU<decltype(_key_extr), false, true>(_key_extr, _num_dests, _outputBatchSize);
+            }
+            else {
+                abort();
             }
         }
     }
@@ -393,8 +418,7 @@ private:
 
     // Add an operator to the MultiPipe
     template<typename operator_t, bool isDestGPUType=false>
-    void add_operator(operator_t &_operator,
-                      ordering_mode_t _ordering_mode)
+    void add_operator(operator_t &_operator, ordering_mode_t _ordering_mode)
     {
         if (!has_source) { // check the Source presence
             std::cerr << RED << "WindFlow Error: MultiPipe does not have a Source, operator cannot be added" << DEFAULT_COLOR << std::endl;
@@ -500,8 +524,7 @@ private:
 
     // Try to chain an operator with the previous one in the MultiPipe (it is added otherwise)
     template<typename operator_t, bool isDestGPUType=false>
-    bool chain_operator(operator_t &_operator,
-                        ordering_mode_t _ordering_mode)
+    bool chain_operator(operator_t &_operator, ordering_mode_t _ordering_mode)
     {
         if (!has_source) { // check the Source presence
             std::cerr << RED << "WindFlow Error: MultiPipe does not have a Source, operator cannot be chained" << DEFAULT_COLOR << std::endl;
@@ -640,8 +663,7 @@ private:
 
     // Prepare the set of merged MultiPipes
     template<typename MULTIPIPE, typename ...MULTIPIPES>
-    std::vector<MultiPipe *> prepareMergeSet(MULTIPIPE &_first,
-                                             MULTIPIPES&... _pipes)
+    std::vector<MultiPipe *> prepareMergeSet(MULTIPIPE &_first, MULTIPIPES&... _pipes)
     { 
         if (_first.isMerged) { // check if the MultiPipe has already been merged
             std::cerr << RED << "WindFlow Error: MultiPipe has already been merged" << DEFAULT_COLOR << std::endl;
@@ -707,6 +729,9 @@ private:
             if (routing_type == Routing_Mode_t::FORWARD) {
                 agset(e, const_cast<char *>("label"), const_cast<char *>("FW"));
             }
+            else if (routing_type == Routing_Mode_t::REBALANCING) {
+                agset(e, const_cast<char *>("label"), const_cast<char *>("RB"));
+            }
             else if (routing_type == Routing_Mode_t::KEYBY) {
                 agset(e, const_cast<char *>("label"), const_cast<char *>("KB"));
             }
@@ -723,8 +748,7 @@ private:
     }
 
     // Chain of a new operator in the graphviz representation
-    void gv_chain_vertex(std::string typeOP,
-                         std::string nameOP)
+    void gv_chain_vertex(std::string typeOP, std::string nameOP)
     {
         assert(gv_graph != nullptr);
         assert((this->gv_last_vertices).size() == 1);
@@ -745,10 +769,18 @@ private:
             agset(node, const_cast<char *>("color"), const_cast<char *>("#00FF80"));
             agset(node, const_cast<char *>("fillcolor"), const_cast<char *>("#78A446"));            
         }
-        else if (typeOP.compare(0, 7, "Filter_GPU") == 0) { // style for Filter_GPU operator
+        else if (typeOP.compare(0, 10, "Filter_GPU") == 0) { // style for Filter_GPU operator
             agset(node, const_cast<char *>("color"), const_cast<char *>("#00FF80"));
             agset(node, const_cast<char *>("fillcolor"), const_cast<char *>("#78A446"));            
-        }       
+        }
+        else if (typeOP.compare(0, 10, "Reduce_GPU") == 0) { // style for Reduce_GPU operator
+            agset(node, const_cast<char *>("color"), const_cast<char *>("#00FF80"));
+            agset(node, const_cast<char *>("fillcolor"), const_cast<char *>("#78A446"));            
+        }
+        else if (typeOP.compare(0, 16, "Ffat_Windows_GPU") == 0) { // style for Ffat_Windows_GPU operator
+            agset(node, const_cast<char *>("color"), const_cast<char *>("#00FF80"));
+            agset(node, const_cast<char *>("fillcolor"), const_cast<char *>("#78A446"));            
+        }        
     }
 #endif
 
@@ -851,8 +883,8 @@ public:
      *  \param _filter the Filter operator to be added
      *  \return a reference to the modified MultiPipe
      */ 
-    template<typename filter_func_t, typename key_extractor_func_t>
-    MultiPipe &add(const Filter<filter_func_t, key_extractor_func_t> &_filter)
+    template<typename filter_func_t, typename keyextr_func_t>
+    MultiPipe &add(const Filter<filter_func_t, keyextr_func_t> &_filter)
     {
         if (_filter.getOutputBatchSize() > 0 && execution_mode != Execution_Mode_t::DEFAULT) {
             std::cerr << RED << "WindFlow Error: Filter cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
@@ -861,13 +893,12 @@ public:
         auto *copied_filter = new Filter(_filter); // create a copy of the operator
         copied_filter->setExecutionMode(execution_mode); // set the execution mode of the operator
         using tuple_t = decltype(get_tuple_t_Filter(copied_filter->func)); // extracting the tuple_t type and checking the admissible signatures
-        using result_t = decltype(get_result_t_Filter(copied_filter->func)); // extracting the result_t type and checking the admissible signatures
         std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
         if (!outputType.empty() && outputType.compare(opInType) != 0) {
             std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Filter operator" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
+        outputType = TypeName<tuple_t>::getName(); // save the new output type from this MultiPipe
         add_operator(*copied_filter, ordering_mode_t::TS);
 #if defined (WF_TRACING_ENABLED)
         gv_add_vertex("Filter (" + std::to_string(copied_filter->getParallelism()) + ")", copied_filter->getName(), true, false, copied_filter->getInputRoutingMode());
@@ -882,8 +913,8 @@ public:
      *  \param _filter the Filter operator to be chained
      *  \return a reference to the modified MultiPipe
      */ 
-    template<typename filter_func_t, typename key_extractor_func_t>
-    MultiPipe &chain(const Filter<filter_func_t, key_extractor_func_t> &_filter)
+    template<typename filter_func_t, typename keyextr_func_t>
+    MultiPipe &chain(const Filter<filter_func_t, keyextr_func_t> &_filter)
     {
         if (_filter.getOutputBatchSize() > 0 && execution_mode != Execution_Mode_t::DEFAULT) {
             std::cerr << RED << "WindFlow Error: Filter cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
@@ -892,13 +923,12 @@ public:
         auto *copied_filter = new Filter(_filter); // create a copy of the operator
         copied_filter->setExecutionMode(execution_mode); // set the execution mode of the operator
         using tuple_t = decltype(get_tuple_t_Filter(copied_filter->func)); // extracting the tuple_t type and checking the admissible signatures
-        using result_t = decltype(get_result_t_Filter(copied_filter->func)); // extracting the result_t type and checking the admissible signatures
         std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
         if (!outputType.empty() && outputType.compare(opInType) != 0) {
             std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Filter operator" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
+        outputType = TypeName<tuple_t>::getName(); // save the new output type from this MultiPipe
         bool isChained = chain_operator(*copied_filter, ordering_mode_t::TS); // try to chain the operator (otherwise, it is added)
         if (isChained) {
 #if defined (WF_TRACING_ENABLED)
@@ -920,8 +950,8 @@ public:
      *  \param _map the Map operator to be added
      *  \return a reference to the modified MultiPipe
      */ 
-    template<typename map_func_t, typename key_extractor_func_t>
-    MultiPipe &add(const Map<map_func_t, key_extractor_func_t> &_map)
+    template<typename map_func_t, typename keyextr_func_t>
+    MultiPipe &add(const Map<map_func_t, keyextr_func_t> &_map)
     {
         if (_map.getOutputBatchSize() > 0 && execution_mode != Execution_Mode_t::DEFAULT) {
             std::cerr << RED << "WindFlow Error: Map cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
@@ -951,8 +981,8 @@ public:
      *  \param _map the Map operator to be chained
      *  \return a reference to the modified MultiPipe
      */ 
-    template<typename map_func_t, typename key_extractor_func_t>
-    MultiPipe &chain(const Map<map_func_t, key_extractor_func_t> &_map)
+    template<typename map_func_t, typename keyextr_func_t>
+    MultiPipe &chain(const Map<map_func_t, keyextr_func_t> &_map)
     {
         if (_map.getOutputBatchSize() > 0 && execution_mode != Execution_Mode_t::DEFAULT) {
             std::cerr << RED << "WindFlow Error: Map cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
@@ -989,8 +1019,8 @@ public:
      *  \param _flatmap the FlatMap operator to be added
      *  \return a reference to the modified MultiPipe
      */ 
-    template<typename flatmap_func_t, typename key_extractor_func_t>
-    MultiPipe &add(const FlatMap<flatmap_func_t, key_extractor_func_t> &_flatmap)
+    template<typename flatmap_func_t, typename keyextr_func_t>
+    MultiPipe &add(const FlatMap<flatmap_func_t, keyextr_func_t> &_flatmap)
     {
         if (_flatmap.getOutputBatchSize() > 0 && execution_mode != Execution_Mode_t::DEFAULT) {
             std::cerr << RED << "WindFlow Error: FlatMap cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
@@ -1020,8 +1050,8 @@ public:
      *  \param _flatmap the FlatMap operator to be chained
      *  \return a reference to the modified MultiPipe
      */ 
-    template<typename flatmap_func_t, typename key_extractor_func_t>
-    MultiPipe &chain(const FlatMap<flatmap_func_t, key_extractor_func_t> &_flatmap)
+    template<typename flatmap_func_t, typename keyextr_func_t>
+    MultiPipe &chain(const FlatMap<flatmap_func_t, keyextr_func_t> &_flatmap)
     {
         if (_flatmap.getOutputBatchSize() > 0 && execution_mode != Execution_Mode_t::DEFAULT) {
             std::cerr << RED << "WindFlow Error: FlatMap cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
@@ -1058,8 +1088,8 @@ public:
      *  \param _reduce the Reduce operator to be added
      *  \return a reference to the modified MultiPipe
      */ 
-    template<typename reduce_func_t, typename key_extractor_func_t>
-    MultiPipe &add(const Reduce<reduce_func_t, key_extractor_func_t> &_reduce)
+    template<typename reduce_func_t, typename keyextr_func_t>
+    MultiPipe &add(const Reduce<reduce_func_t, keyextr_func_t> &_reduce)
     {
         if (_reduce.getOutputBatchSize() > 0 && execution_mode != Execution_Mode_t::DEFAULT) {
             std::cerr << RED << "WindFlow Error: Reduce cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
@@ -1089,8 +1119,8 @@ public:
      *  \param _kwins the Keyed_Windows operator to be added
      *  \return a reference to the modified MultiPipe
      */ 
-    template<typename win_func_t, typename key_extractor_func_t>
-    MultiPipe &add(const Keyed_Windows<win_func_t, key_extractor_func_t> &_kwins)
+    template<typename win_func_t, typename keyextr_func_t>
+    MultiPipe &add(const Keyed_Windows<win_func_t, keyextr_func_t> &_kwins)
     {
         if (_kwins.getOutputBatchSize() > 0 && execution_mode != Execution_Mode_t::DEFAULT) {
             std::cerr << RED << "WindFlow Error: Keyed_Windows cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
@@ -1120,8 +1150,8 @@ public:
      *  \param _pwins the Parallel_Windows operator to be added
      *  \return a reference to the modified MultiPipe
      */ 
-    template<typename win_func_t, typename key_extractor_func_t>
-    MultiPipe &add(const Parallel_Windows<win_func_t, key_extractor_func_t> &_pwins)
+    template<typename win_func_t, typename keyextr_func_t>
+    MultiPipe &add(const Parallel_Windows<win_func_t, keyextr_func_t> &_pwins)
     {
         if (_pwins.getOutputBatchSize() > 0 && execution_mode != Execution_Mode_t::DEFAULT) {
             std::cerr << RED << "WindFlow Error: Parallel_Windows cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
@@ -1156,8 +1186,8 @@ public:
      *  \param _pan_wins the Paned_Windows operator to be added
      *  \return a reference to the modified MultiPipe
      */ 
-    template<typename plq_func_t, typename wlq_func_t, typename key_extractor_func_t>
-    MultiPipe &add(const Paned_Windows<plq_func_t, wlq_func_t, key_extractor_func_t> &_pan_wins)
+    template<typename plq_func_t, typename wlq_func_t, typename keyextr_func_t>
+    MultiPipe &add(const Paned_Windows<plq_func_t, wlq_func_t, keyextr_func_t> &_pan_wins)
     {
         if (_pan_wins.getOutputBatchSize() > 0 && execution_mode != Execution_Mode_t::DEFAULT) {
             std::cerr << RED << "WindFlow Error: Paned_Windows cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
@@ -1177,13 +1207,13 @@ public:
         }
         outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
         // add the first sub-operator (PLQ)
-        auto *plq = new Parallel_Windows<plq_func_t, key_extractor_func_t>(_pan_wins.plq);
+        auto *plq = new Parallel_Windows<plq_func_t, keyextr_func_t>(_pan_wins.plq);
         plq->setExecutionMode(execution_mode); // set the execution mode of the operator
         add_operator(*plq, ordering_mode_t::TS);
         localOpList.push_back(plq); // add the PLQ sub-operator to local list
         globalOpList->push_back(plq); // add the PLQ sub-operator to global list 
         // add the second sub-operator (WLQ)
-        auto *wlq = new Parallel_Windows<wlq_func_t, key_extractor_func_t>(_pan_wins.wlq);
+        auto *wlq = new Parallel_Windows<wlq_func_t, keyextr_func_t>(_pan_wins.wlq);
         wlq->setExecutionMode(execution_mode); // set the execution mode of the operator
         add_operator(*wlq, ordering_mode_t::ID);
         localOpList.push_back(wlq); // add the WLQ sub-operator to local list
@@ -1199,8 +1229,8 @@ public:
      *  \param _mr_wins the MapReduce_Windows operator to be added
      *  \return a reference to the modified MultiPipe
      */ 
-    template<typename map_func_t, typename reduce_func_t, typename key_extractor_func_t>
-    MultiPipe &add(const MapReduce_Windows<map_func_t, reduce_func_t, key_extractor_func_t> &_mr_wins)
+    template<typename map_func_t, typename reduce_func_t, typename keyextr_func_t>
+    MultiPipe &add(const MapReduce_Windows<map_func_t, reduce_func_t, keyextr_func_t> &_mr_wins)
     {
         if (_mr_wins.getOutputBatchSize() > 0 && execution_mode != Execution_Mode_t::DEFAULT) {
             std::cerr << RED << "WindFlow Error: MapReduce_Windows cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
@@ -1220,13 +1250,13 @@ public:
         }
         outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
         // add the first sub-operator (MAP)
-        auto *map = new Parallel_Windows<map_func_t, key_extractor_func_t>(_mr_wins.map);
+        auto *map = new Parallel_Windows<map_func_t, keyextr_func_t>(_mr_wins.map);
         map->setExecutionMode(execution_mode); // set the execution mode of the operator
         add_operator(*map, ordering_mode_t::TS);
         localOpList.push_back(map); // add the MAP sub-operator to local list
         globalOpList->push_back(map); // add the MAP sub-operator to global list 
         // add the second sub-operator (REDUCE)
-        auto *reduce = new Parallel_Windows<reduce_func_t, key_extractor_func_t>(_mr_wins.reduce);
+        auto *reduce = new Parallel_Windows<reduce_func_t, keyextr_func_t>(_mr_wins.reduce);
         reduce->setExecutionMode(execution_mode); // set the execution mode of the operator
         add_operator(*reduce, ordering_mode_t::ID);
         localOpList.push_back(reduce); // add the WLQ sub-operator to local list
@@ -1238,30 +1268,30 @@ public:
     }
 
     /** 
-     *  \brief Add a FFAT_Aggregator operator to the MultiPipe
-     *  \param _ffatagg the FFAT_Aggregator operator to be added
+     *  \brief Add a Ffat_Windows operator to the MultiPipe
+     *  \param _ffatagg the Ffat_Windows operator to be added
      *  \return a reference to the modified MultiPipe
      */ 
-    template<typename lift_func_t, typename comb_func_t, typename key_extractor_func_t>
-    MultiPipe &add(const FFAT_Aggregator<lift_func_t, comb_func_t, key_extractor_func_t> &_ffatagg)
+    template<typename lift_func_t, typename comb_func_t, typename keyextr_func_t>
+    MultiPipe &add(const Ffat_Windows<lift_func_t, comb_func_t, keyextr_func_t> &_ffatagg)
     {
         if (_ffatagg.getOutputBatchSize() > 0 && execution_mode != Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: FFAT_Aggregator cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
+            std::cerr << RED << "WindFlow Error: Ffat_Windows cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);         
         }
-        auto *copied_ffatagg = new FFAT_Aggregator(_ffatagg); // create a copy of the operator
+        auto *copied_ffatagg = new Ffat_Windows(_ffatagg); // create a copy of the operator
         copied_ffatagg->setExecutionMode(execution_mode); // set the execution mode of the operator
         using tuple_t = decltype(get_tuple_t_Lift(copied_ffatagg->lift_func)); // extracting the tuple_t type and checking the admissible signatures
         using result_t = decltype(get_result_t_Lift(copied_ffatagg->lift_func)); // extracting the result_t type and checking the admissible signatures
         std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
         if (!outputType.empty() && outputType.compare(opInType) != 0) {
-            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the FFAT_Aggregator operator" << DEFAULT_COLOR << std::endl;
+            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Ffat_Windows operator" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
         add_operator(*copied_ffatagg, ordering_mode_t::TS);
 #if defined (WF_TRACING_ENABLED)
-        gv_add_vertex("FFAT_Aggregator (" + std::to_string(copied_ffatagg->getParallelism()) + ")", copied_ffatagg->getName(), true, false, copied_ffatagg->getInputRoutingMode());
+        gv_add_vertex("Ffat_Windows (" + std::to_string(copied_ffatagg->getParallelism()) + ")", copied_ffatagg->getName(), true, false, copied_ffatagg->getInputRoutingMode());
 #endif
         localOpList.push_back(copied_ffatagg); // add the copied operator to local list
         globalOpList->push_back(copied_ffatagg); // add the copied operator to global list
@@ -1274,8 +1304,8 @@ public:
      *  \param _mapgpu the Map_GPU operator to be added
      *  \return a reference to the modified MultiPipe
      */ 
-    template<typename mapgpu_func_t, typename key_extractor_func_t>
-    MultiPipe &add(const Map_GPU<mapgpu_func_t, key_extractor_func_t> &_mapgpu)
+    template<typename map_func_gpu_t, typename keyextr_func_t>
+    MultiPipe &add(const Map_GPU<map_func_gpu_t, keyextr_func_t> &_mapgpu)
     {
         if (execution_mode != Execution_Mode_t::DEFAULT) {
             std::cerr << RED << "WindFlow Error: Map_GPU can be used in DEFAULT mode only" << DEFAULT_COLOR << std::endl;
@@ -1302,8 +1332,8 @@ public:
      *  \param _mapgpu the Map_GPU operator to be chained
      *  \return a reference to the modified MultiPipe
      */ 
-    template<typename mapgpu_func_t, typename key_extractor_func_t>
-    MultiPipe &chain(const Map_GPU<mapgpu_func_t, key_extractor_func_t> &_mapgpu)
+    template<typename map_func_gpu_t, typename keyextr_func_t>
+    MultiPipe &chain(const Map_GPU<map_func_gpu_t, keyextr_func_t> &_mapgpu)
     {
         if (execution_mode != Execution_Mode_t::DEFAULT) {
             std::cerr << RED << "WindFlow Error: Map_GPU can be used in DEFAULT mode only" << DEFAULT_COLOR << std::endl;
@@ -1337,8 +1367,8 @@ public:
      *  \param _filtergpu the Filter_GPU operator to be added
      *  \return a reference to the modified MultiPipe
      */ 
-    template<typename filtergpu_func_t, typename key_extractor_func_t>
-    MultiPipe &add(const Filter_GPU<filtergpu_func_t, key_extractor_func_t> &_filtergpu)
+    template<typename filter_func_gpu_t, typename keyextr_func_t>
+    MultiPipe &add(const Filter_GPU<filter_func_gpu_t, keyextr_func_t> &_filtergpu)
     {
         if (execution_mode != Execution_Mode_t::DEFAULT) {
             std::cerr << RED << "WindFlow Error: Filter_GPU can be used in DEFAULT mode only" << DEFAULT_COLOR << std::endl;
@@ -1366,8 +1396,8 @@ public:
      *  \param _filtergpu the Filter_GPU operator to be chained
      *  \return a reference to the modified MultiPipe
      */ 
-    template<typename filtergpu_func_t, typename key_extractor_func_t>
-    MultiPipe &chain(const Filter_GPU<filtergpu_func_t, key_extractor_func_t> &_filtergpu)
+    template<typename filter_func_gpu_t, typename keyextr_func_t>
+    MultiPipe &chain(const Filter_GPU<filter_func_gpu_t, keyextr_func_t> &_filtergpu)
     {
         if (execution_mode != Execution_Mode_t::DEFAULT) {
             std::cerr << RED << "WindFlow Error: Filter_GPU can be used in DEFAULT mode only" << DEFAULT_COLOR << std::endl;
@@ -1402,8 +1432,8 @@ public:
      *  \param _reducegpu the Reduce_GPU operator to be added
      *  \return a reference to the modified MultiPipe
      */ 
-    template<typename reducegpu_func_t, typename key_extractor_func_t>
-    MultiPipe &add(const Reduce_GPU<reducegpu_func_t, key_extractor_func_t> &_reducegpu)
+    template<typename reduce_func_gpu_t, typename keyextr_func_t>
+    MultiPipe &add(const Reduce_GPU<reduce_func_gpu_t, keyextr_func_t> &_reducegpu)
     {
         if (execution_mode != Execution_Mode_t::DEFAULT) {
             std::cerr << RED << "WindFlow Error: Reduce_GPU can be used in DEFAULT mode only" << DEFAULT_COLOR << std::endl;
@@ -1430,8 +1460,8 @@ public:
      *  \param _reducegpu the Reduce_GPU operator to be chained
      *  \return a reference to the modified MultiPipe
      */ 
-    template<typename reducegpu_func_t, typename key_extractor_func_t>
-    MultiPipe &chain(const Reduce_GPU<reducegpu_func_t, key_extractor_func_t> &_reducegpu)
+    template<typename reduce_func_gpu_t, typename keyextr_func_t>
+    MultiPipe &chain(const Reduce_GPU<reduce_func_gpu_t, keyextr_func_t> &_reducegpu)
     {
         if (execution_mode != Execution_Mode_t::DEFAULT) {
             std::cerr << RED << "WindFlow Error: Reduce_GPU can be used in DEFAULT mode only" << DEFAULT_COLOR << std::endl;
@@ -1461,30 +1491,29 @@ public:
     }
 
     /** 
-     *  \brief Add a FFAT_Aggregator_GPU operator to the MultiPipe
-     *  \param _ffatagg_gpu the FFAT_Aggregator_GPU operator to be added
+     *  \brief Add a Ffat_Windows_GPU operator to the MultiPipe
+     *  \param _ffatagg_gpu the Ffat_Windows_GPU operator to be added
      *  \return a reference to the modified MultiPipe
      */ 
-    template<typename liftgpu_func_t, typename combgpu_func_t, typename key_extractor_func_t>
-    MultiPipe &add(const FFAT_Aggregator_GPU<liftgpu_func_t, combgpu_func_t, key_extractor_func_t> &_ffatagg_gpu)
+    template<typename lift_func_gpu_t, typename comb_func_gpu_t, typename keyextr_func_t>
+    MultiPipe &add(const Ffat_Windows_GPU<lift_func_gpu_t, comb_func_gpu_t, keyextr_func_t> &_ffatagg_gpu)
     {
         if (execution_mode != Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: FFAT_Aggregator_GPU can be used in DEFAULT mode only" << DEFAULT_COLOR << std::endl;
+            std::cerr << RED << "WindFlow Error: Ffat_Windows_GPU can be used in DEFAULT mode only" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        auto *copied_ffatagg_gpu = new FFAT_Aggregator_GPU(_ffatagg_gpu); // create a copy of the operator
-        copied_ffatagg_gpu->setExecutionMode(execution_mode); // set the execution mode of the operator
-        using tuple_t = decltype(get_tuple_t_Lift(copied_ffatagg_gpu->lift_func)); // extracting the tuple_t type and checking the admissible signatures
+        auto *copied_ffatagg_gpu = new Ffat_Windows_GPU(_ffatagg_gpu); // create a copy of the operator
+        using tuple_t = decltype(get_tuple_t_LiftGPU(copied_ffatagg_gpu->lift_func)); // extracting the tuple_t type and checking the admissible signatures
         using result_t = decltype(get_tuple_t_CombGPU(copied_ffatagg_gpu->comb_func)); // extracting the result_t type and checking the admissible signatures
         std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
         if (!outputType.empty() && outputType.compare(opInType) != 0) {
-            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the FFAT_Aggregator_GPU operator" << DEFAULT_COLOR << std::endl;
+            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Ffat_Windows_GPU operator" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
-        add_operator(*copied_ffatagg_gpu, ordering_mode_t::TS);
+        add_operator<decltype(*copied_ffatagg_gpu), true>(*copied_ffatagg_gpu, ordering_mode_t::TS);
 #if defined (WF_TRACING_ENABLED)
-        gv_add_vertex("FFAT_Aggregator_GPU (" + std::to_string(copied_ffatagg_gpu->getParallelism()) + ")", copied_ffatagg_gpu->getName(), true, false, copied_ffatagg_gpu->getInputRoutingMode());
+        gv_add_vertex("Ffat_Windows_GPU (" + std::to_string(copied_ffatagg_gpu->getParallelism()) + ")", copied_ffatagg_gpu->getName(), true, false, copied_ffatagg_gpu->getInputRoutingMode());
 #endif
         localOpList.push_back(copied_ffatagg_gpu); // add the copied operator to local list
         globalOpList->push_back(copied_ffatagg_gpu); // add the copied operator to global list
@@ -1611,8 +1640,7 @@ public:
      *  \return a reference to the MultiPipe where the splitting has been applied
      */ 
     template<typename splitting_func_t>
-    MultiPipe &split(splitting_func_t _splitting_func,
-                     size_t _cardinality)
+    MultiPipe &split(splitting_func_t _splitting_func, size_t _cardinality)
     {
         if (isMerged) { // check if the MultiPipe has been merged
             std::cerr << RED << "WindFlow Error: MultiPipe has been merged and cannot be split" << DEFAULT_COLOR << std::endl;

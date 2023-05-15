@@ -47,7 +47,7 @@
 #include<parallel_windows.hpp>
 #include<paned_windows.hpp>
 #include<mapreduce_windows.hpp>
-#include<ffat_aggregator.hpp>
+#include<ffat_windows.hpp>
 #if defined (WF_TRACING_ENABLED)
     #include<monitoring.hpp>
 #endif

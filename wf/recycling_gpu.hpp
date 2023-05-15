@@ -92,7 +92,7 @@ inline Batch_GPU_t<tuple_t> *allocateBatch_GPU_t(size_t _requested_size,
     Batch_GPU_t<tuple_t> *batch_input = nullptr;
 #if !defined (WF_NO_RECYCLING)
     if (_queue != nullptr) {
-        // Case 1: if no batch is in transit, we shall allocate a new one
+        // Case 1: if too few batches are in transit, we shall allocate a new one
         if ((*_inTransit_counter) < 2) {
             batch_input = createBatchGPU<tuple_t>(_requested_size, _queue, _inTransit_counter);
             return batch_input;
@@ -118,7 +118,7 @@ inline Batch_GPU_t<tuple_t> *allocateBatch_GPU_t(size_t _requested_size,
                     do {
                         batch_input = recycleBatchGPU<tuple_t>(_requested_size, _queue, _inTransit_counter);
                     }
-                    while((batch_input == nullptr) && ((*_inTransit_counter) > 1)); // note 1 here because we have overlapping in the emitters (we need to batches)
+                    while((batch_input == nullptr) && ((*_inTransit_counter) > 1)); // note 1 here because we have overlapping in some emitters
                     if (batch_input != nullptr) { // we recyled a previous batch :)
                         return batch_input;
                     }

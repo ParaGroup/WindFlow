@@ -93,38 +93,6 @@ struct Single_t
              queue(_other.queue),
              isPunctuation(_other.isPunctuation) {}
 
-    // Move Constructor
-    Single_t(Single_t &&_other): // do not move delete_counter
-             tuple(std::move(_other.tuple)),
-             fields(std::move(_other.fields)),
-             delete_counter(1),
-             queue(std::exchange(_other.queue, nullptr)),
-             isPunctuation(_other.isPunctuation) {}
-
-    // Copy Assignment Operator
-    Single_t &operator=(const Single_t &_other) // do not copy delete_counter
-    {
-        if (this != &_other) {
-            tuple =  _other.tuple;
-            fields = _other.fields;
-            delete_counter = 1;
-            queue = _other.queue;
-            isPunctuation = _other.isPunctuation;
-        }
-        return *this;
-    }
-
-    // Move Assignment Operator
-    Single_t &operator=(Single_t &&_other) // do not move delete_counter
-    {
-        tuple = std::move(_other.tuple);
-        fields = std::move(_other.fields);
-        delete_counter = 1;
-        queue = std::exchange(_other.queue, nullptr);
-        isPunctuation = _other.isPunctuation;
-        return *this;
-    }
-
     // Check whether the Single_t can be deleted or not
     bool isDeletable()
     {
@@ -199,8 +167,7 @@ struct Single_t
     }
 
     // Set the watermark related to a specific destination _node_id
-    void setWatermark(uint64_t _wm,
-                      size_t _node_id)
+    void setWatermark(uint64_t _wm, size_t _node_id)
     {
         if (_node_id + 2 < fields.size()) {
             fields[_node_id + 2] = _wm;
@@ -209,6 +176,10 @@ struct Single_t
             fields[2] = _wm;
         }
     }
+
+    Single_t(Single_t &&) = delete; ///< Move constructor is deleted
+    Single_t &operator=(const Single_t &) = delete; ///< Copy assignment operator is deleted
+    Single_t &operator=(Single_t &&) = delete; ///< Move assignment operator is deleted
 };
 
 } // namespace wf
