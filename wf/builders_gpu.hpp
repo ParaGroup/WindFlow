@@ -454,7 +454,7 @@ public:
 /** 
  *  \class Ffat_WindowsGPU_Builder
  *  
- *  \brief Builder of the Ffat_Windows_GPU operator
+ *  \brief Builder of the Ffat_Windows_GPU operator, also called (informally) "Springald"
  *  
  *  Builder class to ease the creation of the Ffat_Windows_GPU operator.
  */ 

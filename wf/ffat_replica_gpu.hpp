@@ -127,7 +127,7 @@ __global__ void Lifting_Kernel_TB(batch_item_gpu_t<tuple_t> *inputs,
                                   info_t<empty_key_t> *infos,
                                   size_t size,
                                   uint64_t pane_len,
-                                  uint64_t first_partial_pane_id,
+                                  uint64_t first_pane_id, // previous panes are complete!
                                   int *ignored_tuples_gpu,
                                   lift_func_gpu_t lift_func)
 {
@@ -137,7 +137,7 @@ __global__ void Lifting_Kernel_TB(batch_item_gpu_t<tuple_t> *inputs,
         lift_func(inputs[i].tuple, results[i]);
         infos[i].pane_id = inputs[i].timestamp / pane_len;
 #if !defined(__CUDA_ARCH__) || (__CUDA_ARCH__ >= 600) // atomicAdd defined for CC>=6.0
-        if (infos[i].pane_id < first_partial_pane_id) {
+        if (infos[i].pane_id < first_pane_id) {
             atomicAdd(ignored_tuples_gpu, 1);
         }
 #endif
@@ -151,7 +151,7 @@ __global__ void Lifting_Kernel_TB_Keyed(batch_item_gpu_t<tuple_t> *inputs,
                                         info_t<key_t> *infos,
                                         size_t size,
                                         uint64_t pane_len,
-                                        uint64_t first_partial_pane_id,
+                                        uint64_t first_pane_id, // previous panes are complete!
                                         int *ignored_tuples_gpu,
                                         lift_func_gpu_t lift_func,
                                         keyextr_func_gpu_t key_extr)
@@ -163,7 +163,7 @@ __global__ void Lifting_Kernel_TB_Keyed(batch_item_gpu_t<tuple_t> *inputs,
         infos[i].key = key_extr(inputs[i].tuple);
         infos[i].pane_id = inputs[i].timestamp / pane_len;
 #if !defined(__CUDA_ARCH__) || (__CUDA_ARCH__ >= 600) // atomicAdd defined for CC>=6.0
-        if (infos[i].pane_id < first_partial_pane_id) {
+        if (infos[i].pane_id < first_pane_id) {
             atomicAdd(ignored_tuples_gpu, 1);
         }
 #endif
@@ -219,39 +219,37 @@ struct equalTo2_func_gpu_t
 template<typename result_t, typename T, typename comb_func_gpu_t>
 __global__ void Aggregate_Panes_Kernel(result_t *new_panes,
                                        T *new_infos,
-                                       result_t *panes,
                                        size_t num_new,
-                                       size_t last_id,
-                                       size_t first_id,
-                                       size_t first_pos,
+                                       result_t *panes,
+                                       size_t num_panes,
                                        size_t size,
-                                       uint64_t _first_pane_id,
+                                       size_t first_pane_id, // previous panes are complete!
+                                       size_t first_pos,
                                        comb_func_gpu_t comb_func)
 {
     int id = threadIdx.x + blockIdx.x * blockDim.x; // id of the thread in the kernel
     int num_threads = gridDim.x * blockDim.x; // number of threads in the kernel
     for (size_t i=id; i<num_new; i+=num_threads) {
-        if (new_infos[i].pane_id < _first_pane_id) { // late pane -> it must be ignored!
+        if (new_infos[i].pane_id < first_pane_id) { // late pane -> it must be ignored!
             continue;
         }
-        if (new_infos[i].pane_id <= last_id) { // pane already exists
-            size_t pos = (first_pos + new_infos[i].pane_id - first_id) % size;
-            comb_func(panes[pos], new_panes[i], panes[pos]);
+        size_t pos = (first_pos + new_infos[i].pane_id - first_pane_id) % size;
+        if ((num_panes > 0) && (new_infos[i].pane_id < first_pane_id + num_panes)) { // pane already exists
+            comb_func(panes[pos], new_panes[i], panes[pos]); // update the partial result
         }
-        else { // pane does not exist before
-            size_t pos = (first_pos + new_infos[i].pane_id - first_id) % size;
+        else { // pane does not exist
             panes[pos] = new_panes[i];
             size_t num = 0;
             if (i == num_new-1) {
-                num = new_infos[i].pane_id - last_id - 1;
+                num = new_infos[i].pane_id - (first_pane_id + num_panes);
             }
             else {
                 num = new_infos[i].pane_id - new_infos[i+1].pane_id -1;
             }
             size_t j=1;
             size_t ll = (pos + size - 1) % size;
-            while (j <= num) { // creating all the missing panes older than the considered one
-                if (new_infos[i].pane_id - j > last_id) {
+            while (j <= num) { // creating all the missing panes
+                if (new_infos[i].pane_id - j >= (first_pane_id + num_panes)) {
                     new (&(panes[ll])) result_t();
                     ll = (ll + size - 1) % size;
                 }
@@ -266,43 +264,42 @@ template<typename result_t, typename key_t, typename comb_func_gpu_t>
 class PendingPanes_Queue
 {
 private:
-    size_t first_id, last_id;
-    size_t first_pos, last_pos;
-    size_t size;
-    result_t *buffer;
-    int numSMs, max_blocks_per_sm;
-    comb_func_gpu_t comb_func;
+    size_t first_id; // identifier of the first pane in the buffer
+    size_t first_pos; // position of the first pane in the buffer
+    size_t last_pos; // position where to add the next pane in the buffer
+    size_t capacity; // total size of the buffer
+    result_t *buffer; // array implementing the buffer
+    int numSMs, max_blocks_per_sm; // parameters to launch CUDA kernels
+    comb_func_gpu_t comb_func; // associative and commutative binary operator
 
 public:
     // Constructor
-    PendingPanes_Queue(size_t _size,
+    PendingPanes_Queue(size_t _capacity,
                        int _numSMs,
                        int _max_blocks_per_sm,
                        comb_func_gpu_t _comb_func):
                        first_id(0),
-                       last_id(0),
                        first_pos(0),
                        last_pos(0),
-                       size(_size),
+                       capacity(_capacity),
                        numSMs(_numSMs),
                        max_blocks_per_sm(_max_blocks_per_sm),
                        comb_func(_comb_func)
     {
-        gpuErrChk(cudaMalloc(&buffer, sizeof(result_t) * size));
+        gpuErrChk(cudaMalloc(&buffer, sizeof(result_t) * capacity));
     }
 
     // Copy Constructor
     PendingPanes_Queue(const PendingPanes_Queue &_other):
                        first_id(_other.first_id),
-                       last_id(_other.last_id),
                        first_pos(_other.first_pos),
                        last_pos(_other.last_pos),
-                       size(_other.size),
+                       capacity(_other.capacity),
                        numSMs(_other.numSMs),
                        max_blocks_per_sm(_other.max_blocks_per_sm),
                        comb_func(_other.comb_func)
     {
-        gpuErrChk(cudaMalloc(&buffer, sizeof(result_t) * size));      
+        gpuErrChk(cudaMalloc(&buffer, sizeof(result_t) * capacity));
     }
 
     // Destructor
@@ -316,81 +313,82 @@ public:
     // getNumPendingPanes method
     size_t getNumPendingPanes()
     {
+        size_t num_panes = 0;
         if (first_pos <= last_pos) {
-            return last_pos - first_pos + 1;
+            num_panes = (last_pos - first_pos);
         }
         else {
-            return (size - first_pos) + (last_pos + 1);
+            num_panes = (capacity - first_pos) + last_pos;
         }
+        assert(num_panes < capacity); // sanity check -> the buffer cannot be full!
+        return num_panes;
     }
 
     // resize method
-    void resize(size_t _new_size, cudaStream_t &_stream)
+    void resize(size_t _new_capacity, cudaStream_t &_stream)
     {
-        assert(_new_size > size); // sanity check
+        assert(_new_capacity > capacity); // sanity check (only go up!)
         size_t num_elements = getNumPendingPanes();
         result_t *new_buffer;
-        gpuErrChk(cudaMalloc(&new_buffer, sizeof(result_t) * _new_size));
+        gpuErrChk(cudaMalloc(&new_buffer, sizeof(result_t) * _new_capacity));
         if (first_pos <= last_pos) {
             gpuErrChk(cudaMemcpyAsync(new_buffer,
                                       &(buffer[first_pos]),
-                                      sizeof(result_t) * (last_pos-first_pos+1),
+                                      sizeof(result_t) * (last_pos-first_pos),
                                       cudaMemcpyDeviceToDevice,
                                       _stream));
         }
         else {
             gpuErrChk(cudaMemcpyAsync(new_buffer,
                                       &(buffer[first_pos]),
-                                      sizeof(result_t) * (size-first_pos),
+                                      sizeof(result_t) * (capacity-first_pos),
                                       cudaMemcpyDeviceToDevice,
                                       _stream));
-            gpuErrChk(cudaMemcpyAsync(&new_buffer[size-first_pos],
+            gpuErrChk(cudaMemcpyAsync(&new_buffer[capacity-first_pos],
                                       buffer,
-                                      sizeof(result_t) * (last_pos+1),
+                                      sizeof(result_t) * (last_pos),
                                       cudaMemcpyDeviceToDevice,
-                                      _stream));            
+                                      _stream));
         }
+        gpuErrChk(cudaStreamSynchronize(_stream));
         gpuErrChk(cudaFree(buffer));
         buffer = new_buffer;
         first_pos = 0;
-        last_pos = num_elements-1;
-        size = _new_size;
+        last_pos = num_elements;
+        capacity = _new_capacity;
     }
 
     // push_panes method
     void push_panes(result_t *_new_panes,
                     info_t<key_t> *_new_infos,
-                    size_t _size,
-                    size_t _new_last_id,
-                    uint64_t _first_pane_id,
+                    size_t _num_new,
+                    size_t _newest_pane_id, // largest pane identifier to be added to the buffer
                     cudaStream_t &_stream)
     {
-        if (_new_last_id >= first_id) {
-            size_t new_size = _new_last_id - first_id + 1;
-            if (new_size > size) { // we must resize
-                resize(new_size, _stream);
+        if (_newest_pane_id >= first_id) { // check whether the buffer needs resizing (up!)
+            size_t new_capacity = _newest_pane_id - first_id + 2; // note + 2
+            if (new_capacity > capacity) { // we must resize
+                resize(new_capacity, _stream);
             }
         }
-        int num_blocks = std::min((int) ceil(((double) _size) / WF_GPU_THREADS_PER_BLOCK), numSMs * max_blocks_per_sm);
+        int num_blocks = std::min((int) ceil(((double) _num_new) / WF_GPU_THREADS_PER_BLOCK), numSMs * max_blocks_per_sm);
         Aggregate_Panes_Kernel<result_t, info_t<key_t>, comb_func_gpu_t>
                               <<<num_blocks, WF_GPU_THREADS_PER_BLOCK, 0, _stream>>>(_new_panes,
                                                                                      _new_infos,
+                                                                                     _num_new,
                                                                                      buffer,
-                                                                                     _size,
-                                                                                     last_id,
+                                                                                     getNumPendingPanes(),
+                                                                                     capacity,
                                                                                      first_id,
                                                                                      first_pos,
-                                                                                     size,
-                                                                                     _first_pane_id,
                                                                                      comb_func);
-        
         gpuErrChk(cudaPeekAtLastError());
-        size_t num_added_panes = 0;
-        if (_new_last_id > last_id) {
-            num_added_panes = _new_last_id - last_id;
-            last_id = _new_last_id;
+        // check if we have to update last_pos
+        if (_newest_pane_id >= first_id + getNumPendingPanes()) {
+            size_t num_added_panes = _newest_pane_id - (first_id + getNumPendingPanes()) + 1;
+            last_pos = (last_pos + num_added_panes) % capacity;
         }
-        last_pos = (last_pos + num_added_panes) % size;
+        assert(first_pos != last_pos); // sanity check -> it cannot happen by pushing new data
     }
 
     // pop_and_add method
@@ -399,11 +397,12 @@ public:
                      cudaStream_t &_stream)
     {
         assert(_num_popped <= getNumPendingPanes()); // sanity check
-        if (first_pos <= last_pos) {
+        assert(first_pos != last_pos); // sanity check -> buffer cannot be empty
+        if (first_pos < last_pos) {
             fat.add_tb(&(buffer[first_pos]), _num_popped, _stream);
         }
         else {
-            size_t num_to_end = size - first_pos;
+            size_t num_to_end = capacity - first_pos;
             if (_num_popped <= num_to_end) {
                 fat.add_tb(&(buffer[first_pos]), _num_popped, _stream);
             }
@@ -411,8 +410,8 @@ public:
                 fat.add_tb(&(buffer[first_pos]), num_to_end, buffer, (_num_popped - num_to_end), _stream);
             }
         }
-        first_pos = (first_pos + _num_popped) % size;
-        first_id = first_id + _num_popped;
+        first_pos = (first_pos + _num_popped) % capacity;
+        first_id += _num_popped;
     }
 
     PendingPanes_Queue(PendingPanes_Queue &&) = delete; ///< Move constructor is deleted
@@ -438,41 +437,41 @@ private:
 
     struct Key_Descriptor // struct of a key descriptor
     {
-        fat_t fatgpu; // FlatFAT_GPU of the key
-        pending_panes_t *pending_queue; // pointer to the queue of pending panes of the key (only for time-based windows)
-        cudaStream_t *cudaStream; // pointer to the CUDA stream of the key
-        uint64_t next_pane_id; // identifier of the first non-complete pane of the key (only for time-based windows)
-        uint64_t pane_id_triggerer; // identifier of the first pane (of the key) triggering the next window when complete (only for time-based windows)
-        uint64_t next_gwid; // identifier of the next window result of the key to be produced
-        bool firstWinDone; // true if the first window of the key has been computed, false otherwise (only for time-based windows)
-        uint64_t count; // counter to handle windows activation (only for count-based windows)
-        uint64_t count_triggerer; // count of the number of tuples that triggers the next window (only for count-based windows)
+        fat_t fatgpu; // FlatFAT_GPU structure
+        pending_panes_t *pending_queue; // pointer to the queue of pending panes (time-based windows)
+        cudaStream_t *cudaStream; // pointer to the CUDA stream
+        uint64_t next_pane_id; // identifier of the first non-complete pane (time-based windows)
+        uint64_t pane_id_triggerer; // identifier of the first pane triggering the next window when complete (time-based windows)
+        uint64_t next_gwid; // identifier of the next window result to be produced
+        bool firstWinDone; // true if the first window has been computed, false otherwise (time-based windows)
+        uint64_t count; // counter to handle windows activation (count-based windows)
+        uint64_t count_triggerer; // count of the number of tuples that triggers the next window (count-based windows)
 
         // Constructor
         Key_Descriptor(Win_Type_t _winType,
                        comb_func_gpu_t _comb_func,
-                       size_t _batchSize,
-                       size_t _numWindows,
-                       size_t _win_len,
-                       size_t _slide_len,
+                       size_t _batchSize, // panes per batch (TB), tuples per batch (CB)
+                       size_t _numWinPerBatch,
+                       size_t _win_len, // in panes (TB), in tuples (CB)
+                       size_t _slide_len, // in panes (TB), in tuples (CB)
                        key_t _key,
                        size_t _numSMs,
                        size_t _max_blocks_per_sm):
-                       fatgpu(_comb_func, _batchSize, _numWindows, _win_len, _slide_len, _key, _numSMs, _max_blocks_per_sm),
+                       fatgpu(_comb_func, _batchSize, _numWinPerBatch, _win_len, _slide_len, _key, _numSMs, _max_blocks_per_sm),
                        next_pane_id(0),
                        pane_id_triggerer(_batchSize-1),
                        next_gwid(0),
                        firstWinDone(false),
-                       count(0)
+                       count(0),
+                       count_triggerer(_batchSize)
         {
             if (_winType == Win_Type_t::TB) { // time-based windows
-                pending_queue = new pending_panes_t(_batchSize, _numSMs, _max_blocks_per_sm, _comb_func);
+                pending_queue = new pending_panes_t(_batchSize /* initial capacity of the queue */, _numSMs, _max_blocks_per_sm, _comb_func);
             }
             else { // count-based windows
                 pending_queue = nullptr;
             }
             cudaStream = new cudaStream_t();
-            count_triggerer = _batchSize;
         }
 
         // Copy Constructor
@@ -507,14 +506,14 @@ private:
     };
 
     size_t id_replica; // identifier of the Ffat_Windows_GPU replica
-    uint64_t win_len; // window length (no. of tuples or in time units)
-    uint64_t slide_len; // slide length (no. of tuples or in time units)
-    uint64_t pane_len; // length of each pane
-    uint64_t lateness; // triggering delay in time units (meaningful for time-based windows in DEFAULT mode)
+    uint64_t win_len; // window length
+    uint64_t slide_len; // slide length
+    uint64_t pane_len; // length of each pane (meaningful for time-based windows)
+    uint64_t lateness; // triggering delay in time units (meaningful for time-based windows)
     Win_Type_t winType; // window type (count-based or time-based)
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     size_t numWinPerBatch; // number of consecutive windows results produced per batch
-    size_t batchSize; // number of panes composing one batch
+    size_t batchSize; // number of panes (TB) or tuples (CB) composing one batch
     key_t *keys_gpu = nullptr; // pointer to a GPU array containing keys
     info_t<key_t> *infos_gpu = nullptr; // pointer to a GPU array containing info_t structures
     result_t *results_gpu = nullptr; // pointer to a GPU array containing results
@@ -527,11 +526,11 @@ private:
     int *unique_sequence_gpu = nullptr; // pointer to a GPU array of unique progressive indexes
     key_t *pinned_unique_keys_cpu = nullptr; // pointer to a host pinned array of unique keys
     info_t<key_t> *pinned_unique_infos_cpu = nullptr; // pointer of a host pinned array of unique info_t structures
-    int *pinned_unique_sequence_cpu = nullptr; // pointer to a host pinned array of progressive indexes
+    int *pinned_unique_sequence_cpu = nullptr; // pointer to a host pinned array of unique progressive indexes
     Thurst_Allocator alloc; // internal memory allocator used by CUDA/Thrust
     ff::MPMC_Ptr_Queue *queue; // pointer to the recyling queue
     std::atomic<int> *inTransit_counter; // pointer to the counter of in-transit batches
-    uint64_t last_time; // last received timestamp or watermark
+    uint64_t last_time; // last received watermark
     int ignored_tuples_cpu; // number of ignored tuples accessible by CPU
     int *ignored_tuples_gpu; // pointer to the number of ignored tuples accessible by GPU
     int numSMs; // number of Stream MultiProcessors of the used GPU
@@ -785,7 +784,7 @@ public:
                 if (it == keyMap.end()) {
                     auto p = keyMap.insert(std::make_pair(pinned_unique_keys_cpu[i], Key_Descriptor(winType,
                                                                                                     comb_func,
-                                                                                                    batchSize,
+                                                                                                    batchSize, // tuples per batch
                                                                                                     numWinPerBatch,
                                                                                                     win_len,
                                                                                                     slide_len,
@@ -795,9 +794,9 @@ public:
                     it = p.first;
                 }
                 Key_Descriptor &key_d = (*it).second;
-                size_t num_items_key = (i<num_keys-1) ? pinned_unique_sequence_cpu[i+1] - pinned_unique_sequence_cpu[i] : batch_input->size - pinned_unique_sequence_cpu[i];
-                process_wins_cb(key_d, num_items_key, watermark, offset_key);
-                offset_key += num_items_key;
+                size_t num_panes_key = (i<num_keys-1) ? pinned_unique_sequence_cpu[i+1] - pinned_unique_sequence_cpu[i] : batch_input->size - pinned_unique_sequence_cpu[i];
+                process_wins_cb(key_d, num_panes_key, watermark, offset_key);
+                offset_key += num_panes_key;
             }
         }
         else { // if not keyed
@@ -873,14 +872,13 @@ public:
         Batch_GPU_t<tuple_t> *batch_input = reinterpret_cast<Batch_GPU_t<tuple_t> *>(_batch);
         uint64_t watermark = batch_input->getWatermark(id_replica);
         allocate_arrays(batch_input->size); // check allocations of internal arrays
-        uint64_t first_partial_pane_id;
+        uint64_t first_pane_not_complete; // identifier of the first pane that is not complete (based on the current watermark and the fixed lateness)
         if (watermark >= lateness) {
-            first_partial_pane_id = (watermark - lateness) / pane_len;
+            first_pane_not_complete = (watermark - lateness) / pane_len;
         }
         else {
-            first_partial_pane_id = 0;
+            first_pane_not_complete = 0;
         }
-        // uint64_t first_partial_pane_id = watermark / pane_len;
         int num_blocks = std::min((int) ceil(((double) batch_input->size) / WF_GPU_THREADS_PER_BLOCK), numSMs * max_blocks_per_sm);
         if constexpr (isKeyed) { // if keyed
             Lifting_Kernel_TB_Keyed<tuple_t, result_t, key_t, lift_func_gpu_t, keyextr_func_gpu_t>
@@ -889,7 +887,7 @@ public:
                                                                                                           infos_gpu,
                                                                                                           batch_input->size,
                                                                                                           pane_len,
-                                                                                                          first_partial_pane_id,
+                                                                                                          first_pane_not_complete,
                                                                                                           ignored_tuples_gpu,
                                                                                                           lift_func,
                                                                                                           key_extr);
@@ -901,7 +899,7 @@ public:
                                                                                                     infos_gpu,
                                                                                                     batch_input->size,
                                                                                                     pane_len,
-                                                                                                    first_partial_pane_id,
+                                                                                                    first_pane_not_complete,
                                                                                                     ignored_tuples_gpu,
                                                                                                     lift_func);
         }
@@ -912,7 +910,7 @@ public:
                                   sizeof(int),
                                   cudaMemcpyDeviceToHost,
                                   batch_input->cudaStream));
-#endif     
+#endif
         thrust::device_ptr<result_t> th_results_gpu = thrust::device_pointer_cast(results_gpu);
         thrust::device_ptr<info_t<key_t>> th_info_gpu = thrust::device_pointer_cast(infos_gpu);
         lessThan_func_gpu_t<info_t<key_t>, key_t> lessThan;
@@ -970,11 +968,10 @@ public:
             size_t offset = 0;
             for (size_t i=0; i<num_keys; i++) { // for each distinct key in the batch
                 auto it = keyMap.find(pinned_unique_infos_cpu[i].key); // find the corresponding key_descriptor (or allocate it if does not exist)
-                // std::cout << "Gestisco chiave " << pinned_unique_infos_cpu[i].key << std::endl;
                 if (it == keyMap.end()) {
                     auto p = keyMap.insert(std::make_pair(pinned_unique_infos_cpu[i].key, Key_Descriptor(winType,
                                                                                                          comb_func,
-                                                                                                         batchSize,
+                                                                                                         batchSize, // panes per batch
                                                                                                          numWinPerBatch,
                                                                                                          win_len,
                                                                                                          slide_len,
@@ -984,7 +981,7 @@ public:
                     it = p.first;
                 }
                 Key_Descriptor &key_d = (*it).second;
-                key_d.next_pane_id = first_partial_pane_id;
+                key_d.next_pane_id = first_pane_not_complete;
                 size_t num_panes_key = (i<num_keys-1) ? pinned_unique_sequence_cpu[i+1] - pinned_unique_sequence_cpu[i] : size_reduced - pinned_unique_sequence_cpu[i];
                 process_wins_tb(key_d, num_panes_key, watermark, pinned_unique_infos_cpu[i].pane_id, offset);
                 offset += num_panes_key;
@@ -1006,7 +1003,7 @@ public:
             if (it == keyMap.end()) {
                 auto p = keyMap.insert(std::make_pair(empty_key, Key_Descriptor(winType,
                                                                                 comb_func,
-                                                                                batchSize,
+                                                                                batchSize, // panes per batch
                                                                                 numWinPerBatch,
                                                                                 win_len,
                                                                                 slide_len,
@@ -1016,22 +1013,21 @@ public:
                 it = p.first;
             }
             Key_Descriptor &key_d = (*it).second;
-            key_d.next_pane_id = first_partial_pane_id;
+            key_d.next_pane_id = first_pane_not_complete;
             process_wins_tb(key_d, size_reduced, watermark, pinned_unique_infos_cpu[0].pane_id);
         }
     }
 
     // Process time-based windows of a given key
     void process_wins_tb(Key_Descriptor &key_d,
-                         size_t _num_items,
+                         size_t _num_panes,
                          uint64_t _watermark,
-                         size_t _max_pane_id,
+                         size_t _newest_pane_id,
                          size_t _offset=0)
     {
-        uint64_t first_pane_id = _watermark / pane_len;
-        (key_d.pending_queue)->push_panes(new_results_gpu + _offset, new_infos_gpu + _offset, _num_items, _max_pane_id, first_pane_id, *(key_d.cudaStream));
+        (key_d.pending_queue)->push_panes(new_results_gpu + _offset, new_infos_gpu + _offset, _num_panes, _newest_pane_id, *(key_d.cudaStream));
         while (key_d.pane_id_triggerer < key_d.next_pane_id) {
-            if (!key_d.firstWinDone) {
+            if (!key_d.firstWinDone) { // first window to be done
                 assert(batchSize <= (key_d.pending_queue)->getNumPendingPanes()); // sanity check
                 (key_d.pending_queue)->pop_and_add(batchSize, key_d.fatgpu, *(key_d.cudaStream));
                 (key_d.fatgpu).build(*(key_d.cudaStream));
@@ -1065,12 +1061,7 @@ public:
     // Get the number of ignored tuples
     size_t getNumIgnoredTuples() const
     {
-        gpuErrChk(cudaMemcpy((void *) &ignored_tuples_cpu,
-                             ignored_tuples_gpu,
-                             sizeof(int),
-                             cudaMemcpyDeviceToHost));
-        assert(ignored_tuples_cpu >= 0); // sanity check
-        return ((size_t) ignored_tuples_cpu);
+        return (size_t) ignored_tuples_cpu;
     }
 
     Ffat_Replica_GPU(Ffat_Replica_GPU &&) = delete; ///< Move constructor is deleted

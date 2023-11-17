@@ -25,12 +25,13 @@
  *  @file    ffat_windows_gpu.hpp
  *  @author  Gabriele Mencagli and Elia Ruggeri
  *  
- *  @brief Ffat_Windows_GPU operator
+ *  @brief Ffat_Windows_GPU operator "Springald"
  *  
- *  @section Ffat_Windows_GPU (Description)
+ *  @section Ffat_Windows_GPU "Springald" (Description)
  *  
  *  This file implements the Ffat_Windows_GPU operator able to execute associative and
  *  commutative window-based aggregates on GPU using a variant of the FlatFAT algorithm.
+ *  This operator is also called (informally) "Springald".
  */ 
 
 #ifndef FFAT_WINDOWS_GPU_H
