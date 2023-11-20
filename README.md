@@ -102,15 +102,16 @@ In order to cite our work, we kindly ask interested people to use the following 
 ```
 
 ```
-@inproceedings{WindFlow-GPU,
- author={Mencagli, Gabriele and Griebler, Dalvan and Danelutto, Marco},
- booktitle={2022 30th Euromicro International Conference on Parallel, Distributed and Network-based Processing (PDP)}, 
- title={Towards Parallel Data Stream Processing on System-on-Chip CPU+GPU Devices}, 
- year={2022},
- volume={},
- number={},
- pages={34-38},
- doi={10.1109/PDP55904.2022.00014}
+@article{WindFlow-GPU,
+ title = {General-purpose data stream processing on heterogeneous architectures with WindFlow},
+ journal = {Journal of Parallel and Distributed Computing},
+ volume = {184},
+ pages = {104782},
+ year = {2024},
+ issn = {0743-7315},
+ doi = {https://doi.org/10.1016/j.jpdc.2023.104782},
+ url = {https://www.sciencedirect.com/science/article/pii/S0743731523001521},
+ author = {Gabriele Mencagli and Massimo Torquati and Dalvan Griebler and Alessandra Fais and Marco Danelutto},
 }
 ```
 
