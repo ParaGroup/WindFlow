@@ -83,6 +83,12 @@ enum class Time_Policy_t { INGRESS_TIME, EVENT_TIME };
 /// Supported window types of window-based operators
 enum class Win_Type_t { CB, TB }; // CB = count based, TB = time based
 
+/// Supported interval join operating modes
+// KP = Key Parallelism, DPS = Data Parallelism with single-key buffers, DPM = Data Parallelism with multi-key buffers
+enum class Interval_Join_Mode_t { NONE, KP, DPS, DPM };
+
+enum class Join_Stream_t { NONE, A, B };
+
 /// Routing modes to distribute inputs to the replicas of an operator
 enum class Routing_Mode_t { NONE, FORWARD, KEYBY, BROADCAST, REBALANCING };
 
@@ -137,6 +143,10 @@ class MapReduce_Windows;
 /// Forward declaration of the Ffat_Windows operator
 template<typename lift_func_t, typename comb_func_t, typename keyextr_func_t>
 class Ffat_Windows;
+
+/// Forward declaration of the Interval Join operator
+template<typename join_func_t, typename keyextr_func_t>
+class Interval_Join;
 
 /// Forward declaration of the MultiPipe construct
 class MultiPipe;
@@ -300,6 +310,27 @@ inline result_t create_win_result_t(key_t _key, uint64_t _id=0)
         return res;
     }
 }
+
+// Struct wrapping a Single_t<tuple_t> for join-based operators
+template<typename tuple_t>
+struct join_tuple_t
+{
+    tuple_t tuple; // tuple
+    uint64_t index; // timestamp
+
+    // Constructor
+    join_tuple_t(const tuple_t &_tuple, uint64_t _index):
+                    tuple(_tuple), index(_index) {}
+};
+
+// Struct responsible to store join result
+template<typename tuple_t>
+struct Join_Result
+{
+    tuple_t tuple_a; // tuple A
+    tuple_t tuple_b; // tuple B
+
+};
 
 } // namespace wf
 

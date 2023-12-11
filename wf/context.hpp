@@ -57,6 +57,7 @@ private:
     template<typename T> friend class Source_Replica;
     template<typename T1> friend class Map_Replica;
     template<typename T1> friend class Filter_Replica;
+    template<typename T1, typename T2> friend class IJoin_Replica;
     template<typename T1, typename T2> friend class Reduce_Replica;
     template<typename T1> friend class FlatMap_Replica;
     template<typename T1> friend class Sink_Replica;

@@ -3,6 +3,7 @@ add_subdirectory(graph_tests)
 add_subdirectory(merge_tests)
 add_subdirectory(split_tests)
 add_subdirectory(win_tests)
+add_subdirectory(join_tests)
 
 # Add custom target for all the CPU tests
 add_custom_target(all_cpu)
@@ -11,11 +12,11 @@ if(LIBRDKAFKA_FOUND)
     # Add the sub-folder with Kafka tests
     add_subdirectory(kafka_tests)
     # Add dependencies to the all_cpu target
-    add_dependencies(all_cpu graph_tests merge_tests split_tests win_tests kafka_tests)
+    add_dependencies(all_cpu graph_tests merge_tests split_tests win_tests join_tests kafka_tests)
 else()
     message(STATUS "librdkafka needs to be installed to generate kafka tests")
     # Add dependencies to the all_cpu target
-    add_dependencies(all_cpu graph_tests merge_tests split_tests win_tests)
+    add_dependencies(all_cpu graph_tests merge_tests split_tests win_tests join_tests)
 endif()
 
 # Check CUDA existence

@@ -54,6 +54,7 @@
 #include<kslack_collector.hpp>
 #include<ordering_collector.hpp>
 #include<watermark_collector.hpp>
+#include<join_collector.hpp>
 #if defined (__CUDACC__)
     #include<basic_gpu.hpp>
     #include<broadcast_emitter_gpu.hpp>
@@ -202,11 +203,21 @@ private:
                                                       bool _needBatching) const
     {
         size_t id=0;
+        size_t separator_id=0;
         std::vector<ff::ff_node *> result;
+        if (_operator.getType() == "Interval_Join") {
+            auto lastOps = this->getLastOperators();
+            separator_id = lastOps.front()->getParallelism();
+        }
         for (auto *r: _operator.replicas) {
             ff::ff_pipeline *stage = new ff::ff_pipeline();
             stage->add_stage(r, false);
-            if (_operator.getType() == "Parallel_Windows_WLQ" || _operator.getType() == "Parallel_Windows_REDUCE") { // special cases
+            if (_operator.getType() == "Interval_Join" && execution_mode == Execution_Mode_t::DEFAULT) {
+                r->receiveBatches(_needBatching);
+                auto *collector = new Join_Collector<decltype(_operator.getKeyExtractor())>(_operator.getKeyExtractor(), _ordering_mode, id++, _needBatching, separator_id);
+                combine_with_firststage(*stage, collector, true); // combine with the Join_Collector
+            }
+            else if (_operator.getType() == "Parallel_Windows_WLQ" || _operator.getType() == "Parallel_Windows_REDUCE") { // special cases
                 auto *collector = new Ordering_Collector<decltype(_operator.getKeyExtractor())>(_operator.getKeyExtractor(), ordering_mode_t::ID, execution_mode, id++);
                 combine_with_firststage(*stage, collector, true); // combine with the Ordering_Collector
             }
@@ -434,6 +445,10 @@ private:
         }
         if (isSplit) { // split MultiPipe cannot be modified
             std::cerr << RED << "WindFlow Error: MultiPipe has been split, operator cannot be added" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        if (auto lastOps = this->getLastOperators(); _operator.getType() == "Interval_Join" && (!fromMerging || localOpList.size() != 0 || lastOps.size() != 2) ) {
+            std::cerr << RED << "WindFlow Error: Join operators must be added after merge of two MultiPipes" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         if (fromSplitting && last == nullptr) { // Case 1: first operator added after splitting
@@ -1295,6 +1310,36 @@ public:
 #endif
         localOpList.push_back(copied_ffatagg); // add the copied operator to local list
         globalOpList->push_back(copied_ffatagg); // add the copied operator to global list
+        return *this;
+    }
+
+    /** 
+     *  \brief Add a Interval Join operator to the MultiPipe
+     *  \param _join the Interval Join operator to be added
+     *  \return a reference to the modified MultiPipe
+     */ 
+    template<typename join_func_t, typename keyextr_func_t>
+    MultiPipe &add(const Interval_Join<join_func_t, keyextr_func_t> &_join)
+    {
+        if (_join.getOutputBatchSize() > 0 && execution_mode != Execution_Mode_t::DEFAULT) {
+            std::cerr << RED << "WindFlow Error: Interval_Join cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);         
+        }
+        auto *copied_join = new Interval_Join(_join); // create a copy of the operator
+        copied_join->setExecutionMode(execution_mode); // set the execution mode of the operator
+        using tuple_t = decltype(get_tuple_t_Join(copied_join->func)); // extracting the tuple_t type and checking the admissible signatures
+        std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
+        if (!outputType.empty() && outputType.compare(opInType) != 0) {
+            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Filter operator" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        outputType = TypeName<Join_Result<tuple_t>>::getName(); // save the new output type from this MultiPipe
+        add_operator(*copied_join, ordering_mode_t::TS);
+#if defined (WF_TRACING_ENABLED)
+        gv_add_vertex("Interval_Join (" + std::to_string(copied_join->getParallelism()) + ")", copied_join->getName(), true, false, copied_join->getInputRoutingMode());
+#endif
+        localOpList.push_back(copied_join); // add the copied operator to local list
+        globalOpList->push_back(copied_join); // add the copied operator to global list
         return *this;
     }
 
