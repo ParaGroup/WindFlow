@@ -205,7 +205,9 @@ private:
             if (lca->parent != root && ((inputNodes.size() > 0) || (_rightList.size() > 1))) { // important check
                 return false;
             }
-            idx++;
+            if (inputNodes.size() > 0) {
+                idx = (idx + 1) % inputNodes.size();
+            }
         }
         return true;
     }
