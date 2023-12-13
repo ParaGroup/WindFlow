@@ -177,11 +177,9 @@ private:
             assert((node->children).size() == 0); // sanity check
             inputNodes.push_back(node);
         }
+        uint64_t idx = 0;
         while (inputNodes.size() > 0) { // loop until inputNodes is empty
-            std::random_device random_device; 
-            std::mt19937 engine { random_device() };
-            std::uniform_int_distribution<int> dist(0, inputNodes.size() - 1);
-            AppNode *curr_node = inputNodes[dist(engine)]; // pick one random node in inputNodes
+            AppNode *curr_node = inputNodes[idx]; // pick one random node in inputNodes
             inputNodes.erase(std::remove(inputNodes.begin(), inputNodes.end(), curr_node), inputNodes.end()); // remove curr_node from inputNodes
             AppNode *lca = curr_node;
             while (curr_node->parent != root && inputNodes.size() > 0) { // loop in the sub-tree rooted at curr_node
@@ -206,6 +204,9 @@ private:
             _rightList.push_back(lca); // add the found lca to the _rightList
             if (lca->parent != root && ((inputNodes.size() > 0) || (_rightList.size() > 1))) { // important check
                 return false;
+            }
+            if (inputNodes.size() > 0) {
+                idx = (idx + 1) % inputNodes.size();
             }
         }
         return true;
