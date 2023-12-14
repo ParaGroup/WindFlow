@@ -81,22 +81,20 @@ private:
     {
         JoinArchive<tuple_t> archiveA; // archive of stream A tuples of this key
         JoinArchive<tuple_t> archiveB; // archive of stream B tuples of this key
-        uint64_t last_wm_a; // last purged watermark checkpoint for Archive A
-        uint64_t last_wm_b; // last purged watermark checkpoint for Archive B
 
         // Constructor
         Key_Descriptor(compare_func_t _compare_func):
                        archiveA(_compare_func),
-                       archiveB(_compare_func),
-                       last_wm_a(0),
-                       last_wm_b(0) {}
+                       archiveB(_compare_func) {}
     };
 
     compare_func_t compare_func; // function to compare wrapped to an uint64 that rapresent an timestamp ( or watermark )
-    uint64_t lower_bound; // lower bound of the interval ( ts - lower_bound )
-    uint64_t upper_bound; // upper bound of the interval ( ts + upper_bound )
+    int64_t lower_bound; // lower bound of the interval ( ts - lower_bound )
+    int64_t upper_bound; // upper bound of the interval ( ts + upper_bound )
     Interval_Join_Mode_t joinMode; // Interval Join operating mode
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
+    size_t ignored_tuples; // number of ignored tuples
+    uint64_t last_wm; // last received watermark
 
 
 public:
@@ -106,15 +104,17 @@ public:
                 std::string _opName,
                 RuntimeContext _context,
                 std::function<void(RuntimeContext &)> _closing_func,
-                uint64_t _lower_bound,
-                uint64_t _upper_bound,
+                int64_t _lower_bound,
+                int64_t _upper_bound,
                 Interval_Join_Mode_t _join_mode):
                 Basic_Replica(_opName, _context, _closing_func, false),
                 func(_func),
                 key_extr(_key_extr),
                 lower_bound(_lower_bound),
                 upper_bound(_upper_bound),
-                joinMode(_join_mode)
+                joinMode(_join_mode),
+                ignored_tuples(0),
+                last_wm(0)
     {
         compare_func = [](const wrapper_t &w1, const uint64_t &_idx) { // comparator function of wrapped tuples
             return w1.index < _idx;
@@ -129,7 +129,9 @@ public:
                 lower_bound(_other.lower_bound),
                 upper_bound(_other.upper_bound),
                 joinMode(_other.joinMode),
-                compare_func(_other.compare_func) {}
+                compare_func(_other.compare_func),
+                ignored_tuples(_other.ignored_tuples),
+                last_wm(_other.last_wm) {}
 
     // svc (utilized by the FastFlow runtime)
     void *svc(void *_in) override
@@ -175,6 +177,13 @@ public:
                        uint64_t _watermark,
                        Join_Stream_t _tag)
     {
+        if (_watermark < last_wm) {
+#if defined (WF_TRACING_ENABLED)
+            stats_record.inputs_ignored++;
+#endif
+            ignored_tuples++;
+            return;
+        }
         auto key = key_extr(_tuple); // get the key attribute of the input tuple
         //size_t hashcode = std::hash<key_t>()(key); // compute the hashcode of the key
         auto it = keyMap.find(key); // find the corresponding key_descriptor (or allocate it if does not exist)
@@ -183,45 +192,85 @@ public:
             it = p.first;
         }
         Key_Descriptor &key_d = (*it).second;
-
-        uint64_t l_b = ( lower_bound>_timestamp ? 0 : _timestamp-lower_bound) , u_b = (_timestamp+upper_bound);
-        std::pair<iterator_t, iterator_t> its = (_tag == Join_Stream_t::A ? (key_d.archiveB).getJoinRange(l_b, u_b) : (key_d.archiveA).getJoinRange(l_b, u_b));
-        Iterable_Join<wrapper_t> iter(its.first, its.second);
         
-        for (size_t i=0; i<iter.size(); i++) {
-            bool produce_join = false;
-            if constexpr (isNonRiched) { // inplace non-riched version
-                produce_join = (_tag == Join_Stream_t::A ? func(_tuple, (iter[i]).tuple) : func((iter[i]).tuple, _tuple));
-            }
-            if constexpr (isRiched)  { // inplace riched version
-                (this->context).setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
-                produce_join = (_tag == Join_Stream_t::A ? func(_tuple, (iter[i]).tuple, this->context) : func((iter[i]).tuple, _tuple, this->context));
-            }
-            if (produce_join) {
-                result_t output;
-                output.tuple_a = _tuple;
-                output.tuple_b = (iter[i]).tuple;
-                (this->emitter)->emit(&output, 0, _timestamp, _watermark, this);
-#if defined (WF_TRACING_ENABLED)
-                (this->stats_record).outputs_sent++;
-                (this->stats_record).bytes_sent += sizeof(result_t);
-#endif
-            }
+        uint64_t l_b = 0;
+        if (_tag == Join_Stream_t::A) {
+            if (!(-lower_bound > (int64_t)_timestamp))  { l_b = _timestamp + lower_bound; }
+        } else {
+            if (!(upper_bound > (int64_t)_timestamp))   { l_b = _timestamp - upper_bound; }
+        }
+        
+        uint64_t u_b = 0;
+        if (_tag == Join_Stream_t::A) {      
+            if (!(-upper_bound > (int64_t)_timestamp))  { u_b = _timestamp + upper_bound; }
+        } else {
+            if (!(lower_bound > (int64_t)_timestamp))   { u_b = _timestamp - lower_bound; }
         }
 
         if (_tag == Join_Stream_t::A) {
+            std::pair<iterator_t, iterator_t> its = (key_d.archiveB).getJoinRange(l_b, u_b);
+            Iterable_Join<wrapper_t> iter(its.first, its.second);
+            for (size_t i=0; i<iter.size(); i++) {
+                bool produce_join = false;
+                if constexpr (isNonRiched) { // inplace non-riched version
+                    produce_join = func(_tuple, (iter[i]).tuple);
+                }
+                if constexpr (isRiched)  { // inplace riched version
+                    (this->context).setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
+                    produce_join = func(_tuple, (iter[i]).tuple, this->context);
+                }
+                if (produce_join) {
+                    result_t output;
+                    output.tuple_a = _tuple;
+                    output.tuple_b = (iter[i]).tuple;
+                    uint64_t ts = _timestamp >= (iter[i]).index ? _timestamp : (iter[i]).index; // use the highest timestamp between two joined tuples
+                    (this->emitter)->emit(&output, 0, ts, _watermark, this);
+#if defined (WF_TRACING_ENABLED)
+                    (this->stats_record).outputs_sent++;
+                    (this->stats_record).bytes_sent += sizeof(result_t);
+#endif
+                }
+            }
             (key_d.archiveA).insert(wrapper_t(_tuple, _timestamp));
-            if (key_d.last_wm_a < _watermark && _watermark < l_b) {
-                (key_d.archiveA).purge(_watermark);
-                key_d.last_wm_a = _watermark;
-            }
         } else {
-            (key_d.archiveB).insert(wrapper_t(_tuple, _timestamp));
-            if (key_d.last_wm_b < _watermark && _watermark < l_b) {
-                (key_d.archiveB).purge(_watermark);
-                key_d.last_wm_b = _watermark;
+            std::pair<iterator_t, iterator_t> its = (key_d.archiveA).getJoinRange(l_b, u_b);
+            Iterable_Join<wrapper_t> iter(its.first, its.second);
+            for (size_t i=0; i<iter.size(); i++) {
+                bool produce_join = false;
+                if constexpr (isNonRiched) { // inplace non-riched version
+                    produce_join = func((iter[i]).tuple, _tuple);
+                }
+                if constexpr (isRiched)  { // inplace riched version
+                    (this->context).setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
+                    produce_join = func((iter[i]).tuple, _tuple, this->context);
+                }
+                if (produce_join) {
+                    result_t output;
+                    output.tuple_a = _tuple;
+                    output.tuple_b = (iter[i]).tuple;
+                    uint64_t ts = _timestamp >= (iter[i]).index ? _timestamp : (iter[i]).index; // use the highest timestamp between two joined tuples
+                    (this->emitter)->emit(&output, 0, ts, _watermark, this);
+#if defined (WF_TRACING_ENABLED)
+                    (this->stats_record).outputs_sent++;
+                    (this->stats_record).bytes_sent += sizeof(result_t);
+#endif
+                }
             }
+            (key_d.archiveB).insert(wrapper_t(_tuple, _timestamp));
         }
+
+        last_wm = _watermark;
+        uint64_t wm_a = 0, wm_b = 0;
+        if (!(upper_bound > (int64_t)last_wm))  { wm_a = last_wm - upper_bound; }
+        if (!(-lower_bound > (int64_t)last_wm)) { wm_b = last_wm + lower_bound; }
+        (key_d.archiveA).purge(wm_a);
+        (key_d.archiveB).purge(wm_b);
+    }
+
+    // Get the number of ignored tuples
+    size_t getNumIgnoredTuples() const
+    {
+        return ignored_tuples;
     }
 
     IJoin_Replica(IJoin_Replica &&) = delete; ///< Move constructor is deleted
@@ -248,8 +297,8 @@ private:
     join_func_t func; // functional boolean condition logic used by the Interval Join
     keyextr_func_t key_extr; // logic to extract the key attribute from the tuple_t
     std::vector<IJoin_Replica<join_func_t, keyextr_func_t>*> replicas; // vector of pointers to the replicas of the Interval Join
-    uint64_t lower_bound; // lower bound of the interval ( ts - lower_bound )
-    uint64_t upper_bound; // upper bound of the interval ( ts + upper_bound )
+    int64_t lower_bound; // lower bound of the interval, can be negative ( ts + lower_bound )
+    int64_t upper_bound; // upper bound of the interval, can be negative ( ts + upper_bound )
     Interval_Join_Mode_t joinMode; // Interval Join operating mode
 
     // Configure the Map to receive batches instead of individual inputs
@@ -366,8 +415,8 @@ public:
                   Routing_Mode_t _input_routing_mode,
                   size_t _outputBatchSize,
                   std::function<void(RuntimeContext &)> _closing_func,
-                  uint64_t _lower_bound,
-                  uint64_t _upper_bound,
+                  int64_t _lower_bound,
+                  int64_t _upper_bound,
                   Interval_Join_Mode_t _join_mode):
                   Basic_Operator(_parallelism, _name, _input_routing_mode, _outputBatchSize),
                   func(_func),

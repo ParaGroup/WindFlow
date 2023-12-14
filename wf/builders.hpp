@@ -1440,8 +1440,8 @@ private:
     Routing_Mode_t input_routing_mode = Routing_Mode_t::FORWARD; // routing mode of inputs to the Interval_Join
     keyextr_func_t key_extr = [](const tuple_t &t) -> key_t { return key_t(); }; // key extractor
     bool isKeyBySet = false; // true if a key extractor has been provided
-    uint64_t lower_bound=0; // lower bound of the interval
-    uint64_t upper_bound=0; // upper bound of the interval
+    int64_t lower_bound=0; // lower bound of the interval
+    int64_t upper_bound=0; // upper bound of the interval
     Interval_Join_Mode_t join_mode = Interval_Join_Mode_t::NONE;
 
 
@@ -1506,6 +1506,10 @@ public:
     {
         lower_bound = _lower_bound.count();
         upper_bound = _upper_bound.count();
+        if (lower_bound > upper_bound) {
+            std::cerr << RED << "WindFlow Error: Interval_Join must have lower_bound <= upper_bound" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
         return *this;
     }
 

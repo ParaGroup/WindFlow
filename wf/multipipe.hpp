@@ -1330,7 +1330,7 @@ public:
         using tuple_t = decltype(get_tuple_t_Join(copied_join->func)); // extracting the tuple_t type and checking the admissible signatures
         std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
         if (!outputType.empty() && outputType.compare(opInType) != 0) {
-            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Filter operator" << DEFAULT_COLOR << std::endl;
+            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Interval_Join operator" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         outputType = TypeName<Join_Result<tuple_t>>::getName(); // save the new output type from this MultiPipe
