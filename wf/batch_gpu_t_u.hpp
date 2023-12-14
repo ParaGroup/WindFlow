@@ -67,6 +67,7 @@ struct Batch_GPU_t: Batch_t<tuple_t>
     cudaDeviceProp deviceProp; // object containing the properties of the used GPU device
     int isTegra; // flag equal to 1 if the GPU is integrated (Tegra), 0 otherwise
     int gpu_id; // identifier of the currently used GPU
+    Join_Stream_t stream_tag; // flag to discriminate stream flow between Stream A & B (meaningful to join operators)
 
     // Constructor
     Batch_GPU_t(size_t _size,
@@ -291,6 +292,18 @@ struct Batch_GPU_t: Batch_t<tuple_t>
         if (watermarks[0] > _watermark) {
             watermarks[0] = _watermark;
         }
+    }
+
+    // Get the stream tag of the batch
+    Join_Stream_t getStreamTag() const
+    {
+        return stream_tag;
+    }
+
+    // Set the stream tag of the batch
+    void setStreamTag(Join_Stream_t _tag)
+    {
+        stream_tag = _tag;
     }
 
     // Reset the batch content
