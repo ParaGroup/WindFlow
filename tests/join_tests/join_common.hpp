@@ -42,6 +42,13 @@ struct tuple_t
     int64_t value;
 };
 
+struct res_t
+{
+    size_t key;
+    int64_t value;
+    size_t from;
+};
+
 // Source functor for generating positive numbers
 class Source_Positive_Functor
 {
@@ -125,28 +132,6 @@ public:
     }
 };
 
-// Filter functor
-class Filter_Functor
-{
-private:
-    int mod;
-
-public:
-    // constructor
-    Filter_Functor(int _mod): mod(_mod) {}
-
-    // operator()
-    bool operator()(tuple_t &t)
-    {
-        if (t.value % mod == 0) {
-            return true;
-        }
-        else {
-            return false;
-        }
-    }
-};
-
 // Map functor
 class Map_Functor
 {
@@ -154,22 +139,7 @@ public:
     // operator()
     void operator()(tuple_t &t)
     {
-        t.value = t.value + 13;
-    }
-};
-
-// Map functor post Join
-class JoinMap_Functor
-{
-public:
-    // operator()
-    tuple_t operator()(const Join_Result<tuple_t> &j)
-    {
-        tuple_t t;
-        t.value = j.tuple_a.value*2;
-        t.value += j.tuple_b.value/2;
-        t.key = j.tuple_a.key;
-        return t;
+        t.value = t.value * 2;
     }
 };
 
@@ -178,12 +148,28 @@ class Join_Functor
 {
 public:
     // operator()
-    bool operator()(tuple_t &a, tuple_t &b)
+    optional<tuple_t> operator()(const tuple_t &a, const tuple_t &b)
     {
-        if ((a.value + b.value) % 5 == 0) {
+        if ((a.value - b.value) % 2 == 0) {
+            return a;
+        }
+        return {};
+    }
+};
+
+// Filter functor
+class Filter_Functor
+{
+public:
+    // operator()
+    bool operator()(tuple_t &t)
+    {
+        if (t.value <= 150) {
             return true;
         }
-        return false;
+        else {
+            return false;
+        }
     }
 };
 

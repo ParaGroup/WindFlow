@@ -1425,16 +1425,18 @@ private:
     template<typename T1, typename T2> friend class Interval_Join_Builder;
     join_func_t func; // functional logic of the Interval Join
     using tuple_t = decltype(get_tuple_t_Join(func)); // extracting the tuple_t type and checking the admissible signatures
+    using result_t = decltype(get_result_t_Join(func)); // extracting the result_t type and checking the admissible signatures
     // static assert to check the signature of the Interval Join functional logic
-    static_assert(!std::is_same<tuple_t, std::false_type>::value,
+    static_assert(!std::is_same<tuple_t, std::false_type>::value || std::is_same<result_t, std::false_type>::value,
         "WindFlow Compilation Error - unknown signature passed to the Interval_Join_Builder:\n"
-        "  Candidate 1 : bool(tuple_t &, tuple_t &)\n"
-        "  Candidate 2 : bool(tuple_t &, tuple_t &, RuntimeContext &)\n"
-        "  Candidate 3 : bool(const tuple_t &, tuple_t &)\n"
-        "  Candidate 4 : bool(const tuple_t &, tuple_t &, RuntimeContext &)\n");
+        "  Candidate 1 : std::optional<result_t> (const tuple_t &, const tuple_t &)\n"
+        "  Candidate 2 : std::optional<result_t> (const tuple_t &, const tuple_t &, RuntimeContext &)\n");
     // static assert to check that the tuple_t type must be default constructible
     static_assert(std::is_default_constructible<tuple_t>::value,
         "WindFlow Compilation Error - tuple_t type must be default constructible (Interval_Join_Builder):\n");
+    // static assert to check that the result_t type must be default constructible
+    static_assert(std::is_default_constructible<result_t>::value,
+        "WindFlow Compilation Error - result_t type must be default constructible (Interval_Join_Builder):\n");
     using keyextr_func_t = std::function<key_t(const tuple_t&)>; // type of the key extractor
     using join_t = Interval_Join<join_func_t, keyextr_func_t>; // type of the Interval Join to be created by the builder
     Routing_Mode_t input_routing_mode = Routing_Mode_t::FORWARD; // routing mode of inputs to the Interval_Join
