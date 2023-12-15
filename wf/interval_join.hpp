@@ -64,11 +64,11 @@ private:
     keyextr_func_t key_extr; // logic to extract the key attribute from the tuple_t
     using tuple_t = decltype(get_tuple_t_Join(func)); // extracting the tuple_t type and checking the admissible signatures
     using key_t = decltype(get_key_t_KeyExtr(key_extr)); // extracting the key_t type and checking the admissible singatures
-    using result_t = Join_Result<tuple_t>; // result type of the operator output 
+    using result_t = decltype(get_result_t_Join(func)); // extracting the result_t type and checking the admissible signatures
 
     // static predicates to check the type of the functional logic to be invoked
-    static constexpr bool isNonRiched = std::is_invocable<decltype(func), tuple_t &, tuple_t &>::value;
-    static constexpr bool isRiched = std::is_invocable<decltype(func), tuple_t &, tuple_t &, RuntimeContext &>::value;
+    static constexpr bool isNonRiched = std::is_invocable<decltype(func), const tuple_t &, const tuple_t &>::value;
+    static constexpr bool isRiched = std::is_invocable<decltype(func), const tuple_t &, const tuple_t &, RuntimeContext &>::value;
     // check the presence of a valid functional logic
     static_assert(isNonRiched || isRiched,
         "WindFlow Compilation Error - IJoin_Replica does not have a valid functional logic:\n");
@@ -207,24 +207,21 @@ public:
             if (!(lower_bound > (int64_t)_timestamp))   { u_b = _timestamp - lower_bound; }
         }
 
+        std::optional<result_t> output;
         if (_tag == Join_Stream_t::A) {
             std::pair<iterator_t, iterator_t> its = (key_d.archiveB).getJoinRange(l_b, u_b);
             Iterable_Join<wrapper_t> iter(its.first, its.second);
             for (size_t i=0; i<iter.size(); i++) {
-                bool produce_join = false;
                 if constexpr (isNonRiched) { // inplace non-riched version
-                    produce_join = func(_tuple, (iter[i]).tuple);
+                    output = func(_tuple, (iter[i]).tuple);
                 }
                 if constexpr (isRiched)  { // inplace riched version
                     (this->context).setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
-                    produce_join = func(_tuple, (iter[i]).tuple, this->context);
+                    output = func(_tuple, (iter[i]).tuple, this->context);
                 }
-                if (produce_join) {
-                    result_t output;
-                    output.tuple_a = _tuple;
-                    output.tuple_b = (iter[i]).tuple;
+                if (output) {
                     uint64_t ts = _timestamp >= (iter[i]).index ? _timestamp : (iter[i]).index; // use the highest timestamp between two joined tuples
-                    (this->emitter)->emit(&output, 0, ts, _watermark, this);
+                    (this->emitter)->emit(&(*output), 0, ts, _watermark, this);
 #if defined (WF_TRACING_ENABLED)
                     (this->stats_record).outputs_sent++;
                     (this->stats_record).bytes_sent += sizeof(result_t);
@@ -236,20 +233,16 @@ public:
             std::pair<iterator_t, iterator_t> its = (key_d.archiveA).getJoinRange(l_b, u_b);
             Iterable_Join<wrapper_t> iter(its.first, its.second);
             for (size_t i=0; i<iter.size(); i++) {
-                bool produce_join = false;
                 if constexpr (isNonRiched) { // inplace non-riched version
-                    produce_join = func((iter[i]).tuple, _tuple);
+                    output = func((iter[i]).tuple, _tuple);
                 }
                 if constexpr (isRiched)  { // inplace riched version
                     (this->context).setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
-                    produce_join = func((iter[i]).tuple, _tuple, this->context);
+                    output = func((iter[i]).tuple, _tuple, this->context);
                 }
-                if (produce_join) {
-                    result_t output;
-                    output.tuple_a = _tuple;
-                    output.tuple_b = (iter[i]).tuple;
+                if (output) {
                     uint64_t ts = _timestamp >= (iter[i]).index ? _timestamp : (iter[i]).index; // use the highest timestamp between two joined tuples
-                    (this->emitter)->emit(&output, 0, ts, _watermark, this);
+                    (this->emitter)->emit(&(*output), 0, ts, _watermark, this);
 #if defined (WF_TRACING_ENABLED)
                     (this->stats_record).outputs_sent++;
                     (this->stats_record).bytes_sent += sizeof(result_t);

@@ -1328,12 +1328,13 @@ public:
         auto *copied_join = new Interval_Join(_join); // create a copy of the operator
         copied_join->setExecutionMode(execution_mode); // set the execution mode of the operator
         using tuple_t = decltype(get_tuple_t_Join(copied_join->func)); // extracting the tuple_t type and checking the admissible signatures
+        using result_t = decltype(get_result_t_Join(copied_join->func)); // extracting the result_t type and checking the admissible signatures
         std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
         if (!outputType.empty() && outputType.compare(opInType) != 0) {
             std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Interval_Join operator" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        outputType = TypeName<Join_Result<tuple_t>>::getName(); // save the new output type from this MultiPipe
+        outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
         add_operator(*copied_join, ordering_mode_t::TS);
 #if defined (WF_TRACING_ENABLED)
         gv_add_vertex("Interval_Join (" + std::to_string(copied_join->getParallelism()) + ")", copied_join->getName(), true, false, copied_join->getInputRoutingMode());

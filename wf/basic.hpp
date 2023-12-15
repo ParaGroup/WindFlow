@@ -323,15 +323,6 @@ struct join_tuple_t
                     tuple(_tuple), index(_index) {}
 };
 
-// Struct responsible to store join result
-template<typename tuple_t>
-struct Join_Result
-{
-    tuple_t tuple_a; // tuple A
-    tuple_t tuple_b; // tuple B
-
-};
-
 } // namespace wf
 
 // Hash function of the empty_key_t type

@@ -664,34 +664,52 @@ std::false_type get_return_t_Split(...); // black hole
 
 /****************************************************** JOIN OPERATOR ******************************************************/
 // declaration of functions to extract the input type of the Join operator
-template<typename F_t, typename Arg>
-Arg get_tuple_t_Join(bool (F_t::*)(const Arg&, const Arg&) const);
+template<typename F_t, typename Arg, typename Res>
+Arg get_tuple_t_Join(std::optional<Res> (F_t::*)(const Arg&, const Arg&) const);
 
-template<typename F_t, typename Arg>
-Arg get_tuple_t_Join(bool (F_t::*)(Arg&, Arg&) const);
+template<typename F_t, typename Arg, typename Res>
+Arg get_tuple_t_Join(std::optional<Res> (F_t::*)(const Arg&, const Arg&));
 
-template<typename F_t, typename Arg>
-Arg get_tuple_t_Join(bool (F_t::*)(Arg&, Arg&) const); // inplace version
+template<typename Arg, typename Res>
+Arg get_tuple_t_Join(std::optional<Res> (*)(const Arg&, const Arg&));
 
-template<typename F_t, typename Arg>
-Arg get_tuple_t_Join(bool (F_t::*)(Arg&, Arg&)); // inplace version
+template<typename F_t, typename Arg, typename Res>
+Arg get_tuple_t_Join(std::optional<Res> (F_t::*)(const Arg&, const Arg&, RuntimeContext&) const); //riched version
 
-template<typename Arg>
-Arg get_tuple_t_Join(bool (*)(Arg&, Arg&)); // inplace version
+template<typename F_t, typename Arg, typename Res>
+Arg get_tuple_t_Join(std::optional<Res> (F_t::*)(const Arg&, const Arg&, RuntimeContext&)); //riched version
 
-template<typename F_t, typename Arg>
-Arg get_tuple_t_Join(bool (F_t::*)(Arg&, Arg&, RuntimeContext&) const); // inplace riched version
-
-template<typename F_t, typename Arg>
-Arg get_tuple_t_Join(bool (F_t::*)(Arg&, Arg&, RuntimeContext&)); // inplace riched version
-
-template<typename Arg>
-Arg get_tuple_t_Join(bool (*)(Arg&, Arg&, RuntimeContext&)); // inplace riched version
+template<typename Arg, typename Res>
+Arg get_tuple_t_Join(std::optional<Res> (*)(const Arg&, const Arg&, RuntimeContext&)); //riched version
 
 template<typename F_t>
 decltype(get_tuple_t_Join(&F_t::operator())) get_tuple_t_Join(F_t);
 
 std::false_type get_tuple_t_Join(...); // black hole
+
+// declaration of functions to extract the result type from the signature of the window function
+template<typename F_t, typename Arg, typename Res>
+Res get_result_t_Join(std::optional<Res> (F_t::*)(const Arg&, const Arg&) const);
+
+template<typename F_t, typename Arg, typename Res>
+Res get_result_t_Join(std::optional<Res> (F_t::*)(const Arg&, const Arg&));
+
+template<typename Arg, typename Res>
+Res get_result_t_Join(std::optional<Res> (*)(const Arg&, const Arg&));
+
+template<typename F_t, typename Arg, typename Res>
+Res get_result_t_Join(std::optional<Res> (F_t::*)(const Arg&, const Arg&, RuntimeContext&) const); //riched version
+
+template<typename F_t, typename Arg, typename Res>
+Res get_result_t_Join(std::optional<Res> (F_t::*)(const Arg&, const Arg&, RuntimeContext&)); //riched version
+
+template<typename Arg, typename Res>
+Res get_result_t_Join(std::optional<Res> (*)(const Arg&, const Arg&, RuntimeContext&)); //riched version
+
+template<typename F_t>
+decltype(get_result_t_Join(&F_t::operator())) get_result_t_Join(F_t);
+
+std::false_type get_result_t_Join(...); // black hole
 
 } // namespace wf
 

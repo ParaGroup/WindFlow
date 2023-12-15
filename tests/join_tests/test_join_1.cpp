@@ -29,7 +29,7 @@
  *  |  |  S  |   |  M  |  |                                   |  |  S  |  |
  *  |  | (*) +-->+ (*) |  +--+   +---------------------+  +-->+  | (*) |  |
  *  |  +-----+   +-----+  |  |   |  +-----+   +-----+  |  |   |  +-----+  |
- *  +---------------------+  |   |  |  J  |   |  M  |  |  |   +-----------+
+ *  +---------------------+  |   |  |  J  |   |  F  |  |  |   +-----------+
  *                           +-->|  | (*) +-->| (*) |  +--+
  *  +---------------------+  |   |  +-----+   +-----+  |  |   +-----------+
  *  |  +-----+   +-----+  |  |   +---------------------+  |   |  +-----+  |
@@ -93,16 +93,16 @@ int main(int argc, char *argv[])
     size_t max = 9;
     std::uniform_int_distribution<std::mt19937::result_type> dist_p(min, max);
     std::uniform_int_distribution<std::mt19937::result_type> dist_b(0, 10);
-    int map1_degree, map2_degree, join_degree, join2map_degree, sink1_degree, sink2_degree;
-    size_t source1_degree = dist_p(rng);
-    size_t source2_degree = dist_p(rng);
+    int map1_degree, map2_degree, join_degree, filter_degree, sink1_degree, sink2_degree;
+    size_t source1_degree = (dist_p(rng) % 5) + 1;
+    size_t source2_degree = (dist_p(rng) % 5) + 1;
     long last_result = 0;
     // executes the runs in DEFAULT mode
     for (size_t i=0; i<runs; i++) {
         map1_degree = dist_p(rng);
         map2_degree = dist_p(rng);
         join_degree = dist_p(rng);
-        join2map_degree = dist_p(rng);
+        filter_degree = dist_p(rng);
         sink1_degree = dist_p(rng);
         sink2_degree = dist_p(rng);
         cout << "Run " << i << endl;
@@ -111,8 +111,8 @@ int main(int argc, char *argv[])
         cout << "|  |  S  |   |  M  |  |                                   |  |  S  |  |" << endl;
         cout << "|  | (" << source1_degree << ") +-->+ (" << map1_degree << ") |  +--+   +---------------------+  +-->+  | (" << sink1_degree << ") |  |" << endl;
         cout << "|  +-----+   +-----+  |  |   |  +-----+   +-----+  |  |   |  +-----+  |" << endl;
-        cout << "+---------------------+  |   |  |  J  |   |  M  |  |  |   +-----------+" << endl;
-        cout << "                         +-->+  | (" << join_degree << ") +-->| (" << join2map_degree << ") |  +--+" << endl;
+        cout << "+---------------------+  |   |  |  J  |   |  F  |  |  |   +-----------+" << endl;
+        cout << "                         +-->+  | (" << join_degree << ") +-->| (" << filter_degree << ") |  +--+" << endl;
         cout << "+---------------------+  |   |  +-----+   +-----+  |  |   +-----------+" << endl;
         cout << "|  +-----+   +-----+  |  |   +---------------------+  |   |  +-----+  |" << endl;
         cout << "|  |  S  |   |  M  |  |  |                            |   |  |  S  |  |" << endl;
@@ -129,8 +129,8 @@ int main(int argc, char *argv[])
             check_degree += map2_degree;
         }
         check_degree += join_degree;
-        if (join_degree != join2map_degree) {
-            check_degree += join2map_degree;
+        if (join_degree != filter_degree) {
+            check_degree += filter_degree;
         }
         check_degree += (sink1_degree + sink2_degree);
         // prepare the test
@@ -177,16 +177,16 @@ int main(int argc, char *argv[])
                                     .withKPMode()
                                     .build();
         pipe3.add(join1);
-        JoinMap_Functor join_map;
-        Map join2map = Map_Builder(join_map)
-                        .withName("join2map")
-                        .withParallelism(join2map_degree)
+        Filter_Functor filter_functor;
+        Filter filter = Filter_Builder(filter_functor)
+                        .withName("filter1")
+                        .withParallelism(filter_degree)
                         .withOutputBatchSize(dist_b(rng))
                         .build();
-        pipe3.chain(join2map);
+        pipe3.chain(filter);
         // split
         pipe3.split([](const tuple_t &t) {
-            if (t.value >= 0) {
+            if (t.value % 4 == 0) {
                 return 0;
             }
             else {
