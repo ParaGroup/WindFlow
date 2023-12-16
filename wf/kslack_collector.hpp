@@ -184,6 +184,10 @@ public:
     void *svc(void *_in) override
     {
         Single_t<tuple_t> *input = reinterpret_cast<Single_t<tuple_t> *>(_in); // cast the input to a Single_t structure
+        if (separator_id != 0) {
+            size_t source_id = this->get_channel_id(); // get the index of the source's stream
+            input->setStreamTag(source_id < separator_id ? Join_Stream_t::A : Join_Stream_t::B);
+        }
         this->insertInput(input);  // add the input to the buffer
         received_inputs++;
         auto *next = this->extractInput(); // extract inputs from the buffer (likely in order)
@@ -196,10 +200,6 @@ public:
             }
             else { // otherwise, we can send the next input
                 last_timestamp = next->getTimestamp();
-                if (separator_id != 0) {
-                    size_t source_id = this->get_channel_id(); // get the index of the source's stream
-                    next->setStreamTag(source_id < separator_id ? Join_Stream_t::A : Join_Stream_t::B);
-                }
                 this->ff_send_out(next);
             }
             next = this->extractInput();
@@ -224,9 +224,6 @@ public:
                 }
                 else { // otherwise, we can send the next input
                     last_timestamp = next->getTimestamp();
-                    if (separator_id != 0) {
-                        next->setStreamTag(id < separator_id ? Join_Stream_t::A : Join_Stream_t::B);
-                    }
                     this->ff_send_out(next);
                 }
             }

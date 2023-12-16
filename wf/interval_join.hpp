@@ -199,7 +199,6 @@ public:
         }
         
         auto key = key_extr(_tuple); // get the key attribute of the input tuple
-        //size_t hashcode = std::hash<key_t>()(key); // compute the hashcode of the key
         auto it = keyMap.find(key); // find the corresponding key_descriptor (or allocate it if does not exist)
         if (it == keyMap.end()) {
             auto p = keyMap.insert(std::make_pair(key, Key_Descriptor(compare_func))); // create the state of the key

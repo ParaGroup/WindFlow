@@ -187,6 +187,9 @@ public:
             key_d.maxs[source_id] = id;
             uint64_t min_id = 0;
             min_id = getMinimum(key_d.maxs);
+            if (separator_id != 0) {
+                input->setStreamTag(source_id < separator_id ? Join_Stream_t::A : Join_Stream_t::B);
+            }
             (key_d.queue).push(input); // add the new input in the priority queue of the key
             while (!(key_d.queue).empty()) { // check if buffered inputs of the key can be emitted in order
                 Single_t<tuple_t> *next = (key_d.queue).top(); // read the next input in the queue of the key
@@ -196,9 +199,6 @@ public:
                 else {
                     (key_d.queue).pop(); // extract the next input from the queue of the key
                     next->setWatermark(getMinimum(globalMaxs), id_collector);
-                    if (separator_id != 0) {
-                        next->setStreamTag(source_id < separator_id ? Join_Stream_t::A : Join_Stream_t::B);
-                    }
                     this->ff_send_out(next); // emit the next Single_t
                 }
             }
@@ -209,6 +209,9 @@ public:
             globalMaxs[source_id] = ts;
             uint64_t min_ts = 0;
             min_ts = getMinimum(globalMaxs);
+            if (separator_id != 0) {
+                input->setStreamTag(source_id < separator_id ? Join_Stream_t::A : Join_Stream_t::B);
+            }
             globalQueue.push(input); // add the new input in the global priority queue
             while (!globalQueue.empty()) { // check if buffered inputs can be emitted in order
                 Single_t<tuple_t> *next = globalQueue.top(); // read the next input in the global queue
@@ -217,9 +220,6 @@ public:
                 }
                 else {
                     globalQueue.pop(); // extract the next input from the global queue
-                    if (separator_id != 0) {
-                        next->setStreamTag(source_id < separator_id ? Join_Stream_t::A : Join_Stream_t::B);
-                    }
                     this->ff_send_out(next);
                 }
             }
@@ -240,9 +240,6 @@ public:
             while (!globalQueue.empty()) {
                 Single_t<tuple_t> *next = globalQueue.top(); // read the next input in the global queue
                 globalQueue.pop(); // extract the next input from the global queue
-                if (separator_id != 0) {
-                    next->setStreamTag(id < separator_id ? Join_Stream_t::A : Join_Stream_t::B);
-                }
                 this->ff_send_out(next);
             }
         }
@@ -253,9 +250,6 @@ public:
                     Single_t<tuple_t> *next = (key_d.queue).top(); // read the next input in the queue of the key
                     (key_d.queue).pop(); // extract the next input from the queue of the key
                     next->setWatermark(getMinimum(globalMaxs), id_collector);
-                    if (separator_id != 0) {
-                        next->setStreamTag(id < separator_id ? Join_Stream_t::A : Join_Stream_t::B);
-                    }
                     this->ff_send_out(next);               
                 }
             }
