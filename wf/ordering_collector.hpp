@@ -77,6 +77,7 @@ private:
     std::vector<bool> enabled; // enable[i] is true if channel i is enabled
     std::vector<uint64_t> globalMaxs; // maximum identifiers/timestamps for each input stream (global for all keys)
     size_t eos_received; // number of received EOS messages
+    size_t separator_id; // streams separator meaningful to join operators
 
     // Comparator_t functor (it returns true if A comes after B in the ordering)
     template<typename tuple_t>
@@ -129,12 +130,14 @@ public:
     Ordering_Collector(keyextr_func_t _key_extr,
                        ordering_mode_t _ordering_mode,
                        Execution_Mode_t _execution_mode,
-                       size_t _id_collector):
+                       size_t _id_collector,
+                       size_t _separator_id=0):
                        key_extr(_key_extr),
                        ordering_mode(_ordering_mode),
                        execution_mode(_execution_mode),
                        id_collector(_id_collector),
                        globalQueue(Comparator_t<tuple_t>(_ordering_mode)),
+                       separator_id(_separator_id),
                        eos_received(0)
     {
         assert(execution_mode != Execution_Mode_t::PROBABILISTIC);
@@ -193,6 +196,9 @@ public:
                 else {
                     (key_d.queue).pop(); // extract the next input from the queue of the key
                     next->setWatermark(getMinimum(globalMaxs), id_collector);
+                    if (separator_id != 0) {
+                        next->setStreamTag(source_id < separator_id ? Join_Stream_t::A : Join_Stream_t::B);
+                    }
                     this->ff_send_out(next); // emit the next Single_t
                 }
             }
@@ -211,6 +217,9 @@ public:
                 }
                 else {
                     globalQueue.pop(); // extract the next input from the global queue
+                    if (separator_id != 0) {
+                        next->setStreamTag(source_id < separator_id ? Join_Stream_t::A : Join_Stream_t::B);
+                    }
                     this->ff_send_out(next);
                 }
             }
@@ -231,6 +240,9 @@ public:
             while (!globalQueue.empty()) {
                 Single_t<tuple_t> *next = globalQueue.top(); // read the next input in the global queue
                 globalQueue.pop(); // extract the next input from the global queue
+                if (separator_id != 0) {
+                    next->setStreamTag(id < separator_id ? Join_Stream_t::A : Join_Stream_t::B);
+                }
                 this->ff_send_out(next);
             }
         }
@@ -241,6 +253,9 @@ public:
                     Single_t<tuple_t> *next = (key_d.queue).top(); // read the next input in the queue of the key
                     (key_d.queue).pop(); // extract the next input from the queue of the key
                     next->setWatermark(getMinimum(globalMaxs), id_collector);
+                    if (separator_id != 0) {
+                        next->setStreamTag(id < separator_id ? Join_Stream_t::A : Join_Stream_t::B);
+                    }
                     this->ff_send_out(next);               
                 }
             }

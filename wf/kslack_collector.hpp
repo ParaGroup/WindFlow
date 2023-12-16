@@ -71,6 +71,7 @@ private:
     std::atomic<unsigned long> *atomic_num_dropped; // pointer to the atomic counter with the total number of dropped tuples
     volatile long last_update_atomic_usec; // time of the last update of the atomic counter
     size_t eos_received; // number of received EOS messages
+    size_t separator_id; // streams separator meaningful to join operators
 
     // Comparator_t functor (it returns true if A comes before B in the ordering)
     template<typename tuple_t>
@@ -166,11 +167,13 @@ public:
     KSlack_Collector(keyextr_func_t _key_extr,
                      ordering_mode_t _ordering_mode,
                      size_t _id_collector,
+                     size_t _separator_id=0,
                      std::atomic<unsigned long> *_atomic_num_dropped=nullptr):
                      key_extr(_key_extr),
                      ordering_mode(_ordering_mode),
                      id_collector(_id_collector),
                      atomic_num_dropped(_atomic_num_dropped),
+                     separator_id(_separator_id),
                      eos_received(0)
     {
         assert(_ordering_mode != ordering_mode_t::ID);
@@ -193,6 +196,10 @@ public:
             }
             else { // otherwise, we can send the next input
                 last_timestamp = next->getTimestamp();
+                if (separator_id != 0) {
+                    size_t source_id = this->get_channel_id(); // get the index of the source's stream
+                    next->setStreamTag(source_id < separator_id ? Join_Stream_t::A : Join_Stream_t::B);
+                }
                 this->ff_send_out(next);
             }
             next = this->extractInput();
@@ -217,6 +224,9 @@ public:
                 }
                 else { // otherwise, we can send the next input
                     last_timestamp = next->getTimestamp();
+                    if (separator_id != 0) {
+                        next->setStreamTag(id < separator_id ? Join_Stream_t::A : Join_Stream_t::B);
+                    }
                     this->ff_send_out(next);
                 }
             }

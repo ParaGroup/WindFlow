@@ -122,6 +122,11 @@ The corresponding builder needs two parameters (for the lift and combine logics)
  * Combine
     __host__ __device__ void(const result_t &, const result_t &, result_t &);
 
+Interval_Join
+----------------
+std::optional<result_t> (const tuple_t &, const tuple_t &)
+std::optional<result_t> (const tuple_t &, const tuple_t &, RuntimeContext &)
+
 SINK
 ----
 void(std::optional<tuple_t> &);

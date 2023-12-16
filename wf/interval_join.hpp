@@ -94,7 +94,7 @@ private:
     Interval_Join_Mode_t joinMode; // Interval Join operating mode
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     size_t ignored_tuples; // number of ignored tuples
-    uint64_t last_wm; // last received watermark
+    uint64_t last_time; // last received watermark or timestamp
 
 
 public:
@@ -114,7 +114,7 @@ public:
                 upper_bound(_upper_bound),
                 joinMode(_join_mode),
                 ignored_tuples(0),
-                last_wm(0)
+                last_time(0)
     {
         compare_func = [](const wrapper_t &w1, const uint64_t &_idx) { // comparator function of wrapped tuples
             return w1.index < _idx;
@@ -131,7 +131,7 @@ public:
                 joinMode(_other.joinMode),
                 compare_func(_other.compare_func),
                 ignored_tuples(_other.ignored_tuples),
-                last_wm(_other.last_wm) {}
+                last_time(_other.last_time) {}
 
     // svc (utilized by the FastFlow runtime)
     void *svc(void *_in) override
@@ -141,6 +141,9 @@ public:
             Batch_t<tuple_t> *batch_input = reinterpret_cast<Batch_t<tuple_t> *>(_in);
             if (batch_input->isPunct()) { // if it is a punctuaton
                 (this->emitter)->propagate_punctuation(batch_input->getWatermark((this->context).getReplicaIndex()), this); // propagate the received punctuation
+                assert(last_time <= batch_input->getWatermark((this->context).getReplicaIndex())); // sanity check
+                last_time = batch_input->getWatermark((this->context).getReplicaIndex());
+                purgeWithPunct();
                 deleteBatch_t(batch_input); // delete the punctuation
                 return this->GO_ON;
             }
@@ -157,6 +160,9 @@ public:
             Single_t<tuple_t> *input = reinterpret_cast<Single_t<tuple_t> *>(_in);
             if (input->isPunct()) { // if it is a punctuaton
                 (this->emitter)->propagate_punctuation(input->getWatermark((this->context).getReplicaIndex()), this); // propagate the received punctuation
+                assert(last_time <= input->getWatermark((this->context).getReplicaIndex())); // sanity check
+                last_time = input->getWatermark((this->context).getReplicaIndex());
+                purgeWithPunct();
                 deleteSingle_t(input); // delete the punctuation
                 return this->GO_ON;
             }
@@ -177,13 +183,21 @@ public:
                        uint64_t _watermark,
                        Join_Stream_t _tag)
     {
-        if (_watermark < last_wm) {
+        if (this->execution_mode == Execution_Mode_t::DEFAULT) {
+            if (_watermark < last_time) {
 #if defined (WF_TRACING_ENABLED)
-            stats_record.inputs_ignored++;
+                stats_record.inputs_ignored++;
 #endif
-            ignored_tuples++;
-            return;
+                ignored_tuples++;
+                return;
+            } else { last_time = _watermark; }
         }
+        else { 
+            if (last_time < _timestamp) { // attention: timestamps can be disordered
+                last_time = _timestamp;
+            }
+        }
+        
         auto key = key_extr(_tuple); // get the key attribute of the input tuple
         //size_t hashcode = std::hash<key_t>()(key); // compute the hashcode of the key
         auto it = keyMap.find(key); // find the corresponding key_descriptor (or allocate it if does not exist)
@@ -252,12 +266,24 @@ public:
             (key_d.archiveB).insert(wrapper_t(_tuple, _timestamp));
         }
 
-        last_wm = _watermark;
-        uint64_t wm_a = 0, wm_b = 0;
-        if (!(upper_bound > (int64_t)last_wm))  { wm_a = last_wm - upper_bound; }
-        if (!(-lower_bound > (int64_t)last_wm)) { wm_b = last_wm + lower_bound; }
-        (key_d.archiveA).purge(wm_a);
-        (key_d.archiveB).purge(wm_b);
+        purgeBuffers(key_d);
+    }
+
+    void purgeBuffers(Key_Descriptor &_key_d)
+    {
+        uint64_t idx_a = 0, idx_b = 0;
+        if (!(upper_bound > (int64_t)last_time))  { idx_a = last_time - upper_bound; }
+        if (!(-lower_bound > (int64_t)last_time)) { idx_b = last_time + lower_bound; }
+        (_key_d.archiveA).purge(idx_a);
+        (_key_d.archiveB).purge(idx_b);
+    }
+
+    void purgeWithPunct()
+    {
+        for (auto &k: keyMap) {
+            auto &key_d = (k.second);
+            purgeBuffers(key_d);
+        }
     }
 
     // Get the number of ignored tuples

@@ -54,7 +54,6 @@
 #include<kslack_collector.hpp>
 #include<ordering_collector.hpp>
 #include<watermark_collector.hpp>
-#include<join_collector.hpp>
 #if defined (__CUDACC__)
     #include<basic_gpu.hpp>
     #include<broadcast_emitter_gpu.hpp>
@@ -212,26 +211,21 @@ private:
         for (auto *r: _operator.replicas) {
             ff::ff_pipeline *stage = new ff::ff_pipeline();
             stage->add_stage(r, false);
-            if (_operator.getType() == "Interval_Join" && execution_mode == Execution_Mode_t::DEFAULT) {
-                r->receiveBatches(_needBatching);
-                auto *collector = new Join_Collector<decltype(_operator.getKeyExtractor())>(_operator.getKeyExtractor(), _ordering_mode, id++, _needBatching, separator_id);
-                combine_with_firststage(*stage, collector, true); // combine with the Join_Collector
-            }
-            else if (_operator.getType() == "Parallel_Windows_WLQ" || _operator.getType() == "Parallel_Windows_REDUCE") { // special cases
+            if (_operator.getType() == "Parallel_Windows_WLQ" || _operator.getType() == "Parallel_Windows_REDUCE") { // special cases
                 auto *collector = new Ordering_Collector<decltype(_operator.getKeyExtractor())>(_operator.getKeyExtractor(), ordering_mode_t::ID, execution_mode, id++);
                 combine_with_firststage(*stage, collector, true); // combine with the Ordering_Collector
             }
             else if (execution_mode == Execution_Mode_t::DETERMINISTIC) {
-                auto *collector = new Ordering_Collector<decltype(_operator.getKeyExtractor())>(_operator.getKeyExtractor(), _ordering_mode, execution_mode, id++);
+                auto *collector = new Ordering_Collector<decltype(_operator.getKeyExtractor())>(_operator.getKeyExtractor(), _ordering_mode, execution_mode, id++, separator_id);
                 combine_with_firststage(*stage, collector, true); // combine with the Ordering_Collector
             }
             else if (execution_mode == Execution_Mode_t::PROBABILISTIC) {
-                auto *collector = new KSlack_Collector<decltype(_operator.getKeyExtractor())>(_operator.getKeyExtractor(), _ordering_mode, id++);
+                auto *collector = new KSlack_Collector<decltype(_operator.getKeyExtractor())>(_operator.getKeyExtractor(), _ordering_mode, id++, separator_id);
                 combine_with_firststage(*stage, collector, true); // combine with the Kslack_Collector
             }
             else if (execution_mode == Execution_Mode_t::DEFAULT) {
                 r->receiveBatches(_needBatching);
-                auto *collector = new Watermark_Collector<decltype(_operator.getKeyExtractor())>(_operator.getKeyExtractor(), _ordering_mode, id++, _needBatching);
+                auto *collector = new Watermark_Collector<decltype(_operator.getKeyExtractor())>(_operator.getKeyExtractor(), _ordering_mode, id++, _needBatching, separator_id);
                 combine_with_firststage(*stage, collector, true); // combine with the Watermark_Collector
             }
             else {
