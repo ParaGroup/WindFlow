@@ -1555,26 +1555,6 @@ public:
     }
 
     /** 
-     *  \brief Set Key Parallelism mode for join operator
-     *  
-     *  \return a reference to the builder object
-     */ 
-    auto &withDPMMode()
-    {
-        if (!isKeyBySet) {
-            std::cerr << RED << "WindFlow Error: Interval_Join with data parallelism mode requires a key extractor" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        if (join_mode != Interval_Join_Mode_t::NONE) {
-            std::cerr << RED << "WindFlow Error: wrong use of withKPMode() in the Interval_Join_Builder, you can specify only one mode per join operator " << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        join_mode = Interval_Join_Mode_t::DPM;
-        input_routing_mode = Routing_Mode_t::BROADCAST;
-        return *this;
-    }
-
-    /** 
      *  \brief Create the Interval Join
      *  
      *  \return a new Interval Join instance

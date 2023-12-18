@@ -42,6 +42,17 @@ struct tuple_t
     int64_t value;
 };
 
+#if 1
+template<>
+struct std::hash<tuple_t>
+{
+    size_t operator()(const tuple_t &t) const
+    {
+        return std::hash<int>()(t.value) + std::hash<int>()(t.key);
+    }
+};
+#endif
+
 struct res_t
 {
     size_t key;
@@ -151,7 +162,10 @@ public:
     optional<tuple_t> operator()(const tuple_t &a, const tuple_t &b)
     {
         if ((a.value - b.value) % 2 == 0) {
-            return a;
+            tuple_t out;
+            out.value = a.value - b.value;
+            out.key = a.key;
+            return out;
         }
         return {};
     }

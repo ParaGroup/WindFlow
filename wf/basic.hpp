@@ -85,7 +85,7 @@ enum class Win_Type_t { CB, TB }; // CB = count based, TB = time based
 
 /// Supported interval join operating modes
 // KP = Key Parallelism, DPS = Data Parallelism with single-key buffers, DPM = Data Parallelism with multi-key buffers
-enum class Interval_Join_Mode_t { NONE, KP, DPS, DPM };
+enum class Interval_Join_Mode_t { NONE, KP, DPS };
 
 enum class Join_Stream_t { NONE, A, B };
 
@@ -322,6 +322,12 @@ struct join_tuple_t
     join_tuple_t(const tuple_t &_tuple, uint64_t _index):
                     tuple(_tuple), index(_index) {}
 };
+
+template<typename T, typename = std::void_t<>>
+inline constexpr bool if_defined_hash = false;
+
+template<typename T>
+inline constexpr bool if_defined_hash<T, std::void_t<decltype(std::hash<T>())>> = true;
 
 } // namespace wf
 

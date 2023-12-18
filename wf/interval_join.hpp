@@ -93,8 +93,8 @@ private:
     int64_t upper_bound; // upper bound of the interval ( ts + upper_bound )
     Interval_Join_Mode_t joinMode; // Interval Join operating mode
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
-    size_t ignored_tuples; // number of ignored tuples
     uint64_t last_time; // last received watermark or timestamp
+    size_t ignored_tuples; // number of ignored tuples
 
 
 public:
@@ -183,19 +183,18 @@ public:
                        uint64_t _watermark,
                        Join_Stream_t _tag)
     {
-        if (this->execution_mode == Execution_Mode_t::DEFAULT) {
-            if (_watermark < last_time) {
+        if (this->execution_mode == Execution_Mode_t::DEFAULT && _watermark < last_time) {
 #if defined (WF_TRACING_ENABLED)
-                stats_record.inputs_ignored++;
+            stats_record.inputs_ignored++;
 #endif
-                ignored_tuples++;
-                return;
-            } else { last_time = _watermark; }
+            ignored_tuples++;
+            return;
         }
-        else { 
-            if (last_time < _timestamp) { // attention: timestamps can be disordered
-                last_time = _timestamp;
-            }
+
+        if (this->execution_mode == Execution_Mode_t::DEFAULT) {
+            last_time = _watermark;
+        } else {
+            last_time = _timestamp < last_time ? last_time : _timestamp;
         }
         
         auto key = key_extr(_tuple); // get the key attribute of the input tuple
@@ -241,7 +240,22 @@ public:
 #endif
                 }
             }
-            (key_d.archiveA).insert(wrapper_t(_tuple, _timestamp));
+            if (joinMode == Interval_Join_Mode_t::KP) {
+                (key_d.archiveA).insert(wrapper_t(_tuple, _timestamp));
+            } else if (joinMode == Interval_Join_Mode_t::DPS) {
+                if constexpr(if_defined_hash<tuple_t>) {
+                    size_t hash_idx = std::hash<tuple_t>()(_tuple) % this->context.getParallelism(); // compute the hash index of the tuple
+                    if (hash_idx == this->context.getReplicaIndex()) {
+                        (key_d.archiveA).insert(wrapper_t(_tuple, _timestamp));
+                    }
+                } else {
+                    uintptr_t mem_add = (uintptr_t)(&_tuple);
+                    size_t hash_idx = mem_add % this->context.getParallelism(); // compute the hash index of the tuple using memory address
+                    if (hash_idx == this->context.getReplicaIndex()) {
+                        (key_d.archiveA).insert(wrapper_t(_tuple, _timestamp));
+                    }
+                }
+            }
         } else {
             std::pair<iterator_t, iterator_t> its = (key_d.archiveA).getJoinRange(l_b, u_b);
             Iterable_Join<wrapper_t> iter(its.first, its.second);
@@ -262,9 +276,24 @@ public:
 #endif
                 }
             }
-            (key_d.archiveB).insert(wrapper_t(_tuple, _timestamp));
+            if (joinMode == Interval_Join_Mode_t::KP) {
+                (key_d.archiveB).insert(wrapper_t(_tuple, _timestamp));
+            } else if (joinMode == Interval_Join_Mode_t::DPS) {
+                if constexpr(if_defined_hash<tuple_t>) {
+                    size_t hash_idx = std::hash<tuple_t>()(_tuple) % this->context.getParallelism(); // compute the hash index of the tuple
+                    if (hash_idx == this->context.getReplicaIndex()) {
+                        (key_d.archiveB).insert(wrapper_t(_tuple, _timestamp));
+                    }
+                } else {
+                    uintptr_t mem_add = (uintptr_t)(&_tuple);
+                    size_t hash_idx = 5 % this->context.getParallelism(); // compute the hash index of the tuple using memory address
+                    if (hash_idx == this->context.getReplicaIndex()) {
+                        (key_d.archiveB).insert(wrapper_t(_tuple, _timestamp));
+                    }
+                }
+            }
         }
-
+        
         purgeBuffers(key_d);
     }
 
@@ -273,14 +302,14 @@ public:
         uint64_t idx_a = 0, idx_b = 0;
         if (!(upper_bound > (int64_t)last_time))  { idx_a = last_time - upper_bound; }
         if (!(-lower_bound > (int64_t)last_time)) { idx_b = last_time + lower_bound; }
-        (_key_d.archiveA).purge(idx_a);
-        (_key_d.archiveB).purge(idx_b);
+        uint64_t a = (_key_d.archiveA).purge(idx_a);
+        uint64_t b = (_key_d.archiveB).purge(idx_b);
     }
 
     void purgeWithPunct()
     {
         for (auto &k: keyMap) {
-            auto &key_d = (k.second);
+            Key_Descriptor &key_d = (k.second);
             purgeBuffers(key_d);
         }
     }
