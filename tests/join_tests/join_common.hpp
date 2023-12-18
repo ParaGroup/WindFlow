@@ -150,7 +150,7 @@ public:
     // operator()
     void operator()(tuple_t &t)
     {
-        t.value = t.value * 2;
+        t.value = t.value + 2;
     }
 };
 
@@ -171,18 +171,77 @@ public:
     }
 };
 
-// Filter functor
-class Filter_Functor
+// Distinct Join functor
+class Distinct_Join_Functor
 {
 public:
     // operator()
-    bool operator()(tuple_t &t)
+    optional<tuple_t> operator()(const tuple_t &a, const tuple_t &b)
     {
-        if (t.value <= 150) {
+        if (a.value != b.value) {
+            tuple_t out;
+            out.value = a.value + b.value;
+            out.key = a.key;
+            return out;
+        }
+        return {};
+    }
+};
+
+// Filter functor with keyby distribution
+class Filter_Functor_KB
+{
+private:
+    int mod;
+
+public:
+    // constructor
+    Filter_Functor_KB(int _mod): mod(_mod) {}
+
+    // operator()
+    bool operator()(tuple_t &t, RuntimeContext &rc)
+    {
+        assert(t.key % rc.getParallelism() == rc.getReplicaIndex());
+        if (t.value % mod == 0) {
             return true;
         }
         else {
             return false;
+        }
+    }
+};
+
+// Filter functor
+class Filter_Functor
+{
+private:
+    int mod;
+
+public:
+    // constructor
+    Filter_Functor(int _mod): mod(_mod) {}
+
+    // operator()
+    bool operator()(tuple_t &t)
+    {
+        if (t.value % mod == 0) {
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+};
+
+// FlatMap functor 
+class FlatMap_Functor
+{
+public:
+    // operator()
+    void operator()(const tuple_t &t, Shipper<tuple_t> &shipper)
+    {
+        for (size_t i=0; i<2; i++) {
+            shipper.push(t);
         }
     }
 };

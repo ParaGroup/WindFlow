@@ -168,16 +168,16 @@ int main(int argc, char *argv[])
         // prepare the third MultiPipe
         MultiPipe &pipe3 = pipe1.merge(pipe2);
         Join_Functor join_functor;
-        Interval_Join join1 = Interval_Join_Builder(join_functor)
-                                    .withName("join1")
+        Interval_Join join = Interval_Join_Builder(join_functor)
+                                    .withName("join")
                                     .withParallelism(join_degree)
                                     .withOutputBatchSize(dist_b(rng))
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
                                     .withBoundaries(microseconds(lower_bound), microseconds(upper_bound))
                                     .withKPMode()
                                     .build();
-        pipe3.add(join1);
-        Filter_Functor filter_functor;
+        pipe3.add(join);
+        Filter_Functor filter_functor(2);
         Filter filter = Filter_Builder(filter_functor)
                         .withName("filter1")
                         .withParallelism(filter_degree)
@@ -291,7 +291,7 @@ int main(int argc, char *argv[])
                                     .withKPMode()
                                     .build();
         pipe3.add(join1);
-        Filter_Functor filter_functor;
+        Filter_Functor filter_functor(2);
         Filter filter = Filter_Builder(filter_functor)
                         .withName("filter1")
                         .withParallelism(filter_degree)
@@ -325,7 +325,19 @@ int main(int argc, char *argv[])
         assert(graph.getNumThreads() == check_degree);
         // run the application
         graph.run();
-        cout << "Result is --> " << GREEN << "OK" << DEFAULT_COLOR << " value " << global_sum.load() << endl;
+        if (i == 0) {
+            last_result = global_sum;
+            cout << "Result is --> " << GREEN << "OK" << DEFAULT_COLOR << " value " << global_sum.load() << endl;
+        }
+        else {
+            if (last_result == global_sum) {
+                cout << "Result is --> " << GREEN << "OK" << DEFAULT_COLOR << " value " << global_sum.load() << endl;
+            }
+            else {
+                cout << "Result is --> " << RED << "FAILED" << DEFAULT_COLOR << " value " << global_sum.load() << endl;
+                abort();
+            }
+        }
         global_sum = 0;
     }
     return 0;
