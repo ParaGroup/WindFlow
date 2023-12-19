@@ -629,16 +629,21 @@ int main(int argc, char *argv[])
                         .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
                         .build();
         pipe9.chain_sink(sink);
-        std::cout << graph.getNumThreads() << " " << check_degree << std::endl;
         assert(graph.getNumThreads() == check_degree);
         // run the application
         graph.run();
-        if (last_result == global_sum) {
-                cout << "Result is --> " << GREEN << "OK" << DEFAULT_COLOR << " value " << global_sum.load() << endl;
+        if (i == 0) {
+            last_result = global_sum;
+            cout << "Result is --> " << GREEN << "OK" << DEFAULT_COLOR << " value " << global_sum.load() << endl;
         }
         else {
-            cout << "Result is --> " << RED << "FAILED" << DEFAULT_COLOR << " value " << global_sum.load() << endl;
-            abort();
+            if (last_result == global_sum) {
+                cout << "Result is --> " << GREEN << "OK" << DEFAULT_COLOR << " value " << global_sum.load() << endl;
+            }
+            else {
+                cout << "Result is --> " << RED << "FAILED" << DEFAULT_COLOR << " value " << global_sum.load() << endl;
+                abort();
+            }
         }
         global_sum = 0;
     }

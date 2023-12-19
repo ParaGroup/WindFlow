@@ -217,7 +217,7 @@ int main(int argc, char *argv[])
         pipe3.chain(filter2);
         // prepare the fourth MultiPipe
         MultiPipe &pipe4 = pipe2.merge(pipe3);
-        Join_Functor join_functor;
+        Distinct_Join_Functor join_functor;
         Interval_Join join = Interval_Join_Builder(join_functor)
                                     .withName("join")
                                     .withParallelism(join_degree)
@@ -367,7 +367,7 @@ int main(int argc, char *argv[])
         pipe3.chain(filter2);
         // prepare the fourth MultiPipe
         MultiPipe &pipe4 = pipe2.merge(pipe3);
-        Join_Functor join_functor;
+        Distinct_Join_Functor join_functor;
         Interval_Join join = Interval_Join_Builder(join_functor)
                                     .withName("join")
                                     .withParallelism(join_degree)
