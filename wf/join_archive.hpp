@@ -44,15 +44,15 @@
 namespace wf {
 
 // class StreamArchive
-template<typename tuple_t>
+template<typename tuple_t, typename Container = std::deque<join_tuple_t<tuple_t>>>
 class JoinArchive
 {
 private:
     using wrapper_t = join_tuple_t<tuple_t>; // alias for the wrapped tuple type
     using compare_func_t = std::function<bool(const wrapper_t &, const uint64_t &)>; // function type to compare wrapped tuple to an uint64
-    using iterator_t = typename std::deque<wrapper_t>::iterator; // iterator type
+    using iterator_t = typename Container::iterator; // iterator type
     compare_func_t lessThan; // function to compare wrapped to an uint64 that rapresent an timestamp (index) or watermark
-    std::deque<wrapper_t> archive; // container implementing the ordered archive of wrapped tuples
+    Container archive; // container implementing the ordered archive of wrapped tuples
 
 public:
     // Constructor
@@ -126,11 +126,11 @@ public:
     }
 };
 
-template<typename wrapper_t>
-class Iterable_Join
+template<typename wrapper_t, typename Container = std::deque<wrapper_t>>
+class Iterable_Interval
 {
 private:
-    using iterator_t = typename std::deque<wrapper_t>::iterator; // non-const iterator type
+    using iterator_t = typename Container::iterator; // non-const iterator type
     iterator_t first; // iterator to the first wrapped tuple
     iterator_t last; // iterator to the last wrapped tuple (excluded)
     size_t num_tuples; // number of tuples that can be accessed through the iterable
@@ -148,7 +148,7 @@ public:
         typedef T *pointer;
         typedef std::forward_iterator_tag iterator_category;
         typedef int difference_type;
-        using iterator_t = typename std::deque<join_tuple_t<T>>::iterator;
+        using iterator_t = typename Container::iterator;
         iterator_t it;
 
         /// Constructor
@@ -240,7 +240,7 @@ public:
             std::cerr << RED << "WindFlow Error: index of the Iterable out-of-range" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        return (*(first+i));
+        return (*(std::next(first, i)));
     }
 
     /** 
@@ -255,7 +255,7 @@ public:
             std::cerr << RED << "WindFlow Error: index of the Iterable out-of-range" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        return (*(first+i));
+        return (*(std::next(first, i)));
     }
 
     /** 
@@ -270,7 +270,7 @@ public:
             std::cerr << RED << "WindFlow Error: index of the Iterable out-of-range" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        return (*(first+i));
+        return (*(std::next(first, i)));
     }
 
     /** 
@@ -285,7 +285,7 @@ public:
             std::cerr << RED << "WindFlow Error: index of the Iterable out-of-range" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        return (*(first+i));
+        return (*(std::next(first, i)));
     }
 
     /** 

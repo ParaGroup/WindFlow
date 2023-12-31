@@ -74,13 +74,16 @@ private:
         "WindFlow Compilation Error - IJoin_Replica does not have a valid functional logic:\n");
 
     using wrapper_t = join_tuple_t<tuple_t>; // alias for the wrapped tuple type
-    using iterator_t = typename std::deque<wrapper_t>::iterator; // iterator type for accessing wrapped tuples in the archive
+    using container_t = typename std::deque<wrapper_t>; // container type for underlying archive's buffer structure
+    using iterator_t = typename container_t::iterator; // iterator type for accessing wrapped tuples in the archive
+    using iterable_t = Iterable_Interval<wrapper_t, container_t>; // iterable object type for accessing wrapped tuples in the computed interval
+    
     using compare_func_t = std::function< bool(const wrapper_t &, const uint64_t &) >; // function type to compare wrapped tuple to an uint64
 
     struct Key_Descriptor // struct of a key descriptor
     {
-        JoinArchive<tuple_t> archiveA; // archive of stream A tuples of this key
-        JoinArchive<tuple_t> archiveB; // archive of stream B tuples of this key
+        JoinArchive<tuple_t, container_t> archiveA; // archive of stream A tuples of this key
+        JoinArchive<tuple_t, container_t> archiveB; // archive of stream B tuples of this key
 
         // Constructor
         Key_Descriptor(compare_func_t _compare_func):
@@ -222,7 +225,7 @@ public:
         std::optional<result_t> output;
         if (_tag == Join_Stream_t::A) {
             std::pair<iterator_t, iterator_t> its = (key_d.archiveB).getJoinRange(l_b, u_b);
-            Iterable_Join<wrapper_t> iter(its.first, its.second);
+            iterable_t iter(its.first, its.second);
             for (size_t i=0; i<iter.size(); i++) {
                 if constexpr (isNonRiched) { // inplace non-riched version
                     output = func(_tuple, (iter[i]).tuple);
@@ -258,7 +261,7 @@ public:
             }
         } else {
             std::pair<iterator_t, iterator_t> its = (key_d.archiveA).getJoinRange(l_b, u_b);
-            Iterable_Join<wrapper_t> iter(its.first, its.second);
+            iterable_t iter(its.first, its.second);
             for (size_t i=0; i<iter.size(); i++) {
                 if constexpr (isNonRiched) { // inplace non-riched version
                     output = func((iter[i]).tuple, _tuple);
