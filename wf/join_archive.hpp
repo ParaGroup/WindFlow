@@ -192,7 +192,7 @@ public:
      *  \param _first first iterator
      *  \param _last last iterator
      */ 
-    Iterable_Join(iterator_t _first,
+    Iterable_Interval(iterator_t _first,
              iterator_t _last):
              first(_first),
              last(_last),
