@@ -5,7 +5,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -finline-functions")
 
 # Macros to be provided to the compiler
-add_definitions(-DFF_BOUNDED_BUFFER -DDEFAULT_BUFFER_CAPACITY=8 -DWF_TRACING_ENABLED)
+add_definitions(-DFF_BOUNDED_BUFFER -DWF_TRACING_ENABLED)
 
 # Header files of WindFlow and FastFlow
 include_directories(${PROJECT_SOURCE_DIR}/wf ${ff_root_dir})

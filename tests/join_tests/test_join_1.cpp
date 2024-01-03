@@ -94,8 +94,8 @@ int main(int argc, char *argv[])
     std::uniform_int_distribution<std::mt19937::result_type> dist_p(min, max);
     std::uniform_int_distribution<std::mt19937::result_type> dist_b(0, 10);
     int map1_degree, map2_degree, join_degree, filter_degree, sink1_degree, sink2_degree;
-    size_t source1_degree = (dist_p(rng) % 5) + 1;
-    size_t source2_degree = (dist_p(rng) % 5) + 1;
+    size_t source1_degree = dist_p(rng);
+    size_t source2_degree = dist_p(rng);
     long last_result = 0;
     // executes the runs in DEFAULT mode
     for (size_t i=0; i<runs; i++) {
