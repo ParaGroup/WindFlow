@@ -99,6 +99,9 @@ private:
     uint64_t last_time; // last received watermark or timestamp
     size_t ignored_tuples; // number of ignored tuples
 
+    uint64_t a_buff_size = 0;
+    uint64_t a_buff_count = 0;
+    uint64_t last_sampled_size_time;
 
 public:
     // Constructor
@@ -117,7 +120,8 @@ public:
                 upper_bound(_upper_bound),
                 joinMode(_join_mode),
                 ignored_tuples(0),
-                last_time(0)
+                last_time(0),
+                last_sampled_size_time(current_time_nsecs())
     {
         compare_func = [](const wrapper_t &w1, const uint64_t &_idx) { // comparator function of wrapped tuples
             return w1.index < _idx;
@@ -192,6 +196,21 @@ public:
 #endif
             ignored_tuples++;
             return;
+        }
+
+        if (_tag == Join_Stream_t::A && joinMode == Interval_Join_Mode_t::DPS) {
+            uint64_t delta = (current_time_nsecs() - last_sampled_size_time) / 1e06; //ms
+            if ( delta >= 250 )
+            {
+                //std::cout << "Delta -> " << delta << ", curr -> " << current_time_nsecs() << ", last save -> " << last_sampled_size_time << std::endl;
+                for (auto &k: keyMap) {
+                    Key_Descriptor &key_d = (k.second);
+                    a_buff_size += (key_d.archiveA).size();
+                }
+                a_buff_count++;
+                last_sampled_size_time = current_time_nsecs();
+                //std::cout << "A buffer size -> " << a_buff_size << ", count -> " << a_buff_count << std::endl;
+            }
         }
 
         if (this->execution_mode == Execution_Mode_t::DEFAULT) {
@@ -323,6 +342,16 @@ public:
         return ignored_tuples;
     }
 
+    uint64_t getBufferSize() const
+    {
+        return a_buff_size;
+    }
+
+    uint64_t getBufferCount() const
+    {
+        return a_buff_count;
+    }
+
     IJoin_Replica(IJoin_Replica &&) = delete; ///< Move constructor is deleted
     IJoin_Replica &operator=(const IJoin_Replica &) = delete; ///< Copy assignment operator is deleted
     IJoin_Replica &operator=(IJoin_Replica &&) = delete; ///< Move assignment operator is deleted
@@ -351,7 +380,7 @@ private:
     int64_t upper_bound; // upper bound of the interval, can be negative ( ts + upper_bound )
     Interval_Join_Mode_t joinMode; // Interval Join operating mode
 
-    // Configure the Map to receive batches instead of individual inputs
+    // Configure the Interval Join to receive batches instead of individual inputs
     void receiveBatches(bool _input_batching) override
     {
         for (auto *r: replicas) {
@@ -359,7 +388,7 @@ private:
         }
     }
 
-    // Set the emitter used to route outputs from the Map
+    // Set the emitter used to route outputs from the Interval Join
     void setEmitter(Basic_Emitter *_emitter) override
     {
         replicas[0]->setEmitter(_emitter);
@@ -368,7 +397,7 @@ private:
         }
     }
 
-    // Check whether the Map has terminated
+    // Check whether the Interval Join has terminated
     bool isTerminated() const override
     {
         bool terminated = true;
@@ -378,7 +407,7 @@ private:
         return terminated;
     }
 
-    // Set the execution mode of the Map
+    // Set the execution mode of the Interval Join
     void setExecutionMode(Execution_Mode_t _execution_mode)
     {
         for (auto *r: replicas) {
@@ -428,9 +457,6 @@ private:
         }
         else if (this->joinMode == Interval_Join_Mode_t::DPS) {
             writer.String("Data-Parallelism_Single-Buffer");
-        }
-        else {
-            writer.String("Data-Parallelism_Multi-Buffer");
         }
         writer.Key("Replicas");
         writer.StartArray();
@@ -497,6 +523,29 @@ public:
     // Destructor
     ~Interval_Join() override
     {
+        if (joinMode == Interval_Join_Mode_t::DPS) {
+            uint64_t total_size = 0;
+            uint64_t total_count = 0;
+            for (auto *r: replicas) {
+                std::cout << "A buffer size -> " << r->getBufferSize() << ", count -> " << r->getBufferCount()
+                << " | Mean -> " << static_cast<double>(r->getBufferSize()) / r->getBufferCount() << std::endl;
+                total_size += r->getBufferSize();
+                total_count += r->getBufferCount();
+            }
+            double mean_size = static_cast<double>(total_size) / total_count;
+            std::cout << "Mean Buffer Size -> " << mean_size << std::endl;
+            // Check distribution (example: standard deviation)
+            /* double variance = 0;
+            for (auto *r: replicas) {
+                double diff = r->getBufferSize() - mean_size;
+                variance += diff * diff;
+            }
+            double stddev = sqrt(variance / total_count);
+            std::cout << std::fixed << std::setprecision(2);
+            std::cout << "Variance -> " << variance << ", stddev -> " << stddev << std::endl; */
+
+        }
+
         for (auto *r: replicas) { // delete all the replicas
             delete r;
         }

@@ -42,7 +42,7 @@ struct tuple_t
     int64_t value;
 };
 
-#if 1
+#if 0
 template<>
 struct std::hash<tuple_t>
 {
@@ -83,6 +83,7 @@ public:
     void operator()(Source_Shipper<tuple_t> &shipper)
     {
         static thread_local std::mt19937 generator;
+        generator.seed(5489);
         std::uniform_int_distribution<int> distribution(0, 500);
         for (size_t i=1; i<=len; i++) { // generation loop
             for (size_t k=0; k<keys; k++) {
@@ -125,6 +126,7 @@ public:
     void operator()(Source_Shipper<tuple_t> &shipper)
     {
         static thread_local std::mt19937 generator;
+        generator.seed(5489);
         std::uniform_int_distribution<int> distribution(0, 500);
         for (size_t i=1; i<=len; i++) { // generation loop
             for (size_t k=0; k<keys; k++) {
