@@ -1562,6 +1562,11 @@ public:
      */ 
     auto build()
     {
+        // check if the mode is selected
+        if (join_mode == Interval_Join_Mode_t::NONE) {
+            std::cerr << RED << "WindFlow Error: at least one mode per join operator is need to be selected in the builder" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
         // check the presence of a key extractor
         if (!isKeyBySet && this->parallelism > 1) {
             std::cerr << RED << "WindFlow Error: Interval_Join with parallelism > 1 requires a key extractor" << DEFAULT_COLOR << std::endl;

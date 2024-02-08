@@ -38,7 +38,7 @@
 #define INTERVAL_JOIN_H
 
 /// includes
-#include <iomanip>
+#include<iomanip>
 #include<string>
 #include<functional>
 #include<context.hpp>
@@ -100,8 +100,19 @@ private:
     uint64_t last_time; // last received watermark or timestamp
     size_t ignored_tuples; // number of ignored tuples
 
-    uint64_t a_buff_size = 0;
-    uint64_t a_buff_count = 0;
+    struct Buffer_Stats
+    {
+        uint64_t buff_size;
+        uint64_t buff_count;
+
+        // Constructor
+        Buffer_Stats():
+            buff_size(0),
+            buff_count(0) {}
+    };
+
+    Buffer_Stats a_Buff;
+    Buffer_Stats b_Buff;
     uint64_t last_sampled_size_time;
 
 public:
@@ -122,6 +133,8 @@ public:
                 joinMode(_join_mode),
                 ignored_tuples(0),
                 last_time(0),
+                a_Buff(Buffer_Stats()),
+                b_Buff(Buffer_Stats()),
                 last_sampled_size_time(current_time_nsecs())
     {
         compare_func = [](const wrapper_t &w1, const uint64_t &_idx) { // comparator function of wrapped tuples
@@ -139,7 +152,10 @@ public:
                 joinMode(_other.joinMode),
                 compare_func(_other.compare_func),
                 ignored_tuples(_other.ignored_tuples),
-                last_time(_other.last_time) {}
+                last_time(_other.last_time),
+                a_Buff(_other.a_Buff),
+                b_Buff(_other.b_Buff),
+                last_sampled_size_time(current_time_nsecs()) {} //_other.last_sampled_size_time
 
     // svc (utilized by the FastFlow runtime)
     void *svc(void *_in) override
@@ -199,20 +215,24 @@ public:
             return;
         }
 
-        if (_tag == Join_Stream_t::A && joinMode == Interval_Join_Mode_t::DPS) {
+#if defined (WF_JOIN_STATS)
+        if (joinMode == Interval_Join_Mode_t::DPS) {
             uint64_t delta = (current_time_nsecs() - last_sampled_size_time) / 1e06; //ms
             if ( delta >= 250 )
             {
                 //std::cout << "Delta -> " << delta << ", curr -> " << current_time_nsecs() << ", last save -> " << last_sampled_size_time << std::endl;
                 for (auto &k: keyMap) {
                     Key_Descriptor &key_d = (k.second);
-                    a_buff_size += (key_d.archiveA).size();
+                    a_Buff.buff_size += (key_d.archiveA).size();
+                    b_Buff.buff_size += (key_d.archiveB).size();
                 }
-                a_buff_count++;
+                a_Buff.buff_count++;
+                b_Buff.buff_count++;
                 last_sampled_size_time = current_time_nsecs();
                 //std::cout << "A buffer size -> " << a_buff_size << ", count -> " << a_buff_count << std::endl;
             }
         }
+#endif
 
         if (this->execution_mode == Execution_Mode_t::DEFAULT) {
             last_time = _watermark;
@@ -343,19 +363,15 @@ public:
         return ignored_tuples;
     }
 
-    uint64_t getBufferSize() const
+    double getBufferMeanSize(Join_Stream_t stream) const
     {
-        return a_buff_size;
-    }
-
-    uint64_t getBufferCount() const
-    {
-        return a_buff_count;
-    }
-
-    double getBufferMeanSize() const
-    {
-        return static_cast<double>(a_buff_size) / a_buff_count;
+        double mean = 0.0;
+        if (stream == Join_Stream_t::A) {
+            mean = static_cast<double>(a_Buff.buff_size) / a_Buff.buff_count;
+        } else {
+            mean = static_cast<double>(b_Buff.buff_size) / b_Buff.buff_count;
+        }
+        return mean;
     }
 
     IJoin_Replica(IJoin_Replica &&) = delete; ///< Move constructor is deleted
@@ -529,34 +545,41 @@ public:
     // Destructor
     ~Interval_Join() override
     {
+#if defined (WF_JOIN_STATS)
         if (joinMode == Interval_Join_Mode_t::DPS && this->isTerminated()) {
-            uint64_t total_size = 0;
-            uint64_t total_count = 0;
-            for (auto *r: replicas) {
-                std::cout << "Accumulated A buffer size -> " << r->getBufferSize() << ", count -> " << r->getBufferCount()
-                << " | Mean -> " << static_cast<double>(r->getBufferSize()) / r->getBufferCount() << std::endl;
-                total_size += r->getBufferSize();
-                total_count += r->getBufferCount();
-            }
-            double mean_size = static_cast<double>(total_size) / total_count;
-            std::cout << "Mean Buffer Size -> " << mean_size << ", total A buffer size -> " << total_size << std::endl;
-            // Check distribution (example: standard deviation)
-            double variance = 0;
-            for (auto *r: replicas) {
-                double diff = r->getBufferMeanSize() - mean_size;
-                variance += diff * diff;
-            }
-            variance = variance / replicas.size();
-            double stddev = sqrt(variance);
-            double threshold_balance = (0.3*mean_size);
-            std::string check_balance = stddev < threshold_balance ? " ✔ " : " ✘ ";
-            std::cout << std::fixed << std::setprecision(2);
-            std::cout << "Variance -> " << variance << ", stddev -> " << stddev << " | " << stddev << "<" << threshold_balance << check_balance << std::endl;
+            printBufferStats(Join_Stream_t::A);
+            printBufferStats(Join_Stream_t::B);
         }
-
+#endif
         for (auto *r: replicas) { // delete all the replicas
             delete r;
         }
+    }
+
+    void printBufferStats(Join_Stream_t stream) {
+        std::cout << (stream == Join_Stream_t::A ? "A" : "B") << " Buffer Stats: " << std::endl;
+        uint64_t num_replicas = replicas.size();
+        double acc_size = 0.0;
+        int i = 0;
+        for (auto *r: replicas) {
+            std::cout << (i+1) << " Replica mean -> " << r->getBufferMeanSize(stream) << std::endl;
+            acc_size += r->getBufferMeanSize(stream);
+            i++;
+        }
+        double mean_size = static_cast<double>(acc_size) / num_replicas;
+        std::cout << "Mean Buffer Size -> " << mean_size << std::endl;
+        // Check distribution
+        double variance = 0;
+        for (auto *r: replicas) {
+            double diff = r->getBufferMeanSize(stream) - mean_size;
+            variance += diff * diff;
+        }
+        variance = variance / num_replicas;
+        double stddev = sqrt(variance);
+        double threshold_balance = (0.3*mean_size);
+        std::string check_balance = stddev < threshold_balance ? " ✔ " : " ✘ ";
+        std::cout << std::fixed << std::setprecision(2);
+        std::cout << "Variance -> " << variance << ", stddev -> " << stddev << " | Balance threshold -> " << stddev << "<" << threshold_balance << check_balance << std::endl;
     }
 
     /** 
