@@ -38,6 +38,7 @@
 #define INTERVAL_JOIN_H
 
 /// includes
+#include <iomanip>
 #include<string>
 #include<functional>
 #include<context.hpp>
@@ -352,6 +353,11 @@ public:
         return a_buff_count;
     }
 
+    double getBufferMeanSize() const
+    {
+        return static_cast<double>(a_buff_size) / a_buff_count;
+    }
+
     IJoin_Replica(IJoin_Replica &&) = delete; ///< Move constructor is deleted
     IJoin_Replica &operator=(const IJoin_Replica &) = delete; ///< Copy assignment operator is deleted
     IJoin_Replica &operator=(IJoin_Replica &&) = delete; ///< Move assignment operator is deleted
@@ -523,27 +529,29 @@ public:
     // Destructor
     ~Interval_Join() override
     {
-        if (joinMode == Interval_Join_Mode_t::DPS) {
+        if (joinMode == Interval_Join_Mode_t::DPS && this->isTerminated()) {
             uint64_t total_size = 0;
             uint64_t total_count = 0;
             for (auto *r: replicas) {
-                std::cout << "A buffer size -> " << r->getBufferSize() << ", count -> " << r->getBufferCount()
+                std::cout << "Accumulated A buffer size -> " << r->getBufferSize() << ", count -> " << r->getBufferCount()
                 << " | Mean -> " << static_cast<double>(r->getBufferSize()) / r->getBufferCount() << std::endl;
                 total_size += r->getBufferSize();
                 total_count += r->getBufferCount();
             }
             double mean_size = static_cast<double>(total_size) / total_count;
-            std::cout << "Mean Buffer Size -> " << mean_size << std::endl;
+            std::cout << "Mean Buffer Size -> " << mean_size << ", total A buffer size -> " << total_size << std::endl;
             // Check distribution (example: standard deviation)
-            /* double variance = 0;
+            double variance = 0;
             for (auto *r: replicas) {
-                double diff = r->getBufferSize() - mean_size;
+                double diff = r->getBufferMeanSize() - mean_size;
                 variance += diff * diff;
             }
-            double stddev = sqrt(variance / total_count);
+            variance = variance / replicas.size();
+            double stddev = sqrt(variance);
+            double threshold_balance = (0.3*mean_size);
+            std::string check_balance = stddev < threshold_balance ? " ✔ " : " ✘ ";
             std::cout << std::fixed << std::setprecision(2);
-            std::cout << "Variance -> " << variance << ", stddev -> " << stddev << std::endl; */
-
+            std::cout << "Variance -> " << variance << ", stddev -> " << stddev << " | " << stddev << "<" << threshold_balance << check_balance << std::endl;
         }
 
         for (auto *r: replicas) { // delete all the replicas
