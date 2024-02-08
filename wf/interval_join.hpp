@@ -470,9 +470,9 @@ private:
         writer.Key("OutputBatchSize");
         writer.Uint(this->outputBatchSize);
         writer.Key("Lower_Bound");
-        writer.Uint(lower_bound);
+        writer.Int64(lower_bound);
         writer.Key("Uper_Bound");
-        writer.Uint(upper_bound);
+        writer.Int64(upper_bound);
         writer.Key("Join_Mode");
         if (this->joinMode == Interval_Join_Mode_t::KP) {
             writer.String("Key-Parallelism");
