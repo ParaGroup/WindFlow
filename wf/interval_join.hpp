@@ -329,7 +329,7 @@ public:
                     }
                 } else {
                     uintptr_t mem_add = (uintptr_t)(&_tuple);
-                    size_t hash_idx = 5 % this->context.getParallelism(); // compute the hash index of the tuple using memory address
+                    size_t hash_idx = mem_add % this->context.getParallelism(); // compute the hash index of the tuple using memory address
                     if (hash_idx == this->context.getReplicaIndex()) {
                         (key_d.archiveB).insert(wrapper_t(_tuple, _timestamp));
                     }
