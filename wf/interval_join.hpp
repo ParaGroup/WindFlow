@@ -345,8 +345,8 @@ public:
         uint64_t idx_a = 0, idx_b = 0;
         if (!(upper_bound > (int64_t)last_time))  { idx_a = last_time - upper_bound; }
         if (!(-lower_bound > (int64_t)last_time)) { idx_b = last_time + lower_bound; }
-        uint64_t a = (_key_d.archiveA).purge(idx_a);
-        uint64_t b = (_key_d.archiveB).purge(idx_b);
+        if (idx_a != 0) (_key_d.archiveA).purge(idx_a);
+        if (idx_b != 0) (_key_d.archiveB).purge(idx_b);
     }
 
     void purgeWithPunct()
