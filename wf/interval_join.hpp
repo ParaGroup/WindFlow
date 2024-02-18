@@ -220,7 +220,6 @@ public:
             uint64_t delta = (current_time_nsecs() - last_sampled_size_time) / 1e06; //ms
             if ( delta >= 250 )
             {
-                //std::cout << "Delta -> " << delta << ", curr -> " << current_time_nsecs() << ", last save -> " << last_sampled_size_time << std::endl;
                 for (auto &k: keyMap) {
                     Key_Descriptor &key_d = (k.second);
                     a_Buff.buff_size += (key_d.archiveA).size();
@@ -229,7 +228,6 @@ public:
                 a_Buff.buff_count++;
                 b_Buff.buff_count++;
                 last_sampled_size_time = current_time_nsecs();
-                //std::cout << "A buffer size -> " << a_buff_size << ", count -> " << a_buff_count << std::endl;
             }
         }
 #endif
@@ -569,6 +567,7 @@ public:
         double mean_size = static_cast<double>(acc_size) / num_replicas;
         std::cout << "Mean Buffer Size -> " << mean_size << std::endl;
         // Check distribution
+        /*
         double variance = 0;
         for (auto *r: replicas) {
             double diff = r->getBufferMeanSize(stream) - mean_size;
@@ -580,6 +579,7 @@ public:
         std::string check_balance = stddev < threshold_balance ? " ✔ " : " ✘ ";
         std::cout << std::fixed << std::setprecision(2);
         std::cout << "Variance -> " << variance << ", stddev -> " << stddev << " | Balance threshold -> " << stddev << "<" << threshold_balance << check_balance << std::endl;
+        */
     }
 
     /** 

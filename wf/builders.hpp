@@ -1508,7 +1508,6 @@ public:
     {
         lower_bound = _lower_bound.count();
         upper_bound = _upper_bound.count();
-        //std::cout << "lb -> " << lower_bound << ", up -> " << upper_bound << std::endl;
         if (lower_bound > upper_bound) {
             std::cerr << RED << "WindFlow Error: Interval_Join must have lower_bound <= upper_bound" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
