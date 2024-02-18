@@ -44,15 +44,15 @@
 namespace wf {
 
 // class StreamArchive
-template<typename tuple_t, typename Container = std::deque<join_tuple_t<tuple_t>>>
+template<typename tuple_t>
 class JoinArchive
 {
 private:
-    using wrapper_t = join_tuple_t<tuple_t>; // alias for the wrapped tuple type
+    using wrapper_t = wrapper_tuple_t<tuple_t>; // alias for the wrapped tuple type
     using compare_func_t = std::function<bool(const wrapper_t &, const uint64_t &)>; // function type to compare wrapped tuple to an uint64
-    using iterator_t = typename Container::iterator; // iterator type
+    using iterator_t = typename std::deque<wrapper_t>::iterator; // iterator type
     compare_func_t lessThan; // function to compare wrapped to an uint64 that rapresent an timestamp (index) or watermark
-    Container archive; // container implementing the ordered archive of wrapped tuples
+    std::deque<wrapper_t> archive; // container implementing the ordered archive of wrapped tuples
 
 public:
     // Constructor
