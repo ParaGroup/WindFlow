@@ -66,8 +66,8 @@ int main(int argc, char *argv[])
     size_t runs = 1;
     size_t stream_len = 0;
     size_t n_keys = 1;
-    size_t lower_bound = 0;
-    size_t upper_bound = 0;
+    int64_t lower_bound = 0;
+    int64_t upper_bound = 0;
     // initalize global variable
     global_sum = 0;
     // arguments from command line
@@ -101,16 +101,16 @@ int main(int argc, char *argv[])
     std::uniform_int_distribution<std::mt19937::result_type> dist_p(min, max);
     std::uniform_int_distribution<std::mt19937::result_type> dist_b(0, 10);
     int map1_degree, map2_degree, join_degree, flatmap_degree, sink_degree;
-    size_t source1_degree = dist_p(rng);
-    size_t source2_degree = dist_p(rng);
-    size_t source3_degree = dist_p(rng);
+    size_t source1_degree = 1; //dist_p(rng);
+    size_t source2_degree = 1; //dist_p(rng);
+    size_t source3_degree = 1; //dist_p(rng);
     long last_result = 0;
     // executes the runs in DEFAULT mode
     for (size_t i=0; i<runs; i++) {
         map1_degree = dist_p(rng);
         map2_degree = dist_p(rng);
         flatmap_degree = dist_p(rng);
-        join_degree = dist_p(rng);
+        join_degree = 3; //dist_p(rng);
         sink_degree = dist_p(rng);
         cout << "Run " << i << endl;
         cout << "+-----------+" << endl;
@@ -224,7 +224,7 @@ int main(int argc, char *argv[])
         global_sum = 0;
     }
     // executes the runs in DETERMINISTIC mode
-    for (size_t i=0; i<runs; i++) {
+    for (size_t i=0; i<0; i++) {
         map1_degree = dist_p(rng);
         map2_degree = dist_p(rng);
         flatmap_degree = dist_p(rng);

@@ -38,6 +38,7 @@
 #define INTERVAL_JOIN_H
 
 /// includes
+#include<iomanip>
 #include<string>
 #include<functional>
 #include<context.hpp>
@@ -99,6 +100,20 @@ private:
     uint64_t last_time; // last received watermark or timestamp
     size_t ignored_tuples; // number of ignored tuples
 
+    struct Buffer_Stats
+    {
+        uint64_t buff_size;
+        uint64_t buff_count;
+
+        // Constructor
+        Buffer_Stats():
+            buff_size(0),
+            buff_count(0) {}
+    };
+
+    Buffer_Stats a_Buff;
+    Buffer_Stats b_Buff;
+    uint64_t last_sampled_size_time;
 
 public:
     // Constructor
@@ -117,7 +132,10 @@ public:
                 upper_bound(_upper_bound),
                 joinMode(_join_mode),
                 ignored_tuples(0),
-                last_time(0)
+                last_time(0),
+                a_Buff(Buffer_Stats()),
+                b_Buff(Buffer_Stats()),
+                last_sampled_size_time(current_time_nsecs())
     {
         compare_func = [](const wrapper_t &w1, const uint64_t &_idx) { // comparator function of wrapped tuples
             return w1.index < _idx;
@@ -134,7 +152,10 @@ public:
                 joinMode(_other.joinMode),
                 compare_func(_other.compare_func),
                 ignored_tuples(_other.ignored_tuples),
-                last_time(_other.last_time) {}
+                last_time(_other.last_time),
+                a_Buff(_other.a_Buff),
+                b_Buff(_other.b_Buff),
+                last_sampled_size_time(current_time_nsecs()) {} //_other.last_sampled_size_time
 
     // svc (utilized by the FastFlow runtime)
     void *svc(void *_in) override
@@ -193,6 +214,23 @@ public:
             ignored_tuples++;
             return;
         }
+
+#if defined (WF_JOIN_STATS)
+        if (joinMode == Interval_Join_Mode_t::DPS) {
+            uint64_t delta = (current_time_nsecs() - last_sampled_size_time) / 1e06; //ms
+            if ( delta >= 250 )
+            {
+                for (auto &k: keyMap) {
+                    Key_Descriptor &key_d = (k.second);
+                    a_Buff.buff_size += (key_d.archiveA).size();
+                    b_Buff.buff_size += (key_d.archiveB).size();
+                }
+                a_Buff.buff_count++;
+                b_Buff.buff_count++;
+                last_sampled_size_time = current_time_nsecs();
+            }
+        }
+#endif
 
         if (this->execution_mode == Execution_Mode_t::DEFAULT) {
             last_time = _watermark;
@@ -289,7 +327,7 @@ public:
                     }
                 } else {
                     uintptr_t mem_add = (uintptr_t)(&_tuple);
-                    size_t hash_idx = 5 % this->context.getParallelism(); // compute the hash index of the tuple using memory address
+                    size_t hash_idx = mem_add % this->context.getParallelism(); // compute the hash index of the tuple using memory address
                     if (hash_idx == this->context.getReplicaIndex()) {
                         (key_d.archiveB).insert(wrapper_t(_tuple, _timestamp));
                     }
@@ -305,8 +343,8 @@ public:
         uint64_t idx_a = 0, idx_b = 0;
         if (!(upper_bound > (int64_t)last_time))  { idx_a = last_time - upper_bound; }
         if (!(-lower_bound > (int64_t)last_time)) { idx_b = last_time + lower_bound; }
-        uint64_t a = (_key_d.archiveA).purge(idx_a);
-        uint64_t b = (_key_d.archiveB).purge(idx_b);
+        if (idx_a != 0) (_key_d.archiveA).purge(idx_a);
+        if (idx_b != 0) (_key_d.archiveB).purge(idx_b);
     }
 
     void purgeWithPunct()
@@ -321,6 +359,17 @@ public:
     size_t getNumIgnoredTuples() const
     {
         return ignored_tuples;
+    }
+
+    double getBufferMeanSize(Join_Stream_t stream) const
+    {
+        double mean = 0.0;
+        if (stream == Join_Stream_t::A) {
+            mean = static_cast<double>(a_Buff.buff_size) / a_Buff.buff_count;
+        } else {
+            mean = static_cast<double>(b_Buff.buff_size) / b_Buff.buff_count;
+        }
+        return mean;
     }
 
     IJoin_Replica(IJoin_Replica &&) = delete; ///< Move constructor is deleted
@@ -351,7 +400,7 @@ private:
     int64_t upper_bound; // upper bound of the interval, can be negative ( ts + upper_bound )
     Interval_Join_Mode_t joinMode; // Interval Join operating mode
 
-    // Configure the Map to receive batches instead of individual inputs
+    // Configure the Interval Join to receive batches instead of individual inputs
     void receiveBatches(bool _input_batching) override
     {
         for (auto *r: replicas) {
@@ -359,7 +408,7 @@ private:
         }
     }
 
-    // Set the emitter used to route outputs from the Map
+    // Set the emitter used to route outputs from the Interval Join
     void setEmitter(Basic_Emitter *_emitter) override
     {
         replicas[0]->setEmitter(_emitter);
@@ -368,7 +417,7 @@ private:
         }
     }
 
-    // Check whether the Map has terminated
+    // Check whether the Interval Join has terminated
     bool isTerminated() const override
     {
         bool terminated = true;
@@ -378,7 +427,7 @@ private:
         return terminated;
     }
 
-    // Set the execution mode of the Map
+    // Set the execution mode of the Interval Join
     void setExecutionMode(Execution_Mode_t _execution_mode)
     {
         for (auto *r: replicas) {
@@ -419,18 +468,15 @@ private:
         writer.Key("OutputBatchSize");
         writer.Uint(this->outputBatchSize);
         writer.Key("Lower_Bound");
-        writer.Uint(lower_bound);
+        writer.Int64(lower_bound);
         writer.Key("Uper_Bound");
-        writer.Uint(upper_bound);
+        writer.Int64(upper_bound);
         writer.Key("Join_Mode");
         if (this->joinMode == Interval_Join_Mode_t::KP) {
             writer.String("Key-Parallelism");
         }
         else if (this->joinMode == Interval_Join_Mode_t::DPS) {
             writer.String("Data-Parallelism_Single-Buffer");
-        }
-        else {
-            writer.String("Data-Parallelism_Multi-Buffer");
         }
         writer.Key("Replicas");
         writer.StartArray();
@@ -497,9 +543,43 @@ public:
     // Destructor
     ~Interval_Join() override
     {
+#if defined (WF_JOIN_STATS)
+        if (joinMode == Interval_Join_Mode_t::DPS && this->isTerminated()) {
+            printBufferStats(Join_Stream_t::A);
+            printBufferStats(Join_Stream_t::B);
+        }
+#endif
         for (auto *r: replicas) { // delete all the replicas
             delete r;
         }
+    }
+
+    void printBufferStats(Join_Stream_t stream) {
+        std::cout << (stream == Join_Stream_t::A ? "A" : "B") << " Buffer Stats: " << std::endl;
+        uint64_t num_replicas = replicas.size();
+        double acc_size = 0.0;
+        int i = 0;
+        for (auto *r: replicas) {
+            std::cout << (i+1) << " Replica mean -> " << r->getBufferMeanSize(stream) << std::endl;
+            acc_size += r->getBufferMeanSize(stream);
+            i++;
+        }
+        double mean_size = static_cast<double>(acc_size) / num_replicas;
+        std::cout << "Mean Buffer Size -> " << mean_size << std::endl;
+        // Check distribution
+        /*
+        double variance = 0;
+        for (auto *r: replicas) {
+            double diff = r->getBufferMeanSize(stream) - mean_size;
+            variance += diff * diff;
+        }
+        variance = variance / num_replicas;
+        double stddev = sqrt(variance);
+        double threshold_balance = (0.3*mean_size);
+        std::string check_balance = stddev < threshold_balance ? " ✔ " : " ✘ ";
+        std::cout << std::fixed << std::setprecision(2);
+        std::cout << "Variance -> " << variance << ", stddev -> " << stddev << " | Balance threshold -> " << stddev << "<" << threshold_balance << check_balance << std::endl;
+        */
     }
 
     /** 
