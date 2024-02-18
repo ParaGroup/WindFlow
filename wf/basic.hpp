@@ -285,12 +285,15 @@ inline uint64_t compute_gcd(uint64_t u, uint64_t v)
     return u;
 };
 
-// Struct wrapping a tuple for window-based operators
+// Struct wrapping a tuple for window-based or join-based operators
 template<typename tuple_t>
 struct wrapper_tuple_t
 {
-    tuple_t tuple; // tuple
-    uint64_t index; // identifier (CB) or timestamp (TB)
+    //tuple
+    tuple_t tuple;
+    // [Win] identifier (CB) or timestamp (TB)
+    // [Join] timestamp or watermark
+    uint64_t index;
 
     // Constructor
     wrapper_tuple_t(const tuple_t &_tuple, uint64_t _index):
@@ -311,18 +314,7 @@ inline result_t create_win_result_t(key_t _key, uint64_t _id=0)
     }
 }
 
-// Struct wrapping a Single_t<tuple_t> for join-based operators
-template<typename tuple_t>
-struct join_tuple_t
-{
-    tuple_t tuple; // tuple
-    uint64_t index; // timestamp
-
-    // Constructor
-    join_tuple_t(const tuple_t &_tuple, uint64_t _index):
-                    tuple(_tuple), index(_index) {}
-};
-
+// Checks the availability of the hash function defined on the given type
 template<typename T, typename = std::void_t<>>
 inline constexpr bool if_defined_hash = false;
 

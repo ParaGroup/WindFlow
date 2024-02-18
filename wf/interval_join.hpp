@@ -74,7 +74,7 @@ private:
     static_assert(isNonRiched || isRiched,
         "WindFlow Compilation Error - IJoin_Replica does not have a valid functional logic:\n");
 
-    using wrapper_t = join_tuple_t<tuple_t>; // alias for the wrapped tuple type
+    using wrapper_t = wrapper_tuple_t<tuple_t>; // alias for the wrapped tuple type
     using container_t = typename std::deque<wrapper_t>; // container type for underlying archive's buffer structure
     using iterator_t = typename container_t::iterator; // iterator type for accessing wrapped tuples in the archive
     using iterable_t = Iterable_Interval<wrapper_t, container_t>; // iterable object type for accessing wrapped tuples in the computed interval
