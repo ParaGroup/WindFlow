@@ -83,7 +83,7 @@ public:
     void operator()(Source_Shipper<tuple_t> &shipper)
     {
         static thread_local std::mt19937 generator;
-        generator.seed(5489);
+        generator.seed(1234);
         std::uniform_int_distribution<int> distribution(0, 500);
         for (size_t i=1; i<=len; i++) { // generation loop
             for (size_t k=0; k<keys; k++) {
@@ -126,7 +126,7 @@ public:
     void operator()(Source_Shipper<tuple_t> &shipper)
     {
         static thread_local std::mt19937 generator;
-        generator.seed(5489);
+        generator.seed(4321);
         std::uniform_int_distribution<int> distribution(0, 500);
         for (size_t i=1; i<=len; i++) { // generation loop
             for (size_t k=0; k<keys; k++) {
@@ -267,9 +267,10 @@ public:
         if (out) {
             received++;
             totalsum += (*out).value;
+            //printf("%lu %lu\n", (*out).key, rc.getCurrentTimestamp());
         }
         else {
-            // printf("Received: %ld results, total sum: %ld\n", received, totalsum);
+            //printf("Received: %ld results, total sum: %ld\n", received, totalsum);
             global_sum.fetch_add(totalsum);
         }
     }
