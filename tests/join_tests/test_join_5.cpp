@@ -329,7 +329,7 @@ int main(int argc, char *argv[])
                                     .withParallelism(join1_degree)
                                     .withOutputBatchSize(dist_b(rng))
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
-                                    .withBoundaries(microseconds(lower_bound), microseconds(upper_bound))
+                                    .withBoundaries(milliseconds(lower_bound), milliseconds(upper_bound))
                                     .withKPMode()
                                     .build();
         pipe7.add(join1);
@@ -368,7 +368,7 @@ int main(int argc, char *argv[])
                                     .withParallelism(join2_degree)
                                     .withOutputBatchSize(dist_b(rng))
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
-                                    .withBoundaries(microseconds(lower_bound), microseconds(upper_bound))
+                                    .withBoundaries(milliseconds(lower_bound), milliseconds(upper_bound))
                                     .withDPSMode()
                                     .build();
         pipe9.add(join2);
@@ -583,7 +583,7 @@ int main(int argc, char *argv[])
                                     .withName("join1")
                                     .withParallelism(join1_degree)
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
-                                    .withBoundaries(microseconds(lower_bound), microseconds(upper_bound))
+                                    .withBoundaries(milliseconds(lower_bound), milliseconds(upper_bound))
                                     .withKPMode()
                                     .build();
         pipe7.add(join1);
@@ -618,7 +618,7 @@ int main(int argc, char *argv[])
                                     .withName("join2")
                                     .withParallelism(join2_degree)
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
-                                    .withBoundaries(microseconds(lower_bound), microseconds(upper_bound))
+                                    .withBoundaries(milliseconds(lower_bound), milliseconds(upper_bound))
                                     .withDPSMode()
                                     .build();
         pipe9.add(join2);

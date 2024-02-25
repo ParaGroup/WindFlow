@@ -76,4 +76,11 @@
 ./build/bin/win_tests/test_win_mrw_cb -r 100 -l 13335 -k 1 -w 335 -s 22;
 ./build/bin/win_tests/test_win_fat_cb -r 100 -l 13335 -k 1 -w 335 -s 22;
 
+# INTERVAL JOIN TESTS
+./build/bin/join_tests/test_join_1 -r 100 -l 13335 -k 9 -L -250 -U 250;
+./build/bin/join_tests/test_join_2 -r 100 -l 13335 -k 9 -L -250 -U 250;
+./build/bin/join_tests/test_join_3 -r 100 -l 13335 -k 9 -L -250 -U 250;
+./build/bin/join_tests/test_join_4 -r 100 -l 13335 -k 9 -L -250 -U 250;
+./build/bin/join_tests/test_join_5 -r 100 -l 13335 -k 9 -L -250 -U 250;
+
 # sh run_regression_tests.sh 2>&1 | tee output.log

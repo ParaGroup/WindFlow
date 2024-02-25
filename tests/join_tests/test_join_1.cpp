@@ -173,7 +173,7 @@ int main(int argc, char *argv[])
                                     .withParallelism(join_degree)
                                     .withOutputBatchSize(dist_b(rng))
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
-                                    .withBoundaries(microseconds(lower_bound), microseconds(upper_bound))
+                                    .withBoundaries(milliseconds(lower_bound), milliseconds(upper_bound))
                                     .withKPMode()
                                     .build();
         pipe3.add(join);
@@ -287,7 +287,7 @@ int main(int argc, char *argv[])
                                     .withName("join1")
                                     .withParallelism(join_degree)
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
-                                    .withBoundaries(microseconds(lower_bound), microseconds(upper_bound))
+                                    .withBoundaries(milliseconds(lower_bound), milliseconds(upper_bound))
                                     .withKPMode()
                                     .build();
         pipe3.add(join1);
