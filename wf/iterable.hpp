@@ -257,6 +257,24 @@ public:
         return (*(first+i)).tuple;
     }
 
+    uint64_t index_at(size_t i)
+    {
+        if (i >= num_tuples) {
+            std::cerr << RED << "WindFlow Error: index of the Iterable out-of-range" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        return (*(first+i)).index;
+    }
+    
+    const uint64_t index_at(size_t i) const
+    {
+        if (i >= num_tuples) {
+            std::cerr << RED << "WindFlow Error: index of the Iterable out-of-range" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        return (*(first+i)).index;
+    }
+
     /** 
      *  \brief Get a reference to the tuple at a given position
      *  

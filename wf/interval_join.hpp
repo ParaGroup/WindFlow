@@ -50,6 +50,7 @@
 #include<basic_emitter.hpp>
 #include<basic_operator.hpp>
 #include<join_archive.hpp>
+#include<iterable.hpp>
 
 namespace wf {
 
@@ -77,7 +78,6 @@ private:
     using wrapper_t = wrapper_tuple_t<tuple_t>; // alias for the wrapped tuple type
     using container_t = typename std::deque<wrapper_t>; // container type for underlying archive's buffer structure
     using iterator_t = typename container_t::iterator; // iterator type for accessing wrapped tuples in the archive
-    using iterable_t = Iterable_Interval<tuple_t>; // iterable object type for accessing wrapped tuples in the computed interval
     
     using compare_func_t = std::function< bool(const wrapper_t &, const uint64_t &) >; // function type to compare wrapped tuple to an uint64
 
@@ -263,17 +263,17 @@ public:
 
         std::optional<result_t> output;
         std::pair<iterator_t, iterator_t> its = isStreamA(_tag) ? (key_d.archiveB).getJoinRange(l_b, u_b) : (key_d.archiveA).getJoinRange(l_b, u_b);
-        iterable_t iter(its.first, its.second);
-        for (size_t i=0; i<iter.size(); i++) {
+        Iterable<tuple_t> interval(its.first, its.second);
+        for (size_t i=0; i<interval.size(); i++) {
             if constexpr (isNonRiched) { // inplace non-riched version
-                output = isStreamA(_tag) ? func(_tuple, (iter[i]).tuple) : func((iter[i]).tuple, _tuple);
+                output = isStreamA(_tag) ? func(_tuple, (interval.at(i))) : func(interval.at(i), _tuple);
             }
             if constexpr (isRiched)  { // inplace riched version
                 (this->context).setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
-                output = isStreamA(_tag) ? func(_tuple, (iter[i]).tuple, this->context) : func((iter[i]).tuple, _tuple, this->context);
+                output = isStreamA(_tag) ? func(_tuple, interval.at(i), this->context) : func(interval.at(i), _tuple, this->context);
             }
             if (output) {
-                uint64_t ts = _timestamp >= (iter[i]).index ? _timestamp : (iter[i]).index; // use the highest timestamp between two joined tuples
+                uint64_t ts = _timestamp >= interval.index_at(i) ? _timestamp : interval.index_at(i); // use the highest timestamp between two joined tuples
                 (this->emitter)->emit(&(*output), 0, ts, _watermark, this);
 #if defined (WF_TRACING_ENABLED)
                 (this->stats_record).outputs_sent++;
