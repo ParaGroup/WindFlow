@@ -1,7 +1,4 @@
-[submodule "Dashboard-3.x"]
-    path = Dashboard-3.x
+[submodule "Dashboard"]
+    path = Dashboard
     url = https://github.com/ParaGroup/WindFlow_Dashboard.git
-    branch = vers3.x
-[submodule "WindFlow_Dashboard"]
-	path = WindFlow_Dashboard
-	url = https://github.com/ParaGroup/WindFlow_Dashboard.git
+    branch = master
