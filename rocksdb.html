@@ -7,13 +7,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <link rel="shortcut icon" type="image/png" href="favicon.png">
     
-	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?9405">
-	<link rel="stylesheet" type="text/css" href="style.css?9318">
-	<link rel="stylesheet" type="text/css" href="./css/prism.css?7883">
+	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?9595">
+	<link rel="stylesheet" type="text/css" href="style.css?1077">
+	<link rel="stylesheet" type="text/css" href="./css/prism.css?3891">
 	
 	<link rel="stylesheet" type="text/css" href="./css/font-awesome.min.css">
 	
-    <title>Dashboard</title>
+    <title>RocksDB</title>
 
 
     
@@ -97,49 +97,102 @@
 </div>
 <!-- bloc-1 END -->
 
-<!-- bloc-5 -->
-<div class="bloc tc-davys-grey l-bloc" id="bloc-5">
+<!-- bloc-8 -->
+<div class="bloc l-bloc " id="bloc-8">
 	<div class="container bloc-lg">
 		<div class="row">
 			<div class="col">
 				<h2 class="mg-md tc-davys-grey-2">
-					<strong>Web Dashboard<br></strong>
+					<strong>RocksDB Integration</strong>
 				</h2>
 				<p class="text-justify">
-					Starting from the release <strong>2.8.8</strong>, WindFlow has its own web dashboard that can be used to monitor and profile the performance of running WindFlow applications.&nbsp;Once running, the dashboard opens a <strong>REST</strong> server on a port (<strong>8080</strong> by default) of the machine. To avoid performance conflicts between the dashboard threads and the ones of the running WindFlow applications, the dashboard can be executed on a different machine with respect to the ones used to run the WindFlow applications to be monitored.<br>
+					WindFlow, starting from version 4.0, provides an integration with the&nbsp;<a href="https://rocksdb.org/">RocksDB</a>&nbsp;Key-Value Store (KVS). This allows a suite of new operators to maintain a state object per key on RocksDB. The general scenario for using such operators is in the case of “<strong>larger-than-memory state</strong>” applications, where the state of the operators is larger than the available memory of the machine. The supported persistent operators are the basic ones (P_Map, P_Filter, P_FlatMap, P_Reduce, and P_Sink) and a window-based operator (P_Keyed_Windows).
 				</p>
-				<div class="row">
-					<div class="col">
-						<p class="text-justify">
-							To use the dashboard, WindFlow applications must be compiled with the <strong>WF_TRACING_ENABLED</strong> macro. Other macros are available and can be used to specify the hostname and the port of the dashboard (by default the applications assume that the dashboard is executed on the localhost).<br><br>The main web page of the dashboard, with the summary of the monitored applications (running, terminated or interrupted for any reason) is shown aside. In the figure, the dashboard reports one running application while no terminated or interrupted applications are listed.<br><br>When the user runs a WindFlow application, it automatically tries to connect to the dashboard on a specific port. An additional monitoring thread is spawned by the WindFlow runtime to report statistics to the dashboard every second. The monitored application is added to the summary table of the dashboard.<br>
-						</p>
-					</div>
-					<div class="col">
-						<img src="img/lazyload-ph.png" data-src="img/Screenshot-1.png" class="img-fluid mx-auto d-block mg-md lazyload" alt="Web dashboard screenshot 1" />
-					</div>
+				<p class="text-justify">
+					The set of persistent operators are described in the figure below.
+				</p><img src="img/lazyload-ph.png" data-src="img/p_operators.jpg" class="img-fluid mx-auto d-block img-kafka-operato-style lazyload" alt="kafka_operators" />
+				<h2 class="mg-md tc-davys-grey-2">
+					<strong>API Example</strong>
+				</h2>
+				<p class="text-justify">
+					We show a very short example to integrate in a WindFlow application a <strong>P_FlatMap</strong> operator. The idea can be easily replicated with the other persistent operators. We define the type of the input tuple and of the state object:
+				</p>
+				<div >
+					<pre><code class="language-cpp">
+struct tuple_t // Struct of the input tuple
+{
+    size_t key;
+    int64_t value;
+};
+
+struct state_t // Struct of the state object per key
+{
+	...
+};
+</code></pre>
+					
 				</div>
-				<div class="row">
-					<div class="col-12">
-						<div class="row">
-							<div class="col">
-								<img src="img/lazyload-ph.png" data-src="img/screenshot-3.png" class="img-fluid mx-auto d-block mg-md lazyload" alt="Web dashboard screenshot 2" />
-							</div>
-							<div class="col">
-								<p>
-									By clicking on the application name, the user is directed to a separate web page where the statistics of the application can be inspected.<br><br>The user can check the monitoring information of each running operator and of each of its internal replicas. Statistics are updated every second, and report the number of received/transmitted inputs/outputs, processing time, and so forth. The figure on the left shows the report page of an application.<br><br>The last screenshot below shows the report of statistics opened for one operator and the historical statistics (input and output rate per second over the whole execution) for a different operator opened in the same web page. This can be useful to continuously track the application execution in order to discover bottlenecks in the dataflow and to undetstand how to optimize it as a further refinement of the development and configuration process applied by the developer.<br>
-								</p>
-							</div>
-						</div><img src="img/lazyload-ph.png" data-src="img/screenshot-4.png" class="img-fluid mx-auto d-block mg-md lazyload" alt="Web dashboard screenshot 3" />
-						<p class="text-justify">
-							The web dashboard aims at being a useful tool for developers of WindFlow applications. However, statistics are often intrusive and might slow down application performance (we measured a drop between <strong>5</strong> and <strong>20%</strong> in our benchmarks). So, it must be used carefully.
-						</p>
+				<p class="text-justify">
+						Then, the user defines the business logic of the P_FlatMap by providing, for example, a functor object having the right signature expected by WindFlow:
+					</p>
+				<div >
+						<pre><code class="language-cpp">
+class P_FlatMap_Functor // P_FlatMap functor
+{
+public:
+    // operator()
+    void operator()(const tuple_t &amp;t, state_t &amp;state, Shipper<tuple_t> &amp;shipper)
+    {
+        ... // we use the state object and the tuple to provide zero, one or more results.
+        ... // The state can be modified and it is deserialized before and serialized after
+        ... // the call of this function by the WindFlow runtime system
+    }
+};
+</tuple_t></code></pre>
+						
 					</div>
-				</div>
+				<p class="text-justify">
+							Before calling this function for each input tuple, the WindFlow&rsquo;s runtime system will deserialize the state object associated with the key attribute of the current tuple and passes it to the user function. After the execution, since the state object might be modified, it will be serialized and written again to the KVS.
+						</p>
+				<p>
+							The user creates the operators and the PipeGraph environment as usual. Furthermore, it creates the P_FlatMap operator using its builder. Before doing that, serialization and deserialization functions of the state objects should be provided (in the example below as two lambda functions):
+						</p>
+				<div >
+							<pre><code class="language-cpp">
+int main()
+{
+	...
+	auto serializer = [](state_t &amp;s) -> std::string {
+        ... // serialization function
+    };
+    auto deserializer = [](std::string &amp;s) -> state_t {
+        ... // deserialization function
+    };
+
+    ...
+
+    P_FlatMap_Functor func;
+    P_FlatMap op = P_FlatMap_Builder(p_flatmap_functor_kb)
+                        .withName("name_op")
+                        .withParallelism(3) // example running with three replicas
+                        .withOutputBatchSize(64) // each replica will produce 64 outputs per batch
+                        .withKeyBy([](const tuple_t &amp;t) -> size_t { return t.key; })
+                        .withSerializer(serializer)
+                        .withDeserializer(deserializer)
+                        .build();
+    ...
+}
+</code></pre>
+							
+						</div>
+				<p>
+								The application is finally run as usual.
+							</p>
 			</div>
 		</div>
 	</div>
 </div>
-<!-- bloc-5 END -->
+<!-- bloc-8 END -->
 
 <!-- ScrollToTop Button -->
 <a class="bloc-button btn btn-d scrollToTop" onclick="scrollToTarget('1',this)"><span class="fa fa-chevron-up"></span></a>
@@ -184,7 +237,7 @@
 <script src="./js/bootstrap.bundle.min.js?9511"></script>
 <script src="./js/blocs.min.js?8938"></script>
 <script src="./js/lazysizes.min.js" defer></script>
-<script src="./js/prism.js?7708"></script>
+<script src="./js/prism.js?3120"></script>
 <!-- Additional JS END -->
 
 
