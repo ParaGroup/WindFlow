@@ -257,16 +257,14 @@ public:
         return (*(first+i)).tuple;
     }
 
+    /**
+     * Returns the index value at the specified position in the Iterable.
+     * If the position is out of range, an error message is printed and the program exits.
+     *
+     * @param i The position of the index value to retrieve.
+     * @return The index value at the specified position.
+     */
     uint64_t index_at(size_t i)
-    {
-        if (i >= num_tuples) {
-            std::cerr << RED << "WindFlow Error: index of the Iterable out-of-range" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        return (*(first+i)).index;
-    }
-    
-    const uint64_t index_at(size_t i) const
     {
         if (i >= num_tuples) {
             std::cerr << RED << "WindFlow Error: index of the Iterable out-of-range" << DEFAULT_COLOR << std::endl;

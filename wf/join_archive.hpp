@@ -111,10 +111,10 @@ public:
     }
 
     /*  
-     *  Method to get a pair of iterators that represent the join range [first, last) given
+     *  Method to get a pair of iterators that represent the join range [first, last] given
      *  an input lower bound and upper bound for timestamps as unsigned integers. The method returns the iterator (first) to the
      *  wrapped tuple in the archive that has index (ts) >= lower bound, and the iterator
-     *  (end) to the wrapped tuple in the archive that has index (ts) < upper bound.
+     *  (end) to the wrapped tuple in the archive that has index (ts) <= upper bound.
      */ 
     std::pair<iterator_t, iterator_t> getJoinRange(const uint64_t &_l_b, const uint64_t &_u_b)
     {
