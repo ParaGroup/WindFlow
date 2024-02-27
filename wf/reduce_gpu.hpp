@@ -319,8 +319,11 @@ private:
     friend class PipeGraph;
     reduce_func_gpu_t func; // functional logic used by the Reduce_GPU
     keyextr_func_gpu_t key_extr; // logic to extract the key attribute from the tuple_t
+    using tuple_t = decltype(get_tuple_t_ReduceGPU(func)); // extracting the tuple_t type and checking the admissible signatures
+    using result_t = tuple_t;
     using key_t = decltype(get_key_t_KeyExtrGPU(key_extr)); // extracting the key_t type and checking the admissible singatures
     std::vector<ReduceGPU_Replica<reduce_func_gpu_t, keyextr_func_gpu_t> *> replicas; // vector of pointers to the replicas of the Reduce_GPU
+    static constexpr op_type_t op_type = op_type_t::BASIC_GPU;
 
     // This method exists but its does not have any effect
     void receiveBatches(bool _input_batching) override {}
@@ -342,6 +345,18 @@ private:
             terminated = terminated && r->isTerminated();
         }
         return terminated;
+    }
+
+    // Set the execution mode of the Reduce_GPU (i.e., the one of its PipeGraph)
+    void setExecutionMode(Execution_Mode_t _execution_mode)
+    {
+        if (_execution_mode != Execution_Mode_t::DEFAULT) {
+            std::cerr << RED << "WindFlow Error: Reduce_GPU can be used in DEFAULT mode only" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        for (auto *r: replicas) {
+            r->setExecutionMode(_execution_mode);
+        }
     }
 
     // Get the logic to extract the key attribute from the tuple_t

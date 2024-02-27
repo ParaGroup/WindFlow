@@ -59,6 +59,7 @@ class Shipper
 {
 private:
     template<typename T1> friend class FlatMap_Replica;
+    template<typename T1, typename T2> friend class P_FlatMap_Replica;
     Basic_Emitter *emitter; // pointer to the emitter used for the delivery of messages
     ff::ff_monode *node; // pointer to the fastflow node to be passed to the emitter
     uint64_t num_delivered; // counter of the delivered results

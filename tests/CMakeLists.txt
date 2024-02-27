@@ -7,7 +7,7 @@ add_subdirectory(win_tests)
 # Add custom target for all the CPU tests
 add_custom_target(all_cpu)
 
-if(LIBRDKAFKA_FOUND)
+if(LIBRDKAFKA_FOUND AND LibRDKafka_LIBRARIES)
     # Add the sub-folder with Kafka tests
     add_subdirectory(kafka_tests)
     # Add dependencies to the all_cpu target
@@ -18,11 +18,20 @@ else()
     add_dependencies(all_cpu graph_tests merge_tests split_tests win_tests)
 endif()
 
+if(ROCKSDB_FOUND AND ROCKSDB_LIBRARIES)
+    # Add the sub-folder with RocksDB tests
+    add_subdirectory(rocksdb_tests)
+    # Add dependencies to the all_cpu target
+    add_dependencies(all_cpu rocksdb_tests)
+else()
+    message(STATUS "librocksdb-dev needs to be installed to generate RocksDB tests")
+endif()
+
 # Check CUDA existence
 include(CheckLanguage)
 check_language(CUDA)
 
-if(CMAKE_CUDA_COMPILER AND TBB_TBB_FOUND)
+if(CMAKE_CUDA_COMPILER AND TBB_FOUND)
     # Add sub-folders with GPU tests
     add_subdirectory(graph_tests_gpu)
     add_subdirectory(merge_tests_gpu)

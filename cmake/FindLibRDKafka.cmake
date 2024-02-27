@@ -1,4 +1,26 @@
 # Try to find librdkafka library
+# 
+# Usage of this module as follows:
+# 
+#   find_package(LibRDKafka)
+# 
+# A minimum required version can also be specified, for example:
+# 
+#   find_package(LibRDKafka 0.11.1)
+# 
+# Variables used by this module, they can change the default behaviour and need
+# to be set before calling find_package:
+# 
+#   LibRDKafka_ROOT_DIR  Set this variable to the root installation of
+#                        LibRDKafka if the module has problems finding
+#                        the proper installation path.
+# 
+# Variables defined by this module:
+# 
+#   LIBRDKAFKA_FOUND              System has LibRDKafka libs/headers
+#   LibRDKafka_LIBRARIES          The LibRDKafka libraries
+#   LibRDKafka_INCLUDE_DIR        The location of LibRDKafka headers
+# 
 
 macro(HEXCHAR2DEC VAR VAL)
     if(${VAL} MATCHES "[0-9]")

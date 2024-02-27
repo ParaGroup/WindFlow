@@ -72,12 +72,16 @@ private:
     template<typename T1, typename T2, typename T3> friend class MapReduce_Windows;
     win_func_t func; // functional logic used by the Parallel_Windows
     keyextr_func_t key_extr; // logic to extract the key attribute from the tuple_t
+    using tuple_t = decltype(get_tuple_t_Win(func)); // extracting the tuple_t type and checking the admissible signatures
+    using result_t = decltype(get_result_t_Win(func)); // extracting the result_t type and checking the admissible signatures
     std::string type; // string describing the type of the Parallel_Windows
     std::vector<Window_Replica<win_func_t, keyextr_func_t>*> replicas; // vector of pointers to the replicas of the Parallel_Windows
     uint64_t win_len; // window length (in no. of tuples or in time units)
     uint64_t slide_len; // slide length (in no. of tuples or in time units)
     uint64_t lateness; // triggering delay in time units (meaningful for TB windows in DEFAULT mode)
     Win_Type_t winType; // window type (CB or TB)
+    role_t role; // role of the Parallel_Windows operator
+    static constexpr op_type_t op_type = op_type_t::WIN;
 
     // Configure the Parallel_Windows to receive batches instead of individual inputs
     void receiveBatches(bool _input_batching) override
@@ -109,6 +113,14 @@ private:
     // Set the execution mode of the Parallel_Windows
     void setExecutionMode(Execution_Mode_t _execution_mode)
     {
+        if (this->getOutputBatchSize() > 0 && _execution_mode != Execution_Mode_t::DEFAULT) {
+            std::cerr << RED << "WindFlow Error: Parallel_Windows is trying to produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        if (winType == Win_Type_t::CB && _execution_mode == Execution_Mode_t::DEFAULT && role == role_t::SEQ) {
+            std::cerr << RED << "WindFlow Error: Parallel_Windows cannot use count-based windows in DEFAULT mode" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
         for (auto *r: replicas) {
             r->setExecutionMode(_execution_mode);
         }
@@ -186,13 +198,14 @@ private:
                      win_len(_win_len),
                      slide_len(_slide_len),
                      lateness(_lateness),
-                     winType(_winType)
+                     winType(_winType),
+                     role(_role)
     {
         if (win_len == 0 || slide_len == 0) { // check the validity of the windowing parameters
             std::cerr << RED << "WindFlow Error: Parallel_Windows used with window length or slide equal to zero" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        if (_role != role_t::MAP) {
+        if (role != role_t::MAP) {
             for (size_t i=0; i<this->parallelism; i++) { // create the internal replicas of the Parallel_Windows
                 replicas.push_back(new Window_Replica<win_func_t, keyextr_func_t>(func, 
                                                                                         key_extr,
@@ -203,7 +216,7 @@ private:
                                                                                         slide_len * parallelism,
                                                                                         lateness,
                                                                                         winType,
-                                                                                        _role,
+                                                                                        role,
                                                                                         i,
                                                                                         this->parallelism));
             }
@@ -219,7 +232,7 @@ private:
                                                                                         slide_len,
                                                                                         lateness,
                                                                                         winType,
-                                                                                        _role,
+                                                                                        role,
                                                                                         0,
                                                                                         1));
             }           
@@ -262,7 +275,8 @@ public:
                      win_len(_other.win_len),
                      slide_len(_other.slide_len),
                      lateness(_other.lateness),
-                     winType(_other.winType)
+                     winType(_other.winType),
+                     role(_other.role)
     {
         for (size_t i=0; i<this->parallelism; i++) { // deep copy of the pointers to the Keyed_Windows replicas
             replicas.push_back(new Window_Replica<win_func_t, keyextr_func_t>(*(_other.replicas[i])));

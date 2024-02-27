@@ -72,6 +72,8 @@ private:
     plq_func_t plq_func; // functional logic of the PLQ stage
     wlq_func_t wlq_func; // functional logic of the WLQ stage
     keyextr_func_t key_extr; // logic to extract the key attribute from the tuple_t
+    using tuple_t = decltype(get_tuple_t_Win(plq_func)); // extracting the tuple_t type and checking the admissible signatures
+    using result_t = decltype(get_result_t_Win(wlq_func)); // extracting the result_t type and checking the admissible signatures
     size_t plq_parallelism; // parallelism of the PLQ stage
     size_t wlq_parallelism; // parallelism of the WLQ stage
     uint64_t win_len; // window length (in no. of tuples or in time units)
@@ -80,6 +82,7 @@ private:
     Win_Type_t winType; // window type (CB or TB)
     Parallel_Windows<plq_func_t, keyextr_func_t> plq; // PLQ sub-operator
     Parallel_Windows<wlq_func_t, keyextr_func_t> wlq; // WLQ sub-operator
+    static constexpr op_type_t op_type = op_type_t::WIN_PANED;
 
     // Configure the Paned_Windows to receive batches instead of individual inputs
     void receiveBatches(bool _input_batching) override
@@ -114,6 +117,14 @@ private:
     // Set the execution mode of the Paned_Windows
     void setExecutionMode(Execution_Mode_t _execution_mode)
     {
+        if (this->getOutputBatchSize() > 0 && _execution_mode != Execution_Mode_t::DEFAULT) {
+            std::cerr << RED << "WindFlow Error: Paned_Windows is trying to produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        if (winType == Win_Type_t::CB && _execution_mode == Execution_Mode_t::DEFAULT) {
+            std::cerr << RED << "WindFlow Error: Paned_Windows cannot use count-based windows in DEFAULT mode" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
         plq.setExecutionMode(_execution_mode);
         wlq.setExecutionMode(_execution_mode);
     }

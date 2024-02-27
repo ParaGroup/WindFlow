@@ -38,6 +38,17 @@
 ./build/bin/win_tests/test_win_mrw_cb -r 100 -l 13335 -k 9 -w 335 -s 22;
 ./build/bin/win_tests/test_win_fat_cb -r 100 -l 13335 -k 9 -w 335 -s 22;
 
+# ROCKSDB TESTS
+./build/bin/rocksdb_tests/test_rocksdb_1 -r 25 -l 13335 -k 7;
+./build/bin/rocksdb_tests/test_rocksdb_2 -r 25 -l 13335 -k 7;
+./build/bin/rocksdb_tests/test_rocksdb_3 -r 25 -l 13335 -k 7;
+./build/bin/rocksdb_tests/test_rocksdb_4 -r 25 -l 13335 -k 7;
+./build/bin/rocksdb_tests/test_rocksdb_5 -r 25 -l 13335 -k 7;
+./build/bin/rocksdb_tests/test_rocksdb_6 -r 25 -l 10000 -k 7 -w 5000 -s 2000;
+./build/bin/rocksdb_tests/test_rocksdb_7 -r 25 -l 10000 -k 7 -w 5000 -s 2000;
+./build/bin/rocksdb_tests/test_rocksdb_8 -r 25 -l 10000 -k 7 -w 5000 -s 2000;
+./build/bin/rocksdb_tests/test_rocksdb_7 -r 25 -l 10000 -k 7 -w 5000 -s 2000;
+
 # GRAPH TESTS (one key)
 ./build/bin/graph_tests/test_graph_1 -r 100 -l 13335 -k 1;
 ./build/bin/graph_tests/test_graph_2 -r 100 -l 13335 -k 1;

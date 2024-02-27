@@ -309,7 +309,7 @@ std::false_type get_result_t_FlatMap(...); // black hole
 /*****************************************************************************************************************************/
 
 /**************************************************** REDUCE OPERATOR ********************************************************/
-// declaration of functions to extract the input type of the Accumulator operator
+// declaration of functions to extract the input type of the Reduce operator
 template<typename F_t, typename Arg1, typename Arg2>
 Arg1 get_tuple_t_Reduce(void (F_t::*)(const Arg1&, Arg2&) const);
 
@@ -333,7 +333,7 @@ decltype(get_tuple_t_Reduce(&F_t::operator())) get_tuple_t_Reduce(F_t);
 
 std::false_type get_tuple_t_Reduce(...); // black hole
 
-// declaration of functions to extract the state type of the Accumulator operator
+// declaration of functions to extract the state type of the Reduce operator
 template<typename F_t, typename Arg1, typename Arg2>
 Arg2 get_state_t_Reduce(void (F_t::*)(const Arg1&, Arg2&) const);
 

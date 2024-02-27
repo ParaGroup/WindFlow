@@ -205,6 +205,7 @@ private:
     using tuple_t = decltype(get_tuple_t_Sink(func)); // extracting the tuple_t type and checking the admissible signatures
     keyextr_func_t key_extr; // logic to extract the key attribute from the tuple_t
     std::vector<Sink_Replica<sink_func_t>*> replicas; // vector of pointers to the replicas of the Sink
+    static constexpr op_type_t op_type = op_type_t::SINK;
 
     // Configure the Sink to receive batches instead of individual inputs
     void receiveBatches(bool _input_batching) override

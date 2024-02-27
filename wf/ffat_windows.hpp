@@ -68,11 +68,14 @@ private:
     lift_func_t lift_func; // functional logic of the lift
     comb_func_t comb_func; // functional logic of the combine
     keyextr_func_t key_extr; // logic to extract the key attribute from the tuple_t
+    using tuple_t = decltype(get_tuple_t_Lift(lift_func)); // extracting the tuple_t type and checking the admissible signatures
+    using result_t = decltype(get_result_t_Lift(lift_func)); // extracting the result_t type and checking the admissible signatures
     std::vector<FFAT_Replica<lift_func_t, comb_func_t, keyextr_func_t>*> replicas; // vector of pointers to the replicas of the Ffat_Windows
     uint64_t win_len; // window length (in no. of tuples or in time units)
     uint64_t slide_len; // slide length (in no. of tuples or in time units)
     uint64_t lateness; // triggering delay in time units (meaningful for TB windows in DEFAULT mode)
     Win_Type_t winType; // window type (CB or TB)
+    static constexpr op_type_t op_type = op_type_t::WIN_FFAT;
 
     // Configure the Ffat_Windows to receive batches instead of individual inputs
     void receiveBatches(bool _input_batching) override
@@ -104,6 +107,10 @@ private:
     // Set the execution mode of the Ffat_Windows
     void setExecutionMode(Execution_Mode_t _execution_mode)
     {
+        if (this->getOutputBatchSize() > 0 && _execution_mode != Execution_Mode_t::DEFAULT) {
+            std::cerr << RED << "WindFlow Error: Ffat_Windows is trying to produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
         for (auto *r: replicas) {
             r->setExecutionMode(_execution_mode);
         }

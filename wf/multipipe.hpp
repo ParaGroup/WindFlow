@@ -379,10 +379,6 @@ private:
     template<typename source_t>
     MultiPipe &add_source(const source_t &_source)
     {
-        if (_source.getOutputBatchSize() > 0 && execution_mode != Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: Source cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
         auto *copied_source = new source_t(_source); // create a copy of the operator
         copied_source->setConfiguration(execution_mode, time_policy); // set the execution mode and time policy of the operator
         ff::ff_a2a *matrioska = new ff::ff_a2a(); // create the initial matrioska
@@ -406,12 +402,7 @@ private:
         globalOpList->push_back(copied_source); // add the copied operator to global list
         outputType = TypeName<typename source_t::result_t>::getName(); // save the type of result_t as a string
 #if defined (WF_TRACING_ENABLED)
-        if (copied_source->getType() == "Kafka_Source") {
-            gv_add_vertex("Kafka_Source (" + std::to_string((copied_source->replicas).size()) + ")", copied_source->getName(), true, false, Routing_Mode_t::NONE);
-        }
-        else {
-            gv_add_vertex("Source (" + std::to_string((copied_source->replicas).size()) + ")", copied_source->getName(), true, false, Routing_Mode_t::NONE);
-        }
+        gv_add_vertex(copied_source->getType() + " (" + std::to_string((copied_source->replicas).size()) + ")", copied_source->getName(), true, false, Routing_Mode_t::NONE);
 #endif
         return *this;
     }
@@ -710,17 +701,31 @@ private:
         agset(node, const_cast<char *>("label"), agstrdup_html(gv_graph, const_cast<char *>(label.c_str()))); // change the label of the operator
         if ((typeOP.compare(0, 6, "Source") == 0) || (typeOP.compare(0, 4, "Sink") == 0)) {
             agset(node, const_cast<char *>("color"), const_cast<char *>("#B8B7B8")); // style for Source and Sink operators
+            agset(node, const_cast<char *>("fillcolor"), const_cast<char *>("black"));
         }
-        else if (isCPU_OP) // style of CPU operators
-        {
-            agset(node, const_cast<char *>("color"), const_cast<char *>("#941100"));
-            agset(node, const_cast<char *>("fillcolor"), const_cast<char *>("#ff9400"));
+        else if ((typeOP.compare(0, 12, "Kafka_Source") == 0) || (typeOP.compare(0, 10, "Kafka_Sink") == 0)) {
+            agset(node, const_cast<char *>("color"), const_cast<char *>("#B8B7B8")); // style for Kafka_Source and Kafka_Sink operators
+            agset(node, const_cast<char *>("fillcolor"), const_cast<char *>("black"));
+        }
+        else if (typeOP.compare(0, 6, "P_Sink") == 0) {
+            agset(node, const_cast<char *>("color"), const_cast<char *>("#B8B7B8")); // style for P_Sink operator
+            agset(node, const_cast<char *>("fillcolor"), const_cast<char *>("black"));
+        }
+        else if (isCPU_OP) { // style of CPU operators
+            if (typeOP.compare(0, 2, "P_") == 0) { // persistent operators
+                agset(node, const_cast<char *>("color"), const_cast<char *>("#E13AE2"));
+                agset(node, const_cast<char *>("fillcolor"), const_cast<char *>("#EA3DF7"));                
+            }
+            else { // non-persistent operators
+                agset(node, const_cast<char *>("color"), const_cast<char *>("#941100"));
+                agset(node, const_cast<char *>("fillcolor"), const_cast<char *>("#ff9400"));
+            }
         }
         else { // style of GPU operators
             agset(node, const_cast<char *>("color"), const_cast<char *>("#20548E"));
             agset(node, const_cast<char *>("fillcolor"), const_cast<char *>("#469EA2"));
         }
-        if (isNested) { // change shape of the node to represent a nested operator
+        if (isNested) { // <-- not used anymore!
             agset(node, const_cast<char *>("shape"), const_cast<char *>("doubleoctagon"));
         }
         for (auto *vertex: this->gv_last_vertices) { // connect the new vertex to the previous one(s)
@@ -761,25 +766,29 @@ private:
         lastNameOPs = lastNameOPs + ", " + nameOP;
         std::string label = lastTypeOPs + "<BR/><FONT POINT-SIZE=\"8\">" + lastNameOPs + "</FONT>";
         agset(node, const_cast<char *>("label"), agstrdup_html(gv_graph, const_cast<char *>(label.c_str())));
-        if (typeOP.compare(0, 4, "Sink") == 0) { // style for Sink operator
+        if ((typeOP.compare(0, 4, "Sink") == 0) || (typeOP.compare(0, 10, "Kafka_Sink") == 0) || (typeOP.compare(0, 6, "P_Sink") == 0)) { // style for Sink, Kafka_Sink, P_Sink operators
             agset(node, const_cast<char *>("color"), const_cast<char *>("#B8B7B8"));
             agset(node, const_cast<char *>("fillcolor"), const_cast<char *>("black"));
         }
+        else if (typeOP.compare(0, 2, "P_") == 0) { // style for persistent operators
+            agset(node, const_cast<char *>("color"), const_cast<char *>("#E13AE2"));
+            agset(node, const_cast<char *>("fillcolor"), const_cast<char *>("#EA3DF7"));        
+        }
         else if (typeOP.compare(0, 7, "Map_GPU") == 0) { // style for Map_GPU operator
-            agset(node, const_cast<char *>("color"), const_cast<char *>("#00FF80"));
-            agset(node, const_cast<char *>("fillcolor"), const_cast<char *>("#78A446"));            
+            agset(node, const_cast<char *>("color"), const_cast<char *>("#20548E"));
+            agset(node, const_cast<char *>("fillcolor"), const_cast<char *>("#469EA2"));         
         }
         else if (typeOP.compare(0, 10, "Filter_GPU") == 0) { // style for Filter_GPU operator
-            agset(node, const_cast<char *>("color"), const_cast<char *>("#00FF80"));
-            agset(node, const_cast<char *>("fillcolor"), const_cast<char *>("#78A446"));            
+            agset(node, const_cast<char *>("color"), const_cast<char *>("#20548E"));
+            agset(node, const_cast<char *>("fillcolor"), const_cast<char *>("#469EA2"));          
         }
         else if (typeOP.compare(0, 10, "Reduce_GPU") == 0) { // style for Reduce_GPU operator
-            agset(node, const_cast<char *>("color"), const_cast<char *>("#00FF80"));
-            agset(node, const_cast<char *>("fillcolor"), const_cast<char *>("#78A446"));            
+            agset(node, const_cast<char *>("color"), const_cast<char *>("#20548E"));
+            agset(node, const_cast<char *>("fillcolor"), const_cast<char *>("#469EA2"));         
         }
         else if (typeOP.compare(0, 16, "Ffat_Windows_GPU") == 0) { // style for Ffat_Windows_GPU operator
-            agset(node, const_cast<char *>("color"), const_cast<char *>("#00FF80"));
-            agset(node, const_cast<char *>("fillcolor"), const_cast<char *>("#78A446"));            
+            agset(node, const_cast<char *>("color"), const_cast<char *>("#20548E"));
+            agset(node, const_cast<char *>("fillcolor"), const_cast<char *>("#469EA2"));       
         }        
     }
 #endif
@@ -877,649 +886,222 @@ private:
         }
     }
 
-public:
-    /** 
-     *  \brief Add a Filter operator to the MultiPipe
-     *  \param _filter the Filter operator to be added
-     *  \return a reference to the modified MultiPipe
-     */ 
-    template<typename filter_func_t, typename keyextr_func_t>
-    MultiPipe &add(const Filter<filter_func_t, keyextr_func_t> &_filter)
+    // Check the input type accepted by the new operator (runtime check based on string comparison)
+    template<typename op_t>
+    void checkInputType(op_t &_op)
     {
-        if (_filter.getOutputBatchSize() > 0 && execution_mode != Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: Filter cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);         
-        }
-        auto *copied_filter = new Filter(_filter); // create a copy of the operator
-        copied_filter->setExecutionMode(execution_mode); // set the execution mode of the operator
-        using tuple_t = decltype(get_tuple_t_Filter(copied_filter->func)); // extracting the tuple_t type and checking the admissible signatures
-        std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
+        std::string opInType = TypeName<typename op_t::tuple_t>::getName(); // save the type of tuple_t as a string
         if (!outputType.empty() && outputType.compare(opInType) != 0) {
-            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Filter operator" << DEFAULT_COLOR << std::endl;
+            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the" + _op.getType() + " operator" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        outputType = TypeName<tuple_t>::getName(); // save the new output type from this MultiPipe
-        add_operator(*copied_filter, ordering_mode_t::TS);
-#if defined (WF_TRACING_ENABLED)
-        gv_add_vertex("Filter (" + std::to_string(copied_filter->getParallelism()) + ")", copied_filter->getName(), true, false, copied_filter->getInputRoutingMode());
-#endif
-        localOpList.push_back(copied_filter); // add the copied operator to local list
-        globalOpList->push_back(copied_filter); // add the copied operator to global list
-        return *this;
+        outputType = TypeName<typename op_t::result_t>::getName(); // save the new output type from this MultiPipe
     }
 
-    /** 
-     *  \brief Try to chain a Filter operator to the MultiPipe (if not possible, the operator is added)
-     *  \param _filter the Filter operator to be chained
-     *  \return a reference to the modified MultiPipe
-     */ 
-    template<typename filter_func_t, typename keyextr_func_t>
-    MultiPipe &chain(const Filter<filter_func_t, keyextr_func_t> &_filter)
-    {
-        if (_filter.getOutputBatchSize() > 0 && execution_mode != Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: Filter cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);         
-        }
-        auto *copied_filter = new Filter(_filter); // create a copy of the operator
-        copied_filter->setExecutionMode(execution_mode); // set the execution mode of the operator
-        using tuple_t = decltype(get_tuple_t_Filter(copied_filter->func)); // extracting the tuple_t type and checking the admissible signatures
-        std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
-        if (!outputType.empty() && outputType.compare(opInType) != 0) {
-            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Filter operator" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        outputType = TypeName<tuple_t>::getName(); // save the new output type from this MultiPipe
-        bool isChained = chain_operator(*copied_filter, ordering_mode_t::TS); // try to chain the operator (otherwise, it is added)
-        if (isChained) {
 #if defined (WF_TRACING_ENABLED)
-            gv_chain_vertex("Filter (" + std::to_string(copied_filter->getParallelism()) + ")", copied_filter->getName());
-#endif
+    // Update the graphviz representation with a new CPU operator
+    template<typename op_t>
+    void update_gv(op_t &_op, bool isChaining=false)
+    {
+        if (!isChaining) {
+            gv_add_vertex(_op.getType() + " (" + std::to_string(_op.getParallelism()) + ")", _op.getName(), true, false, _op.getInputRoutingMode());
         }
         else {
-#if defined (WF_TRACING_ENABLED)
-            gv_add_vertex("Filter (" + std::to_string(copied_filter->getParallelism()) + ")", copied_filter->getName(), true, false, copied_filter->getInputRoutingMode());
-#endif
+            gv_chain_vertex(_op.getType() + " (" + std::to_string(_op.getParallelism()) + ")", _op.getName());
         }
-        localOpList.push_back(copied_filter); // add the copied operator to local list
-        globalOpList->push_back(copied_filter); // add the copied operator to global list
-        return *this;
-    }
-
-    /** 
-     *  \brief Add a Map operator to the MultiPipe
-     *  \param _map the Map operator to be added
-     *  \return a reference to the modified MultiPipe
-     */ 
-    template<typename map_func_t, typename keyextr_func_t>
-    MultiPipe &add(const Map<map_func_t, keyextr_func_t> &_map)
-    {
-        if (_map.getOutputBatchSize() > 0 && execution_mode != Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: Map cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);         
-        }
-        auto *copied_map = new Map(_map); // create a copy of the operator
-        copied_map->setExecutionMode(execution_mode); // set the execution mode of the operator
-        using tuple_t = decltype(get_tuple_t_Map(copied_map->func)); // extracting the tuple_t type and checking the admissible signatures
-        using result_t = decltype(get_result_t_Map(copied_map->func)); // extracting the result_t type and checking the admissible signatures
-        std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
-        if (!outputType.empty() && outputType.compare(opInType) != 0) {
-            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Map operator" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
-        add_operator(*copied_map, ordering_mode_t::TS);
-#if defined (WF_TRACING_ENABLED)
-        gv_add_vertex("Map (" + std::to_string(copied_map->getParallelism()) + ")", copied_map->getName(), true, false, copied_map->getInputRoutingMode());
-#endif
-        localOpList.push_back(copied_map); // add the copied operator to local list
-        globalOpList->push_back(copied_map); // add the copied operator to global list
-        return *this;
-    }
-
-    /** 
-     *  \brief Try to chain a Map operator to the MultiPipe (if not possible, the operator is added)
-     *  \param _map the Map operator to be chained
-     *  \return a reference to the modified MultiPipe
-     */ 
-    template<typename map_func_t, typename keyextr_func_t>
-    MultiPipe &chain(const Map<map_func_t, keyextr_func_t> &_map)
-    {
-        if (_map.getOutputBatchSize() > 0 && execution_mode != Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: Map cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);         
-        }
-        auto *copied_map = new Map(_map); // create a copy of the operator
-        copied_map->setExecutionMode(execution_mode); // set the execution mode of the operator
-        using tuple_t = decltype(get_tuple_t_Map(copied_map->func)); // extracting the tuple_t type and checking the admissible signatures
-        using result_t = decltype(get_result_t_Map(copied_map->func)); // extracting the result_t type and checking the admissible signatures
-        std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
-        if (!outputType.empty() && outputType.compare(opInType) != 0) {
-            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Map operator" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
-        bool isChained = chain_operator(*copied_map, ordering_mode_t::TS); // try to chain the operator (otherwise, it is added)
-        if (isChained) {
-#if defined (WF_TRACING_ENABLED)
-            gv_chain_vertex("Map (" + std::to_string(copied_map->getParallelism()) + ")", copied_map->getName());
-#endif
-        }
-        else {
-#if defined (WF_TRACING_ENABLED)
-            gv_add_vertex("Map (" + std::to_string(copied_map->getParallelism()) + ")", copied_map->getName(), true, false, copied_map->getInputRoutingMode());
-#endif
-        }
-        localOpList.push_back(copied_map); // add the copied operator to local list
-        globalOpList->push_back(copied_map); // add the copied operator to global list
-        return *this;
-    }
-
-    /** 
-     *  \brief Add a FlatMap operator to the MultiPipe
-     *  \param _flatmap the FlatMap operator to be added
-     *  \return a reference to the modified MultiPipe
-     */ 
-    template<typename flatmap_func_t, typename keyextr_func_t>
-    MultiPipe &add(const FlatMap<flatmap_func_t, keyextr_func_t> &_flatmap)
-    {
-        if (_flatmap.getOutputBatchSize() > 0 && execution_mode != Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: FlatMap cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);         
-        }
-        auto *copied_flatmap = new FlatMap(_flatmap); // create a copy of the operator
-        copied_flatmap->setExecutionMode(execution_mode); // set the execution mode of the operator
-        using tuple_t = decltype(get_tuple_t_FlatMap(copied_flatmap->func)); // extracting the tuple_t type and checking the admissible signatures
-        using result_t = decltype(get_result_t_FlatMap(copied_flatmap->func)); // extracting the result_t type and checking the admissible signatures
-        std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
-        if (!outputType.empty() && outputType.compare(opInType) != 0) {
-            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the FlatMap operator" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
-        add_operator(*copied_flatmap, ordering_mode_t::TS);
-#if defined (WF_TRACING_ENABLED)
-        gv_add_vertex("FlatMap (" + std::to_string(copied_flatmap->getParallelism()) + ")", copied_flatmap->getName(), true, false, copied_flatmap->getInputRoutingMode());
-#endif
-        localOpList.push_back(copied_flatmap); // add the copied operator to local list
-        globalOpList->push_back(copied_flatmap); // add the copied operator to global list
-        return *this;
-    }
-
-    /** 
-     *  \brief Try to chain a FlatMap operator to the MultiPipe (if not possible, the operator is added)
-     *  \param _flatmap the FlatMap operator to be chained
-     *  \return a reference to the modified MultiPipe
-     */ 
-    template<typename flatmap_func_t, typename keyextr_func_t>
-    MultiPipe &chain(const FlatMap<flatmap_func_t, keyextr_func_t> &_flatmap)
-    {
-        if (_flatmap.getOutputBatchSize() > 0 && execution_mode != Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: FlatMap cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);         
-        }
-        auto *copied_flatmap = new FlatMap(_flatmap); // create a copy of the operator
-        copied_flatmap->setExecutionMode(execution_mode); // set the execution mode of the operator
-        using tuple_t = decltype(get_tuple_t_FlatMap(copied_flatmap->func)); // extracting the tuple_t type and checking the admissible signatures
-        using result_t = decltype(get_result_t_FlatMap(copied_flatmap->func)); // extracting the result_t type and checking the admissible signatures
-        std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
-        if (!outputType.empty() && outputType.compare(opInType) != 0) {
-            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the FlatMap operator" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
-        bool isChained = chain_operator(*copied_flatmap, ordering_mode_t::TS); // try to chain the operator (otherwise, it is added)
-        if (isChained) {
-#if defined (WF_TRACING_ENABLED)
-            gv_chain_vertex("FlatMap (" + std::to_string(copied_flatmap->getParallelism()) + ")", copied_flatmap->getName());
-#endif
-        }
-        else {
-#if defined (WF_TRACING_ENABLED)
-            gv_add_vertex("FlatMap (" + std::to_string(copied_flatmap->getParallelism()) + ")", copied_flatmap->getName(), true, false, copied_flatmap->getInputRoutingMode());
-#endif
-        }
-        localOpList.push_back(copied_flatmap); // add the copied operator to local list
-        globalOpList->push_back(copied_flatmap); // add the copied operator to global list
-        return *this;
-    }
-
-    /** 
-     *  \brief Add a Reduce operator to the MultiPipe
-     *  \param _reduce the Reduce operator to be added
-     *  \return a reference to the modified MultiPipe
-     */ 
-    template<typename reduce_func_t, typename keyextr_func_t>
-    MultiPipe &add(const Reduce<reduce_func_t, keyextr_func_t> &_reduce)
-    {
-        if (_reduce.getOutputBatchSize() > 0 && execution_mode != Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: Reduce cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);         
-        }
-        auto *copied_reduce = new Reduce(_reduce); // create a copy of the operator
-        copied_reduce->setExecutionMode(execution_mode); // set the execution mode of the operator
-        using tuple_t = decltype(get_tuple_t_Reduce(copied_reduce->func)); // extracting the tuple_t type and checking the admissible signatures
-        using state_t = decltype(get_state_t_Reduce(copied_reduce->func)); // extracting the state_t type and checking the admissible signatures
-        std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
-        if (!outputType.empty() && outputType.compare(opInType) != 0) {
-            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Reduce operator" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        outputType = TypeName<state_t>::getName(); // save the new output type from this MultiPipe
-        add_operator(*copied_reduce, ordering_mode_t::TS);
-#if defined (WF_TRACING_ENABLED)
-        gv_add_vertex("Reduce (" + std::to_string(copied_reduce->getParallelism()) + ")", copied_reduce->getName(), true, false, copied_reduce->getInputRoutingMode());
-#endif
-        localOpList.push_back(copied_reduce); // add the copied operator to local list
-        globalOpList->push_back(copied_reduce); // add the copied operator to global list
-        return *this;
-    }
-
-    /** 
-     *  \brief Add a Keyed_Windows operator to the MultiPipe
-     *  \param _kwins the Keyed_Windows operator to be added
-     *  \return a reference to the modified MultiPipe
-     */ 
-    template<typename win_func_t, typename keyextr_func_t>
-    MultiPipe &add(const Keyed_Windows<win_func_t, keyextr_func_t> &_kwins)
-    {
-        if (_kwins.getOutputBatchSize() > 0 && execution_mode != Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: Keyed_Windows cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);         
-        }
-        auto *copied_kwins = new Keyed_Windows(_kwins); // create a copy of the operator
-        copied_kwins->setExecutionMode(execution_mode); // set the execution mode of the operator
-        using tuple_t = decltype(get_tuple_t_Win(copied_kwins->func)); // extracting the tuple_t type and checking the admissible signatures
-        using result_t = decltype(get_result_t_Win(copied_kwins->func)); // extracting the result_t type and checking the admissible signatures
-        std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
-        if (!outputType.empty() && outputType.compare(opInType) != 0) {
-            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Keyed_Windows operator" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
-        add_operator(*copied_kwins, ordering_mode_t::TS);
-#if defined (WF_TRACING_ENABLED)
-        gv_add_vertex("Keyed_Windows (" + std::to_string(copied_kwins->getParallelism()) + ")", copied_kwins->getName(), true, false, copied_kwins->getInputRoutingMode());
-#endif
-        localOpList.push_back(copied_kwins); // add the copied operator to local list
-        globalOpList->push_back(copied_kwins); // add the copied operator to global list
-        return *this;
-    }
-
-    /** 
-     *  \brief Add a Parallel_Windows operator to the MultiPipe
-     *  \param _pwins the Parallel_Windows operator to be added
-     *  \return a reference to the modified MultiPipe
-     */ 
-    template<typename win_func_t, typename keyextr_func_t>
-    MultiPipe &add(const Parallel_Windows<win_func_t, keyextr_func_t> &_pwins)
-    {
-        if (_pwins.getOutputBatchSize() > 0 && execution_mode != Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: Parallel_Windows cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);         
-        }
-        // count-based windows with Parallel_Windows cannot be used in DEFAULT mode
-        if (_pwins.getWinType() == Win_Type_t::CB && execution_mode == Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: Parallel_Windows cannot use count-based windows in DEFAULT mode" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        auto *copied_pwins = new Parallel_Windows(_pwins); // create a copy of the operator
-        copied_pwins->setExecutionMode(execution_mode); // set the execution mode of the operator
-        using tuple_t = decltype(get_tuple_t_Win(copied_pwins->func)); // extracting the tuple_t type and checking the admissible signatures
-        using result_t = decltype(get_result_t_Win(copied_pwins->func)); // extracting the result_t type and checking the admissible signatures
-        std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
-        if (!outputType.empty() && outputType.compare(opInType) != 0) {
-            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Parallel_Windows operator" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
-        add_operator(*copied_pwins, ordering_mode_t::TS);
-#if defined (WF_TRACING_ENABLED)
-        gv_add_vertex("Parallel_Windows (" + std::to_string(copied_pwins->getParallelism()) + ")", copied_pwins->getName(), true, false, copied_pwins->getInputRoutingMode());
-#endif
-        localOpList.push_back(copied_pwins); // add the copied operator to local list
-        globalOpList->push_back(copied_pwins); // add the copied operator to global list
-        return *this;
-    }
-
-    /** 
-     *  \brief Add a Paned_Windows operator to the MultiPipe
-     *  \param _pan_wins the Paned_Windows operator to be added
-     *  \return a reference to the modified MultiPipe
-     */ 
-    template<typename plq_func_t, typename wlq_func_t, typename keyextr_func_t>
-    MultiPipe &add(const Paned_Windows<plq_func_t, wlq_func_t, keyextr_func_t> &_pan_wins)
-    {
-        if (_pan_wins.getOutputBatchSize() > 0 && execution_mode != Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: Paned_Windows cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);         
-        }
-        // count-based windows with Paned_Windows cannot be used in DEFAULT mode
-        if (_pan_wins.getWinType() == Win_Type_t::CB && execution_mode == Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: Paned_Windows cannot use count-based windows in DEFAULT mode" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        using tuple_t = decltype(get_tuple_t_Win(_pan_wins.plq_func)); // extracting the tuple_t type and checking the admissible signatures
-        using result_t = decltype(get_result_t_Win(_pan_wins.wlq_func)); // extracting the result_t type and checking the admissible signatures
-        std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
-        if (!outputType.empty() && outputType.compare(opInType) != 0) {
-            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Paned_Windows operator" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
-        // add the first sub-operator (PLQ)
-        auto *plq = new Parallel_Windows<plq_func_t, keyextr_func_t>(_pan_wins.plq);
-        plq->setExecutionMode(execution_mode); // set the execution mode of the operator
-        add_operator(*plq, ordering_mode_t::TS);
-        localOpList.push_back(plq); // add the PLQ sub-operator to local list
-        globalOpList->push_back(plq); // add the PLQ sub-operator to global list 
-        // add the second sub-operator (WLQ)
-        auto *wlq = new Parallel_Windows<wlq_func_t, keyextr_func_t>(_pan_wins.wlq);
-        wlq->setExecutionMode(execution_mode); // set the execution mode of the operator
-        add_operator(*wlq, ordering_mode_t::ID);
-        localOpList.push_back(wlq); // add the WLQ sub-operator to local list
-        globalOpList->push_back(wlq); // add the WLQ sub-operator to global list
-#if defined (WF_TRACING_ENABLED)
-        gv_add_vertex("Paned_Windows (" + std::to_string(_pan_wins.plq_parallelism) + "," + std::to_string(_pan_wins.wlq_parallelism) + ")", _pan_wins.getName(), false, false, _pan_wins.getInputRoutingMode());
-#endif
-        return *this;
-    }
-
-    /** 
-     *  \brief Add a MapReduce_Windows operator to the MultiPipe
-     *  \param _mr_wins the MapReduce_Windows operator to be added
-     *  \return a reference to the modified MultiPipe
-     */ 
-    template<typename map_func_t, typename reduce_func_t, typename keyextr_func_t>
-    MultiPipe &add(const MapReduce_Windows<map_func_t, reduce_func_t, keyextr_func_t> &_mr_wins)
-    {
-        if (_mr_wins.getOutputBatchSize() > 0 && execution_mode != Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: MapReduce_Windows cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);         
-        }
-        // count-based windows with MapReduce_Windows cannot be used in DEFAULT mode
-        if (_mr_wins.getWinType() == Win_Type_t::CB && execution_mode == Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: MapReduce_Windows cannot use count-based windows in DEFAULT mode" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        using tuple_t = decltype(get_tuple_t_Win(_mr_wins.map_func)); // extracting the tuple_t type and checking the admissible signatures
-        using result_t = decltype(get_result_t_Win(_mr_wins.reduce_func)); // extracting the result_t type and checking the admissible signatures
-        std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
-        if (!outputType.empty() && outputType.compare(opInType) != 0) {
-            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the MapReduce_Windows operator" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
-        // add the first sub-operator (MAP)
-        auto *map = new Parallel_Windows<map_func_t, keyextr_func_t>(_mr_wins.map);
-        map->setExecutionMode(execution_mode); // set the execution mode of the operator
-        add_operator(*map, ordering_mode_t::TS);
-        localOpList.push_back(map); // add the MAP sub-operator to local list
-        globalOpList->push_back(map); // add the MAP sub-operator to global list 
-        // add the second sub-operator (REDUCE)
-        auto *reduce = new Parallel_Windows<reduce_func_t, keyextr_func_t>(_mr_wins.reduce);
-        reduce->setExecutionMode(execution_mode); // set the execution mode of the operator
-        add_operator(*reduce, ordering_mode_t::ID);
-        localOpList.push_back(reduce); // add the WLQ sub-operator to local list
-        globalOpList->push_back(reduce); // add the WLQ sub-operator to global list
-#if defined (WF_TRACING_ENABLED)
-        gv_add_vertex("MapReduce_Windows (" + std::to_string(_mr_wins.map_parallelism) + "," + std::to_string(_mr_wins.reduce_parallelism) + ")", _mr_wins.getName(), false, false, _mr_wins.getInputRoutingMode());
-#endif
-        return *this;
-    }
-
-    /** 
-     *  \brief Add a Ffat_Windows operator to the MultiPipe
-     *  \param _ffatagg the Ffat_Windows operator to be added
-     *  \return a reference to the modified MultiPipe
-     */ 
-    template<typename lift_func_t, typename comb_func_t, typename keyextr_func_t>
-    MultiPipe &add(const Ffat_Windows<lift_func_t, comb_func_t, keyextr_func_t> &_ffatagg)
-    {
-        if (_ffatagg.getOutputBatchSize() > 0 && execution_mode != Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: Ffat_Windows cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);         
-        }
-        auto *copied_ffatagg = new Ffat_Windows(_ffatagg); // create a copy of the operator
-        copied_ffatagg->setExecutionMode(execution_mode); // set the execution mode of the operator
-        using tuple_t = decltype(get_tuple_t_Lift(copied_ffatagg->lift_func)); // extracting the tuple_t type and checking the admissible signatures
-        using result_t = decltype(get_result_t_Lift(copied_ffatagg->lift_func)); // extracting the result_t type and checking the admissible signatures
-        std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
-        if (!outputType.empty() && outputType.compare(opInType) != 0) {
-            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Ffat_Windows operator" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
-        add_operator(*copied_ffatagg, ordering_mode_t::TS);
-#if defined (WF_TRACING_ENABLED)
-        gv_add_vertex("Ffat_Windows (" + std::to_string(copied_ffatagg->getParallelism()) + ")", copied_ffatagg->getName(), true, false, copied_ffatagg->getInputRoutingMode());
-#endif
-        localOpList.push_back(copied_ffatagg); // add the copied operator to local list
-        globalOpList->push_back(copied_ffatagg); // add the copied operator to global list
-        return *this;
     }
 
 #if defined (__CUDACC__)
-    /** 
-     *  \brief Add a Map_GPU operator to the MultiPipe
-     *  \param _mapgpu the Map_GPU operator to be added
-     *  \return a reference to the modified MultiPipe
-     */ 
-    template<typename map_func_gpu_t, typename keyextr_func_t>
-    MultiPipe &add(const Map_GPU<map_func_gpu_t, keyextr_func_t> &_mapgpu)
+    // Update the graphviz representation with a new GPU operator
+    template<typename op_t>
+    void update_gv_gpu(op_t &_op, bool isChaining=false)
     {
-        if (execution_mode != Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: Map_GPU can be used in DEFAULT mode only" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        auto *copied_mapgpu = new Map_GPU(_mapgpu); // create a copy of the operator
-        using tuple_t = decltype(get_tuple_t_MapGPU(copied_mapgpu->func)); // extracting the tuple_t type and checking the admissible signatures
-        std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
-        if (!outputType.empty() && outputType.compare(opInType) != 0) {
-            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Map_GPU operator" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        add_operator<decltype(*copied_mapgpu), true>(*copied_mapgpu, ordering_mode_t::TS);
-#if defined (WF_TRACING_ENABLED)
-        gv_add_vertex("Map_GPU (" + std::to_string(copied_mapgpu->getParallelism()) + ")", copied_mapgpu->getName(), false, false, copied_mapgpu->getInputRoutingMode());
-#endif
-        localOpList.push_back(copied_mapgpu); // add the copied operator to local list
-        globalOpList->push_back(copied_mapgpu); // add the copied operator to global list
-        return *this;
-    }
-
-    /** 
-     *  \brief Try to chain a Map_GPU operator to the MultiPipe (if not possible, the operator is added)
-     *  \param _mapgpu the Map_GPU operator to be chained
-     *  \return a reference to the modified MultiPipe
-     */ 
-    template<typename map_func_gpu_t, typename keyextr_func_t>
-    MultiPipe &chain(const Map_GPU<map_func_gpu_t, keyextr_func_t> &_mapgpu)
-    {
-        if (execution_mode != Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: Map_GPU can be used in DEFAULT mode only" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        auto *copied_mapgpu = new Map_GPU(_mapgpu); // create a copy of the operator
-        using tuple_t = decltype(get_tuple_t_MapGPU(copied_mapgpu->func)); // extracting the tuple_t type and checking the admissible signatures
-        std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
-        if (!outputType.empty() && outputType.compare(opInType) != 0) {
-            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Map_GPU operator" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        bool isChained = chain_operator<decltype(*copied_mapgpu), true>(*copied_mapgpu, ordering_mode_t::TS); // try to chain the operator (otherwise, it is added)
-        if (isChained) {
-#if defined (WF_TRACING_ENABLED)
-            gv_chain_vertex("Map_GPU (" + std::to_string(copied_mapgpu->getParallelism()) + ")", copied_mapgpu->getName());
-#endif
+        if (!isChaining) {
+            gv_add_vertex(_op.getType() + " (" + std::to_string(_op.getParallelism()) + ")", _op.getName(), false, false, _op.getInputRoutingMode());
         }
         else {
-#if defined (WF_TRACING_ENABLED)
-            gv_add_vertex("Map_GPU (" + std::to_string(copied_mapgpu->getParallelism()) + ")", copied_mapgpu->getName(), false, false, copied_mapgpu->getInputRoutingMode());
-#endif
+            gv_chain_vertex(_op.getType() + " (" + std::to_string(_op.getParallelism()) + ")", _op.getName());
         }
-        localOpList.push_back(copied_mapgpu); // add the copied operator to local list
-        globalOpList->push_back(copied_mapgpu); // add the copied operator to global list
-        return *this;
     }
+#endif
+#endif
 
+public:
     /** 
-     *  \brief Add a Filter_GPU operator to the MultiPipe
-     *  \param _filtergpu the Filter_GPU operator to be added
+     *  \brief Add an operator to the MultiPipe
+     *  \param _op the operator to be added
      *  \return a reference to the modified MultiPipe
      */ 
-    template<typename filter_func_gpu_t, typename keyextr_func_t>
-    MultiPipe &add(const Filter_GPU<filter_func_gpu_t, keyextr_func_t> &_filtergpu)
+    template<typename op_t>
+    MultiPipe &add(const op_t &_op)
     {
-        if (execution_mode != Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: Filter_GPU can be used in DEFAULT mode only" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        auto *copied_filtergpu = new Filter_GPU(_filtergpu); // create a copy of the operator
-        copied_filtergpu->setExecutionMode(execution_mode); // set the execution mode of the operator
-        using tuple_t = decltype(get_tuple_t_FilterGPU(copied_filtergpu->func)); // extracting the tuple_t type and checking the admissible signatures
-        std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
-        if (!outputType.empty() && outputType.compare(opInType) != 0) {
-            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Filter_GPU operator" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        add_operator<decltype(*copied_filtergpu), true>(*copied_filtergpu, ordering_mode_t::TS);
+        if constexpr (op_t::op_type == op_type_t::BASIC || op_t::op_type == op_type_t::WIN ||
+                      op_t::op_type == op_type_t::P_BASIC || op_t::op_type == op_type_t::P_WIN) {
+            if ((_op.replicas).size() == 0) {
+                std::cerr << RED << "WindFlow Error: operator of type " << _op.getType() << " cannot be added to a MultiPipe!" << DEFAULT_COLOR << std::endl;
+                exit(EXIT_FAILURE);             
+            }
+            auto *copied_op = new op_t(_op); // create a copy of the operator
+            copied_op->setExecutionMode(execution_mode);
+            checkInputType(*copied_op);
+            add_operator(*copied_op, ordering_mode_t::TS);
+            localOpList.push_back(copied_op);
+            globalOpList->push_back(copied_op);
 #if defined (WF_TRACING_ENABLED)
-        gv_add_vertex("Filter_GPU (" + std::to_string(copied_filtergpu->getParallelism()) + ")", copied_filtergpu->getName(), false, false, copied_filtergpu->getInputRoutingMode());
-#endif
-        localOpList.push_back(copied_filtergpu); // add the copied operator to local list
-        globalOpList->push_back(copied_filtergpu); // add the copied operator to global list
-        return *this;
-    }
-
-    /** 
-     *  \brief Try to chain a Filter_GPU operator to the MultiPipe (if not possible, the operator is added)
-     *  \param _filtergpu the Filter_GPU operator to be chained
-     *  \return a reference to the modified MultiPipe
-     */ 
-    template<typename filter_func_gpu_t, typename keyextr_func_t>
-    MultiPipe &chain(const Filter_GPU<filter_func_gpu_t, keyextr_func_t> &_filtergpu)
-    {
-        if (execution_mode != Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: Filter_GPU can be used in DEFAULT mode only" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        auto *copied_filtergpu = new Filter_GPU(_filtergpu); // create a copy of the operator
-        copied_filtergpu->setExecutionMode(execution_mode); // set the execution mode of the operator
-        using tuple_t = decltype(get_tuple_t_FilterGPU(copied_filtergpu->func)); // extracting the tuple_t type and checking the admissible signatures
-        std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
-        if (!outputType.empty() && outputType.compare(opInType) != 0) {
-            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Filter_GPU operator" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        bool isChained = chain_operator<decltype(*copied_filtergpu), true>(*copied_filtergpu, ordering_mode_t::TS); // try to chain the operator (otherwise, it is added)
-        if (isChained) {
-#if defined (WF_TRACING_ENABLED)
-            gv_chain_vertex("Filter_GPU (" + std::to_string(copied_filtergpu->getParallelism()) + ")", copied_filtergpu->getName());
+            update_gv(*copied_op);
 #endif
         }
+#if defined (__CUDACC__)
+        else if constexpr (op_t::op_type == op_type_t::BASIC_GPU) {
+            auto *copied_op = new op_t(_op ); // create a copy of the operator
+            copied_op->setExecutionMode(execution_mode);
+            checkInputType(*copied_op);
+            add_operator<decltype(*copied_op), true>(*copied_op, ordering_mode_t::TS);
+            localOpList.push_back(copied_op);
+            globalOpList->push_back(copied_op);
+#if defined (WF_TRACING_ENABLED)
+            update_gv_gpu(*copied_op);
+#endif
+        }
+#endif
+        else if constexpr (op_t::op_type == op_type_t::WIN_PANED) {
+            checkInputType(_op);
+            // add the first sub-operator (PLQ)
+            auto *plq = new Parallel_Windows<decltype(_op.plq_func), decltype(_op.key_extr)>(_op.plq);
+            plq->setExecutionMode(execution_mode);
+            add_operator(*plq, ordering_mode_t::TS);
+            localOpList.push_back(plq);
+            globalOpList->push_back(plq);
+            // add the second sub-operator (WLQ)
+            auto *wlq = new Parallel_Windows<decltype(_op.wlq_func), decltype(_op.key_extr)>(_op.wlq);
+            wlq->setExecutionMode(execution_mode);
+            add_operator(*wlq, ordering_mode_t::ID);
+            localOpList.push_back(wlq);
+            globalOpList->push_back(wlq);
+#if defined (WF_TRACING_ENABLED)
+            gv_add_vertex(_op.getType() + " (" + std::to_string(_op.plq_parallelism) + "," + std::to_string(_op.wlq_parallelism) + ")", _op.getName(), false, false, _op.getInputRoutingMode());
+#endif
+        }
+        else if constexpr (op_t::op_type == op_type_t::WIN_MR) {
+            checkInputType(_op);
+            // add the first sub-operator (MAP)
+            auto *map = new Parallel_Windows<decltype(_op.map_func), decltype(_op.key_extr)>(_op.map);
+            map->setExecutionMode(execution_mode);
+            add_operator(*map, ordering_mode_t::TS);
+            localOpList.push_back(map);
+            globalOpList->push_back(map);
+            // add the second sub-operator (REDUCE)
+            auto *reduce = new Parallel_Windows<decltype(_op.reduce_func), decltype(_op.key_extr)>(_op.reduce);
+            reduce->setExecutionMode(execution_mode);
+            add_operator(*reduce, ordering_mode_t::ID);
+            localOpList.push_back(reduce);
+            globalOpList->push_back(reduce);
+#if defined (WF_TRACING_ENABLED)
+            gv_add_vertex(_op.getType() + " (" + std::to_string(_op.map_parallelism) + "," + std::to_string(_op.reduce_parallelism) + ")", _op.getName(), false, false, _op.getInputRoutingMode());
+#endif
+        }
+        else if constexpr (op_t::op_type == op_type_t::WIN_FFAT) {
+            auto *copied_op = new op_t(_op);
+            copied_op->setExecutionMode(execution_mode);
+            checkInputType(*copied_op);
+            add_operator(*copied_op, ordering_mode_t::TS);
+            localOpList.push_back(copied_op);
+            globalOpList->push_back(copied_op);
+    #if defined (WF_TRACING_ENABLED)
+            update_gv(*copied_op);
+    #endif
+        }
+#if defined (__CUDACC__)
+        else if constexpr (op_t::op_type == op_type_t::WIN_FFAT_GPU) {
+            auto *copied_op = new op_t(_op);
+            copied_op->setExecutionMode(execution_mode);
+            checkInputType(*copied_op);
+            add_operator<decltype(*copied_op), true>(*copied_op, ordering_mode_t::TS);
+            localOpList.push_back(copied_op);
+            globalOpList->push_back(copied_op);
+#if defined (WF_TRACING_ENABLED)
+            update_gv_gpu(*copied_op);
+#endif
+        }
+#endif
         else {
-#if defined (WF_TRACING_ENABLED)
-            gv_add_vertex("Filter_GPU (" + std::to_string(copied_filtergpu->getParallelism()) + ")", copied_filtergpu->getName(), false, false, copied_filtergpu->getInputRoutingMode());
-#endif
+            if constexpr (op_t::op_type == op_type_t::SOURCE) {
+                std::cerr << RED << "WindFlow Error: Source cannot be added to a MultiPipe" << DEFAULT_COLOR << std::endl;
+                exit(EXIT_FAILURE);
+            }
+            else if constexpr (op_t::op_type == op_type_t::SINK) {
+                std::cerr << RED << "WindFlow Error: Use add_sink() to add a SINK to a MultiPipe" << DEFAULT_COLOR << std::endl;
+                exit(EXIT_FAILURE);
+            }
+            else {
+                std::cerr << RED << "WindFlow Error: adding an unrecognized operator to a MultiPipe" << DEFAULT_COLOR << std::endl;
+                exit(EXIT_FAILURE);
+            }
         }
-        localOpList.push_back(copied_filtergpu); // add the copied operator to local list
-        globalOpList->push_back(copied_filtergpu); // add the copied operator to global list
         return *this;
     }
 
     /** 
-     *  \brief Add a Reduce_GPU operator to the MultiPipe
-     *  \param _reducegpu the Reduce_GPU operator to be added
+     *  \brief Try to chain an operator to the MultiPipe (if not possible, the operator is added)
+     *  \param _op the operator to be chained
      *  \return a reference to the modified MultiPipe
      */ 
-    template<typename reduce_func_gpu_t, typename keyextr_func_t>
-    MultiPipe &add(const Reduce_GPU<reduce_func_gpu_t, keyextr_func_t> &_reducegpu)
+    template<typename op_t>
+    MultiPipe &chain(const op_t &_op)
     {
-        if (execution_mode != Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: Reduce_GPU can be used in DEFAULT mode only" << DEFAULT_COLOR << std::endl;
+        if constexpr (op_t::op_type != op_type_t::BASIC && op_t::op_type != op_type_t::BASIC_GPU &&
+                      op_t::op_type != op_type_t::P_BASIC) {
+            std::cerr << RED << "WindFlow Error: Trying to chain an operator for which chaining is forbidden" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        auto *copied_reducegpu = new Reduce_GPU(_reducegpu); // create a copy of the operator
-        using tuple_t = decltype(get_tuple_t_ReduceGPU(copied_reducegpu->func)); // extracting the tuple_t type and checking the admissible signatures
-        std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
-        if (!outputType.empty() && outputType.compare(opInType) != 0) {
-            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Reduce_GPU operator" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        add_operator<decltype(*copied_reducegpu), true>(*copied_reducegpu, ordering_mode_t::TS);
+        else if constexpr (op_t::op_type == op_type_t::BASIC || op_t::op_type == op_type_t::P_BASIC) {
+            if (_op.getType() == "Reduce") {
+                std::cerr << RED << "WindFlow Error: Reduce operator cannot be chained" << DEFAULT_COLOR << std::endl;
+                exit(EXIT_FAILURE);
+            }
+            else if (_op.getType() == "P_Reduce") {
+                std::cerr << RED << "WindFlow Error: P_Reduce operator cannot be chained" << DEFAULT_COLOR << std::endl;
+                exit(EXIT_FAILURE);
+            }
+            auto *copied_op = new op_t(_op); // create a copy of the operator
+            copied_op->setExecutionMode(execution_mode);
+            checkInputType(*copied_op);
+            bool isChained = chain_operator(*copied_op, ordering_mode_t::TS); // try to chain the operator (otherwise, it is added)
+            localOpList.push_back(copied_op);
+            globalOpList->push_back(copied_op);
 #if defined (WF_TRACING_ENABLED)
-        gv_add_vertex("Reduce_GPU (" + std::to_string(copied_reducegpu->getParallelism()) + ")", copied_reducegpu->getName(), false, false, copied_reducegpu->getInputRoutingMode());
-#endif
-        localOpList.push_back(copied_reducegpu); // add the copied operator to local list
-        globalOpList->push_back(copied_reducegpu); // add the copied operator to global list
-        return *this;
-    }
-
-    /** 
-     *  \brief Try to chain a Reduce_GPU operator to the MultiPipe (if not possible, the operator is added)
-     *  \param _reducegpu the Reduce_GPU operator to be chained
-     *  \return a reference to the modified MultiPipe
-     */ 
-    template<typename reduce_func_gpu_t, typename keyextr_func_t>
-    MultiPipe &chain(const Reduce_GPU<reduce_func_gpu_t, keyextr_func_t> &_reducegpu)
-    {
-        if (execution_mode != Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: Reduce_GPU can be used in DEFAULT mode only" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        auto *copied_reducegpu = new Reduce_GPU(_reducegpu); // create a copy of the operator
-        using tuple_t = decltype(get_tuple_t_ReduceGPU(copied_reducegpu->func)); // extracting the tuple_t type and checking the admissible signatures
-        std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
-        if (!outputType.empty() && outputType.compare(opInType) != 0) {
-            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Reduce_GPU operator" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        bool isChained = chain_operator<decltype(*copied_reducegpu), true>(*copied_reducegpu, ordering_mode_t::TS); // try to chain the operator (otherwise, it is added)
-        if (isChained) {
-#if defined (WF_TRACING_ENABLED)
-            gv_chain_vertex("Reduce_GPU (" + std::to_string(copied_reducegpu->getParallelism()) + ")", copied_reducegpu->getName());
+            update_gv(*copied_op, isChained);
 #endif
         }
+#if defined (__CUDACC__)
+        else if constexpr (op_t::op_type == op_type_t::BASIC_GPU) {
+            auto *copied_op = new op_t(_op); // create a copy of the operator
+            copied_op->setExecutionMode(execution_mode);
+            checkInputType(*copied_op);
+            bool isChained = chain_operator<decltype(*copied_op), true>(*copied_op, ordering_mode_t::TS); // try to chain the operator (otherwise, it is added)
+            localOpList.push_back(copied_op);
+            globalOpList->push_back(copied_op);
+#if defined (WF_TRACING_ENABLED)
+            update_gv_gpu(*copied_op, isChained);
+#endif
+        }
+#endif
         else {
-#if defined (WF_TRACING_ENABLED)
-            gv_add_vertex("Filter_GPU (" + std::to_string(copied_reducegpu->getParallelism()) + ")", copied_reducegpu->getName(), false, false, copied_reducegpu->getInputRoutingMode());
-#endif
+            if constexpr (op_t::op_type == op_type_t::SOURCE) {
+                std::cerr << RED << "WindFlow Error: Source cannot be chained to a MultiPipe" << DEFAULT_COLOR << std::endl;
+                exit(EXIT_FAILURE);
+            }
+            else if constexpr (op_t::op_type == op_type_t::SINK) {
+                std::cerr << RED << "WindFlow Error: Use chain_sink() to chain a SINK to a MultiPipe" << DEFAULT_COLOR << std::endl;
+                exit(EXIT_FAILURE);
+            }
+            else {
+                std::cerr << RED << "WindFlow Error: chaining is forbidden for the given operator or operator not recognized" << DEFAULT_COLOR << std::endl;
+                exit(EXIT_FAILURE);
+            }
         }
-        localOpList.push_back(copied_reducegpu); // add the copied operator to local list
-        globalOpList->push_back(copied_reducegpu); // add the copied operator to global list
         return *this;
     }
-
-    /** 
-     *  \brief Add a Ffat_Windows_GPU operator to the MultiPipe
-     *  \param _ffatagg_gpu the Ffat_Windows_GPU operator to be added
-     *  \return a reference to the modified MultiPipe
-     */ 
-    template<typename lift_func_gpu_t, typename comb_func_gpu_t, typename keyextr_func_t>
-    MultiPipe &add(const Ffat_Windows_GPU<lift_func_gpu_t, comb_func_gpu_t, keyextr_func_t> &_ffatagg_gpu)
-    {
-        if (execution_mode != Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: Ffat_Windows_GPU can be used in DEFAULT mode only" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        auto *copied_ffatagg_gpu = new Ffat_Windows_GPU(_ffatagg_gpu); // create a copy of the operator
-        using tuple_t = decltype(get_tuple_t_LiftGPU(copied_ffatagg_gpu->lift_func)); // extracting the tuple_t type and checking the admissible signatures
-        using result_t = decltype(get_tuple_t_CombGPU(copied_ffatagg_gpu->comb_func)); // extracting the result_t type and checking the admissible signatures
-        std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
-        if (!outputType.empty() && outputType.compare(opInType) != 0) {
-            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Ffat_Windows_GPU operator" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
-        add_operator<decltype(*copied_ffatagg_gpu), true>(*copied_ffatagg_gpu, ordering_mode_t::TS);
-#if defined (WF_TRACING_ENABLED)
-        gv_add_vertex("Ffat_Windows_GPU (" + std::to_string(copied_ffatagg_gpu->getParallelism()) + ")", copied_ffatagg_gpu->getName(), true, false, copied_ffatagg_gpu->getInputRoutingMode());
-#endif
-        localOpList.push_back(copied_ffatagg_gpu); // add the copied operator to local list
-        globalOpList->push_back(copied_ffatagg_gpu); // add the copied operator to global list
-        return *this;
-    }
-#endif
 
     /** 
      *  \brief Add a Sink operator to the MultiPipe
@@ -1530,7 +1112,7 @@ public:
     MultiPipe &add_sink(const sink_t &_sink)
     {
         auto *copied_sink = new sink_t(_sink); // create a copy of the operator
-        copied_sink->setExecutionMode(execution_mode); // set the execution mode of the operator
+        copied_sink->setExecutionMode(execution_mode);
         std::string opInType = TypeName<typename sink_t::tuple_t>::getName(); // save the type of tuple_t as a string
         if (!outputType.empty() && outputType.compare(opInType) != 0) {
             std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Sink operator" << DEFAULT_COLOR << std::endl;
@@ -1538,15 +1120,10 @@ public:
         }
         add_operator(*copied_sink, ordering_mode_t::TS);
 #if defined (WF_TRACING_ENABLED)
-        if (copied_sink->getType() == "Kafka_Sink") {
-            gv_add_vertex("Kafka_Sink (" + std::to_string(copied_sink->getParallelism()) + ")", copied_sink->getName(), true, false, copied_sink->getInputRoutingMode());
-        }
-        else {
-            gv_add_vertex("Sink (" + std::to_string(copied_sink->getParallelism()) + ")", copied_sink->getName(), true, false, copied_sink->getInputRoutingMode());
-        }
+        gv_add_vertex(copied_sink->getType() + " (" + std::to_string(copied_sink->getParallelism()) + ")", copied_sink->getName(), true, false, copied_sink->getInputRoutingMode());
 #endif
-        localOpList.push_back(copied_sink); // add the copied operator to local list
-        globalOpList->push_back(copied_sink); // add the copied operator to global list
+        localOpList.push_back(copied_sink);
+        globalOpList->push_back(copied_sink);
         has_sink = true;
         return *this;
     }
@@ -1560,7 +1137,7 @@ public:
     MultiPipe &chain_sink(const sink_t &_sink)
     {
         auto *copied_sink = new sink_t(_sink); // create a copy of the operator
-        copied_sink->setExecutionMode(execution_mode); // set the execution mode of the operator
+        copied_sink->setExecutionMode(execution_mode);
         std::string opInType = TypeName<typename sink_t::tuple_t>::getName(); // save the type of tuple_t as a string
         if (!outputType.empty() && outputType.compare(opInType) != 0) {
             std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Sink operator" << DEFAULT_COLOR << std::endl;
@@ -1569,26 +1146,16 @@ public:
         bool isChained = chain_operator(*copied_sink, ordering_mode_t::TS); // try to chain the operator (otherwise, it is added)
         if (isChained) {
 #if defined (WF_TRACING_ENABLED)
-            if (copied_sink->getType() == "Kafka_Sink") {
-                gv_chain_vertex("Kafka_Sink (" + std::to_string(copied_sink->getParallelism()) + ")", copied_sink->getName());
-            }
-            else {
-                gv_chain_vertex("Sink (" + std::to_string(copied_sink->getParallelism()) + ")", copied_sink->getName());
-            }
+            gv_chain_vertex(copied_sink->getType() + " (" + std::to_string(copied_sink->getParallelism()) + ")", copied_sink->getName());
 #endif
         }
         else {
 #if defined (WF_TRACING_ENABLED)
-            if (copied_sink->getType() == "Kafka_Sink") {
-                gv_add_vertex("Kafka_Sink (" + std::to_string(copied_sink->getParallelism()) + ")", copied_sink->getName(), true, false, copied_sink->getInputRoutingMode());
-            }
-            else {
-                gv_add_vertex("Sink (" + std::to_string(copied_sink->getParallelism()) + ")", copied_sink->getName(), true, false, copied_sink->getInputRoutingMode());
-            }
+            gv_add_vertex(copied_sink->getType() + " (" + std::to_string(copied_sink->getParallelism()) + ")", copied_sink->getName(), true, false, copied_sink->getInputRoutingMode());
 #endif
         }
-        localOpList.push_back(copied_sink); // add the copied operator to local list
-        globalOpList->push_back(copied_sink); // add the copied operator to global list
+        localOpList.push_back(copied_sink);
+        globalOpList->push_back(copied_sink);
         has_sink = true;
         return *this;
     }

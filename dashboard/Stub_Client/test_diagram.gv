@@ -1,0 +1,108 @@
+digraph test_diagram {
+	graph [bb="0,0,723,144",
+		rankdir=LR
+	];
+	node [color=white,
+		fillcolor=black,
+		fontcolor=white,
+		fontname="helvetica bold",
+		fontsize=12,
+		label=none,
+		penwidth=2,
+		shape=box,
+		style=filled
+	];
+	edge [fontname="helvetica bold",
+		fontsize=10
+	];
+	"%3"	 [color="#B8B7B8",
+		height=0.5,
+		label=<Source(2)<BR/><FONT POINT-SIZE="8">source</FONT>>,
+		pos="36,72",
+		width=1];
+	"%5"	 [color="#941100",
+		fillcolor="#ff9400",
+		height=0.5,
+		label=<Map (6)<BR/><FONT POINT-SIZE="8">map1</FONT>>,
+		pos="153,72",
+		width=0.80556];
+	"%3" -> "%5"	 [label=FW,
+		lp="98,77.5",
+		pos="e,123.91,72 72.059,72 85.198,72 100.12,72 113.54,72"];
+	"%9"	 [color="#941100",
+		fillcolor="#ff9400",
+		height=0.5,
+		label=<Filter (4)<BR/><FONT POINT-SIZE="8">filter1</FONT>>,
+		pos="292,126",
+		width=0.86111];
+	"%5" -> "%9"	 [label=FW,
+		lp="208,100.5",
+		pos="e,260.97,113.94 182.14,83.32 202.25,91.133 229.26,101.63 251.46,110.25"];
+	"%17"	 [color="#941100",
+		fillcolor="#ff9400",
+		height=0.5,
+		label=<Filter (1)<BR/><FONT POINT-SIZE="8">filter2</FONT>>,
+		pos="292,72",
+		width=0.86111];
+	"%5" -> "%17"	 [label=FW,
+		lp="208,77.5",
+		pos="e,260.97,72 182.14,72 202.07,72 228.78,72 250.87,72"];
+	"%25"	 [color="#B8B7B8",
+		height=0.5,
+		label=<Filter (1)->Sink (1)<BR/><FONT POINT-SIZE="8">filter3, sink1</FONT>>,
+		pos="292,18",
+		width=1.6111];
+	"%5" -> "%25"	 [label=FW,
+		lp="208,58.5",
+		pos="e,245.67,36 182.14,60.68 197.8,54.596 217.64,46.887 236.14,39.7"];
+	"%13"	 [color="#941100",
+		fillcolor="#ff9400",
+		height=0.5,
+		label=<Map (7)<BR/><FONT POINT-SIZE="8">map2</FONT>>,
+		pos="507,126",
+		width=0.80556];
+	"%9" -> "%13"	 [label=FW,
+		lp="376,131.5",
+		pos="e,477.77,126 323.26,126 361.48,126 426.2,126 467.74,126"];
+	"%37"	 [color="#B8B7B8",
+		height=0.5,
+		label=<Sink (1)<BR/><FONT POINT-SIZE="8">sink2</FONT>>,
+		pos="693.5,72",
+		width=0.81944];
+	"%13" -> "%37"	 [label=FW,
+		lp="583,119.5",
+		pos="e,663.85,82.364 536.11,119.08 557.27,113.91 586.54,106.48 612,99 625.79,94.948 640.75,90.118 654.05,85.671"];
+	"%21"	 [color="#941100",
+		fillcolor="#ff9400",
+		height=0.5,
+		label=<Map (3)<BR/><FONT POINT-SIZE="8">map3</FONT>>,
+		pos="431,72",
+		width=0.80556];
+	"%17" -> "%21"	 [label=FW,
+		lp="376,77.5",
+		pos="e,401.81,72 323.19,72 343.42,72 369.93,72 391.61,72"];
+	"%29"	 [color="#941100",
+		fillcolor="#ff9400",
+		height=0.5,
+		label=<Map (1)<BR/><FONT POINT-SIZE="8">map4</FONT>>,
+		pos="583,72",
+		width=0.80556];
+	"%21" -> "%29"	 [label=FW,
+		lp="507,77.5",
+		pos="e,553.78,72 460.31,72 483.96,72 517.47,72 543.5,72"];
+	"%33"	 [color="#941100",
+		fillcolor="#ff9400",
+		height=0.5,
+		label=<Map (1)<BR/><FONT POINT-SIZE="8">map5</FONT>>,
+		pos="583,18",
+		width=0.80556];
+	"%21" -> "%33"	 [label=FW,
+		lp="507,60.5",
+		pos="e,553.78,28.38 460.31,61.588 484.17,53.109 518.07,41.067 544.19,31.788"];
+	"%29" -> "%37"	 [label=FW,
+		lp="638,77.5",
+		pos="e,663.89,72 612.03,72 624.77,72 639.93,72 653.7,72"];
+	"%33" -> "%37"	 [label=FW,
+		lp="638,54.5",
+		pos="e,663.89,57.531 612.03,32.188 625.02,38.535 640.53,46.112 654.51,52.945"];
+}

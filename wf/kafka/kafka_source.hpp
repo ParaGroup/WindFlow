@@ -262,12 +262,9 @@ public:
         }
         kafka_context.setConsumer(consumer);
         consumer->poll(0);
-#if defined (WF_TRACING_ENABLED)
-        stats_record = Stats_Record(this->opName, std::to_string(kafka_context.getReplicaIndex()), false, false);
-#endif
         shipper->setInitialTime(current_time_usecs()); // set the initial time
         pthread_barrier_wait(bar); // barrier with the other replicas
-        return 0;
+        return Basic_Replica::svc_init();
     }
 
     // svc (utilized by the FastFlow runtime)
@@ -364,6 +361,7 @@ private:
     using result_t = decltype(get_result_t_KafkaSource(func)); // extracting the result_t type and checking the admissible signatures
     std::vector<KafkaSource_Replica<kafka_deser_func_t>*> replicas; // vector of pointers to the replicas of the Kafka_Source
     pthread_barrier_t *bar; // pointer to a barrier used to synchronize the Kafka_Source replicas
+    static constexpr op_type_t op_type = op_type_t::SOURCE;
 
     // Configure the Kafka_Source to receive batches instead of individual inputs (cannot be called for the Kafka_Source)
     void receiveBatches(bool _input_batching) override
@@ -393,6 +391,10 @@ private:
     // Set the execution mode and the time policy of the Kafka_Source
     void setConfiguration(Execution_Mode_t _execution_mode, Time_Policy_t _time_policy)
     {
+        if (this->getOutputBatchSize() > 0 && _execution_mode != Execution_Mode_t::DEFAULT) {
+            std::cerr << RED << "WindFlow Error: Kafka_Source is trying to produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
         for(auto *r: replicas) {
             r->setConfiguration(_execution_mode, _time_policy);
         }
