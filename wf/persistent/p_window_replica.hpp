@@ -230,6 +230,7 @@ public:
         return final_range;
     }
 
+#if 0
     // getDistance method
     size_t getDistance(const wrapper_t &_w1,
                        const wrapper_t &_w2,
@@ -254,6 +255,7 @@ public:
         its.second = history_buffer.end();
         return std::distance(its.first, its.second);
     }
+#endif
 
     // getEnd method
     input_iterator_t getEnd(Key_Descriptor &_kd)
@@ -335,17 +337,6 @@ public:
         delete mydb_wrappers;
         delete mydb_results;
     }
-
-    /*
-        template<typename X>
-        rocksdb::DB *get_operator_internal_db()
-        {
-            if (std::is_same<X, tuple_t>::value) {
-                return mydb_wrappers->get_internal_db();
-            }
-            return mydb_results->get_internal_db();
-        }
-    */
 
     // svc (utilized by the FastFlow runtime)
     void *svc(void *_in) override
@@ -504,9 +495,9 @@ public:
                             (this->context).setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
                             func(iter, res, this->context);
                         }
-                    }
-                    if (t_s) { // purge tuples from the archive
-                        purge(*t_s, key_d, key);
+                        if (t_s) { // purge tuples from the archive
+                            purge(*t_s, key_d, key);
+                        }
                     }
                     cnt_fired++;
                     key_d.last_lwid++;

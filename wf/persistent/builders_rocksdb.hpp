@@ -1273,7 +1273,7 @@ private:
     keyextr_func_t key_extr = [](const tuple_t &t) -> key_t { return key_t(); }; // key extractor
     bool isKeyBySet = false; // true if a key extractor has been provided
     size_t frag_bytes = sizeof(tuple_t) * 16; // size in bytes of each archive fragment of the stream
-    bool results_in_memory = true; // flag stating if results must be kepts on memory or on RocksDB
+    bool results_in_memory = true; // flag stating if results must be kepts in memory or on RocksDB
     bool isTupleFunctions = false; // flag stating if the tuple serializer/deserializer have been provided
     bool isResultFunctions = false; // flag stating if the result serializer/deserializer have been provided
     uint64_t win_len=0; // window length in number of tuples or in time units
@@ -1428,6 +1428,7 @@ public:
         result_serialize = _result_serialize;
         result_deserialize = _result_deserialize;
         isResultFunctions = true;
+        results_in_memory = false;
         return *this;
     }
 
@@ -1451,6 +1452,25 @@ public:
         if (!isKeyBySet && this->parallelism > 1) {
             std::cerr << RED << "WindFlow Error: P_Keyed_Windows with paralellism > 1 requires a key extractor" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
+        }
+        // check the presence of the tuple/result serializer/deserializer according to type of the window processing logic
+        if constexpr (std::is_invocable<decltype(func), const Iterable<tuple_t> &, result_t &>::value ||
+                      std::is_invocable<decltype(func), const Iterable<tuple_t> &, result_t &, RuntimeContext &>::value) {
+            if (!isTupleFunctions) {
+                std::cerr << RED << "WindFlow Error: P_Keyed_Windows instantiated with a non-incremental logic without tuple serializer/serializer" << DEFAULT_COLOR << std::endl;
+                exit(EXIT_FAILURE);
+            }
+        }
+        else if constexpr (std::is_invocable<decltype(func), const tuple_t &, result_t &>::value ||
+                           std::is_invocable<decltype(func), const tuple_t &, result_t &, RuntimeContext &>::value) {
+            if (isTupleFunctions) {
+                std::cerr << RED << "WindFlow Error: P_Keyed_Windows receives tuple serializer/deserializer with an incremental logic" << DEFAULT_COLOR << std::endl;
+                exit(EXIT_FAILURE);
+            }
+            if (!isResultFunctions) {
+                std::cerr << RED << "WindFlow Error: P_Keyed_Windows instantiated with an incremental logic without result serializer/serializer" << DEFAULT_COLOR << std::endl;
+                exit(EXIT_FAILURE);
+            }
         }
         return p_keyed_wins_t(func,
                               key_extr,

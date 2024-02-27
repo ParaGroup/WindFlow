@@ -322,9 +322,9 @@ public:
                             (this->context).setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
                             func(iter, win.getResult(), this->context);
                         }
-                    }
-                    if (t_s) { // purge tuples from the archive
-                        (key_d.archive).purge(*t_s);
+                        if (t_s) { // purge tuples from the archive
+                            (key_d.archive).purge(*t_s);
+                        }
                     }
                     cnt_fired++;
                     key_d.last_lwid++;

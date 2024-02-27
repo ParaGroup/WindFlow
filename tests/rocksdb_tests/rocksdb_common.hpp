@@ -467,7 +467,7 @@ public:
         if (out) {
             received++;
             totalsum += (*out).value;
-            //std::cout << "Ricevuto risultato finestra wid: " << (*out).wid << ", chiave: " << (*out).key << ", valore: " << (*out).value << std::endl;
+            std::cout << "Ricevuto risultato finestra wid: " << (*out).wid << ", chiave: " << (*out).key << ", valore: " << (*out).value << std::endl;
         }
         else {
             // printf("Received: %ld results, total sum: %ld\n", received, totalsum);

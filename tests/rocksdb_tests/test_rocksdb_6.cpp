@@ -107,15 +107,6 @@ int main(int argc, char *argv[])
         cout << "|  | (" << source_degree << ") +-->+ (" << filter_degree << ") +-->+  (" << flatmap_degree << ") +-->+ (" << map_degree << ") +-->+  (" << kw_degree << ")   +-->+ (" << sink_degree << ") |  |" << endl;
         cout << "|  +-----+   +-----+   +------+   +-----+   +--------+   +-----+  |" << endl;
         cout << "+-----------------------------------------------------------------+" << endl;
-        auto tuple_serializer = [](tuple_t &t) -> std::string {
-            return std::to_string(t.key) + "," + std::to_string(t.value);
-        };
-        auto tuple_deserializer = [](std::string &s) -> tuple_t {
-            tuple_t t;
-            t.key = atoi(s.substr(0, s.find(",")).c_str());
-            t.value = atoi(s.substr(s.find(",")+1, s.length()-1).c_str());
-            return t;
-        };
         auto result_serializer = [](result_t &r) -> std::string {
             return std::to_string(r.key) + "," + std::to_string(r.value) + ";" + std::to_string(r.wid);
         };
@@ -160,7 +151,6 @@ int main(int argc, char *argv[])
                                     .withParallelism(kw_degree)
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
                                     .withCBWindows(win_len, win_slide)
-                                    .withTupleSerializerAndDeserializer(tuple_serializer, tuple_deserializer)
                                     .withResultSerializerAndDeserializer(result_serializer, result_deserializer)
                                     .build();
 #else
