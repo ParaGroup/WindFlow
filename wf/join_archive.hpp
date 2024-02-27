@@ -121,7 +121,7 @@ public:
         assert(_l_b <= _u_b);
         std::pair<iterator_t, iterator_t> its;
         its.first = std::lower_bound(archive.begin(), archive.end(), _l_b, lessThan);
-        its.second = std::lower_bound(archive.begin(), archive.end(), _u_b, lessThan);
+        its.second = std::lower_bound(its.first, archive.end(), _u_b, lessThan);
         return its;
     }
 };
