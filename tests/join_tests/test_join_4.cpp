@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
     global_sum = 0;
     // arguments from command line
     if (argc != 11) {
-        cout << argv[0] << " -r [runs] -l [stream_length] -k [n_keys] -L [lower bound in usec] -U [upper bound in usec]" << endl;
+        cout << argv[0] << " -r [runs] -l [stream_length] -k [n_keys] -L [lower bound in msec] -U [upper bound in msec]" << endl;
         exit(EXIT_SUCCESS);
     }
     while ((option = getopt(argc, argv, "r:l:k:L:U:")) != -1) {
@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
             case 'U': upper_bound = atoi(optarg);
                     break;
             default: {
-                cout << argv[0] << " -r [runs] -l [stream_length] -k [n_keys] -L [lower bound in usec] -U [upper bound in usec]" << endl;
+                cout << argv[0] << " -r [runs] -l [stream_length] -k [n_keys] -L [lower bound in msec] -U [upper bound in msec]" << endl;
                 exit(EXIT_SUCCESS);
             }
         }
@@ -260,7 +260,19 @@ int main(int argc, char *argv[])
         assert(graph.getNumThreads() == check_degree);
         // run the application
         graph.run();
-        cout << "Result is --> " << GREEN << "OK" << DEFAULT_COLOR << " value " << global_sum.load() << endl;
+        if (i == 0) {
+            last_result = global_sum;
+            cout << "Result is --> " << GREEN << "OK" << DEFAULT_COLOR << " value " << global_sum.load() << endl;
+        }
+        else {
+            if (last_result == global_sum) {
+                cout << "Result is --> " << GREEN << "OK" << DEFAULT_COLOR << " value " << global_sum.load() << endl;
+            }
+            else {
+                cout << "Result is --> " << RED << "FAILED" << DEFAULT_COLOR << " value " << global_sum.load() << endl;
+                abort();
+            }
+        }
         global_sum = 0;
     }
     // executes the runs in DETERMINISTIC mode

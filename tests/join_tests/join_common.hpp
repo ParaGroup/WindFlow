@@ -95,7 +95,7 @@ public:
                     shipper.setNextWatermark(next_ts);
                 }
                 auto offset = (distribution(generator)+1);
-                next_ts += offset;
+                next_ts += offset*1000; // in ms
             }
         }
     }
@@ -139,7 +139,7 @@ public:
                     shipper.setNextWatermark(next_ts);
                 }
                 auto offset = (distribution(generator)+1);
-                next_ts += offset;
+                next_ts += offset*1000; // in ms
             }
         }
     }

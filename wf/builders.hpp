@@ -1457,7 +1457,7 @@ public:
                 func(_func) {}
 
     /** 
-     *  \brief Set the KEYBY routing mode of inputs to the Map
+     *  \brief Set the KEYBY routing mode of inputs to the Interval Join
      *  
      *  \param _key_extr key extractor functional logic (a function or any callable type)
      *  \return a new builder object with the right key type
@@ -1497,17 +1497,21 @@ public:
         return new_builder;
     }
 
-    /** 
-     *  \brief Set inclusive boundaries for interval
-     *  
-     *  \param _lower_bound window length (in number of tuples)
-     *  \param _upper_bound slide length (in number of tuples)
-     *  \return a reference to the builder object
-     */ 
+    /**
+     * @brief Sets the lower and upper bounds for the interval join.
+     * 
+     * @param _lower_bound The lower bound of the interval join range.
+     * @param _upper_bound The upper bound of the interval join range.
+     * @return A reference to the current object.
+     *
+     * If the lower bound is greater than the upper bound, an error message is printed and the program exits.
+     */
     auto &withBoundaries(std::chrono::microseconds _lower_bound, std::chrono::microseconds _upper_bound)
     {
-        lower_bound = _lower_bound.count();
-        upper_bound = _upper_bound.count();
+        //The lower and upper bounds are inclusive in the interval join range.
+        //The +-1 ensures that the bounds are inclusive when retrieving the join range using lower_bound algorithm.
+        lower_bound = _lower_bound.count()-1;
+        upper_bound = _upper_bound.count()+1;
         if (lower_bound > upper_bound) {
             std::cerr << RED << "WindFlow Error: Interval_Join must have lower_bound <= upper_bound" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
@@ -1541,10 +1545,10 @@ public:
      */ 
     auto &withDPSMode()
     {
-        /* if (!isKeyBySet) {
+        if (!isKeyBySet) {
             std::cerr << RED << "WindFlow Error: Interval_Join with data parallelism mode requires a key extractor" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
-        } */
+        }
         if (join_mode != Interval_Join_Mode_t::NONE) {
             std::cerr << RED << "WindFlow Error: wrong use of withKPMode() in the Interval_Join_Builder, you can specify only one mode per join operator " << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);

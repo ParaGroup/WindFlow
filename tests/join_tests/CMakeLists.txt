@@ -5,13 +5,13 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -finline-functions")
 
 # Macros to be provided to the compiler
-add_definitions(-DFF_BOUNDED_BUFFER -DWF_TRACING_ENABLED)
+add_definitions(-DFF_BOUNDED_BUFFER)
 
 # Header files of WindFlow and FastFlow
 include_directories(${PROJECT_SOURCE_DIR}/wf ${ff_root_dir})
 
 # Linking to pthread
-link_libraries(pthread cdt gvc cgraph)
+link_libraries(pthread)
 
 # Set output directory
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ../../bin/join_tests)

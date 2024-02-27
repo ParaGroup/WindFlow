@@ -126,13 +126,15 @@ public:
     }
 };
 
-template<typename wrapper_t, typename Container = std::deque<wrapper_t>>
+template<typename tuple_t>
 class Iterable_Interval
 {
 private:
-    using iterator_t = typename Container::iterator; // non-const iterator type
+    using wrapper_t = wrapper_tuple_t<tuple_t>; // alias for the wrapped tuple type
+    using iterator_t = typename std::deque<wrapper_t>::iterator; // non-const iterator type
+    using const_iterator_t = typename std::deque<wrapper_t>::const_iterator; // const iterator type
     iterator_t first; // iterator to the first wrapped tuple
-    iterator_t last; // iterator to the last wrapped tuple (excluded)
+    iterator_t last; // iterator to the last wrapped tuple
     size_t num_tuples; // number of tuples that can be accessed through the iterable
 
 public:
@@ -148,7 +150,7 @@ public:
         typedef T *pointer;
         typedef std::forward_iterator_tag iterator_category;
         typedef int difference_type;
-        using iterator_t = typename Container::iterator;
+        using iterator_t = typename std::deque<wrapper_tuple_t<T>>::iterator;
         iterator_t it;
 
         /// Constructor
@@ -165,6 +167,58 @@ public:
 
         // -> operator
         pointer operator->() { return &((*it).tuple); }
+
+        // == operator
+        bool operator==(const self_type &rhs) const { return it == rhs.it; }
+
+        // != operator
+        bool operator!=(const self_type &rhs) const { return it != rhs.it; }
+
+        // <= operator
+        bool operator<=(const self_type &rhs) const { return it <= rhs.it; }
+
+        // < operator
+        bool operator<(const self_type &rhs) const { return it < rhs.it; }
+
+        // >= operator
+        bool operator>=(const self_type &rhs) const { return it >= rhs.it; }
+
+        // > operator
+        bool operator>(const self_type &rhs) const { return it > rhs.it; }
+//@endcond
+    };
+
+    /// class Const_Iterator
+    template<typename T>
+    class Const_Iterator
+    {
+    public:
+//@cond DOXY_IGNORE
+        typedef Const_Iterator self_type;
+        typedef T value_type;
+        typedef T &reference;
+        typedef const T &const_reference;
+        typedef T *pointer;
+        typedef const T *const_pointer;
+        typedef int difference_type;
+        typedef std::forward_iterator_tag iterator_category;
+        using const_iterator_t = typename std::deque<wrapper_tuple_t<T>>::const_iterator;
+        const_iterator_t it;
+
+        /// Constructor
+        Const_Iterator(const_iterator_t _it): it(_it) {}
+
+        // ++ operator (postfix)
+        self_type operator++() { self_type i = *this; it++; return i; }
+
+        // ++ operator (prefix)
+        self_type operator++(int junk) { it++; return *this; }
+
+        // * operator
+        const_reference operator*() { return (*it).tuple; }
+
+        // -> operator
+        const_pointer operator->() { return &((*it).tuple); }
 
         // == operator
         bool operator==(const self_type &rhs) const { return it == rhs.it; }
@@ -203,9 +257,9 @@ public:
      *  
      *  \return iterator to the begin of the iterable object
      */ 
-    Iterator<wrapper_t> begin()
+    Iterator<tuple_t> begin()
     {
-        return Iterator<wrapper_t>(first);
+        return Iterator<tuple_t>(first);
     }
 
     /** 
@@ -213,9 +267,9 @@ public:
      *  
      *  \return iterator to the end of the iterable object
      */ 
-    Iterator<wrapper_t> end()
+    Iterator<tuple_t> end()
     {
-        return Iterator<wrapper_t>(last);
+        return Iterator<tuple_t>(last);
     }
 
     /** 

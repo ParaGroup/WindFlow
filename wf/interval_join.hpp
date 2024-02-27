@@ -77,7 +77,7 @@ private:
     using wrapper_t = wrapper_tuple_t<tuple_t>; // alias for the wrapped tuple type
     using container_t = typename std::deque<wrapper_t>; // container type for underlying archive's buffer structure
     using iterator_t = typename container_t::iterator; // iterator type for accessing wrapped tuples in the archive
-    using iterable_t = Iterable_Interval<wrapper_t, container_t>; // iterable object type for accessing wrapped tuples in the computed interval
+    using iterable_t = Iterable_Interval<tuple_t>; // iterable object type for accessing wrapped tuples in the computed interval
     
     using compare_func_t = std::function< bool(const wrapper_t &, const uint64_t &) >; // function type to compare wrapped tuple to an uint64
 
@@ -207,7 +207,7 @@ public:
                        uint64_t _watermark,
                        Join_Stream_t _tag)
     {
-        if (this->execution_mode == Execution_Mode_t::DEFAULT && _timestamp < last_time) {
+        if (this->execution_mode == Execution_Mode_t::DEFAULT && _timestamp < last_time) { // if the input is out-of-order
 #if defined (WF_TRACING_ENABLED)
             stats_record.inputs_ignored++;
 #endif
@@ -248,29 +248,29 @@ public:
         Key_Descriptor &key_d = (*it).second;
         
         uint64_t l_b = 0;
-        if (_tag == Join_Stream_t::A) {
+        if (isStreamA(_tag)) {
             if (!(-lower_bound > (int64_t)_timestamp))  { l_b = _timestamp + lower_bound; }
         } else {
             if (!(upper_bound > (int64_t)_timestamp))   { l_b = _timestamp - upper_bound; }
         }
         
         uint64_t u_b = 0;
-        if (_tag == Join_Stream_t::A) {      
+        if (isStreamA(_tag)) {      
             if (!(-upper_bound > (int64_t)_timestamp))  { u_b = _timestamp + upper_bound; }
         } else {
             if (!(lower_bound > (int64_t)_timestamp))   { u_b = _timestamp - lower_bound; }
         }
 
         std::optional<result_t> output;
-        std::pair<iterator_t, iterator_t> its = (_tag == Join_Stream_t::A) ? (key_d.archiveB).getJoinRange(l_b, u_b) : (key_d.archiveA).getJoinRange(l_b, u_b);
+        std::pair<iterator_t, iterator_t> its = isStreamA(_tag) ? (key_d.archiveB).getJoinRange(l_b, u_b) : (key_d.archiveA).getJoinRange(l_b, u_b);
         iterable_t iter(its.first, its.second);
         for (size_t i=0; i<iter.size(); i++) {
             if constexpr (isNonRiched) { // inplace non-riched version
-                output = exec_func(_tuple, (iter[i]).tuple, _tag);
+                output = isStreamA(_tag) ? func(_tuple, (iter[i]).tuple) : func((iter[i]).tuple, _tuple);
             }
             if constexpr (isRiched)  { // inplace riched version
                 (this->context).setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
-                output = exec_rich_func(_tuple, (iter[i]).tuple, _tag);
+                output = isStreamA(_tag) ? func(_tuple, (iter[i]).tuple, this->context) : func((iter[i]).tuple, _tuple, this->context);
             }
             if (output) {
                 uint64_t ts = _timestamp >= (iter[i]).index ? _timestamp : (iter[i]).index; // use the highest timestamp between two joined tuples
@@ -299,14 +299,9 @@ public:
         purgeBuffers(key_d);
     }
 
-    inline std::optional<result_t> exec_func(tuple_t &_t1, tuple_t &_t2, Join_Stream_t stream)
+    inline bool isStreamA(Join_Stream_t stream) const
     {
-        return (stream == Join_Stream_t::A) ? func(_t1, _t2) : func(_t2, _t1);
-    }
-
-    inline std::optional<result_t> exec_rich_func(tuple_t &_t1, tuple_t &_t2, Join_Stream_t stream)
-    {
-        return (stream == Join_Stream_t::A) ? func(_t1, _t2, this->context) : func(_t2, _t1, this->context);
+        return stream == Join_Stream_t::A;
     }
 
     inline void insertIntoBuffer(Key_Descriptor &_key_d, wrapper_t _wt, Join_Stream_t stream)
