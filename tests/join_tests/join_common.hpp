@@ -48,7 +48,7 @@ struct std::hash<tuple_t>
 {
     size_t operator()(const tuple_t &t) const
     {
-        return std::hash<int>()(t.value) + std::hash<int>()(t.key);
+        return std::hash<int>()(t.value) ^ std::hash<int>()(t.key);
     }
 };
 #endif

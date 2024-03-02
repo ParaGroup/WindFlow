@@ -105,16 +105,14 @@ int main(int argc, char *argv[])
     int map1_degree, map2_degree, join_degree, filter1_degree, filter2_degree, filter3_degree, filter4_degree, sink1_degree;
     size_t source1_degree = dist_p(rng);
     size_t source2_degree = dist_p(rng);
-    filter1_degree = dist_p(rng);
-    filter2_degree = dist_p(rng);
     long last_result = 0;
     // executes the runs in DEFAULT mode
     for (size_t i=0; i<runs; i++) {
         map1_degree = dist_p(rng);
         map2_degree = dist_p(rng);
         join_degree = dist_p(rng);
-        // filter1_degree = dist_p(rng);
-        // filter2_degree = dist_p(rng);
+        filter1_degree = dist_p(rng);
+        filter2_degree = dist_p(rng);
         filter3_degree = dist_p(rng);
         filter4_degree = dist_p(rng);
         sink1_degree = dist_p(rng);
@@ -280,8 +278,8 @@ int main(int argc, char *argv[])
         map1_degree = dist_p(rng);
         map2_degree = dist_p(rng);
         join_degree = dist_p(rng);
-        // filter1_degree = dist_p(rng);
-        // filter2_degree = dist_p(rng);
+        filter1_degree = dist_p(rng);
+        filter2_degree = dist_p(rng);
         filter3_degree = dist_p(rng);
         filter4_degree = dist_p(rng);
         sink1_degree = dist_p(rng);
