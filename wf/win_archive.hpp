@@ -22,42 +22,42 @@
  */
 
 /** 
- *  @file    stream_archive.hpp
+ *  @file    win_archive.hpp
  *  @author  Gabriele Mencagli
  *  
- *  @brief Stream archive
+ *  @brief Window archive
  *  
- *  @section StreamArchive (Description)
+ *  @section WinArchive (Description)
  *  
- *  Stream archive of tuples received from the input streams and still useful for the
+ *  Window archive of tuples received from the input streams and still useful for the
  *  processing (used by window-based operators with non-incremental queries).
  */ 
 
-#ifndef ARCHIVE_H
-#define ARCHIVE_H
+#ifndef WIN_ARCHIVE_H
+#define WIN_ARCHIVE_H
 
 // includes
 #include<deque>
 #include<functional>
 #include<basic.hpp>
+#include<archive.hpp>
 
 namespace wf {
 
-// class StreamArchive
-template<typename tuple_t>
-class StreamArchive
+// class WinArchive
+template<typename tuple_t, typename compare_func_t>
+class WinArchive: public Archive<tuple_t, compare_func_t>
 {
 private:
     using wrapper_t = wrapper_tuple_t<tuple_t>; // alias for the wrapped tuple type
-    using compare_func_t = std::function<bool(const wrapper_t &, const wrapper_t &)>; // function type to compare two wrapped tuples
     using iterator_t = typename std::deque<wrapper_t>::iterator; // iterator type
-    compare_func_t lessThan; // function to compare two wrapped tuples
-    std::deque<wrapper_t> archive; // container implementing the ordered archive of wrapped tuples
+    using Archive<tuple_t, compare_func_t>::archive; // container implementing the ordered archive of wrapped tuples
+    using Archive<tuple_t, compare_func_t>::lessThan; // function to compare two wrapped tuples
 
 public:
+
     // Constructor
-    StreamArchive(compare_func_t _lessThan):
-                  lessThan(_lessThan) {}
+    WinArchive(compare_func_t lessThan) : Archive<tuple_t, compare_func_t>(lessThan) {}
 
     // Add a wrapped tuple to the archive (copy semantics)
     void insert(const wrapper_t &_wt)
@@ -90,24 +90,6 @@ public:
         size_t n = std::distance(archive.begin(), it);
         archive.erase(archive.begin(), it);
         return n;
-    }
-
-    // Get the size of the archive
-    size_t size() const
-    {
-        return archive.size();
-    }
-
-    // Get the iterator to the first wrapped tuple in the archive
-    iterator_t begin()
-    {
-        return archive.begin();
-    }
-
-    // Get the iterator to the end of the archive
-    iterator_t end()
-    {
-        return archive.end();
     }
 
     /*  
