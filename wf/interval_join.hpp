@@ -41,6 +41,7 @@
 #include<iomanip>
 #include<string>
 #include<functional>
+#include <cstdint>
 #include<context.hpp>
 #include<batch_t.hpp>
 #include<single_t.hpp>
@@ -281,22 +282,35 @@ public:
 #endif
             }
         }
+        
         if (joinMode == Interval_Join_Mode_t::KP) {
             insertIntoBuffer(key_d, wrapper_t(_tuple, _timestamp), _tag);
         } else if (joinMode == Interval_Join_Mode_t::DPS) {
             if constexpr(if_defined_hash<tuple_t>) {
-                size_t hash_idx = std::hash<tuple_t>()(_tuple) % this->context.getParallelism(); // compute the hash index of the tuple
+                size_t hash = std::hash<tuple_t>()(_tuple);
+                size_t hash_idx = hash % this->context.getParallelism(); // compute the hash index of the tuple
                 if (hash_idx == this->context.getReplicaIndex()) {
                     insertIntoBuffer(key_d, wrapper_t(_tuple, _timestamp), _tag);
                 }
             } else {
-                size_t hash_idx = std::hash<uint>()(_timestamp) % this->context.getParallelism(); // compute the hash index of the tuple using memory address
+                uint64_t hash = fnv1a_hash(_timestamp);
+                size_t hash_idx = hash % this->context.getParallelism();
+                //std::cout << "Index: " << hash_idx << " | " << hash << std::endl;
                 if (hash_idx == this->context.getReplicaIndex()) {
                     insertIntoBuffer(key_d, wrapper_t(_tuple, _timestamp), _tag);
                 }
             }
         }
         purgeBuffers(key_d);
+    }
+
+    uint64_t fnv1a_hash(uint64_t value) {
+        uint64_t hash = 14695981039346656037ULL;
+        for (int i = 0; i < 8; ++i) {
+            hash ^= (value & (0xFFULL << (i * 8)));
+            hash *= 1099511628211ULL;
+        }
+        return hash;
     }
 
     inline bool isStreamA(Join_Stream_t stream) const
