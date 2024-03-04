@@ -42,13 +42,15 @@ struct tuple_t
     int64_t value;
 };
 
-#if 0
+#if 1
 template<>
 struct std::hash<tuple_t>
 {
     size_t operator()(const tuple_t &t) const
     {
-        return std::hash<int>()(t.value) ^ std::hash<int>()(t.key);
+        size_t h1 = std::hash<int>()(t.value);
+        size_t h2 = std::hash<int>()(t.key);
+        return h1 ^ h2;
     }
 };
 #endif
@@ -84,7 +86,7 @@ public:
     {
         static thread_local std::mt19937 generator;
         generator.seed(1234);
-        std::uniform_int_distribution<int> distribution(0, 500);
+        std::uniform_int_distribution<int> distribution(0, 250);
         for (size_t i=1; i<=len; i++) { // generation loop
             for (size_t k=0; k<keys; k++) {
                 tuple_t t;
@@ -127,7 +129,7 @@ public:
     {
         static thread_local std::mt19937 generator;
         generator.seed(4321);
-        std::uniform_int_distribution<int> distribution(0, 500);
+        std::uniform_int_distribution<int> distribution(0, 250);
         for (size_t i=1; i<=len; i++) { // generation loop
             for (size_t k=0; k<keys; k++) {
                 values[k]--;
@@ -163,13 +165,10 @@ public:
     // operator()
     optional<tuple_t> operator()(const tuple_t &a, const tuple_t &b)
     {
-        if ((a.value - b.value) % 2 == 0) {
-            tuple_t out;
-            out.value = a.value - b.value;
-            out.key = a.key;
-            return out;
-        }
-        return {};
+        tuple_t out;
+        out.value = a.value - b.value;
+        out.key = a.key;
+        return out;
     }
 };
 
