@@ -84,8 +84,8 @@ private:
 
     struct Key_Descriptor // struct of a key descriptor
     {
-        JoinArchive<tuple_t> archiveA; // archive of stream A tuples of this key
-        JoinArchive<tuple_t> archiveB; // archive of stream B tuples of this key
+        JoinArchive<tuple_t, compare_func_t> archiveA; // archive of stream A tuples of this key
+        JoinArchive<tuple_t, compare_func_t> archiveB; // archive of stream B tuples of this key
 
         // Constructor
         Key_Descriptor(compare_func_t _compare_func):

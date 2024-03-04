@@ -51,7 +51,7 @@
 #endif
 #include<basic_emitter.hpp>
 #include<basic_operator.hpp>
-#include<stream_archive.hpp>
+#include<win_archive.hpp>
 #include<window_structure.hpp>
 
 namespace wf {
@@ -83,7 +83,7 @@ private:
 
     struct Key_Descriptor // struct of a key descriptor
     {
-        StreamArchive<tuple_t> archive; // archive of tuples of this key
+        WinArchive<tuple_t, compare_func_t> archive; // archive of tuples of this key
         std::vector<win_t> wins; // open windows of this key
         uint64_t next_res_id; // identifier of the next result of this key (used if role is PLQ or MAP)
         uint64_t next_lwid; // next window to be opened of this key (lwid)
