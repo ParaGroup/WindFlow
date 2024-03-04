@@ -86,6 +86,8 @@ public:
         return archive.end();
     }
 
+    virtual ~Archive() = default;
+
 };
 
 } // namespace wf

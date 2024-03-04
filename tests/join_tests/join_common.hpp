@@ -182,7 +182,7 @@ public:
     {
         if (a.value != b.value) {
             tuple_t out;
-            out.value = a.value + b.value;
+            out.value = a.value * b.value;
             out.key = a.key;
             return out;
         }

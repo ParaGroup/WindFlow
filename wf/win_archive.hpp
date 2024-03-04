@@ -53,6 +53,9 @@ private:
     using iterator_t = typename std::deque<wrapper_t>::iterator; // iterator type
     using Archive<tuple_t, compare_func_t>::archive; // container implementing the ordered archive of wrapped tuples
     using Archive<tuple_t, compare_func_t>::lessThan; // function to compare two wrapped tuples
+    static_assert(std::is_same<compare_func_t, std::function< bool(const wrapper_t &, const uint64_t &) >>::value,
+        "WindFlow Compilation Error - unknown compare function passed to the Win Archive:\n"
+        "  Candidate : bool(const wrapper_t &, const wrapper_t &)\n");
 
 public:
 
@@ -60,7 +63,7 @@ public:
     WinArchive(compare_func_t lessThan) : Archive<tuple_t, compare_func_t>(lessThan) {}
 
     // Add a wrapped tuple to the archive (copy semantics)
-    void insert(const wrapper_t &_wt)
+    void insert(const wrapper_t &_wt) override
     {
         auto it = std::lower_bound(archive.begin(), archive.end(), _wt, lessThan);
         if (it == archive.end()) { // add at the end of the archive
@@ -72,7 +75,7 @@ public:
     }
 
     // Add a wrapped tuple to the archive (move semantics)
-    void insert(wrapper_t &&_wt)
+    void insert(wrapper_t &&_wt) override
     {
         auto it = std::lower_bound(archive.begin(), archive.end(), _wt, lessThan);
         if (it == archive.end()) { // add at the end of the archive
@@ -84,7 +87,7 @@ public:
     }
 
     // Remove all the tuples prior to _wt in the ordering
-    size_t purge(const wrapper_t &_wt)
+    size_t purge(const wrapper_t &_wt) override
     {
         auto it = std::lower_bound(archive.begin(), archive.end(), _wt, lessThan);
         size_t n = std::distance(archive.begin(), it);
