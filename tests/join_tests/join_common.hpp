@@ -48,8 +48,8 @@ struct std::hash<tuple_t>
 {
     size_t operator()(const tuple_t &t) const
     {
-        size_t h1 = std::hash<int>()(t.value);
-        size_t h2 = std::hash<int>()(t.key);
+        size_t h1 = std::hash<int64_t>()(t.value);
+        size_t h2 = std::hash<size_t>()(t.key);
         return h1 ^ h2;
     }
 };
@@ -88,7 +88,7 @@ public:
         generator.seed(1234);
         std::uniform_int_distribution<int> distribution(0, 250);
         for (size_t i=1; i<=len; i++) { // generation loop
-            for (size_t k=0; k<keys; k++) {
+            for (size_t k=1; k<=keys; k++) {
                 tuple_t t;
                 t.key = k;
                 t.value = i;
@@ -131,11 +131,11 @@ public:
         generator.seed(4321);
         std::uniform_int_distribution<int> distribution(0, 250);
         for (size_t i=1; i<=len; i++) { // generation loop
-            for (size_t k=0; k<keys; k++) {
-                values[k]--;
+            for (size_t k=1; k<=keys; k++) {
+                values[k-1]--;
                 tuple_t t;
                 t.key = k;
-                t.value = values[k];
+                t.value = values[k-1];
                 shipper.pushWithTimestamp(std::move(t), next_ts);
                 if (generateWS) {
                     shipper.setNextWatermark(next_ts);
@@ -163,10 +163,10 @@ class Join_Functor
 {
 public:
     // operator()
-    optional<tuple_t> operator()(const tuple_t &a, const tuple_t &b)
+    optional<tuple_t> operator()(const tuple_t &a, const tuple_t &b, RuntimeContext &rc)
     {
         tuple_t out;
-        out.value = a.value - b.value;
+        out.value = a.value * b.value;
         out.key = a.key;
         return out;
     }
