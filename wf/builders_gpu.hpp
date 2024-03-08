@@ -175,7 +175,7 @@ public:
      */ 
     auto &withRebalancing()
     {
-        if (input_routing_mode == Routing_Mode_t::KEYBY) {
+        if (input_routing_mode != Routing_Mode_t::FORWARD) {
             std::cerr << RED << "WindFlow Error: wrong use of withRebalancing() in the FilterGPU_Builder" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -300,7 +300,7 @@ public:
      */ 
     auto &withRebalancing()
     {
-        if (input_routing_mode == Routing_Mode_t::KEYBY) {
+        if (input_routing_mode != Routing_Mode_t::FORWARD) {
             std::cerr << RED << "WindFlow Error: wrong use of withRebalancing() in the MapGPU_Builder" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -420,6 +420,10 @@ public:
      */ 
     auto &withRebalancing()
     {
+        if (input_routing_mode != Routing_Mode_t::FORWARD) {
+            std::cerr << RED << "WindFlow Error: wrong use of withRebalancing() in the MapGPU_Builder" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
         input_routing_mode = Routing_Mode_t::REBALANCING;
         return *this;
     }

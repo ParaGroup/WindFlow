@@ -219,7 +219,10 @@ private:
     friend class PipeGraph;
     flatmap_func_t func; // functional logic used by the FlatMap
     keyextr_func_t key_extr; // logic to extract the key attribute from the tuple_t
+    using tuple_t = decltype(get_tuple_t_FlatMap(func)); // extracting the tuple_t type and checking the admissible signatures
+    using result_t = decltype(get_result_t_FlatMap(func)); // extracting the result_t type and checking the admissible signatures
     std::vector<FlatMap_Replica<flatmap_func_t>*> replicas; // vector of pointers to the replicas of the FlatMap
+    static constexpr op_type_t op_type = op_type_t::BASIC;
 
     // Configure the FlatMap to receive batches instead of individual inputs
     void receiveBatches(bool _input_batching) override
@@ -251,6 +254,10 @@ private:
     // Set the execution mode of the FlatMap
     void setExecutionMode(Execution_Mode_t _execution_mode)
     {
+        if (this->getOutputBatchSize() > 0 && _execution_mode != Execution_Mode_t::DEFAULT) {
+            std::cerr << RED << "WindFlow Error: FlatMap is trying to produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
         for (auto *r: replicas) {
             r->setExecutionMode(_execution_mode);
         }

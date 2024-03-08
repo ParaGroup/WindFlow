@@ -401,7 +401,7 @@ public:
      */ 
     auto &withRebalancing()
     {
-        if (input_routing_mode == Routing_Mode_t::KEYBY) {
+        if (input_routing_mode != Routing_Mode_t::FORWARD) {
             std::cerr << RED << "WindFlow Error: wrong use of withRebalancing() in the KafkaSink_Builder" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }

@@ -7,6 +7,8 @@
 
 <p align="center"><img src="https://paragroup.github.io/WindFlow/img/logo_white.png" width="400" title="WindFlow Logo"></p>
 
+<b>NEWS</b>: version <b>4.0.0</b> has been released on 27th Feb, 2024. It keeps the same API of versions 3.x.
+
 # Introduction
 WindFlow is a C++17 header-only library for parallel data stream processing targeting heterogeneous shared-memory architectures equipped with multi-core CPUs and NVIDIA GPUs. The library provides traditional stream processing operators like map, flatmap, filter, reduce as well as window-based operators. The API allows building streaming applications through the <b>MultiPipe</b> and the <b>PipeGraph</b> programming constructs. The first is used to create parallel pipelines (with shuffle connections), while the second allows several <b>MultiPipe</b> instances to be interconnected through <b>merge</b> and <b>split</b> operations, in order to create complex directed acyclic graphs of interconnected operators.
 
@@ -24,6 +26,7 @@ The library requires the following dependencies:
 * <strong>libtbb-dev</strong> required by GPU operators only
 * <strong>libgraphviz-dev</strong> and <strong>rapidjson-dev</strong> when compiling with -DWF_TRACING_ENABLED to report statistics and to use the Web Dashboard for monitoring purposes
 * <strong>librdkafka-dev</strong> for using the integration with Kafka (special Kafka_Source and Kafka_Sink operators)
+* <strong>librocksdb-dev</strong> for using the suite of persistent operators keeping their internal state in RocksDB KVS
 * <strong>doxygen</strong> (to generate the documentation)
 
 <b>Important about the FastFlow dependency</b> -> after downloading FastFlow, the user needs to configure the library for the underlying multi-core environment. By default, FastFlow pins its threads onto the cores of the machine. To make FastFlow aware of the ordering of cores, and their correspondence in CPUs and NUMA regions, it is important to run (just one time) the script <strong>"mapping_string.sh"</strong> in the folder <tt>fastflow/ff</tt> before compiling your WindFlow programs.
@@ -52,7 +55,7 @@ WindFlow is a header-only template library. To build your applications you have 
     $ make docs # generate the doxygen documentation (if doxygen has been installed)
 ```
 
-In order to use the Kafka integration, consisting of special Source and Sink operators, the developer has to include the additional header <tt>kafka/windflow_kafka.hpp</tt> and properly link the library <tt>librdkafka-dev</tt>.
+In order to use the Kafka integration, consisting of special Source and Sink operators, the developer has to include the additional header <tt>kafka/windflow_kafka.hpp</tt> and properly link the library <tt>librdkafka-dev</tt>. Analogously, to use persistent operators, you need to include the header <tt>persistent/windflow_rocksdb.hpp</tt> and link the library <tt>librocksdb-dev</tt>.
 
 # Docker Images
 Two Docker images are available in the WindFlow GitHub repository. The images contain all the synthetic tests compiled and ready to be executed. To build the first image (the one without tests using GPU operators) execute the following commands:

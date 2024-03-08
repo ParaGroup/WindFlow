@@ -182,6 +182,7 @@ private:
     source_func_t func; // functional logic used by the Source
     using result_t = decltype(get_result_t_Source(func)); // extracting the result_t type and checking the admissible signatures
     std::vector<Source_Replica<source_func_t>*> replicas; // vector of pointers to the replicas of the Source
+    static constexpr op_type_t op_type = op_type_t::SOURCE;
 
     // Configure the Source to receive batches instead of individual inputs (cannot be called for the Source)
     void receiveBatches(bool _input_batching) override
@@ -211,6 +212,10 @@ private:
     // Set the execution mode and the time policy of the Source
     void setConfiguration(Execution_Mode_t _execution_mode, Time_Policy_t _time_policy)
     {
+        if (this->getOutputBatchSize() > 0 && _execution_mode != Execution_Mode_t::DEFAULT) {
+            std::cerr << RED << "WindFlow Error: Source is trying to produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
         for(auto *r: replicas) {
             r->setConfiguration(_execution_mode, _time_policy);
         }

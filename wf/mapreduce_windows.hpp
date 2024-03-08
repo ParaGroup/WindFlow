@@ -73,6 +73,8 @@ private:
     reduce_func_t reduce_func; // functional logic of the REDUCE stage
     keyextr_func_t key_extr; // logic to extract the key attribute from the tuple_t
     size_t map_parallelism; // parallelism of the MAP stage
+    using tuple_t = decltype(get_tuple_t_Win(map_func)); // extracting the tuple_t type and checking the admissible signatures
+    using result_t = decltype(get_result_t_Win(reduce_func)); // extracting the result_t type and checking the admissible signatures
     size_t reduce_parallelism; // parallelism of the REDUCE stage
     uint64_t win_len; // window length (in no. of tuples or in time units)
     uint64_t slide_len; // slide length (in no. of tuples or in time units)
@@ -80,6 +82,7 @@ private:
     Win_Type_t winType; // window type (CB or TB)
     Parallel_Windows<map_func_t, keyextr_func_t> map; // MAP sub-operator
     Parallel_Windows<reduce_func_t, keyextr_func_t> reduce; // REDUCE sub-operator
+    static constexpr op_type_t op_type = op_type_t::WIN_MR;
 
     // Configure the MapReduce_Windows to receive batches instead of individual inputs
     void receiveBatches(bool _input_batching) override
@@ -114,6 +117,15 @@ private:
     // Set the execution mode of the MapReduce_Windows
     void setExecutionMode(Execution_Mode_t _execution_mode)
     {
+        if (this->getOutputBatchSize() > 0 && _execution_mode != Execution_Mode_t::DEFAULT) {
+            std::cerr << RED << "WindFlow Error: MapReduce_Windows is trying to produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        // count-based windows with MapReduce_Windows cannot be used in DEFAULT mode
+        if (winType == Win_Type_t::CB && _execution_mode == Execution_Mode_t::DEFAULT) {
+            std::cerr << RED << "WindFlow Error: MapReduce_Windows cannot use count-based windows in DEFAULT mode" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
         map.setExecutionMode(_execution_mode);
         reduce.setExecutionMode(_execution_mode);
     }

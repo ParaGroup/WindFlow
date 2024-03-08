@@ -252,11 +252,7 @@ public:
      */ 
     auto &withBroadcast()
     {
-        if (input_routing_mode == Routing_Mode_t::KEYBY) {
-            std::cerr << RED << "WindFlow Error: wrong use of withBroadcast() in the Filter_Builder" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        if (input_routing_mode == Routing_Mode_t::REBALANCING) {
+        if (input_routing_mode != Routing_Mode_t::FORWARD) {
             std::cerr << RED << "WindFlow Error: wrong use of withBroadcast() in the Filter_Builder" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -272,11 +268,7 @@ public:
      */ 
     auto &withRebalancing()
     {
-        if (input_routing_mode == Routing_Mode_t::KEYBY) {
-            std::cerr << RED << "WindFlow Error: wrong use of withRebalancing() in the Filter_Builder" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        if (input_routing_mode == Routing_Mode_t::BROADCAST) {
+        if (input_routing_mode == Routing_Mode_t::FORWARD) {
             std::cerr << RED << "WindFlow Error: wrong use of withRebalancing() in the Filter_Builder" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -387,11 +379,7 @@ public:
      */ 
     auto &withBroadcast()
     {
-        if (input_routing_mode == Routing_Mode_t::KEYBY) {
-            std::cerr << RED << "WindFlow Error: wrong use of withBroadcast() in the Map_Builder" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        if (input_routing_mode == Routing_Mode_t::REBALANCING) {
+        if (input_routing_mode != Routing_Mode_t::FORWARD) {
             std::cerr << RED << "WindFlow Error: wrong use of withBroadcast() in the Map_Builder" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -407,11 +395,7 @@ public:
      */ 
     auto &withRebalancing()
     {
-        if (input_routing_mode == Routing_Mode_t::KEYBY) {
-            std::cerr << RED << "WindFlow Error: wrong use of withRebalancing() in the Map_Builder" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        if (input_routing_mode == Routing_Mode_t::BROADCAST) {
+        if (input_routing_mode != Routing_Mode_t::FORWARD) {
             std::cerr << RED << "WindFlow Error: wrong use of withRebalancing() in the Map_Builder" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -520,11 +504,7 @@ public:
      */ 
     auto &withBroadcast()
     {
-        if (input_routing_mode == Routing_Mode_t::KEYBY) {
-            std::cerr << RED << "WindFlow Error: wrong use of withBroadcast() in the FlatMap_Builder" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        if (input_routing_mode == Routing_Mode_t::REBALANCING) {
+        if (input_routing_mode != Routing_Mode_t::FORWARD) {
             std::cerr << RED << "WindFlow Error: wrong use of withBroadcast() in the FlatMap_Builder" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -540,11 +520,7 @@ public:
      */ 
     auto &withRebalancing()
     {
-        if (input_routing_mode == Routing_Mode_t::KEYBY) {
-            std::cerr << RED << "WindFlow Error: wrong use of withRebalancing() in the FlatMap_Builder" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        if (input_routing_mode == Routing_Mode_t::BROADCAST) {
+        if (input_routing_mode != Routing_Mode_t::FORWARD) {
             std::cerr << RED << "WindFlow Error: wrong use of withRebalancing() in the FlatMap_Builder" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -1606,7 +1582,9 @@ private:
     static_assert(!(std::is_same<tuple_t, std::false_type>::value),
         "WindFlow Compilation Error - unknown signature passed to the Sink_Builder:\n"
         "  Candidate 1 : void(std::optional<tuple_t> &)\n"
-        "  Candidate 2 : void(std::optional<tuple_t> &, RuntimeContext &)\n");
+        "  Candidate 2 : void(std::optional<tuple_t> &, RuntimeContext &)\n"
+        "  Candidate 3 : void(std::optional<std::reference_wrapper<tuple_t>>);\n"
+        "  Candidate 4 : void(std::optional<std::reference_wrapper<tuple_t>>, RuntimeContext &)\n");
     // static assert to check that the tuple_t type must be default constructible
     static_assert(std::is_default_constructible<tuple_t>::value,
         "WindFlow Compilation Error - tuple_t type must be default constructible (Sink_Builder):\n");
@@ -1648,7 +1626,7 @@ public:
         static_assert(std::is_default_constructible<new_key_t>::value,
             "WindFlow Compilation Error - key type must be default constructible (Sink_Builder):\n");
         if (input_routing_mode != Routing_Mode_t::FORWARD) {
-            std::cerr << RED << "WindFlow Error: withKeyBy() cannot be invoked more than one time in the same builder or after a withBroadcast()" << DEFAULT_COLOR << std::endl;
+            std::cerr << RED << "WindFlow Error: wrong use of withKeyBy() in the Sink_Builder" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);         
         }
         Sink_Builder<sink_func_t, new_key_t> new_builder(func);
@@ -1667,11 +1645,7 @@ public:
      */ 
     auto &withBroadcast()
     {
-        if (input_routing_mode == Routing_Mode_t::KEYBY) {
-            std::cerr << RED << "WindFlow Error: wrong use of withBroadcast() in the Sink_Builder" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        if (input_routing_mode == Routing_Mode_t::REBALANCING) {
+        if (input_routing_mode != Routing_Mode_t::FORWARD) {
             std::cerr << RED << "WindFlow Error: wrong use of withBroadcast() in the Sink_Builder" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -1687,11 +1661,7 @@ public:
      */ 
     auto &withRebalancing()
     {
-        if (input_routing_mode == Routing_Mode_t::KEYBY) {
-            std::cerr << RED << "WindFlow Error: wrong use of withRebalancing() in the Sink_Builder" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        if (input_routing_mode == Routing_Mode_t::BROADCAST) {
+        if (input_routing_mode != Routing_Mode_t::FORWARD) {
             std::cerr << RED << "WindFlow Error: wrong use of withRebalancing() in the Sink_Builder" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }

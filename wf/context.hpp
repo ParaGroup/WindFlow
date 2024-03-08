@@ -55,12 +55,17 @@ class RuntimeContext
 {
 private:
     template<typename T> friend class Source_Replica;
-    template<typename T1> friend class Map_Replica;
     template<typename T1> friend class Filter_Replica;
     template<typename T1, typename T2> friend class IJoin_Replica;
-    template<typename T1, typename T2> friend class Reduce_Replica;
+    template<typename T1, typename T2> friend class P_Filter_Replica;
+    template<typename T1> friend class Map_Replica;
+    template <typename T1, typename T2> friend class P_Map_Replica;
     template<typename T1> friend class FlatMap_Replica;
+    template<typename T1, typename T2> friend class P_FlatMap_Replica;
+    template<typename T1, typename T2> friend class Reduce_Replica;
+    template<typename T1, typename T2> friend class P_Reduce_Replica;
     template<typename T1> friend class Sink_Replica;
+    template<typename T1, typename T2> friend class P_Sink_Replica;
     template<typename T1, typename T2> friend class Window_Replica;
     template<typename T1, typename T2, typename T3> friend class FFAT_Replica;
     size_t parallelism; // parallelism of the operator

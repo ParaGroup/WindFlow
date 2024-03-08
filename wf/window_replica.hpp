@@ -76,7 +76,7 @@ private:
     // check the presence of a valid functional logic
     static_assert(isNonIncNonRiched || isNonIncRiched || isIncNonRiched || isIncRiched,
         "WindFlow Compilation Error - Window_Replica does not have a valid functional logic:\n");
-    using wrapper_t = wrapper_tuple_t<decltype(get_tuple_t_Win(func))>; // alias for the wrapped tuple type
+    using wrapper_t = wrapper_tuple_t<tuple_t>; // alias for the wrapped tuple type
     using input_iterator_t = typename std::deque<wrapper_t>::iterator; // iterator type for accessing wrapped tuples in the archive
     using win_t = Window<tuple_t, result_t, key_t>; // window type used by the Window_Replica
     using compare_func_t = std::function<bool(const wrapper_t &, const wrapper_t &)>; // function type to compare two wrapped tuples
@@ -322,9 +322,9 @@ public:
                             (this->context).setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
                             func(iter, win.getResult(), this->context);
                         }
-                    }
-                    if (t_s) { // purge tuples from the archive
-                        (key_d.archive).purge(*t_s);
+                        if (t_s) { // purge tuples from the archive
+                            (key_d.archive).purge(*t_s);
+                        }
                     }
                     cnt_fired++;
                     key_d.last_lwid++;

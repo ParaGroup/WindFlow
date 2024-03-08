@@ -104,21 +104,41 @@ class Kafka_Source;
 template<typename filter_func_t, typename keyextr_func_t>
 class Filter;
 
+/// Forward declaration of the P_Filter operator with RocksDB support
+template<typename p_filter_func_t, typename keyextr_func_t>
+class P_Filter;
+
 /// Forward declaration of the Map operator
 template<typename map_func_t, typename keyextr_func_t>
 class Map;
+
+/// Forward declaration of the P_Map operator with RocksDB support
+template<typename p_map_func_t, typename keyextr_func_t>
+class P_Map;
 
 /// Forward declaration of the FlatMap operator
 template<typename flatmap_func_t, typename keyextr_func_t>
 class FlatMap;
 
+/// Forward declaration of the P_FlatMap operator with RocksDB support
+template<typename p_flatmap_func_t, typename keyextr_func_t>
+class P_FlatMap;
+
 /// Forward declaration of the Reduce operator
 template<typename reduce_func_t, typename keyextr_func_t>
 class Reduce;
 
+/// Forward declaration of the P_Reduce operator with RocksDB support
+template<typename p_reduce_func_t, typename keyextr_func_t>
+class P_Reduce;
+
 /// Forward declaration of the Sink operator
 template<typename sink_func_t, typename keyextr_func_t>
 class Sink;
+
+/// Forward declaration of the P_Sink operator with RocksDB support
+template<typename p_sink_func_t, typename keyextr_func_t>
+class P_Sink;
 
 /// Forward declaration of the Kafka_Sink operator
 template<typename kafka_ser_func_t, typename keyextr_func_t>
@@ -127,6 +147,10 @@ class Kafka_Sink;
 /// Forward declaration of the Keyed_Windows operator
 template<typename win_func_t, typename keyextr_func_t>
 class Keyed_Windows;
+
+/// Forward declaration of the P_Keyed_Windows operator with RocksDB support
+template<typename win_func_t, typename keyextr_func_t>
+class P_Keyed_Windows;
 
 /// Forward declaration of the Parallel_Windows operator
 template<typename win_func_t, typename keyextr_func_t>
@@ -203,6 +227,9 @@ enum class ordering_mode_t { ID, TS };
 
 // Supported roles of the Window_Replica nodes
 enum class role_t { SEQ, PLQ, WLQ, MAP, REDUCE };
+
+// Operator types
+enum class op_type_t { SOURCE, SINK, BASIC, P_BASIC, BASIC_GPU, WIN, P_WIN, WIN_PANED, WIN_MR, WIN_FFAT, WIN_FFAT_GPU };
 
 // Macros for the linux terminal colors
 #define DEFAULT_COLOR   "\033[0m"
@@ -295,7 +322,10 @@ struct wrapper_tuple_t
     // [Join] timestamp or watermark
     uint64_t index;
 
-    // Constructor
+    // Constructor I
+    wrapper_tuple_t() {}
+
+    // Constructor II
     wrapper_tuple_t(const tuple_t &_tuple, uint64_t _index):
                     tuple(_tuple), index(_index) {}
 };

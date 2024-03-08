@@ -180,8 +180,11 @@ private:
     friend class PipeGraph;
     reduce_func_t func; // functional logic used by the Reduce
     keyextr_func_t key_extr; // logic to extract the key attribute from the tuple_t
+    using tuple_t = decltype(get_tuple_t_Reduce(func)); // extracting the tuple_t type and checking the admissible signatures
     using state_t = decltype(get_state_t_Reduce(func)); // extracting the state_t type and checking the admissible signatures
+    using result_t = state_t;
     std::vector<Reduce_Replica<reduce_func_t, keyextr_func_t>*> replicas; // vector of pointers to the replicas of the Reduce
+    static constexpr op_type_t op_type = op_type_t::BASIC;
 
     // Configure the Reduce to receive batches instead of individual inputs
     void receiveBatches(bool _input_batching) override
@@ -213,6 +216,10 @@ private:
     // Set the execution mode of the Reduce
     void setExecutionMode(Execution_Mode_t _execution_mode)
     {
+        if (this->getOutputBatchSize() > 0 && _execution_mode != Execution_Mode_t::DEFAULT) {
+            std::cerr << RED << "WindFlow Error: Reduce is trying to produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
         for (auto *r: replicas) {
             r->setExecutionMode(_execution_mode);
         }

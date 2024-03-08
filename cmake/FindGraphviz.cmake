@@ -1,4 +1,12 @@
 # Try to find Graphviz and cgraph libraries
+# Once done this will define
+# 
+#   GRAPHVIZ_FOUND - system has Graphviz installed
+#   GRAPHVIZ_INCLUDE_DIR
+#   GRAPHVIZ_GVC_LIBRARY
+#   GRAPHVIZ_CGRAPH_LIBRARY
+#   GRAPHVIZ_CDT_LIBRARY
+# 
 
 # Check GRAPHVIZ_ROOT
 if(EXISTS "$ENV{GRAPHVIZ_ROOT}")
@@ -25,9 +33,9 @@ endif()
 # Use pkg-config to get the directories and then use these values in the FIND_PATH() and FIND_LIBRARY() calls
 if(NOT WIN32)
     find_package(PkgConfig)
-    pkg_check_modules(GRAPHVIZ_GVC_PKG gvc)
-    pkg_check_modules(GRAPHVIZ_CGRAPH_PKG cgraph)
-    pkg_check_modules(GRAPHVIZ_CDT_PKG cdt)
+    # pkg_check_modules(GRAPHVIZ_GVC_PKG gvc)
+    # pkg_check_modules(GRAPHVIZ_CGRAPH_PKG cgraph)
+    # pkg_check_modules(GRAPHVIZ_CDT_PKG cdt)
 endif()
 
 find_library(GRAPHVIZ_GVC_LIBRARY NAMES gvc libgvc

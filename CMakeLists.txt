@@ -38,12 +38,11 @@ find_package(TBB)
 # Check LibRDKafka dependency
 find_package(LibRDKafka 1.6.2)
 
-# Check graphviz, rapidjson, tbb and librdkafka dependencies
-#set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake.modules)
+# Check GraphViz dependency
 include(${PROJECT_SOURCE_DIR}/cmake/FindGraphviz.cmake)
-#include(${PROJECT_SOURCE_DIR}/cmake.modules/FindRapidJSON.cmake)
-#include(${PROJECT_SOURCE_DIR}/cmake.modules/FindTBB.cmake)
-#include(${PROJECT_SOURCE_DIR}/cmake.modules/FindLibRDKafka.cmake)
+
+# Check Rocksdb dependency
+find_package(Rocksdb)
 
 # Check FastFlow dependency
 if(DEFINED ENV{FF_ROOT})

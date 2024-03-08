@@ -66,8 +66,8 @@ private:
     join_func_t func; // functional logic used by the Interval Join replica
     keyextr_func_t key_extr; // logic to extract the key attribute from the tuple_t
     using tuple_t = decltype(get_tuple_t_Join(func)); // extracting the tuple_t type and checking the admissible signatures
-    using key_t = decltype(get_key_t_KeyExtr(key_extr)); // extracting the key_t type and checking the admissible singatures
     using result_t = decltype(get_result_t_Join(func)); // extracting the result_t type and checking the admissible signatures
+    using key_t = decltype(get_key_t_KeyExtr(key_extr)); // extracting the key_t type and checking the admissible singatures
 
     // static predicates to check the type of the functional logic to be invoked
     static constexpr bool isNonRiched = std::is_invocable<decltype(func), const tuple_t &, const tuple_t &>::value;
@@ -385,6 +385,10 @@ private:
     int64_t upper_bound; // upper bound of the interval, can be negative ( ts + upper_bound )
     Interval_Join_Mode_t joinMode; // Interval Join operating mode
 
+    using tuple_t = decltype(get_tuple_t_Join(func)); // extracting the tuple_t type and checking the admissible signatures
+    using result_t = decltype(get_result_t_Join(func)); // extracting the result_t type and checking the admissible signatures
+    static constexpr op_type_t op_type = op_type_t::BASIC;
+
     // Configure the Interval Join to receive batches instead of individual inputs
     void receiveBatches(bool _input_batching) override
     {
@@ -415,6 +419,10 @@ private:
     // Set the execution mode of the Interval Join
     void setExecutionMode(Execution_Mode_t _execution_mode)
     {
+        if (this->getOutputBatchSize() > 0 && _execution_mode != Execution_Mode_t::DEFAULT) {
+            std::cerr << RED << "WindFlow Error: Interval Join is trying to produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
         for (auto *r: replicas) {
             r->setExecutionMode(_execution_mode);
         }
