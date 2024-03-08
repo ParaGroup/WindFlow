@@ -920,37 +920,6 @@ private:
         }
     }
 
-    /** 
-     *  \brief Add a Interval Join operator to the MultiPipe
-     *  \param _join the Interval Join operator to be added
-     *  \return a reference to the modified MultiPipe
-     */ 
-    template<typename join_func_t, typename keyextr_func_t>
-    MultiPipe &add(const Interval_Join<join_func_t, keyextr_func_t> &_join)
-    {
-        if (_join.getOutputBatchSize() > 0 && execution_mode != Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: Interval_Join cannot produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);         
-        }
-        auto *copied_join = new Interval_Join(_join); // create a copy of the operator
-        copied_join->setExecutionMode(execution_mode); // set the execution mode of the operator
-        using tuple_t = decltype(get_tuple_t_Join(copied_join->func)); // extracting the tuple_t type and checking the admissible signatures
-        using result_t = decltype(get_result_t_Join(copied_join->func)); // extracting the result_t type and checking the admissible signatures
-        std::string opInType = TypeName<tuple_t>::getName(); // save the type of tuple_t as a string
-        if (!outputType.empty() && outputType.compare(opInType) != 0) {
-            std::cerr << RED << "WindFlow Error: output type from MultiPipe is not the input type of the Interval_Join operator" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        outputType = TypeName<result_t>::getName(); // save the new output type from this MultiPipe
-        add_operator(*copied_join, ordering_mode_t::TS);
-#if defined (WF_TRACING_ENABLED)
-        gv_add_vertex("Interval_Join (" + std::to_string(copied_join->getParallelism()) + ")", copied_join->getName(), true, false, copied_join->getInputRoutingMode());
-#endif
-        localOpList.push_back(copied_join); // add the copied operator to local list
-        globalOpList->push_back(copied_join); // add the copied operator to global list
-        return *this;
-    }
-
 #if defined (__CUDACC__)
     // Update the graphviz representation with a new GPU operator
     template<typename op_t>
