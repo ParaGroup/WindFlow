@@ -193,7 +193,6 @@ int main(int argc, char *argv[])
                                 .withName("filter1")
                                 .withParallelism(filter1_degree)
                                 .withOutputBatchSize(dist_b(rng))
-                                .withBroadcast()
                                 .build();
         pipe2.chain(filter1);
         Map_Functor map_functor2;
@@ -210,7 +209,6 @@ int main(int argc, char *argv[])
                                 .withName("filter2")
                                 .withParallelism(filter2_degree)
                                 .withOutputBatchSize(dist_b(rng))
-                                .withBroadcast()
                                 .build();
         pipe3.chain(filter2);
         // prepare the fourth MultiPipe
@@ -357,7 +355,6 @@ int main(int argc, char *argv[])
         Filter filter1 = Filter_Builder(filter_functor1)
                                 .withName("filter1")
                                 .withParallelism(filter1_degree)
-                                .withBroadcast()
                                 .build();
         pipe2.chain(filter1);
         Map_Functor map_functor2;
@@ -372,12 +369,11 @@ int main(int argc, char *argv[])
         Filter filter2 = Filter_Builder(filter_functor2)
                                 .withName("filter2")
                                 .withParallelism(filter2_degree)
-                                .withBroadcast()
                                 .build();
         pipe3.chain(filter2);
         // prepare the fourth MultiPipe
         MultiPipe &pipe4 = pipe2.merge(pipe3);
-        Distinct_Join_Functor join_functor;
+        Join_Functor join_functor;
         Interval_Join join = Interval_Join_Builder(join_functor)
                                     .withName("join")
                                     .withParallelism(join_degree)
