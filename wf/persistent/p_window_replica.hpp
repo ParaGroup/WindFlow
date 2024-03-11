@@ -9,7 +9,7 @@
  *      the Free Software Foundation, either version 3 of the License, or
  *      (at your option) any later version
  *    OR
- *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/master/LICENSE.MIT
  *  
  *  WindFlow is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -229,33 +229,6 @@ public:
         std::sort(final_range.begin(), final_range.end(), compare_func); // sorting the archive before passing to the user function (NIC)
         return final_range;
     }
-
-#if 0
-    // getDistance method
-    size_t getDistance(const wrapper_t &_w1,
-                       const wrapper_t &_w2,
-                       Key_Descriptor &_kd,
-                       key_t &_my_key)
-    {
-        std::deque<wrapper_t> history_buffer = get_history_buffer(_w1, _w2, false, _kd, _my_key);
-        std::pair<input_iterator_t, input_iterator_t> its;
-        its.first = std::lower_bound(history_buffer.begin(), history_buffer.end(), _w1, compare_func);
-        its.second = std::lower_bound(history_buffer.begin(), history_buffer.end(), _w2, compare_func);
-        return std::distance(its.first, its.second);
-    }
-
-    // getDistance method
-    size_t getDistance(const wrapper_t &_wt,
-                       Key_Descriptor &_kd,
-                       key_t &_my_key)
-    {
-        std::deque<wrapper_t> history_buffer = get_history_buffer(_wt, _wt, true, _kd, _my_key);
-        std::pair<input_iterator_t, input_iterator_t> its;
-        its.first = std::lower_bound(history_buffer.begin(), history_buffer.end(), _wt, compare_func);
-        its.second = history_buffer.end();
-        return std::distance(its.first, its.second);
-    }
-#endif
 
     // getEnd method
     input_iterator_t getEnd(Key_Descriptor &_kd)
