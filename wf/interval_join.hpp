@@ -209,10 +209,6 @@ public:
             (this->stats_record).inputs_received++;
             (this->stats_record).bytes_received += sizeof(tuple_t);
 #endif
-            {
-                std::lock_guard lock {print_mutex};
-                std::cout << (ignored_tuples++) << "\t" << id_inner << " | " << input->tuple.value << " | " << input->getTimestamp() << " | " << (isStreamA(input->getStreamTag()) ? "A" : "B") << std::endl;
-            }
             process_input(input->tuple, input->getTimestamp(), input->getWatermark((this->context).getReplicaIndex()), input->getStreamTag());
             deleteSingle_t(input); // delete the input Single_t
         }
@@ -234,6 +230,15 @@ public:
             return;
         }
 
+        if (this->execution_mode == Execution_Mode_t::DEFAULT) {
+            assert(last_time <= _watermark); // sanity check
+            last_time = _watermark;
+        } else {
+            if (last_time < _timestamp) {
+                last_time = _timestamp;
+            }
+        }
+
         auto key = key_extr(_tuple); // get the key attribute of the input tuple
         auto it = keyMap.find(key); // find the corresponding key_descriptor (or allocate it if does not exist)
         if (it == keyMap.end()) {
@@ -242,24 +247,6 @@ public:
         }
         Key_Descriptor &key_d = (*it).second;
 
-        /* if (this->execution_mode == Execution_Mode_t::DEFAULT) {
-            assert(last_time <= _watermark); // sanity check
-            last_time = _watermark;
-        } else {
-            if (last_time < _timestamp) {
-                last_time = _timestamp;
-            }
-        } */
-
-        if (this->execution_mode == Execution_Mode_t::DEFAULT && isStreamA(_tag)) {
-            assert(key_d.checkpoint_a <= _watermark); // sanity check
-            key_d.checkpoint_a = _watermark;
-        } else if (this->execution_mode == Execution_Mode_t::DEFAULT && !isStreamA(_tag)) {
-            assert(key_d.checkpoint_b <= _watermark); // sanity check
-            key_d.checkpoint_b = _watermark;
-        }
-        
-        
         uint64_t l_b = 0;
         if (isStreamA(_tag)) {
             if (-lower_bound <= static_cast<int64_t>(_timestamp))  { l_b = _timestamp + lower_bound; }
@@ -283,19 +270,6 @@ public:
             }
             if constexpr (isRiched)  { // inplace riched version
                 (this->context).setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
-                
-                /* std::string & from_b = (this->context).getLocalStorage().get<std::string>("from_b");
-
-                uint64_t idx_a = 0, idx_b = 0;
-                if ((upper_bound) <= static_cast<int64_t>(last_time))  { idx_a = last_time - upper_bound; }
-                if (-(lower_bound) <= static_cast<int64_t>(last_time)) { idx_b = last_time + lower_bound; }
-                from_b = isStreamA(_tag) ? ("B buffered " + std::to_string(idx_b)) : ("A buffered " + std::to_string(idx_a));
-                
-                uint64_t & a_field = this->context.getLocalStorage().get<uint64_t>("a_ts");
-                uint64_t & b_field = this->context.getLocalStorage().get<uint64_t>("b_ts");
-                a_field = isStreamA(_tag) ? _timestamp : interval.index_at(i);
-                b_field = isStreamA(_tag) ? interval.index_at(i) : _timestamp; */
-                
                 output = isStreamA(_tag) ? func(_tuple, interval.at(i), this->context) : func(interval.at(i), _tuple, this->context);
             }
             if (output) {
@@ -314,18 +288,9 @@ public:
             if constexpr(if_defined_hash<tuple_t>) {
                 size_t hash = std::hash<std::string>()(std::to_string(std::hash<tuple_t>()(_tuple)));
                 size_t hash_idx = (hash % num_inner); // compute the hash index of the tuple
-                insertIntoBuffer(key_d, wrapper_t(_tuple, _timestamp), _tag);
-/*                 if (hash_idx == id_inner) {
-#if defined (WF_JOIN_STATS)
-                    if ( isStreamA(_tag) )
-                    {
-                        a_Buff.buff_size ++;
-                    } else {
-                        b_Buff.buff_size ++;
-                    }
-#endif
-                } */
-
+                if (hash_idx == id_inner) {
+                    insertIntoBuffer(key_d, wrapper_t(_tuple, _timestamp), _tag);
+                }
             } else {
                 size_t hash = std::hash<std::string>()(std::to_string((std::hash<uint64_t>()(_timestamp)/1000)));
                 size_t hash_idx = (hash % num_inner); // compute the hash index of the tuple
@@ -334,8 +299,7 @@ public:
                 }
             }
         }
-        
-        //purgeBuffers(key_d, _tag);
+        purgeBuffers(key_d, _tag);
 
 #if defined (WF_JOIN_STATS)
         if (joinMode == Interval_Join_Mode_t::DPS) {
@@ -382,19 +346,6 @@ public:
         (_key_d.archiveB).purge(idx_b);
     }
 
-    void purgeBuffers(Key_Descriptor &_key_d, Join_Stream_t stream)
-    {
-        uint64_t idx_a = 0, idx_b = 0;
-        if (isStreamA(stream))
-        {
-            if ((upper_bound) <= static_cast<int64_t>(_key_d.checkpoint_a))  { idx_a = _key_d.checkpoint_a - upper_bound; }
-            (_key_d.archiveA).purge(idx_a);
-        } else {
-            if (-(lower_bound) <= static_cast<int64_t>(_key_d.checkpoint_b)) { idx_b = _key_d.checkpoint_b + lower_bound; }
-            (_key_d.archiveB).purge(idx_b);
-        }
-    }
-
     void purgeWithPunct()
     {
         for (auto &k: keyMap) {
@@ -415,15 +366,6 @@ public:
             mean = 0.0;
         }
         return mean;
-    }
-
-    uint64_t getBufferSize(Join_Stream_t stream) const
-    {
-        if (stream == Join_Stream_t::A) {
-            return a_Buff.buff_size;
-        } else {
-            return b_Buff.buff_size;
-        }
     }
 
     // Get the number of ignored tuples
@@ -613,14 +555,8 @@ public:
     {
 #if defined (WF_JOIN_STATS)
         if (joinMode == Interval_Join_Mode_t::DPS && this->isTerminated()) {
-            //printBufferStats(Join_Stream_t::A);
-            //printBufferStats(Join_Stream_t::B);
-            /* auto i = 0;
-            for (auto *r: replicas) {
-                std::cout << "Replica " << i << " A Buffer size-> " << r->getBufferSize(Join_Stream_t::A) << std::endl;
-                std::cout << "Replica " << i << " B Buffer size-> " << r->getBufferSize(Join_Stream_t::B) << std::endl;
-                i++;
-            } */
+            printBufferStats(Join_Stream_t::A);
+            printBufferStats(Join_Stream_t::B);
         }
 #endif
         for (auto *r: replicas) { // delete all the replicas
