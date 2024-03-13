@@ -227,7 +227,7 @@ public:
 #if defined (WF_JOIN_STATS)
         if (joinMode == Interval_Join_Mode_t::DPS) {
             uint64_t delta = (current_time_nsecs() - last_sampled_size_time) / 1e06; //ms
-            if ( delta >= 0 )
+            if ( delta >= 250 )
             {
                 for (auto &k: keyMap) {
                     Key_Descriptor &key_d = (k.second);
