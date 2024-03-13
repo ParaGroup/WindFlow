@@ -299,7 +299,7 @@ public:
                 }
             }
         }
-        purgeBuffers(key_d, _tag);
+        purgeBuffers(key_d);
 
 #if defined (WF_JOIN_STATS)
         if (joinMode == Interval_Join_Mode_t::DPS) {
