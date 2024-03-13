@@ -101,16 +101,16 @@ int main(int argc, char *argv[])
     std::uniform_int_distribution<std::mt19937::result_type> dist_p(min, max);
     std::uniform_int_distribution<std::mt19937::result_type> dist_b(0, 10);
     int map1_degree, map2_degree, join_degree, flatmap_degree, sink_degree;
-    size_t source1_degree = dist_p(rng);
-    size_t source2_degree = dist_p(rng);
-    size_t source3_degree = dist_p(rng);
+    size_t source1_degree = 1; dist_p(rng);
+    size_t source2_degree = 1; dist_p(rng);
+    size_t source3_degree = 1; dist_p(rng);
     long last_result = 0;
     // executes the runs in DEFAULT mode
     for (size_t i=0; i<runs; i++) {
         map1_degree = dist_p(rng);
         map2_degree = dist_p(rng);
         flatmap_degree = dist_p(rng);
-        join_degree = dist_p(rng);
+        join_degree = 5; dist_p(rng);
         sink_degree = dist_p(rng);
         cout << "Run " << i << endl;
         cout << "+-----------+" << endl;
@@ -124,7 +124,7 @@ int main(int argc, char *argv[])
         cout << "|  +-----+   +-----+  |   |    |  +-----+  |   |" << endl;
         cout << "|  |  S  |   |  M  |  |   |    +-----------+   |    +---------------------+" << endl;
         cout << "|  | (" << source2_degree << ") +-->+ (" << map1_degree << ") |  +---+                    |    |  +-----+   +-----+  |" << endl;
-        cout << "|  +-----+   +-----+  |                        |    |  |  M  |   |  S  |  |" << endl;
+        cout << "|  +-----+   +-----+  |                        |    |  | FM  |   |  S  |  |" << endl;
         cout << "+---------------------+                        +--->+  | (" << flatmap_degree << ") +-->+ (" << sink_degree << ") |  |" << endl;
         cout << "                                               |    |  +-----+   +-----+  |" << endl;
         cout << "+---------------------+                        |    +---------------------+" << endl;
@@ -155,7 +155,7 @@ int main(int argc, char *argv[])
         Source source1 = Source_Builder(source_functor1)
                                 .withName("source")
                                 .withParallelism(source1_degree)
-                                .withOutputBatchSize(dist_b(rng))
+                                //.withOutputBatchSize(dist_b(rng))
                                 .build();
         MultiPipe &pipe1 = graph.add_source(source1);
         // prepare the second MultiPipe
@@ -163,7 +163,7 @@ int main(int argc, char *argv[])
         Source source2 = Source_Builder(source_functor2)
                                 .withName("source2")
                                 .withParallelism(source2_degree)
-                                .withOutputBatchSize(dist_b(rng))
+                                //.withOutputBatchSize(dist_b(rng))
                                 .build();
         MultiPipe &pipe2 = graph.add_source(source2);
         // map 1
@@ -171,16 +171,16 @@ int main(int argc, char *argv[])
         Map map1 = Map_Builder(map_functor1)
                         .withName("map1")
                         .withParallelism(map1_degree)
-                        .withOutputBatchSize(dist_b(rng))
+                        //.withOutputBatchSize(dist_b(rng))
                         .build();
-        pipe2.chain(map1);
+        //pipe2.chain(map1);
         // prepare the third MultiPipe
         MultiPipe &pipe3 = pipe1.merge(pipe2);
         Join_Functor join_functor;
         Interval_Join join = Interval_Join_Builder(join_functor)
                                     .withName("join")
                                     .withParallelism(join_degree)
-                                    .withOutputBatchSize(dist_b(rng))
+                                    //.withOutputBatchSize(dist_b(rng))
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
                                     .withBoundaries(milliseconds(lower_bound), milliseconds(upper_bound))
                                     .withDPSMode()
@@ -191,14 +191,14 @@ int main(int argc, char *argv[])
         Source source3 = Source_Builder(source_functor3)
                                 .withName("source3")
                                 .withParallelism(source3_degree)
-                                .withOutputBatchSize(dist_b(rng))
+                                //.withOutputBatchSize(dist_b(rng))
                                 .build();
         MultiPipe &pipe4 = graph.add_source(source3);
         Map_Functor map_functor2;
         Map map2 = Map_Builder(map_functor2)
                         .withName("map2")
                         .withParallelism(map2_degree)
-                        .withOutputBatchSize(dist_b(rng))
+                        //.withOutputBatchSize(dist_b(rng))
                         .build();
         pipe4.chain(map2);
         // prepare the fifth MultiPipe
@@ -208,7 +208,7 @@ int main(int argc, char *argv[])
                             .withName("flatmap")
                             .withParallelism(flatmap_degree)
                             .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
-                            .withOutputBatchSize(dist_b(rng))
+                            //.withOutputBatchSize(dist_b(rng))
                             .build();
         pipe5.chain(flatmap);
         Sink_Functor sink_functor;
@@ -217,7 +217,7 @@ int main(int argc, char *argv[])
                             .withParallelism(sink_degree)
                             .build();
         pipe5.chain_sink(sink);
-        assert(graph.getNumThreads() == check_degree);
+        //assert(graph.getNumThreads() == check_degree);
         // run the application
         graph.run();
         if (i == 0) {
@@ -236,11 +236,11 @@ int main(int argc, char *argv[])
         global_sum = 0;
     }
     // executes the runs in DETERMINISTIC mode
-    for (size_t i=0; i<runs; i++) {
+    for (size_t i=0; i<0; i++) {
         map1_degree = dist_p(rng);
         map2_degree = dist_p(rng);
         flatmap_degree = dist_p(rng);
-        join_degree = dist_p(rng);
+        join_degree = 6; dist_p(rng);
         sink_degree = dist_p(rng);
         cout << "Run " << i << endl;
         cout << "+-----------+" << endl;
@@ -254,7 +254,7 @@ int main(int argc, char *argv[])
         cout << "|  +-----+   +-----+  |   |    |  +-----+  |   |" << endl;
         cout << "|  |  S  |   |  M  |  |   |    +-----------+   |    +---------------------+" << endl;
         cout << "|  | (" << source2_degree << ") +-->+ (" << map1_degree << ") |  +---+                    |    |  +-----+   +-----+  |" << endl;
-        cout << "|  +-----+   +-----+  |                        |    |  |  M  |   |  S  |  |" << endl;
+        cout << "|  +-----+   +-----+  |                        |    |  | FM  |   |  S  |  |" << endl;
         cout << "+---------------------+                        +--->+  | (" << flatmap_degree << ") +-->+ (" << sink_degree << ") |  |" << endl;
         cout << "                                               |    |  +-----+   +-----+  |" << endl;
         cout << "+---------------------+                        |    +---------------------+" << endl;

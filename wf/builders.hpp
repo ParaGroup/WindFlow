@@ -1462,7 +1462,7 @@ public:
         Interval_Join_Builder<join_func_t, new_key_t> new_builder(func);
         new_builder.name = this->name;
         new_builder.parallelism = this->parallelism;
-        new_builder.input_routing_mode = Routing_Mode_t::KEYBY;
+        //new_builder.input_routing_mode = Routing_Mode_t::KEYBY;
         new_builder.key_extr = _key_extr;
         new_builder.outputBatchSize = this->outputBatchSize;
         new_builder.closing_func = this->closing_func;
@@ -1510,6 +1510,7 @@ public:
             std::cerr << RED << "WindFlow Error: wrong use of withKPMode() in the Interval_Join_Builder, you can specify only one mode per join operator " << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
+        input_routing_mode = Routing_Mode_t::KEYBY;
         join_mode = Interval_Join_Mode_t::KP;
         return *this;
     }
@@ -1529,8 +1530,8 @@ public:
             std::cerr << RED << "WindFlow Error: wrong use of withKPMode() in the Interval_Join_Builder, you can specify only one mode per join operator " << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        join_mode = Interval_Join_Mode_t::DPS;
         input_routing_mode = Routing_Mode_t::BROADCAST;
+        join_mode = Interval_Join_Mode_t::DPS;
         return *this;
     }
 
