@@ -25,7 +25,7 @@
  *  @file    paned_windows.hpp
  *  @author  Gabriele Mencagli
  *  
- *  @brief Paned_Windows operator
+ *  @brief Paned_Windows meta operator
  *  
  *  @section Paned_Windows (Description)
  *  
@@ -56,7 +56,7 @@ namespace wf {
 /** 
  *  \class Paned_Windows
  *  
- *  \brief Paned_Windows operator
+ *  \brief Paned_Windows meta operator
  *  
  *  This class implements the Paned_Windows operator executing incremental or
  *  non-incremental queries on streaming windows. The operator allows windows

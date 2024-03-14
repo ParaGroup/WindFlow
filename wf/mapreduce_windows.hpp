@@ -25,7 +25,7 @@
  *  @file    mapreduce_windows.hpp
  *  @author  Gabriele Mencagli
  *  
- *  @brief MapReduce_Windows operator
+ *  @brief MapReduce_Windows meta operator
  *  
  *  @section MapReduce_Windows (Description)
  *  
@@ -56,7 +56,7 @@ namespace wf {
 /** 
  *  \class MapReduce_Windows
  *  
- *  \brief MapReduce_Windows operator
+ *  \brief MapReduce_Windows meta operator
  *  
  *  This class implements the MapReduce_Windows operator executing incremental or
  *  non-incremental queries on streaming windows. Each window is split into disjoint
