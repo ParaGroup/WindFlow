@@ -1,5 +1,5 @@
 /**************************************************************************************
- *  Copyright (c) 2019- Gabriele Mencagli and Matteo Della Bartola
+ *  Copyright (c) 2019- Gabriele Mencagli and Simone Frassinelli
  *  
  *  This file is part of WindFlow.
  *  
@@ -25,7 +25,7 @@
  *  @file    windflow_rocksdb.hpp
  *  @author  Gabriele Mencagli and Simone Frassinelli
  *  
- *  @brief General Header File-RocksDB
+ *  @brief General Header File-4
  *  
  *  @section Fourth General Header File of the WindFlow Library to include Rocksdb Operators
  *  
