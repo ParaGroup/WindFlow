@@ -52,11 +52,9 @@
 #include<basic_operator.hpp>
 #include<join_archive.hpp>
 #include<iterable.hpp>
-#include<mutex>
 
 namespace wf {
 
-static std::mutex print_mutex;
 //@cond DOXY_IGNORE
 
 // class IJoin_Replica
@@ -102,7 +100,7 @@ private:
     compare_func_t compare_func; // function to compare wrapped to an uint64 that rapresent an timestamp ( or watermark )
     int64_t lower_bound; // lower bound of the interval ( ts - lower_bound )
     int64_t upper_bound; // upper bound of the interval ( ts + upper_bound )
-    Interval_Join_Mode_t joinMode; // Interval Join operating mode
+    Join_Mode_t joinMode; // Interval Join operating mode
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     uint64_t last_time; // last received watermark or timestamp
     size_t ignored_tuples; // number of ignored tuples
@@ -133,7 +131,7 @@ public:
                 std::function<void(RuntimeContext &)> _closing_func,
                 int64_t _lower_bound,
                 int64_t _upper_bound,
-                Interval_Join_Mode_t _join_mode,
+                Join_Mode_t _join_mode,
                 size_t _id_inner,
                 size_t _num_inner):
                 Basic_Replica(_opName, _context, _closing_func, false),
@@ -282,9 +280,9 @@ public:
             }
         }
 
-        if (joinMode == Interval_Join_Mode_t::KP) {
+        if (joinMode == Join_Mode_t::KP) {
             insertIntoBuffer(key_d, wrapper_t(_tuple, _timestamp), _tag);
-        } else if (joinMode == Interval_Join_Mode_t::DPS) {
+        } else if (joinMode == Join_Mode_t::DP) {
             if constexpr(if_defined_hash<tuple_t>) {
                 size_t hash = std::hash<std::string>()(std::to_string(std::hash<tuple_t>()(_tuple)));
                 size_t hash_idx = (hash % num_inner); // compute the hash index of the tuple
@@ -302,7 +300,7 @@ public:
         purgeBuffers(key_d);
 
 #if defined (WF_JOIN_STATS)
-        if (joinMode == Interval_Join_Mode_t::DPS) {
+        if (joinMode == Join_Mode_t::DP) {
             uint64_t delta = (current_time_nsecs() - last_sampled_size_time) / 1e06; //ms
             if ( delta >= 250 )
             {
@@ -334,7 +332,7 @@ public:
 
     inline void insertIntoBuffer(Key_Descriptor &_key_d, wrapper_t _wt, Join_Stream_t stream)
     {
-        (stream == Join_Stream_t::A) ? (_key_d.archiveA).insert(_wt) : (_key_d.archiveB).insert(_wt);
+        isStreamA(stream) ? (_key_d.archiveA).insert(_wt) : (_key_d.archiveB).insert(_wt);
     }
 
     void purgeBuffers(Key_Descriptor &_key_d)
@@ -400,7 +398,7 @@ private:
     std::vector<IJoin_Replica<join_func_t, keyextr_func_t>*> replicas; // vector of pointers to the replicas of the Interval Join
     int64_t lower_bound; // lower bound of the interval, can be negative ( ts + lower_bound )
     int64_t upper_bound; // upper bound of the interval, can be negative ( ts + upper_bound )
-    Interval_Join_Mode_t joinMode; // Interval Join operating mode
+    Join_Mode_t joinMode; // Interval Join operating mode
 
     using tuple_t = decltype(get_tuple_t_Join(func)); // extracting the tuple_t type and checking the admissible signatures
     using result_t = decltype(get_result_t_Join(func)); // extracting the result_t type and checking the admissible signatures
@@ -482,11 +480,11 @@ private:
         writer.Key("Uper_Bound");
         writer.Int64(upper_bound);
         writer.Key("Join_Mode");
-        if (this->joinMode == Interval_Join_Mode_t::KP) {
+        if (this->joinMode == Join_Mode_t::KP) {
             writer.String("Key-Parallelism");
         }
-        else if (this->joinMode == Interval_Join_Mode_t::DPS) {
-            writer.String("Data-Parallelism_Single-Buffer");
+        else if (this->joinMode == Join_Mode_t::DP) {
+            writer.String("Data-Parallelism");
         }
         writer.Key("Replicas");
         writer.StartArray();
@@ -523,7 +521,7 @@ public:
                   std::function<void(RuntimeContext &)> _closing_func,
                   int64_t _lower_bound,
                   int64_t _upper_bound,
-                  Interval_Join_Mode_t _join_mode):
+                  Join_Mode_t _join_mode):
                   Basic_Operator(_parallelism, _name, _input_routing_mode, _outputBatchSize),
                   func(_func),
                   key_extr(_key_extr),
@@ -554,7 +552,7 @@ public:
     ~Interval_Join() override
     {
 #if defined (WF_JOIN_STATS)
-        if (joinMode == Interval_Join_Mode_t::DPS && this->isTerminated()) {
+        if (joinMode == Join_Mode_t::DP && this->isTerminated()) {
             printBufferStats(Join_Stream_t::A);
             printBufferStats(Join_Stream_t::B);
         }
@@ -598,7 +596,7 @@ public:
      */ 
     std::string getType() const override
     {
-        return std::string("Interval_Join");
+        return joinMode == Join_Mode_t::KP ? std::string("Interval_Join_KP") : std::string("Interval_Join_DP");
     }
 
     Interval_Join(Interval_Join &&) = delete; ///< Move constructor is deleted
