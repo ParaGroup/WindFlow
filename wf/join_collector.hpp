@@ -216,6 +216,7 @@ public:
     // method to manage the EOS (utilized by the FastFlow runtime)
     void eosnotify(ssize_t id) override
     {
+        std::cout << id_collector << std::endl;
         assert(id < this->get_num_inchannels()); // sanity check
         enabled[id] = false; // disable the channel where we received the EOS
         eos_received++;
@@ -223,25 +224,30 @@ public:
             return;
         }
 
-        uint64_t global_size = 0;
-        for (auto &q: channelMap) { // check that the all the key queues are empty
-            global_size += (q.second).size();
+        size_t a_size = 0;
+        size_t b_size = 0;
+        for(size_t i=0; i<this->get_num_inchannels(); i++){
+            if(i < separator_id) a_size += channelMap[i].size();
+            else b_size += channelMap[i].size();
         }
-        while (global_size > 0){
-            this->id = (stream == Join_Stream_t::A) ? A_id : B_id;
-            if (!channelMap[this->id].empty()) {
-                if (!input_batching) {
-                    Single_t<tuple_t> *next = reinterpret_cast<Single_t<tuple_t> *>(channelMap[this->id].front());
-                    setup_tuple(next, this->id);
-                    this->ff_send_out(next);
-                }
-                else {
-                    Batch_t<tuple_t> *next = reinterpret_cast<Batch_t<tuple_t> *>(channelMap[this->id].front());
-                    setup_tuple(next, this->id);
-                    this->ff_send_out(next);
-                }
-                channelMap[this->id].pop();
-                global_size--;
+        
+        size_t idx;
+        while ((a_size + b_size) != 0){
+            if((stream == Join_Stream_t::A) && (a_size == 0)) stream = Join_Stream_t::B;
+            if((stream == Join_Stream_t::B) && (b_size == 0)) stream = Join_Stream_t::A;
+            idx = (stream == Join_Stream_t::A) ? A_id : B_id;
+            if (!channelMap[idx].empty()) {
+                Single_t<tuple_t> *next = reinterpret_cast<Single_t<tuple_t> *>(channelMap[idx].front());
+                channelMap[idx].pop();
+                setup_tuple(next, idx);
+                this->ff_send_out(next);
+                (stream == Join_Stream_t::A) ? a_size-- : b_size--;
+            } else {
+                Batch_t<tuple_t> *next = reinterpret_cast<Batch_t<tuple_t> *>(channelMap[idx].front());
+                channelMap[idx].pop();
+                setup_tuple(next, idx);
+                this->ff_send_out(next);
+                (stream == Join_Stream_t::A) ? a_size-- : b_size--;
             }
             (stream == Join_Stream_t::A) ? nextA_channel() : nextB_channel();
             nextStream();
