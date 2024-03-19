@@ -56,20 +56,19 @@ private:
     keyextr_func_t key_extr; // key extractor
     using tuple_t = decltype(get_tuple_t_KeyExtr(key_extr)); // extracting the tuple_t type and checking the admissible singatures
 
-    std::vector<bool> enabled; // enable[i] is true if channel i is enabled
-    std::vector<uint64_t> maxs; // maxs[i] constains the highest watermark received from the i-th input channel
-
     bool input_batching; // true if the collector expects to receive batches, false otherwise
     ordering_mode_t ordering_mode; // ordering mode used by the Join_Collector
     Execution_Mode_t execution_mode; // execution mode of the PipeGraph
     Join_Mode_t interval_join_mode; // interval join mode
     size_t id_collector; // identifier of the Join_Collector
     size_t separator_id; // streams separator meaningful to join operators
-    Join_Stream_t stream; // next stream to forward from the output
-    size_t A_id; // next channel id to forward the output from (A stream)
-    size_t B_id; // next channel id to forward the output from (B stream)
     size_t id; // next channel id to forward the output from
     size_t eos_received; // number of received EOS messages
+
+    std::vector<bool> enabled; // enable[i] is true if channel i is enabled
+    std::vector<uint64_t> maxs; // maxs[i] constains the highest watermark received from the i-th input channel
+    std::vector<size_t> channel_ids; // vector containing the ids of the input channels
+    size_t next_id; // next channel id to forward the output from
 
     std::unordered_map<size_t, std::queue<void *>> channelMap; // hash table mapping keys onto key descriptors
 
@@ -79,16 +78,28 @@ private:
         uint64_t min_wm;
         bool first = true;
         for (size_t i=0; i<this->get_num_inchannels(); i++) {
-            if ((enabled[i] || !channelMap[i].empty()) && first) {
+            if(!channelMap[i].empty() && first){
+                min_wm = getMinChannelWM(i);
+                first = false;
+            } else if (enabled[i] && first) {
                 min_wm = maxs[i];
                 first = false;
-            }
-            else if ((enabled[i] || !channelMap[i].empty()) && (maxs[i] < min_wm)) {
+            } else if(!channelMap[i].empty() && (getMinChannelWM(i) < min_wm)){
+                min_wm = getMinChannelWM(i);
+            } else if (enabled[i] && (maxs[i] < min_wm)) {
                 min_wm = maxs[i];
             }
         }
         assert(first == false); // sanity check
         return min_wm;
+    }
+
+    uint64_t getMinChannelWM(size_t id){
+        if(!input_batching){
+            return reinterpret_cast<Single_t<tuple_t> *>(channelMap[id].front())->getWatermark(id_collector);
+        } else {
+            return reinterpret_cast<Batch_t<tuple_t> *>(channelMap[id].front())->getWatermark(id_collector);
+        }
     }
 
     template <typename in_t>
@@ -100,39 +111,6 @@ private:
         _in->setWatermark(min_wm, id_collector); // replace the watermark with the right one to use
         _in->setStreamTag(source_id < separator_id ? Join_Stream_t::A : Join_Stream_t::B);
     }
-
-    inline size_t nextA_channel()
-    {
-        A_id = (A_id + 1) % separator_id;
-        return A_id;
-    }
-
-    inline size_t nextB_channel()
-    {
-        B_id = (B_id + 1) % (this->get_num_inchannels());
-        if(B_id==0) B_id += separator_id;
-        return B_id;
-    }
-
-    inline void nextStream() {
-        stream = (stream == Join_Stream_t::A) ? Join_Stream_t::B : Join_Stream_t::A;
-    }
-
-    void loop_ch()
-    {
-        if(stream == Join_Stream_t::A){
-            for(size_t i=0; i<separator_id; i++){
-                if(enabled[id] || !channelMap[id].empty()) break;
-                id = nextA_channel();
-            }
-        } else {
-            for(size_t i=separator_id; i<this->get_num_inchannels(); i++){
-                if(enabled[id] || !channelMap[id].empty()) break;
-                id = nextB_channel();
-            }
-        }
-    }
-
 
 public:
     // Constructor
@@ -150,10 +128,8 @@ public:
                         interval_join_mode(_interval_join_mode),
                         id_collector(_id_collector),
                         separator_id(_separator_id),
-                        A_id(0),
-                        B_id(separator_id),
                         id(0),
-                        stream(Join_Stream_t::A),
+                        next_id(0),
                         eos_received(0)
     {
         assert(execution_mode == Execution_Mode_t::DEFAULT && _ordering_mode == ordering_mode_t::TS && _interval_join_mode == Join_Mode_t::DP); // sanity check
@@ -169,6 +145,29 @@ public:
             enabled.push_back(true);
             channelMap.insert(std::make_pair(i,  std::queue<void * >() ));
         }
+
+        size_t idxA = 1;
+        size_t idxB = separator_id;
+        channel_ids.push_back(0);
+        for(size_t i=1; i<this->get_num_inchannels(); i++){
+            if (channel_ids[i-1] >= separator_id) {
+                if(idxA != separator_id){
+                    channel_ids.push_back(idxA);
+                    idxA++;
+                } else {
+                    channel_ids.push_back(idxB);
+                    idxB++;
+                }
+            } else {
+                if(idxB != this->get_num_inchannels()){
+                    channel_ids.push_back(idxB);
+                    idxB++;
+                } else {
+                    channel_ids.push_back(idxA);
+                    idxA++;
+                }
+            }
+        }
         return 0;
     }
 
@@ -179,44 +178,68 @@ public:
         if (!input_batching) { // non batching mode
             Single_t<tuple_t> * input = reinterpret_cast<Single_t<tuple_t> *>(_in); // cast the input to a Single_t structure
 
-            id = (stream == Join_Stream_t::A) ? A_id : B_id;
+            id = channel_ids[next_id];
+            while(!enabled[id]){
+                next_id = (next_id + 1) % this->get_num_inchannels();
+                id = channel_ids[next_id];
+            }
             if (source_id != id) {
                 channelMap[source_id].push(input);
-                loop_ch();
-                if (channelMap[id].empty()) return this->GO_ON;
-                input = reinterpret_cast<Single_t<tuple_t> *>(channelMap[id].front());
-                channelMap[id].pop();
+                return this->GO_ON;
             } else if (!channelMap[id].empty()) {
                 channelMap[id].push(input);
                 input = reinterpret_cast<Single_t<tuple_t> *>(channelMap[id].front());
                 channelMap[id].pop();
+                setup_tuple(input, id);
+                this->ff_send_out(input);
+            } else {
+                setup_tuple(input, id);
+                this->ff_send_out(input);
             }
-            
-            setup_tuple(input, id);
-            (stream == Join_Stream_t::A) ? nextA_channel() : nextB_channel();
-            nextStream();
-            return input;
+            next_id = (next_id + 1) % this->get_num_inchannels();
+            id = channel_ids[next_id];
+            while(!channelMap[id].empty()){
+                input = reinterpret_cast<Single_t<tuple_t> *>(channelMap[id].front());
+                channelMap[id].pop();
+                setup_tuple(input, id);
+                this->ff_send_out(input);
+                next_id = (next_id + 1) % this->get_num_inchannels();
+                id = channel_ids[next_id];
+            }
+            return this->GO_ON;
         }
         else { // batching mode
             Batch_t<tuple_t> *batch_input = reinterpret_cast<Batch_t<tuple_t> *>(_in); // cast the input to a Batch_t structure
-
-            id = (stream == Join_Stream_t::A) ? A_id : B_id;
+            
+            id = channel_ids[next_id];
+            while(!enabled[id]){
+                next_id = (next_id + 1) % this->get_num_inchannels();
+                id = channel_ids[next_id];
+            }
             if (source_id != id) {
                 channelMap[source_id].push(batch_input);
-                loop_ch();
-                if (channelMap[id].empty()) return this->GO_ON;
-                batch_input = reinterpret_cast<Batch_t<tuple_t> *>(channelMap[id].front());
-                channelMap[id].pop();
+                return this->GO_ON;
             } else if (!channelMap[id].empty()) {
                 channelMap[id].push(batch_input);
                 batch_input = reinterpret_cast<Batch_t<tuple_t> *>(channelMap[id].front());
                 channelMap[id].pop();
+                setup_tuple(batch_input, id);
+                this->ff_send_out(batch_input);
+            } else {
+                setup_tuple(batch_input, id);
+                this->ff_send_out(batch_input);
             }
-            
-            setup_tuple(batch_input, id);
-            (stream == Join_Stream_t::A) ? nextA_channel() : nextB_channel();
-            nextStream();
-            return batch_input;
+            next_id = (next_id + 1) % this->get_num_inchannels();
+            id = channel_ids[next_id];
+            while(!channelMap[id].empty()){
+                batch_input = reinterpret_cast<Batch_t<tuple_t> *>(channelMap[id].front());
+                channelMap[id].pop();
+                setup_tuple(batch_input, id);
+                this->ff_send_out(batch_input);
+                next_id = (next_id + 1) % this->get_num_inchannels();
+                id = channel_ids[next_id];
+            }
+            return this->GO_ON;
         }
     }
 
@@ -230,34 +253,32 @@ public:
             return;
         }
         
-        size_t a_size = 0;
-        size_t b_size = 0;
+        size_t total_size = 0;
         for(size_t i=0; i<this->get_num_inchannels(); i++){
-            if(i < separator_id) a_size += channelMap[i].size();
-            else b_size += channelMap[i].size();
+            total_size += channelMap[i].size();
         }
-       
-        size_t idx;
-        while ((a_size + b_size) != 0){
-            if((stream == Join_Stream_t::A) && (a_size == 0)) stream = Join_Stream_t::B;
-            if((stream == Join_Stream_t::B) && (b_size == 0)) stream = Join_Stream_t::A;
-            idx = (stream == Join_Stream_t::A) ? A_id : B_id;
-            if (!channelMap[idx].empty()) {
-                Single_t<tuple_t> *out = reinterpret_cast<Single_t<tuple_t> *>(channelMap[idx].front());
-                channelMap[idx].pop();
-                setup_tuple(out, idx);
-                this->ff_send_out(out);
-                (stream == Join_Stream_t::A) ? a_size-- : b_size--;
-            } else {
-                Batch_t<tuple_t> *out = reinterpret_cast<Batch_t<tuple_t> *>(channelMap[idx].front());
-                channelMap[idx].pop();
-                setup_tuple(out, idx);
-                this->ff_send_out(out);
-                (stream == Join_Stream_t::A) ? a_size-- : b_size--;
+        if (total_size == 0) return;
+
+        while (total_size > 0){
+            id = channel_ids[next_id];
+            if (!channelMap[id].empty()) {
+                if (!input_batching) {
+                    Single_t<tuple_t> *out = reinterpret_cast<Single_t<tuple_t> *>(channelMap[id].front());
+                    channelMap[id].pop();
+                    setup_tuple(out, id);
+                    this->ff_send_out(out);
+                    total_size--;
+                } else {
+                    Batch_t<tuple_t> *out = reinterpret_cast<Batch_t<tuple_t> *>(channelMap[id].front());
+                    channelMap[id].pop();
+                    setup_tuple(out, id);
+                    this->ff_send_out(out);
+                    total_size--;
+                }
             }
-            (stream == Join_Stream_t::A) ? nextA_channel() : nextB_channel();
-            nextStream();
+            next_id = (next_id + 1) % this->get_num_inchannels();
         }
+        return;
     }
 
     // svc_end method (utilized by the FastFlow runtime)
