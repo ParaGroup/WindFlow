@@ -284,13 +284,13 @@ public:
             insertIntoBuffer(key_d, wrapper_t(_tuple, _timestamp), _tag);
         } else if (joinMode == Join_Mode_t::DP) {
             if constexpr(if_defined_hash<tuple_t>) {
-                size_t hash = std::hash<std::string>()(std::to_string(std::hash<tuple_t>()(_tuple)));
+                uint64_t hash = fnv1a(std::hash<tuple_t>()(_tuple));
                 size_t hash_idx = (hash % num_inner); // compute the hash index of the tuple
                 if (hash_idx == id_inner) {
                     insertIntoBuffer(key_d, wrapper_t(_tuple, _timestamp), _tag);
                 }
             } else {
-                size_t hash = std::hash<std::string>()(std::to_string((std::hash<uint64_t>()(_timestamp)/1000)));
+                uint64_t hash = fnv1a(_timestamp);
                 size_t hash_idx = (hash % num_inner); // compute the hash index of the tuple
                 if (hash_idx == id_inner) {
                     insertIntoBuffer(key_d, wrapper_t(_tuple, _timestamp), _tag);
@@ -317,12 +317,14 @@ public:
 #endif
     }
 
-    inline uint32_t fnv1a(uint32_t fourBytes, uint32_t hash = 0x811C9DC5) {
-        const unsigned char* ptr = (const unsigned char*) &fourBytes;
-        hash = (*ptr++ ^ hash) * 0x01000193;
-        hash = (*ptr++ ^ hash) * 0x01000193;
-        hash = (*ptr++ ^ hash) * 0x01000193;
-        return (*ptr ^ hash) * 0x01000193;
+    inline uint64_t fnv1a(uint64_t eightBytes, uint64_t hash = 0xcbf29ce484222325) {
+        const unsigned char* ptr = (const unsigned char*) &eightBytes;
+        for(size_t i = 0; i < sizeof(uint64_t); i++)
+        {
+            hash ^= (uint64_t)*ptr++;
+            hash *= 0x100000001b3;
+        }
+        return hash;
     }
 
     inline bool isStreamA(Join_Stream_t stream) const
