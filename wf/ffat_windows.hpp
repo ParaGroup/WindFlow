@@ -75,7 +75,7 @@ private:
     uint64_t slide_len; // slide length (in no. of tuples or in time units)
     uint64_t lateness; // triggering delay in time units (meaningful for TB windows in DEFAULT mode)
     Win_Type_t winType; // window type (CB or TB)
-    static constexpr op_type_t op_type = op_type_t::WIN_FFAT;
+    static constexpr op_type_t op_type = op_type_t::WIN;
 
     // Configure the Ffat_Windows to receive batches instead of individual inputs
     void receiveBatches(bool _input_batching) override

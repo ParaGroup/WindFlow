@@ -206,7 +206,7 @@ private:
     using result_t = state_t;
     std::vector<P_Reduce_Replica<p_reduce_func_t, keyextr_func_t> *> replicas; // vector of pointers to the replicas of the P_Reduce
     bool sharedDb; // sharedBD flag
-    static constexpr op_type_t op_type = op_type_t::P_BASIC;
+    static constexpr op_type_t op_type = op_type_t::BASIC;
 
     // Configure the P_Reduce to receive batches instead of individual inputs
     void receiveBatches(bool _input_batching) override

@@ -97,8 +97,6 @@ int main(int argc, char *argv[])
         map1_degree = dist_p(rng);
         map2_degree = dist_p(rng);
         filter_degree = dist_p(rng);
-        // sink1_degree = dist_p(rng);
-        // sink2_degree = dist_p(rng);
         cout << "Run " << i << endl;
         cout << "+---------------------+                         +-----------+" << endl;
         cout << "|  +-----+   +-----+  |                         |  +-----+  |" << endl;
@@ -215,8 +213,6 @@ int main(int argc, char *argv[])
         map1_degree = dist_p(rng);
         map2_degree = dist_p(rng);
         filter_degree = dist_p(rng);
-        // sink1_degree = dist_p(rng);
-        // sink2_degree = dist_p(rng);
         cout << "Run " << i << endl;
         cout << "+---------------------+                         +-----------+" << endl;
         cout << "|  +-----+   +-----+  |                         |  +-----+  |" << endl;

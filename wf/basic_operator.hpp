@@ -93,7 +93,7 @@ protected:
     Basic_Replica(std::string _opName,
                   bool _isWinOP):
                   opName(_opName),
-                  input_batching(false),
+                  input_batching(true),
                   terminated(false),
                   emitter(nullptr),
                   dropped_inputs(0),

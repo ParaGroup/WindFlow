@@ -79,7 +79,7 @@ private:
     using tuple_t = decltype(get_tuple_t_Win(func));
     using result_t = decltype(get_result_t_Win(func));
     using wrapper_t = wrapper_tuple_t<decltype(get_tuple_t_Win(func))>;
-    static constexpr op_type_t op_type = op_type_t::P_WIN;
+    static constexpr op_type_t op_type = op_type_t::WIN;
 
     // Configure the P_Keyed_Windows to receive batches instead of individual inputs
     void receiveBatches(bool _input_batching) override

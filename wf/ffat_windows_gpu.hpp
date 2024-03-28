@@ -72,7 +72,7 @@ private:
     uint64_t slide_len; // slide length (in no. of tuples or in time units)
     uint64_t lateness; // triggering delay in time units (meaningful for TB windows in DEFAULT mode)
     Win_Type_t winType; // window type (CB or TB)
-    static constexpr op_type_t op_type = op_type_t::WIN_FFAT_GPU;
+    static constexpr op_type_t op_type = op_type_t::WIN_GPU;
 
     // This method exists but its does not have any effect
     void receiveBatches(bool _input_batching) override {}

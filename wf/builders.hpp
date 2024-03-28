@@ -1,5 +1,4 @@
 /**************************************************************************************
- * 
  *  Copyright (c) 2019- Gabriele Mencagli
  *  
  *  This file is part of WindFlow.

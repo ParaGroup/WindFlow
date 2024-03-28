@@ -301,7 +301,7 @@ private:
     using state_t = decltype(get_state_t_P_Filter(func));
     std::vector<P_Filter_Replica<p_filter_func_t, keyextr_func_t> *> replicas; // vector of pointers to the replicas of the P_Filter
     bool sharedDb; // sharedBD flag
-    static constexpr op_type_t op_type = op_type_t::P_BASIC;
+    static constexpr op_type_t op_type = op_type_t::BASIC;
 
     // Configure the P_Filter to receive batches instead of individual inputs
     void receiveBatches(bool _input_batching) override

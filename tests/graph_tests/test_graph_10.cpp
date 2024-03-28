@@ -105,11 +105,8 @@ int main(int argc, char *argv[])
     long last_result = 0;
     // executes the runs in DEFAULT mode
     for (size_t i=0; i<runs; i++) {
-        // map1_degree = dist_p(rng);
         map2_degree = dist_p(rng);
         map3_degree = dist_p(rng);
-        // map4_degree = dist_p(rng);
-        // map5_degree = dist_p(rng);
         filter1_degree = dist_p(rng);
         filter2_degree = dist_p(rng);
         filter3_degree = dist_p(rng);
@@ -294,11 +291,8 @@ int main(int argc, char *argv[])
     }
     // executes the runs in DETERMINISTIC mode
     for (size_t i=0; i<runs; i++) {
-        // map1_degree = dist_p(rng);
         map2_degree = dist_p(rng);
         map3_degree = dist_p(rng);
-        // map4_degree = dist_p(rng);
-        // map5_degree = dist_p(rng);
         filter1_degree = dist_p(rng);
         filter2_degree = dist_p(rng);
         filter3_degree = dist_p(rng);

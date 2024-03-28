@@ -265,7 +265,7 @@ private:
     using result_t = decltype(get_result_t_P_FlatMap(func)); // extracting the result_t type and checking the admissible signatures
     std::vector<P_FlatMap_Replica<p_flatmap_func_t, keyextr_func_t> *> replicas; // vector of pointers to the replicas of the P_FlatMap
     bool sharedDb; // sharedBD flag
-    static constexpr op_type_t op_type = op_type_t::P_BASIC;
+    static constexpr op_type_t op_type = op_type_t::BASIC;
 
     // Configure the FlatMap to receive batches instead of individual inputs
     void receiveBatches(bool _input_batching) override

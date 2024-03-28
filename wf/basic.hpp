@@ -219,7 +219,7 @@ enum class ordering_mode_t { ID, TS };
 enum class role_t { SEQ, PLQ, WLQ, MAP, REDUCE };
 
 // Operator types
-enum class op_type_t { SOURCE, SINK, BASIC, P_BASIC, BASIC_GPU, WIN, P_WIN, WIN_PANED, WIN_MR, WIN_FFAT, WIN_FFAT_GPU };
+enum class op_type_t { SOURCE, SINK, BASIC, BASIC_GPU, WIN, WIN_PANED, WIN_MR, WIN_GPU };
 
 // Macros for the linux terminal colors
 #define DEFAULT_COLOR   "\033[0m"

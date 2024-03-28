@@ -87,16 +87,16 @@ int main(int argc, char *argv[])
     std::uniform_int_distribution<std::mt19937::result_type> dist_p(min, max);
     std::uniform_int_distribution<std::mt19937::result_type> dist_b(0, 10);
     int map1_degree, map2_degree, filter_degree, sink1_degree, sink2_degree;
-    size_t source1_degree = 4; dist_p(rng);
-    size_t source2_degree = 5; dist_p(rng);
+    size_t source1_degree = dist_p(rng);
+    size_t source2_degree = dist_p(rng);
     long last_result = 0;
     // executes the runs in DEFAULT mode
     for (size_t i=0; i<runs; i++) {
-        map1_degree = 6; dist_p(rng);
-        map2_degree = 7; dist_p(rng);
-        filter_degree = 8; dist_p(rng);
-        sink1_degree = 3; dist_p(rng);
-        sink2_degree = 3; dist_p(rng);
+        map1_degree = dist_p(rng);
+        map2_degree = dist_p(rng);
+        filter_degree = dist_p(rng);
+        sink1_degree = dist_p(rng);
+        sink2_degree = dist_p(rng);
         cout << "Run " << i << endl;
         cout << "+---------------------+                         +-----------+" << endl;
         cout << "|  +-----+   +-----+  |                         |  +-----+  |" << endl;
@@ -137,7 +137,6 @@ int main(int argc, char *argv[])
                         .withName("map1")
                         .withParallelism(map1_degree)
                         .withOutputBatchSize(dist_b(rng))
-                        .withBroadcast()
                         .build();
         pipe1.chain(map1);
         // prepare the second MultiPipe
@@ -153,7 +152,6 @@ int main(int argc, char *argv[])
                         .withName("map2")
                         .withParallelism(map2_degree)
                         .withOutputBatchSize(dist_b(rng))
-                        .withBroadcast()
                         .build();
         pipe2.chain(map2);
         // prepare the third MultiPipe
@@ -163,7 +161,6 @@ int main(int argc, char *argv[])
                         .withName("filter1")
                         .withParallelism(filter_degree)
                         .withOutputBatchSize(dist_b(rng))
-                        .withBroadcast()
                         .build();
         pipe3.chain(filter);
         // split
