@@ -379,7 +379,7 @@ public:
                 deleteBatch_t(batch_tobe_sent);
             }
             else {
-                (this->emitter)->emit_inplace(batch_tobe_sent, this); // send the output batch once computed
+                this->doEmit_inplace(this->emitter, batch_tobe_sent, this); // send the output batch once computed
                 this->dropped_inputs = 0;
             }
             batch_tobe_sent = nullptr;
@@ -580,7 +580,7 @@ public:
             deleteBatch_t(input);
         }
         else {
-            (this->emitter)->emit_inplace(input, this); // send the output batch once computed
+            this->doEmit_inplace(this->emitter, input, this); // send the output batch once computed
             this->dropped_inputs = 0;
         }
         id_r = (id_r + 1) % 2;

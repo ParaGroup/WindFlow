@@ -133,7 +133,10 @@ public:
     }
 
     /** 
-     *  \brief Get the timestamp of the current input (in microseconds starting from zero)
+     *  \brief Get the timestamp of the current input (in microseconds starting from zero).
+     *         In case of a non-incremental logic of windowed operators, it is the timestamp
+     *         of the tuple that triggered the window activation
+     *  
      *  \return timestamp value
      */ 
     uint64_t getCurrentTimestamp()

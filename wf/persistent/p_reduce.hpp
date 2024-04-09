@@ -175,7 +175,7 @@ public:
             func(_tuple, val, this->context);
         }
         mydb->put(val);
-        (this->emitter)->emit(&val, 0, _timestamp, _watermark, this);
+        this->doEmit(this->emitter, &val, 0, _timestamp, _watermark, this);
     }
 
     P_Reduce_Replica(P_Reduce_Replica &&) = delete; ///< Move constructor is deleted

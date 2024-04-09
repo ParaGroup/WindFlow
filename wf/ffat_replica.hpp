@@ -269,7 +269,7 @@ public:
             (key_d.fat).remove(slide_len); // purge the tuples in the last slide from FlatFAT
             uint64_t used_ts = (this->execution_mode != Execution_Mode_t::DEFAULT) ? _timestamp : _watermark;
             uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : _watermark;
-            (this->emitter)->emit(&out, 0, used_ts, used_wm, this);
+            this->doEmit(this->emitter, &out, 0, used_ts, used_wm, this);
 #if defined (WF_TRACING_ENABLED)
             (this->stats_record).outputs_sent++;
             (this->stats_record).bytes_sent += sizeof(result_t);
@@ -382,7 +382,7 @@ public:
             (key_d.fat).remove(slide_len); // purge the tuples in the last slide from FlatFAT
             uint64_t used_ts = (this->execution_mode != Execution_Mode_t::DEFAULT) ? _timestamp : _watermark;
             uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : _watermark;
-            (this->emitter)->emit(&out, 0, used_ts, used_wm, this);
+            this->doEmit(this->emitter, &out, 0, used_ts, used_wm, this);
 #if defined (WF_TRACING_ENABLED)
             stats_record.outputs_sent++;
             stats_record.bytes_sent += sizeof(result_t);
@@ -417,7 +417,7 @@ public:
                 result_t out = fat.getResult(gwid); // get a copy of the result of the fired window
                 fat.remove(slide_len); // purge the tuples in the last slide from FlatFAT
                 uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : last_time;
-                (this->emitter)->emit(&out, 0, last_time, used_wm, this);
+                this->doEmit(this->emitter, &out, 0, last_time, used_wm, this);
 #if defined (WF_TRACING_ENABLED)
                 (this->stats_record).outputs_sent++;
                 (this->stats_record).bytes_sent += sizeof(result_t);
@@ -448,7 +448,7 @@ public:
                 result_t out = fat.getResult(gwid); // get a copy the result of the fired window
                 fat.remove(slide_len); // purge the tuples from Flat FAT
                 uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : last_time;
-                (this->emitter)->emit(&out, 0, last_time, used_wm, this);
+                this->doEmit(this->emitter, &out, 0, last_time, used_wm, this);
 #if defined (WF_TRACING_ENABLED)
                 (this->stats_record).outputs_sent++;
                 (this->stats_record).bytes_sent += sizeof(result_t);

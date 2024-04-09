@@ -136,12 +136,12 @@ public:
             if (copyOnWrite) {
                 tuple_t t = _input->tuple;
                 func(t);
-                (this->emitter)->emit(&t, 0, _input->getTimestamp(), _input->getWatermark((this->context).getReplicaIndex()), this);
+                this->doEmit(this->emitter, &t, 0, _input->getTimestamp(), _input->getWatermark((this->context).getReplicaIndex()), this);
                 deleteSingle_t(_input); // delete the input Single_t
             }
             else {
                 func(_input->tuple);
-                (this->emitter)->emit_inplace(_input, this);
+                this->doEmit_inplace(this->emitter, _input, this);
             }
         }
         if constexpr (isInPlaceRiched)  { // inplace riched version
@@ -149,23 +149,23 @@ public:
             if (copyOnWrite) {
                 tuple_t t = _input->tuple;
                 func(t, this->context);
-                (this->emitter)->emit(&t, 0, _input->getTimestamp(), _input->getWatermark((this->context).getReplicaIndex()), this);
+                this->doEmit(this->emitter, &t, 0, _input->getTimestamp(), _input->getWatermark((this->context).getReplicaIndex()), this);
                 deleteSingle_t(_input); // delete the input Single_t
             }
             else {
                 func(_input->tuple, this->context);
-                (this->emitter)->emit_inplace(_input, this);
+                this->doEmit_inplace(this->emitter, _input, this);
             }
         }
         if constexpr (isNonInPlaceNonRiched) { // non-inplace non-riched version
             result_t res = func(_input->tuple);
-            (this->emitter)->emit(&res, 0, _input->getTimestamp(), _input->getWatermark((this->context).getReplicaIndex()), this);
+            this->doEmit(this->emitter, &res, 0, _input->getTimestamp(), _input->getWatermark((this->context).getReplicaIndex()), this);
             deleteSingle_t(_input); // delete the input Single_t
         }
         if constexpr (isNonInPlaceRiched) { // non-inplace riched version
             (this->context).setContextParameters(_input->getTimestamp(), _input->getWatermark((this->context).getReplicaIndex())); // set the parameter of the RuntimeContext
             result_t res = func(_input->tuple, this->context);
-            (this->emitter)->emit(&res, 0, _input->getTimestamp(), _input->getWatermark((this->context).getReplicaIndex()), this);
+            this->doEmit(this->emitter, &res, 0, _input->getTimestamp(), _input->getWatermark((this->context).getReplicaIndex()), this);
             deleteSingle_t(_input); // delete the input Single_t
         }
     }
@@ -179,11 +179,11 @@ public:
             if (copyOnWrite) {
                 tuple_t t = _tuple;
                 func(t);
-                (this->emitter)->emit(&t, 0, _timestamp, _watermark, this);
+                this->doEmit(this->emitter, &t, 0, _timestamp, _watermark, this);
             }
             else {
                 func(_tuple);
-                (this->emitter)->emit(&_tuple, 0, _timestamp, _watermark, this);
+                this->doEmit(this->emitter, &_tuple, 0, _timestamp, _watermark, this);
             }
         }
         if constexpr (isInPlaceRiched)  { // inplace riched version
@@ -191,21 +191,21 @@ public:
             if (copyOnWrite) {
                 tuple_t t = _tuple;
                 func(t, this->context);
-                (this->emitter)->emit(&t, 0, _timestamp, _watermark, this);
+                this->doEmit(this->emitter, &t, 0, _timestamp, _watermark, this);
             }
             else {
                 func(_tuple, this->context);
-                (this->emitter)->emit(&_tuple, 0, _timestamp, _watermark, this);
+                this->doEmit(this->emitter, &_tuple, 0, _timestamp, _watermark, this);
             }
         }
         if constexpr (isNonInPlaceNonRiched) { // non-inplace non-riched version
             result_t res = func(_tuple);
-            (this->emitter)->emit(&res, 0, _timestamp, _watermark, this);
+            this->doEmit(this->emitter, &res, 0, _timestamp, _watermark, this);
         }
         if constexpr (isNonInPlaceRiched) { // non-inplace riched version
             (this->context).setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
             result_t res = func(_tuple, this->context);
-            (this->emitter)->emit(&res, 0, _timestamp, _watermark, this);
+            this->doEmit(this->emitter, &res, 0, _timestamp, _watermark, this);
         }
     }
 

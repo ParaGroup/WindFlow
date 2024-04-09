@@ -67,6 +67,7 @@ private:
     uint64_t last_time_punct; // last time used to send punctuations
     std::vector<int> delivered; // delivered[i] is the number of outputs delivered to the i-th MultiPipe during the last sample
     uint64_t received_inputs; // total number of inputs received by the emitter
+    std::vector<doEmit_t> doEmits; // doEmit[i] is a pointer to the right doEmit method to call for the i-th emitter
 
     // Call the splitting function (used if it returns a single identifier)
     template<typename F_t=splitting_func_t>
@@ -114,7 +115,9 @@ public:
                       received_inputs(_other.received_inputs)
     {
         for (size_t i=0; i<(_other.emitters).size(); i++) { // deep copy of the internal emitters
-            emitters.push_back(((_other.emitters)[i])->clone());
+            Basic_Emitter *e = ((_other.emitters)[i])->clone();
+            emitters.push_back(e);
+            doEmits.push_back(e->get_doEmit());
         }
     }
 
@@ -151,20 +154,53 @@ public:
         abort(); // <-- this method cannot be used!
     }
 
+    // Static doEmit to call the right emit method
+    static void doEmit(Basic_Emitter *_emitter,
+                       void * _tuple,
+                       uint64_t _identifier,
+                       uint64_t _timestamp,
+                       uint64_t _watermark,
+                       ff::ff_monode *_node)
+    {
+        auto *_casted_emitter = static_cast<Splitting_Emitter<splitting_func_t> *>(_emitter);
+        _casted_emitter->emit(_tuple, _identifier, _timestamp, _watermark, _node);
+    }
+
+    // Get the pointer to the doEmit method
+    doEmit_t get_doEmit() const override
+    {
+        return Splitting_Emitter<splitting_func_t>::doEmit;
+    }
+
     // Emit method (non in-place version)
     void emit(void *_out,
               uint64_t _identifier,
               uint64_t _timestamp,
               uint64_t _watermark,
-              ff::ff_monode *_node) override
+              ff::ff_monode *_node)
     {
         received_inputs++;
         tuple_t *tuple = reinterpret_cast<tuple_t *>(_out);
         routing(*tuple, _timestamp, _watermark, _node);
     }
 
+    // Static doEmit_inplace to call the right emit_inplace method
+    static void emit_inplace(Basic_Emitter *_emitter,
+                             void * _tuple,
+                             ff::ff_monode *_node)
+    {
+        auto *_casted_emitter = static_cast<Splitting_Emitter<splitting_func_t> *>(_emitter);
+        _casted_emitter->emit_inplace(_tuple, _node);
+    }
+
+    // Get the pointer to the doEmit_inplace method
+    doEmit_inplace_t get_doEmit_inplace() const override
+    {
+        return Splitting_Emitter<splitting_func_t>::emit_inplace;
+    }
+
     // Emit method (in-place version)
-    void emit_inplace(void *_out, ff::ff_monode *_node) override
+    void emit_inplace(void *_out, ff::ff_monode *_node)
     {
         received_inputs++;
         Single_t<tuple_t> *output = reinterpret_cast<Single_t<tuple_t> *>(_out);
@@ -194,7 +230,7 @@ public:
             }
             tuple_t copy_tuple = _tuple; // copy the input tuple
             delivered[dests[idx]]++;
-            emitters[dests[idx]]->emit(&copy_tuple, 0, _timestamp, _watermark, _node); // call the logic of the emitter at position dests[idx]
+            doEmits[dests[idx]](emitters[dests[idx]], &copy_tuple, 0, _timestamp, _watermark, _node); // call the logic of the emitter at position dests[idx]
             auto &vect = emitters[dests[idx]]->getOutputQueue();
             for (auto msg: vect) { // send each message produced by emitters[dests[idx]]
                 size_t offset = 0;
@@ -284,6 +320,7 @@ public:
     {
         _e->setTreeMode(true); // all the emitters work in tree mode
         emitters.push_back(_e);
+        doEmits.push_back(_e->get_doEmit());
         num_dests += _e->getNumDestinations();
         assert(emitters.size() <= num_dest_mps); // sanity check
     }

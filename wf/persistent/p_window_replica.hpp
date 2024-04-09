@@ -476,7 +476,7 @@ public:
                     key_d.last_lwid++;
                     uint64_t used_ts = (this->execution_mode != Execution_Mode_t::DEFAULT) ? _timestamp : _watermark;
                     uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : _watermark;
-                    (this->emitter)->emit(&(res), 0, used_ts, used_wm, this);
+                    this->doEmit(this->emitter, &(res), 0, used_ts, used_wm, this);
 #if defined(WF_TRACING_ENABLED)
                     (this->stats_record).outputs_sent++;
                     (this->stats_record).bytes_sent += sizeof(result_t);
@@ -544,7 +544,7 @@ public:
                     }
                 }
                 uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : last_time;
-                (this->emitter)->emit(&(res), 0, last_time, used_wm, this);
+                this->doEmit(this->emitter, &(res), 0, last_time, used_wm, this);
                 result_it_list++;
 #if defined(WF_TRACING_ENABLED)
                 (this->stats_record).outputs_sent++;

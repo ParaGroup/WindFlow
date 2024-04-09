@@ -65,6 +65,8 @@ protected:
     Execution_Mode_t execution_mode; // execution mode of the operator replica
     bool isWinOP; // true if the replica belongs to a window-based operator
     bool isGpuOP; // true if the replica belongs to a GPU operator
+    doEmit_t doEmit = nullptr; // pointer to the doEmit method of the Emitter
+    doEmit_inplace_t doEmit_inplace = nullptr; // pointer to the doEmit_inplace method of the Emitter
 #if defined (WF_TRACING_ENABLED)
     Stats_Record stats_record;
     double avg_td_us = 0;
@@ -120,6 +122,8 @@ protected:
         }
         else {
             emitter = (_other.emitter)->clone(); // clone the emitter if it exists
+	        doEmit = emitter->get_doEmit();
+	        doEmit_inplace = emitter->get_doEmit_inplace();
         }
 #if defined (WF_TRACING_ENABLED)
         stats_record = _other.stats_record;
@@ -199,7 +203,10 @@ public:
     // Set the emitter used to route outputs from the operator replica
     virtual void setEmitter(Basic_Emitter *_emitter)
     {
+        assert(_emitter != nullptr); // sanity check
         emitter = _emitter;
+        doEmit = emitter->get_doEmit();
+        doEmit_inplace = emitter->get_doEmit_inplace();
     }
 
     // Check the termination of the operator replica

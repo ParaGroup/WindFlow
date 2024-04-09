@@ -42,6 +42,22 @@
 
 namespace wf {
 
+// Forward declaration of Basic_Emitter
+class Basic_Emitter;
+
+// pointer to the doEmit function (to avoid direct virtual call of emit)
+using doEmit_t = void (*) (Basic_Emitter *,
+                           void *,
+                           uint64_t,
+                           uint64_t,
+                           uint64_t,
+                           ff::ff_monode *);
+
+// pointer to the doEmit_inplace function (to avoid direct virtual call of emit_inplace)
+using doEmit_inplace_t = void (*) (Basic_Emitter *,
+                                   void *,
+                                   ff::ff_monode *);
+
 // class Basic_Emitter
 class Basic_Emitter
 {
@@ -81,11 +97,11 @@ public:
     // Get a reference to the vector of output messages used by the emitter (meaningful in tree-based mode only)
     virtual std::vector<std::pair<void *, size_t>> &getOutputQueue() = 0;
 
-    // Emit method (non in-place version)
-    virtual void emit(void *, uint64_t, uint64_t, uint64_t, ff::ff_monode *) = 0;
+    // Get the pointer to the right doEmit function to call based on the derived Emitter type
+    virtual doEmit_t get_doEmit() const = 0;
 
-    // Emit method (in-place version)
-    virtual void emit_inplace(void *, ff::ff_monode *) = 0;
+    // Get the pointer to the right doEmit_inplace function to call based on the derived Emitter type
+    virtual doEmit_inplace_t get_doEmit_inplace() const = 0;
 
     // Punctuation propagation method
     virtual void propagate_punctuation(uint64_t, ff::ff_monode *) = 0;

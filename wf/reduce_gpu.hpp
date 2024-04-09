@@ -262,7 +262,7 @@ public:
             (this->stats_record).outputs_sent += input->size;
             (this->stats_record).bytes_sent += input->size * sizeof(tuple_t);
 #endif
-            (this->emitter)->emit_inplace(input, this); // send the output batch once computed
+            this->doEmit_inplace(this->emitter, input, this); // send the output batch once computed
         }
         if constexpr (!isKeyed) { // version without key extractor
             thrust::device_ptr<batch_item_gpu_t<tuple_t>> th_data_gpu = thrust::device_pointer_cast(batch_data);
@@ -282,7 +282,7 @@ public:
             (this->stats_record).outputs_sent++;
             (this->stats_record).bytes_sent += sizeof(tuple_t);
 #endif
-            (this->emitter)->emit_inplace(input, this); // send the output batch once computed
+            this->doEmit_inplace(this->emitter, input, this); // send the output batch once computed
         }
         this->endStatsRecording();
         return this->GO_ON;

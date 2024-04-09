@@ -154,7 +154,7 @@ public:
             func(_tuple, (*it).second, this->context);
         }
         state_t result = (*it).second; // the result is a copy of the present state
-        (this->emitter)->emit(&result, 0, _timestamp, _watermark, this);
+        this->doEmit(this->emitter, &result, 0, _timestamp, _watermark, this);
     }
 
     Reduce_Replica(Reduce_Replica &&) = delete; ///< Move constructor is deleted

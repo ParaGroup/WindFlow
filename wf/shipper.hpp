@@ -65,6 +65,7 @@ private:
     uint64_t num_delivered; // counter of the delivered results
     uint64_t timestamp; // timestamp to be used for sending messages
     uint64_t watermark; // watermark to be used for sending messages
+    doEmit_t doEmit = nullptr; // pointer to the doEmit method of the Emitter
 #if defined (WF_TRACING_ENABLED)
     Stats_Record *stats_record = nullptr;
 
@@ -82,7 +83,10 @@ private:
             node(_node),
             num_delivered(0),
             timestamp(0),
-            watermark(0) {}
+            watermark(0)
+    {
+    	doEmit = emitter->get_doEmit();
+    }
 
     // Copy Constructor
     Shipper(const Shipper &_other):
@@ -93,6 +97,7 @@ private:
     {
         if (_other.emitter != nullptr) {
             emitter = (_other.emitter)->clone();
+            doEmit = emitter->get_doEmit();
         }
         else {
             emitter = nullptr;
@@ -142,7 +147,7 @@ public:
     void push(const result_t &_r)
     {
         result_t copy_result = _r; // copy of the result to be delivered
-        emitter->emit(&copy_result, 0, timestamp, watermark, node);
+        doEmit(this->emitter, &copy_result, 0, timestamp, watermark, node);
         num_delivered++;
 #if defined (WF_TRACING_ENABLED)
         assert(stats_record != nullptr);
@@ -158,7 +163,7 @@ public:
      */ 
     void push(result_t &&_r)
     {
-        emitter->emit(&_r, 0, timestamp, watermark, node);
+        doEmit(this->emitter, &_r, 0, timestamp, watermark, node);
         num_delivered++;
 #if defined (WF_TRACING_ENABLED)
         assert(stats_record != nullptr);

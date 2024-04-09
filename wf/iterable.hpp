@@ -342,6 +342,22 @@ public:
         }
         return (*(last-1)).tuple;
     }
+
+    /** 
+     *  \brief Get the index of the tuple at a given position
+     *  
+     *  \param i position of the tuple to be accessed
+     *  \return index of the selected tuple (the timestamp for TB windows,
+     *          otherwise it is a progressive identifier)
+     */ 
+    uint64_t getTupleIndex(size_t i) const
+    {
+        if (i >= num_tuples) {
+            std::cerr << RED << "WindFlow Error: index of the Iterable out-of-range" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        return (*(first+i)).index;
+    }
 };
 
 } // namespace wf

@@ -842,8 +842,8 @@ public:
                 key_d.count = batchSize;
                 (key_d.fatgpu).build(*(key_d.cudaStream));
                 Batch_GPU_t<result_t> *batch_output = allocateBatch_GPU_t<result_t>(numWinPerBatch, queue, inTransit_counter); // allocate the new batch
-                (key_d.fatgpu).computeResults(batch_output->data_gpu, key_d.next_gwid, _watermark, batch_output->cudaStream);
-                emitter->emit_inplace(batch_output, this); // send the output batch once computed
+                (key_d.fatgpu).computeResults(batch_output->data_gpu, key_d.next_gwid, _watermark, batch_output->cudaStream);                
+                this->doEmit_inplace(this->emitter, batch_output, this); // send the output batch once computed
                 key_d.next_gwid += numWinPerBatch;
                 key_d.count_triggerer += (slide_len*numWinPerBatch);
             }
@@ -855,7 +855,7 @@ public:
                 (key_d.fatgpu).update((slide_len*numWinPerBatch), *(key_d.cudaStream));
                 Batch_GPU_t<result_t> *batch_output = allocateBatch_GPU_t<result_t>(numWinPerBatch, queue, inTransit_counter); // allocate the new batch
                 (key_d.fatgpu).computeResults(batch_output->data_gpu, key_d.next_gwid, _watermark, batch_output->cudaStream);
-                emitter->emit_inplace(batch_output, this); // send the output batch once computed
+                this->doEmit_inplace(this->emitter, batch_output, this); // send the output batch once computed
                 key_d.next_gwid += numWinPerBatch;
                 key_d.count_triggerer += (slide_len*numWinPerBatch);
             }
@@ -1040,7 +1040,7 @@ public:
             }
             Batch_GPU_t<result_t> *batch_output = allocateBatch_GPU_t<result_t>(numWinPerBatch, queue, inTransit_counter); // allocate the new batch
             (key_d.fatgpu).computeResults(batch_output->data_gpu, key_d.next_gwid, _watermark, batch_output->cudaStream);
-            emitter->emit_inplace(batch_output, this); // send the output batch once computed
+            this->doEmit_inplace(this->emitter, batch_output, this); // send the output batch once computed
             key_d.next_gwid += numWinPerBatch;
             key_d.pane_id_triggerer += (slide_len*numWinPerBatch);
         }

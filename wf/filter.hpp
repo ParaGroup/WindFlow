@@ -143,7 +143,7 @@ public:
                 (this->stats_record).outputs_sent++;
                 (this->stats_record).bytes_sent += sizeof(tuple_t);
 #endif
-                (this->emitter)->emit_inplace(_input, this);
+                this->doEmit_inplace(this->emitter, _input, this);
                 this->dropped_inputs = 0;
             }
             else {
@@ -164,7 +164,7 @@ public:
                 (this->stats_record).outputs_sent++;
                 (this->stats_record).bytes_sent += sizeof(tuple_t);
 #endif
-                (this->emitter)->emit_inplace(_input, this);
+                this->doEmit_inplace(this->emitter, _input, this);
                 this->dropped_inputs = 0;
             }
             else {
@@ -191,7 +191,7 @@ public:
                 (this->stats_record).outputs_sent++;
                 (this->stats_record).bytes_sent += sizeof(tuple_t);
 #endif
-                (this->emitter)->emit(&_tuple, 0, _timestamp, _watermark, this);
+                this->doEmit(this->emitter, &_tuple, 0, _timestamp, _watermark, this);
                 this->dropped_inputs = 0;
             }
             else {
@@ -211,7 +211,7 @@ public:
                 (this->stats_record).outputs_sent++;
                 (this->stats_record).bytes_sent += sizeof(tuple_t);
 #endif
-                (this->emitter)->emit(&_tuple, 0, _timestamp, _watermark, this);
+                this->doEmit(this->emitter, &_tuple, 0, _timestamp, _watermark, this);
                 this->dropped_inputs = 0;
             }
             else {
