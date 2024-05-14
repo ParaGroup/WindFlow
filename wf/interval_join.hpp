@@ -109,12 +109,11 @@ private:
     {
         uint64_t buff_size;
         uint64_t buff_count;
-
-        // Constructor
         Buffer_Stats():
             buff_size(0),
             buff_count(0) {}
     };
+
     Buffer_Stats a_Buff;
     Buffer_Stats b_Buff;
     uint64_t last_sampled_size_time;
@@ -284,13 +283,13 @@ public:
             insertIntoBuffer(key_d, wrapper_t(_tuple, _timestamp), _tag);
         } else if (joinMode == Join_Mode_t::DP) {
             if constexpr(if_defined_hash<tuple_t>) {
-                uint64_t hash = fnv1a(std::hash<tuple_t>()(_tuple));
+                size_t hash = std::hash<tuple_t>()(_tuple);
                 size_t hash_idx = (hash % num_inner); // compute the hash index of the tuple
                 if (hash_idx == id_inner) {
                     insertIntoBuffer(key_d, wrapper_t(_tuple, _timestamp), _tag);
                 }
             } else {
-                uint64_t hash = fnv1a(_timestamp);
+                size_t hash = fnv1a_hash(&_timestamp);
                 size_t hash_idx = (hash % num_inner); // compute the hash index of the tuple
                 if (hash_idx == id_inner) {
                     insertIntoBuffer(key_d, wrapper_t(_tuple, _timestamp), _tag);
@@ -298,31 +297,16 @@ public:
             }
         }
         purgeBuffers(key_d);
-
-#if defined (WF_JOIN_STATS)
-        if (joinMode == Join_Mode_t::DP) {
-            uint64_t delta = (current_time_nsecs() - last_sampled_size_time) / 1e06; //ms
-            if ( delta >= 250 )
-            {
-                for (auto &k: keyMap) {
-                    Key_Descriptor &key_d = (k.second);
-                    a_Buff.buff_size += (key_d.archiveA).size();
-                    b_Buff.buff_size += (key_d.archiveB).size();
-                }
-                a_Buff.buff_count++;
-                b_Buff.buff_count++;
-                last_sampled_size_time = current_time_nsecs();
-            }
-        }
-#endif
     }
 
-    inline uint64_t fnv1a(uint64_t eightBytes, uint64_t hash = 0xcbf29ce484222325) {
-        const unsigned char* ptr = (const unsigned char*) &eightBytes;
-        for(size_t i = 0; i < sizeof(uint64_t); i++)
-        {
-            hash ^= (uint64_t)*ptr++;
-            hash *= 0x100000001b3;
+    inline const size_t fnv1a_hash(const void* key, const size_t len = sizeof(uint64_t)) {
+        const char* data = (char*)key;
+        const size_t prime = 0x1000193;
+        size_t hash = 0x811c9dc5;
+        for(int i = 0; i < len; ++i) {
+            uint8_t value = data[i];
+            hash = hash ^ value;
+            hash *= prime;
         }
         return hash;
     }
@@ -358,14 +342,11 @@ public:
     {
         double mean = 0.0;
         if (stream == Join_Stream_t::A) {
-            mean = static_cast<double>(a_Buff.buff_size) / static_cast<double>(a_Buff.buff_count);
+            mean = static_cast<double>(a_Buff.buff_size) / a_Buff.buff_count;
         } else {
-            mean = static_cast<double>(b_Buff.buff_size) / static_cast<double>(b_Buff.buff_count);
+            mean = static_cast<double>(b_Buff.buff_size) / b_Buff.buff_count;
         }
-        if (std::isnan(mean)) {
-            mean = 0.0;
-        }
-        return mean;
+        return std::isnan(mean) ? 0.0 : mean;
     }
 
     // Get the number of ignored tuples
