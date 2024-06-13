@@ -84,8 +84,8 @@ enum class Time_Policy_t { INGRESS_TIME, EVENT_TIME };
 enum class Win_Type_t { CB, TB }; // CB = count based, TB = time based
 
 /// Supported interval join operating modes
-// KP = Key Parallelism, DPS = Data Parallelism with single-key buffers, DPM = Data Parallelism with multi-key buffers
-enum class Interval_Join_Mode_t { NONE, KP, DPS };
+// KP = Key Parallelism, DP = Data Parallelism with single-key buffers
+enum class Join_Mode_t { NONE, KP, DP };
 
 enum class Join_Stream_t { NONE, A, B };
 

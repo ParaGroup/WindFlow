@@ -1420,7 +1420,7 @@ private:
     bool isKeyBySet = false; // true if a key extractor has been provided
     int64_t lower_bound=0; // lower bound of the interval
     int64_t upper_bound=0; // upper bound of the interval
-    Interval_Join_Mode_t join_mode = Interval_Join_Mode_t::NONE;
+    Join_Mode_t join_mode = Join_Mode_t::NONE;
 
 
 public:
@@ -1462,7 +1462,7 @@ public:
         Interval_Join_Builder<join_func_t, new_key_t> new_builder(func);
         new_builder.name = this->name;
         new_builder.parallelism = this->parallelism;
-        new_builder.input_routing_mode = Routing_Mode_t::KEYBY;
+        //new_builder.input_routing_mode = Routing_Mode_t::KEYBY;
         new_builder.key_extr = _key_extr;
         new_builder.outputBatchSize = this->outputBatchSize;
         new_builder.closing_func = this->closing_func;
@@ -1506,11 +1506,12 @@ public:
             std::cerr << RED << "WindFlow Error: Interval_Join with key parallelism mode requires a key extractor" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        if (join_mode != Interval_Join_Mode_t::NONE) {
+        if (join_mode != Join_Mode_t::NONE) {
             std::cerr << RED << "WindFlow Error: wrong use of withKPMode() in the Interval_Join_Builder, you can specify only one mode per join operator " << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        join_mode = Interval_Join_Mode_t::KP;
+        input_routing_mode = Routing_Mode_t::KEYBY;
+        join_mode = Join_Mode_t::KP;
         return *this;
     }
 
@@ -1525,12 +1526,12 @@ public:
             std::cerr << RED << "WindFlow Error: Interval_Join with data parallelism mode requires a key extractor" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        if (join_mode != Interval_Join_Mode_t::NONE) {
+        if (join_mode != Join_Mode_t::NONE) {
             std::cerr << RED << "WindFlow Error: wrong use of withKPMode() in the Interval_Join_Builder, you can specify only one mode per join operator " << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        join_mode = Interval_Join_Mode_t::DPS;
         input_routing_mode = Routing_Mode_t::BROADCAST;
+        join_mode = Join_Mode_t::DP;
         return *this;
     }
 
@@ -1542,7 +1543,7 @@ public:
     auto build()
     {
         // check if the mode is selected
-        if (join_mode == Interval_Join_Mode_t::NONE) {
+        if (join_mode == Join_Mode_t::NONE) {
             std::cerr << RED << "WindFlow Error: at least one mode per join operator is need to be selected in the builder" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }

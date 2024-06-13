@@ -124,7 +124,7 @@ int main(int argc, char *argv[])
         cout << "|  +-----+   +-----+  |   |    |  +-----+  |   |" << endl;
         cout << "|  |  S  |   |  M  |  |   |    +-----------+   |    +---------------------+" << endl;
         cout << "|  | (" << source2_degree << ") +-->+ (" << map1_degree << ") |  +---+                    |    |  +-----+   +-----+  |" << endl;
-        cout << "|  +-----+   +-----+  |                        |    |  |  M  |   |  S  |  |" << endl;
+        cout << "|  +-----+   +-----+  |                        |    |  | FM  |   |  S  |  |" << endl;
         cout << "+---------------------+                        +--->+  | (" << flatmap_degree << ") +-->+ (" << sink_degree << ") |  |" << endl;
         cout << "                                               |    |  +-----+   +-----+  |" << endl;
         cout << "+---------------------+                        |    +---------------------+" << endl;
@@ -198,7 +198,7 @@ int main(int argc, char *argv[])
         Map map2 = Map_Builder(map_functor2)
                         .withName("map2")
                         .withParallelism(map2_degree)
-                        .withOutputBatchSize(dist_b(rng))
+                        //.withOutputBatchSize(dist_b(rng))
                         .build();
         pipe4.chain(map2);
         // prepare the fifth MultiPipe
@@ -254,7 +254,7 @@ int main(int argc, char *argv[])
         cout << "|  +-----+   +-----+  |   |    |  +-----+  |   |" << endl;
         cout << "|  |  S  |   |  M  |  |   |    +-----------+   |    +---------------------+" << endl;
         cout << "|  | (" << source2_degree << ") +-->+ (" << map1_degree << ") |  +---+                    |    |  +-----+   +-----+  |" << endl;
-        cout << "|  +-----+   +-----+  |                        |    |  |  M  |   |  S  |  |" << endl;
+        cout << "|  +-----+   +-----+  |                        |    |  | FM  |   |  S  |  |" << endl;
         cout << "+---------------------+                        +--->+  | (" << flatmap_degree << ") +-->+ (" << sink_degree << ") |  |" << endl;
         cout << "                                               |    |  +-----+   +-----+  |" << endl;
         cout << "+---------------------+                        |    +---------------------+" << endl;

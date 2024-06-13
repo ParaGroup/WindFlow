@@ -86,17 +86,21 @@ private:
     {
         JoinArchive<tuple_t, compare_func_t> archiveA; // archive of stream A tuples of this key
         JoinArchive<tuple_t, compare_func_t> archiveB; // archive of stream B tuples of this key
+        uint64_t checkpoint_a;
+        uint64_t checkpoint_b;
 
         // Constructor
         Key_Descriptor(compare_func_t _compare_func):
                         archiveA(_compare_func),
-                        archiveB(_compare_func) {}
+                        archiveB(_compare_func),
+                        checkpoint_a(0),
+                        checkpoint_b(0) {}
     };
 
     compare_func_t compare_func; // function to compare wrapped to an uint64 that rapresent an timestamp ( or watermark )
     int64_t lower_bound; // lower bound of the interval ( ts - lower_bound )
     int64_t upper_bound; // upper bound of the interval ( ts + upper_bound )
-    Interval_Join_Mode_t joinMode; // Interval Join operating mode
+    Join_Mode_t joinMode; // Interval Join operating mode
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     uint64_t last_time; // last received watermark or timestamp
     size_t ignored_tuples; // number of ignored tuples
@@ -105,12 +109,11 @@ private:
     {
         uint64_t buff_size;
         uint64_t buff_count;
-
-        // Constructor
         Buffer_Stats():
             buff_size(0),
             buff_count(0) {}
     };
+
     Buffer_Stats a_Buff;
     Buffer_Stats b_Buff;
     uint64_t last_sampled_size_time;
@@ -127,7 +130,7 @@ public:
                 std::function<void(RuntimeContext &)> _closing_func,
                 int64_t _lower_bound,
                 int64_t _upper_bound,
-                Interval_Join_Mode_t _join_mode,
+                Join_Mode_t _join_mode,
                 size_t _id_inner,
                 size_t _num_inner):
                 Basic_Replica(_opName, _context, _closing_func, false),
@@ -257,7 +260,7 @@ public:
             it = p.first;
         }
         Key_Descriptor &key_d = (*it).second;
-        
+
         uint64_t l_b = 0;
         if (isStreamA(_tag)) {
             if (-lower_bound <= static_cast<int64_t>(_timestamp))  { l_b = _timestamp + lower_bound; }
@@ -281,10 +284,6 @@ public:
             }
             if constexpr (isRiched)  { // inplace riched version
                 (this->context).setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
-                /* uint64_t & a_field = this->context.getLocalStorage().get<uint64_t>("a_ts");
-                uint64_t & b_field = this->context.getLocalStorage().get<uint64_t>("b_ts");
-                a_field = isStreamA(_tag) ? _timestamp : interval.index_at(i);
-                b_field = isStreamA(_tag) ? interval.index_at(i) : _timestamp; */
                 output = isStreamA(_tag) ? func(_tuple, interval.at(i), this->context) : func(interval.at(i), _tuple, this->context);
             }
             if (output) {
@@ -297,17 +296,17 @@ public:
             }
         }
 
-        if (joinMode == Interval_Join_Mode_t::KP) {
+        if (joinMode == Join_Mode_t::KP) {
             insertIntoBuffer(key_d, wrapper_t(_tuple, _timestamp), _tag);
-        } else if (joinMode == Interval_Join_Mode_t::DPS) {
+        } else if (joinMode == Join_Mode_t::DP) {
             if constexpr(if_defined_hash<tuple_t>) {
-                size_t hash = fnv1a(std::hash<tuple_t>()(_tuple));
+                size_t hash = std::hash<tuple_t>()(_tuple);
                 size_t hash_idx = (hash % num_inner); // compute the hash index of the tuple
                 if (hash_idx == id_inner) {
                     insertIntoBuffer(key_d, wrapper_t(_tuple, _timestamp), _tag);
                 }
             } else {
-                size_t hash = fnv1a(std::hash<uint64_t>()(_timestamp)/1000);
+                size_t hash = fnv1a_hash(&_timestamp);
                 size_t hash_idx = (hash % num_inner); // compute the hash index of the tuple
                 if (hash_idx == id_inner) {
                     insertIntoBuffer(key_d, wrapper_t(_tuple, _timestamp), _tag);
@@ -317,12 +316,16 @@ public:
         purgeBuffers(key_d);
     }
 
-    inline uint32_t fnv1a(uint32_t fourBytes, uint32_t hash = 0x811C9DC5) {
-        const unsigned char* ptr = (const unsigned char*) &fourBytes;
-        hash = (*ptr++ ^ hash) * 0x01000193;
-        hash = (*ptr++ ^ hash) * 0x01000193;
-        hash = (*ptr++ ^ hash) * 0x01000193;
-        return (*ptr ^ hash) * 0x01000193;
+    inline const size_t fnv1a_hash(const void* key, const size_t len = sizeof(uint64_t)) {
+        const char* data = (char*)key;
+        const size_t prime = 0x1000193;
+        size_t hash = 0x811c9dc5;
+        for(int i = 0; i < len; ++i) {
+            uint8_t value = data[i];
+            hash = hash ^ value;
+            hash *= prime;
+        }
+        return hash;
     }
 
     inline bool isStreamA(Join_Stream_t stream) const
@@ -332,16 +335,16 @@ public:
 
     inline void insertIntoBuffer(Key_Descriptor &_key_d, wrapper_t _wt, Join_Stream_t stream)
     {
-        (stream == Join_Stream_t::A) ? (_key_d.archiveA).insert(_wt) : (_key_d.archiveB).insert(_wt);
+        isStreamA(stream) ? (_key_d.archiveA).insert(_wt) : (_key_d.archiveB).insert(_wt);
     }
 
     void purgeBuffers(Key_Descriptor &_key_d)
     {
         uint64_t idx_a = 0, idx_b = 0;
-        if ((upper_bound) <= static_cast<int64_t>(last_time))  { idx_a = last_time - (upper_bound); }
-        if (-(lower_bound) <= static_cast<int64_t>(last_time)) { idx_b = last_time + (lower_bound); }
-        (_key_d.archiveA).purge(idx_b);
-        (_key_d.archiveB).purge(idx_a);
+        if ((upper_bound) <= static_cast<int64_t>(last_time))  { idx_a = last_time - upper_bound; }
+        if (-(lower_bound) <= static_cast<int64_t>(last_time)) { idx_b = last_time + lower_bound; }
+        (_key_d.archiveA).purge(idx_a);
+        (_key_d.archiveB).purge(idx_b);
     }
 
     void purgeWithPunct()
@@ -356,14 +359,11 @@ public:
     {
         double mean = 0.0;
         if (stream == Join_Stream_t::A) {
-            mean = static_cast<double>(a_Buff.buff_size) / static_cast<double>(a_Buff.buff_count);
+            mean = static_cast<double>(a_Buff.buff_size) / a_Buff.buff_count;
         } else {
-            mean = static_cast<double>(b_Buff.buff_size) / static_cast<double>(b_Buff.buff_count);
+            mean = static_cast<double>(b_Buff.buff_size) / b_Buff.buff_count;
         }
-        if (std::isnan(mean)) {
-            mean = 0.0;
-        }
-        return mean;
+        return std::isnan(mean) ? 0.0 : mean;
     }
 
     // Get the number of ignored tuples
@@ -398,7 +398,7 @@ private:
     std::vector<IJoin_Replica<join_func_t, keyextr_func_t>*> replicas; // vector of pointers to the replicas of the Interval Join
     int64_t lower_bound; // lower bound of the interval, can be negative ( ts + lower_bound )
     int64_t upper_bound; // upper bound of the interval, can be negative ( ts + upper_bound )
-    Interval_Join_Mode_t joinMode; // Interval Join operating mode
+    Join_Mode_t joinMode; // Interval Join operating mode
 
     using tuple_t = decltype(get_tuple_t_Join(func)); // extracting the tuple_t type and checking the admissible signatures
     using result_t = decltype(get_result_t_Join(func)); // extracting the result_t type and checking the admissible signatures
@@ -480,11 +480,11 @@ private:
         writer.Key("Uper_Bound");
         writer.Int64(upper_bound);
         writer.Key("Join_Mode");
-        if (this->joinMode == Interval_Join_Mode_t::KP) {
+        if (this->joinMode == Join_Mode_t::KP) {
             writer.String("Key-Parallelism");
         }
-        else if (this->joinMode == Interval_Join_Mode_t::DPS) {
-            writer.String("Data-Parallelism_Single-Buffer");
+        else if (this->joinMode == Join_Mode_t::DP) {
+            writer.String("Data-Parallelism");
         }
         writer.Key("Replicas");
         writer.StartArray();
@@ -521,7 +521,7 @@ public:
                   std::function<void(RuntimeContext &)> _closing_func,
                   int64_t _lower_bound,
                   int64_t _upper_bound,
-                  Interval_Join_Mode_t _join_mode):
+                  Join_Mode_t _join_mode):
                   Basic_Operator(_parallelism, _name, _input_routing_mode, _outputBatchSize),
                   func(_func),
                   key_extr(_key_extr),
@@ -552,7 +552,7 @@ public:
     ~Interval_Join() override
     {
 #if defined (WF_JOIN_STATS)
-        if (joinMode == Interval_Join_Mode_t::DPS && this->isTerminated()) {
+        if (joinMode == Join_Mode_t::DP && this->isTerminated()) {
             printBufferStats(Join_Stream_t::A);
             printBufferStats(Join_Stream_t::B);
         }
@@ -596,7 +596,7 @@ public:
      */ 
     std::string getType() const override
     {
-        return std::string("Interval_Join");
+        return joinMode == Join_Mode_t::KP ? std::string("Interval_Join_KP") : std::string("Interval_Join_DP");
     }
 
     Interval_Join(Interval_Join &&) = delete; ///< Move constructor is deleted
