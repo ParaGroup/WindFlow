@@ -227,6 +227,23 @@ public:
             return;
         }
 
+#if defined (WF_JOIN_STATS)
+        if (joinMode == Interval_Join_Mode_t::DPS) {
+            uint64_t delta = (current_time_nsecs() - last_sampled_size_time) / 1e06; //ms
+            if ( delta >= 250 )
+            {
+                for (auto &k: keyMap) {
+                    Key_Descriptor &key_d = (k.second);
+                    a_Buff.buff_size += (key_d.archiveA).size();
+                    b_Buff.buff_size += (key_d.archiveB).size();
+                }
+                a_Buff.buff_count++;
+                b_Buff.buff_count++;
+                last_sampled_size_time = current_time_nsecs();
+            }
+        }
+#endif
+
         if (this->execution_mode == Execution_Mode_t::DEFAULT) {
             assert(last_time <= _watermark); // sanity check
             last_time = _watermark;
