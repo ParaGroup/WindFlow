@@ -228,7 +228,7 @@ public:
         }
 
 #if defined (WF_JOIN_STATS)
-        if (joinMode == Interval_Join_Mode_t::DPS) {
+        if (joinMode == Join_Mode_t::DP) {
             uint64_t delta = (current_time_nsecs() - last_sampled_size_time) / 1e06; //ms
             if ( delta >= 250 )
             {
@@ -565,17 +565,17 @@ public:
     void printBufferStats(Join_Stream_t stream) {
         std::cout << (stream == Join_Stream_t::A ? "A" : "B") << " Buffer Stats: " << std::endl;
         uint64_t num_replicas = replicas.size();
-        double acc_size = 0.0;
+        double acc_mean = 0.0;
         int i = 0;
         for (auto *r: replicas) {
             std::cout << (i+1) << " Replica mean -> " << r->getBufferMeanSize(stream) << std::endl;
-            acc_size += r->getBufferMeanSize(stream);
+            acc_mean += r->getBufferMeanSize(stream);
             i++;
         }
-        double mean_size = static_cast<double>(acc_size) / num_replicas;
-        std::cout << "Mean Buffer Size -> " << mean_size << std::endl;
+        double mean_size = static_cast<double>(acc_mean) / num_replicas;
+        std::cout << "Global Mean Buffer Size -> " << mean_size << std::endl;
         // Check distribution
-        /*
+        
         double variance = 0;
         for (auto *r: replicas) {
             double diff = r->getBufferMeanSize(stream) - mean_size;
@@ -583,11 +583,11 @@ public:
         }
         variance = variance / num_replicas;
         double stddev = sqrt(variance);
-        double threshold_balance = (0.3*mean_size);
+        double threshold_balance = (0.2*mean_size);
         std::string check_balance = stddev < threshold_balance ? " ✔ " : " ✘ ";
         std::cout << std::fixed << std::setprecision(2);
         std::cout << "Variance -> " << variance << ", stddev -> " << stddev << " | Balance threshold -> " << stddev << "<" << threshold_balance << check_balance << std::endl;
-        */
+       
     }
 
     /** 
