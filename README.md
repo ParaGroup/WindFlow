@@ -7,8 +7,6 @@
 
 <p align="center"><img src="https://paragroup.github.io/WindFlow/img/logo_white.png" width="400" title="WindFlow Logo"></p>
 
-<b>NEWS</b>: version <b>4.0.0</b> has been released on XX Feb, 2024. It keeps the same API of versions 3.x.
-
 # Introduction
 WindFlow is a C++17 header-only library for parallel data stream processing targeting heterogeneous shared-memory architectures equipped with multi-core CPUs and NVIDIA GPUs. The library provides traditional stream processing operators like map, flatmap, filter, reduce as well as window-based operators. The API allows building streaming applications through the <b>MultiPipe</b> and the <b>PipeGraph</b> programming constructs. The first is used to create parallel pipelines (with shuffle connections), while the second allows several <b>MultiPipe</b> instances to be interconnected through <b>merge</b> and <b>split</b> operations, in order to create complex directed acyclic graphs of interconnected operators.
 
