@@ -9,7 +9,7 @@
  *      the Free Software Foundation, either version 3 of the License, or
  *      (at your option) any later version
  *    OR
- *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/master/LICENSE.MIT
  *  
  *  WindFlow is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -293,7 +293,7 @@ public:
             std::cerr << RED << "WindFlow Error: pthread_spin_unlock() failed in Map_GPU" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        (this->emitter)->emit_inplace(input, this); // send the output batch once computed
+        this->doEmit_inplace(this->emitter, input, this); // send the output batch once computed
         this->endStatsRecording();
         return this->GO_ON;
     }
@@ -403,7 +403,7 @@ public:
                                                                                          func);
         gpuErrChk(cudaPeekAtLastError());
         gpuErrChk(cudaStreamSynchronize(input->cudaStream)); // <-- I think that this one is not really needed!
-        (this->emitter)->emit_inplace(input, this); // send the output batch once computed
+        this->doEmit_inplace(this->emitter, input, this); // send the output batch once computed
         this->endStatsRecording();
         return this->GO_ON;
     }

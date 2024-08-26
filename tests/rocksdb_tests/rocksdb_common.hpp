@@ -9,7 +9,7 @@
  *      the Free Software Foundation, either version 3 of the License, or
  *      (at your option) any later version
  *    OR
- *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/master/LICENSE.MIT
  *  
  *  WindFlow is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -467,7 +467,7 @@ public:
         if (out) {
             received++;
             totalsum += (*out).value;
-            std::cout << "Ricevuto risultato finestra wid: " << (*out).wid << ", chiave: " << (*out).key << ", valore: " << (*out).value << std::endl;
+            // std::cout << "Ricevuto risultato finestra wid: " << (*out).wid << ", chiave: " << (*out).key << ", valore: " << (*out).value << std::endl;
         }
         else {
             // printf("Received: %ld results, total sum: %ld\n", received, totalsum);

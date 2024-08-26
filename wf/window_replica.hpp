@@ -9,7 +9,7 @@
  *      the Free Software Foundation, either version 3 of the License, or
  *      (at your option) any later version
  *    OR
- *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/master/LICENSE.MIT
  *  
  *  WindFlow is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -331,16 +331,16 @@ public:
                     uint64_t used_ts = (this->execution_mode != Execution_Mode_t::DEFAULT) ? _timestamp : _watermark;
                     uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : _watermark;
                     if (role == role_t::MAP) { // special case: role is MAP
-                        (this->emitter)->emit(&(win.getResult()), key_d.next_res_id, used_ts, used_wm, this);
+                        this->doEmit(this->emitter, &(win.getResult()), key_d.next_res_id, used_ts, used_wm, this);
                         key_d.next_res_id += map_indexes.second;
                     }
                     else if (role == role_t::PLQ) { // special case: role is PLQ
                         uint64_t new_id = ((id_inner - (hashcode % num_inner) + num_inner) % num_inner) + (key_d.next_res_id * num_inner);
-                        (this->emitter)->emit(&(win.getResult()), new_id, used_ts, used_wm, this);
+                        this->doEmit(this->emitter, &(win.getResult()), new_id, used_ts, used_wm, this);
                         key_d.next_res_id++;
                     }
                     else { // standard case
-                        (this->emitter)->emit(&(win.getResult()), 0, used_ts, used_wm, this);
+                        this->doEmit(this->emitter, &(win.getResult()), 0, used_ts, used_wm, this);
                     }
 #if defined (WF_TRACING_ENABLED)
                     (this->stats_record).outputs_sent++;
@@ -386,17 +386,17 @@ public:
                 }
                 uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : last_time;
                 if (role == role_t::MAP) { // special case: role is MAP
-                    (this->emitter)->emit(&(win.getResult()), key_d.next_res_id, last_time, used_wm, this);
+                    this->doEmit(this->emitter, &(win.getResult()), key_d.next_res_id, last_time, used_wm, this);
                     key_d.next_res_id += map_indexes.second;
                 }
                 else if (role == role_t::PLQ) { // special case: role is PLQ
                     size_t hashcode = std::hash<typename std::remove_const<key_t>::type>()(k.first); // compute the hashcode of the key
                     uint64_t new_id = ((id_inner - (hashcode % num_inner) + num_inner) % num_inner) + (key_d.next_res_id * num_inner);
-                    (this->emitter)->emit(&(win.getResult()), new_id, last_time, used_wm, this);
+                    this->doEmit(this->emitter, &(win.getResult()), new_id, last_time, used_wm, this);
                     key_d.next_res_id++;
                 }
                 else { // standard case
-                    (this->emitter)->emit(&(win.getResult()), 0, last_time, used_wm, this);
+                    this->doEmit(this->emitter, &(win.getResult()), 0, last_time, used_wm, this);
                 }
 #if defined (WF_TRACING_ENABLED)
                 (this->stats_record).outputs_sent++;

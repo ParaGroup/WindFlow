@@ -9,7 +9,7 @@
  *      the Free Software Foundation, either version 3 of the License, or
  *      (at your option) any later version
  *    OR
- *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/master/LICENSE.MIT
  *  
  *  WindFlow is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -97,8 +97,6 @@ int main(int argc, char *argv[])
         map1_degree = dist_p(rng);
         map2_degree = dist_p(rng);
         filter_degree = dist_p(rng);
-        // sink1_degree = dist_p(rng);
-        // sink2_degree = dist_p(rng);
         cout << "Run " << i << endl;
         cout << "+---------------------+                         +-----------+" << endl;
         cout << "|  +-----+   +-----+  |                         |  +-----+  |" << endl;
@@ -215,8 +213,6 @@ int main(int argc, char *argv[])
         map1_degree = dist_p(rng);
         map2_degree = dist_p(rng);
         filter_degree = dist_p(rng);
-        // sink1_degree = dist_p(rng);
-        // sink2_degree = dist_p(rng);
         cout << "Run " << i << endl;
         cout << "+---------------------+                         +-----------+" << endl;
         cout << "|  +-----+   +-----+  |                         |  +-----+  |" << endl;

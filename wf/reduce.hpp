@@ -9,7 +9,7 @@
  *      the Free Software Foundation, either version 3 of the License, or
  *      (at your option) any later version
  *    OR
- *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/master/LICENSE.MIT
  *  
  *  WindFlow is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -154,7 +154,7 @@ public:
             func(_tuple, (*it).second, this->context);
         }
         state_t result = (*it).second; // the result is a copy of the present state
-        (this->emitter)->emit(&result, 0, _timestamp, _watermark, this);
+        this->doEmit(this->emitter, &result, 0, _timestamp, _watermark, this);
     }
 
     Reduce_Replica(Reduce_Replica &&) = delete; ///< Move constructor is deleted

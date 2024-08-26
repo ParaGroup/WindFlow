@@ -9,7 +9,7 @@
  *      the Free Software Foundation, either version 3 of the License, or
  *      (at your option) any later version
  *    OR
- *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/master/LICENSE.MIT
  *  
  *  WindFlow is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -186,12 +186,30 @@ public:
         return output_queue;
     }
 
+    // Static doEmit to call the right emit method
+    static void doEmit(Basic_Emitter *_emitter,
+                       void * _tuple,
+                       uint64_t _identifier,
+                       uint64_t _timestamp,
+                       uint64_t _watermark,
+                       ff::ff_monode *_node)
+    {
+        auto *_casted_emitter = static_cast<Forward_Emitter_GPU<keyextr_func_gpu_t, inputGPU, outputGPU> *>(_emitter);
+        _casted_emitter->emit(_tuple, _identifier, _timestamp, _watermark, _node);
+    }
+
+    // Get the pointer to the doEmit method
+    doEmit_t get_doEmit() const override
+    {
+        return Forward_Emitter_GPU<keyextr_func_gpu_t, inputGPU, outputGPU>::doEmit;
+    }
+
     // Emit method (non in-place version)
     void emit(void *_out,
               uint64_t _identifier,
               uint64_t _timestamp,
               uint64_t _watermark,
-              ff::ff_monode *_node) override
+              ff::ff_monode *_node)
     {
         if constexpr (!inputGPU && outputGPU) { // CPU->GPU case
             tuple_t *tuple = reinterpret_cast<tuple_t *>(_out);
@@ -202,8 +220,23 @@ public:
         }
     }
 
+    // Static doEmit_inplace to call the right emit_inplace method
+    static void emit_inplace(Basic_Emitter *_emitter,
+                             void * _tuple,
+                             ff::ff_monode *_node)
+    {
+        auto *_casted_emitter = static_cast<Forward_Emitter_GPU<keyextr_func_gpu_t, inputGPU, outputGPU> *>(_emitter);
+        _casted_emitter->emit_inplace(_tuple, _node);
+    }
+
+    // Get the pointer to the doEmit_inplace method
+    doEmit_inplace_t get_doEmit_inplace() const override
+    {
+        return Forward_Emitter_GPU<keyextr_func_gpu_t, inputGPU, outputGPU>::emit_inplace;
+    }
+
     // Emit method (in-place version)
-    void emit_inplace(void *_out, ff::ff_monode *_node) override
+    void emit_inplace(void *_out, ff::ff_monode *_node)
     {
         if constexpr (!inputGPU && outputGPU) { // CPU->GPU case
             Single_t<tuple_t> *output = reinterpret_cast<Single_t<tuple_t> *>(_out);

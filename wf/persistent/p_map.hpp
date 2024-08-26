@@ -9,7 +9,7 @@
  *      the Free Software Foundation, either version 3 of the License, or
  *      (at your option) any later version
  *    OR
- *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/master/LICENSE.MIT
  *  
  *  WindFlow is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -180,11 +180,11 @@ public:
             if (copyOnWrite) {
                 tuple_t t = _tuple;
                 func(t, val);
-                (this->emitter)->emit(&t, 0, _timestamp, _watermark, this);
+                this->doEmit(this->emitter, &t, 0, _timestamp, _watermark, this);
             }
             else {
                 func(_tuple, val);
-                (this->emitter)->emit(&_tuple, 0, _timestamp, _watermark, this);
+                this->doEmit(this->emitter, &_tuple, 0, _timestamp, _watermark, this);
             }
         }
         if constexpr (isInPlaceRiched) { // inplace riched version
@@ -192,21 +192,21 @@ public:
             if (copyOnWrite) {
                 tuple_t t = _tuple;
                 func(t, val, this->context);
-                (this->emitter)->emit(&t, 0, _timestamp, _watermark, this);
+                this->doEmit(this->emitter, &t, 0, _timestamp, _watermark, this);
             }
             else {
                 func(_tuple, val, this->context);
-                (this->emitter)->emit(&_tuple, 0, _timestamp, _watermark, this);
+                this->doEmit(this->emitter, &_tuple, 0, _timestamp, _watermark, this);
             }
         }
         if constexpr (isNonInPlaceNonRiched) { // non-inplace non-riched version
             result_t res = func(_tuple, val);
-            (this->emitter)->emit(&res, 0, _timestamp, _watermark, this);
+            this->doEmit(this->emitter, &res, 0, _timestamp, _watermark, this);
         }
         if constexpr (isNonInPlaceRiched) { // non-inplace riched version
             (this->context).setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
             result_t res = func(_tuple, val, this->context);
-            (this->emitter)->emit(&res, 0, _timestamp, _watermark, this);
+            this->doEmit(this->emitter, &res, 0, _timestamp, _watermark, this);
         }
         mydb->put(val);
     }
@@ -218,12 +218,12 @@ public:
             if (copyOnWrite) {
                 tuple_t t = _input->tuple;
                 func(t, val);
-                (this->emitter)->emit(&t, 0, _input->getTimestamp(), _input->getWatermark((this->context).getReplicaIndex()), this);
+                this->doEmit(this->emitter, &t, 0, _input->getTimestamp(), _input->getWatermark((this->context).getReplicaIndex()), this);
                 deleteSingle_t(_input); // delete the input Single_t
             }
             else {
                 func(_input->tuple, val);
-                (this->emitter)->emit_inplace(_input, this);
+                this->doEmit_inplace(this->emitter, _input, this);
             }
         }
         if constexpr (isInPlaceRiched) { // inplace riched version
@@ -231,23 +231,23 @@ public:
             if (copyOnWrite) {
                 tuple_t t = _input->tuple;
                 func(t, val, this->context);
-                (this->emitter)->emit(&t, 0, _input->getTimestamp(), _input->getWatermark((this->context).getReplicaIndex()), this);
+                this->doEmit(this->emitter, &t, 0, _input->getTimestamp(), _input->getWatermark((this->context).getReplicaIndex()), this);
                 deleteSingle_t(_input); // delete the input Single_t
             }
             else {
                 func(_input->tuple, val, this->context);
-                (this->emitter)->emit_inplace(_input, this);
+                this->doEmit_inplace(this->emitter, _input, this);
             }
         }
         if constexpr (isNonInPlaceNonRiched) { // non-inplace non-riched version
             result_t res = func(_input->tuple, val);
-            (this->emitter)->emit(&res, 0, _input->getTimestamp(), _input->getWatermark((this->context).getReplicaIndex()), this);
+            this->doEmit(this->emitter, &res, 0, _input->getTimestamp(), _input->getWatermark((this->context).getReplicaIndex()), this);
             deleteSingle_t(_input); // delete the input Single_t
         }
         if constexpr (isNonInPlaceRiched) { // non-inplace riched version
             (this->context).setContextParameters(_input->getTimestamp(), _input->getWatermark((this->context).getReplicaIndex())); // set the parameter of the RuntimeContext
             result_t res = func(_input->tuple, val, this->context);
-            (this->emitter)->emit(&res, 0, _input->getTimestamp(), _input->getWatermark((this->context).getReplicaIndex()), this);
+            this->doEmit(this->emitter, &res, 0, _input->getTimestamp(), _input->getWatermark((this->context).getReplicaIndex()), this);
             deleteSingle_t(_input); // delete the input Single_t
         }
         mydb->put(val);
@@ -281,7 +281,7 @@ private:
     using result_t = decltype(get_result_t_P_Map(func)); // extracting the result type and checking the admissible signatures
     std::vector<P_Map_Replica<p_map_func_t, keyextr_func_t> *> replicas; // vector of pointers to the replicas of the P_Map
     bool sharedDb; // sharedBD flag
-    static constexpr op_type_t op_type = op_type_t::P_BASIC;
+    static constexpr op_type_t op_type = op_type_t::BASIC;
 
     // Configure the P_Map to receive batches instead of individual inputs
     void receiveBatches(bool _input_batching) override

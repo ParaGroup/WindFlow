@@ -9,7 +9,7 @@
  *      the Free Software Foundation, either version 3 of the License, or
  *      (at your option) any later version
  *    OR
- *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/master/LICENSE.MIT
  *  
  *  WindFlow is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -25,7 +25,7 @@
  *  @file    windflow.hpp
  *  @author  Gabriele Mencagli
  *  
- *  @brief General Header File
+ *  @brief General Header File-1
  *  
  *  @section First General Header File of the WindFlow Library
  *  

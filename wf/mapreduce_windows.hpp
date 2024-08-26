@@ -9,7 +9,7 @@
  *      the Free Software Foundation, either version 3 of the License, or
  *      (at your option) any later version
  *    OR
- *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/master/LICENSE.MIT
  *  
  *  WindFlow is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -25,11 +25,11 @@
  *  @file    mapreduce_windows.hpp
  *  @author  Gabriele Mencagli
  *  
- *  @brief MapReduce_Windows operator
+ *  @brief MapReduce_Windows meta operator
  *  
  *  @section MapReduce_Windows (Description)
  *  
- *  This file implements the MapReduce_Windows operator able to execute incremental
+ *  This file implements the MapReduce_Windows meta operator able to execute incremental
  *  or non-incremental queries on count- or time-based windows. Each window is split
  *  into disjoint partitions. Results of the partitions are used to compute
  *  window-wise results.
@@ -56,9 +56,9 @@ namespace wf {
 /** 
  *  \class MapReduce_Windows
  *  
- *  \brief MapReduce_Windows operator
+ *  \brief MapReduce_Windows meta operator
  *  
- *  This class implements the MapReduce_Windows operator executing incremental or
+ *  This class implements the MapReduce_Windows meta operator executing incremental or
  *  non-incremental queries on streaming windows. Each window is split into disjoint
  *  partitions. Results of the partitions are used to compute results of whole
  *  windows.
@@ -85,119 +85,17 @@ private:
     static constexpr op_type_t op_type = op_type_t::WIN_MR;
 
     // Configure the MapReduce_Windows to receive batches instead of individual inputs
-    void receiveBatches(bool _input_batching) override
-    {
-        for (auto *r: map.replicas) {
-            r->receiveBatches(_input_batching);
-        }
-    }
+    void receiveBatches(bool _input_batching) override { abort(); } // cannot be used
 
     // Set the emitter used to route outputs from the MapReduce_Windows
-    void setEmitter(Basic_Emitter *_emitter) override
-    {
-        reduce.replicas[0]->setEmitter(_emitter);
-        for (size_t i=1; i<reduce.replicas.size(); i++) {
-            reduce.replicas[i]->setEmitter(_emitter->clone());
-        }
-    }
+    void setEmitter(Basic_Emitter *_emitter) override { abort(); } // cannot be used
 
     // Check whether the MapReduce_Windows has terminated
-    bool isTerminated() const override
-    {
-        bool terminated = true;
-        for(auto *r: map.replicas) { // scan all the MAP replicas to check their termination
-            terminated = terminated && r->isTerminated();
-        }
-        for(auto *r: reduce.replicas) { // scan all the REDUCE replicas to check their termination
-            terminated = terminated && r->isTerminated();
-        }
-        return terminated;
-    }
-
-    // Set the execution mode of the MapReduce_Windows
-    void setExecutionMode(Execution_Mode_t _execution_mode)
-    {
-        if (this->getOutputBatchSize() > 0 && _execution_mode != Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: MapReduce_Windows is trying to produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        // count-based windows with MapReduce_Windows cannot be used in DEFAULT mode
-        if (winType == Win_Type_t::CB && _execution_mode == Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: MapReduce_Windows cannot use count-based windows in DEFAULT mode" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
-        map.setExecutionMode(_execution_mode);
-        reduce.setExecutionMode(_execution_mode);
-    }
-
-    // Get the logic to extract the key attribute from the tuple_t
-    keyextr_func_t getKeyExtractor() const
-    {
-        return key_extr;
-    }
+    bool isTerminated() const override { abort(); } // cannot be used
 
 #if defined (WF_TRACING_ENABLED)
     // Append the statistics (JSON format) of the MapReduce_Windows to a PrettyWriter
-    void appendStats(rapidjson::PrettyWriter<rapidjson::StringBuffer> &writer) const override
-    {
-        writer.StartObject(); // create the header of the JSON file
-        writer.Key("Operator_name");
-        writer.String((this->name).c_str());
-        writer.Key("Operator_type");
-        writer.String("MapReduce_Windows");
-        writer.Key("Distribution");
-        writer.String("BROADCAST");
-        writer.Key("isTerminated");
-        writer.Bool(this->isTerminated());
-        writer.Key("isGPU_1");
-        writer.Bool(false);
-        writer.Key("Name_Stage_1");
-        writer.String("MAP");
-        writer.Key("Window_type_1");
-        if (winType == Win_Type_t::CB) {
-            writer.String("count-based");
-        }
-        else {
-            writer.String("time-based");
-            writer.Key("lateness");
-            writer.Uint(lateness);
-        }
-        writer.Key("Window_length_1");
-        writer.Uint(win_len);
-        writer.Key("Window_slide_1");
-        writer.Uint(slide_len);
-        writer.Key("Parallelism_1");
-        writer.Uint(map_parallelism);
-        writer.Key("Replicas_1");
-        writer.StartArray();
-        for (auto *r: map.replicas) { // append the statistics from all the MAP replicas of the MapReduce_Windows
-            Stats_Record record = r->getStatsRecord();
-            record.appendStats(writer);
-        }
-        writer.EndArray();
-        writer.Key("isGPU_2");
-        writer.Bool(false);
-        writer.Key("Name_Stage_2");
-        writer.String("REDUCE");
-        writer.Key("Window_type_2");
-        writer.String("count-based");
-        writer.Key("Window_length_2");
-        writer.Uint(map_parallelism);
-        writer.Key("Window_slide_2");
-        writer.Uint(map_parallelism);
-        writer.Key("Parallelism_2");
-        writer.Uint(reduce_parallelism);
-        writer.Key("OutputBatchSize");
-        writer.Uint(this->outputBatchSize);
-        writer.Key("Replicas_2");
-        writer.StartArray();
-        for (auto *r: reduce.replicas) { // append the statistics from all the REDUCE replicas of the MapReduce_Windows
-            Stats_Record record = r->getStatsRecord();
-            record.appendStats(writer);
-        }
-        writer.EndArray();      
-        writer.EndObject();
-    }
+    void appendStats(rapidjson::PrettyWriter<rapidjson::StringBuffer> &writer) const override { abort(); } // cannot be used
 #endif
 
 public:

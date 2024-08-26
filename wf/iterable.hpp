@@ -9,7 +9,7 @@
  *      the Free Software Foundation, either version 3 of the License, or
  *      (at your option) any later version
  *    OR
- *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/master/LICENSE.MIT
  *  
  *  WindFlow is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -357,6 +357,22 @@ public:
             exit(EXIT_FAILURE);
         }
         return (*(last-1)).tuple;
+    }
+
+    /** 
+     *  \brief Get the index of the tuple at a given position
+     *  
+     *  \param i position of the tuple to be accessed
+     *  \return index of the selected tuple (the timestamp for TB windows,
+     *          otherwise it is a progressive identifier)
+     */ 
+    uint64_t getTupleIndex(size_t i) const
+    {
+        if (i >= num_tuples) {
+            std::cerr << RED << "WindFlow Error: index of the Iterable out-of-range" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        return (*(first+i)).index;
     }
 };
 

@@ -9,7 +9,7 @@
  *      the Free Software Foundation, either version 3 of the License, or
  *      (at your option) any later version
  *    OR
- *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/master/LICENSE.MIT
  *  
  *  WindFlow is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -79,7 +79,7 @@ private:
     using tuple_t = decltype(get_tuple_t_Win(func));
     using result_t = decltype(get_result_t_Win(func));
     using wrapper_t = wrapper_tuple_t<decltype(get_tuple_t_Win(func))>;
-    static constexpr op_type_t op_type = op_type_t::P_WIN;
+    static constexpr op_type_t op_type = op_type_t::WIN;
 
     // Configure the P_Keyed_Windows to receive batches instead of individual inputs
     void receiveBatches(bool _input_batching) override

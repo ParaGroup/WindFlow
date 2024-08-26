@@ -9,7 +9,7 @@
  *      the Free Software Foundation, either version 3 of the License, or
  *      (at your option) any later version
  *    OR
- *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/master/LICENSE.MIT
  *  
  *  WindFlow is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -400,7 +400,7 @@ template<typename F_t>
 decltype(get_tuple_t_Sink(&F_t::operator())) get_tuple_t_Sink(F_t);
 
 std::false_type get_tuple_t_Sink(...); // black hole
-/*****************************************************************************************************************************/
+/*************************************************************************************************************************************/
 
 /**************************************************** WINDOWED OPERATORS *****************************************************/
 // declaration of functions to extract the tuple type from the signature of the window function

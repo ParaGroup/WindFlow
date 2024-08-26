@@ -9,7 +9,7 @@
  *      the Free Software Foundation, either version 3 of the License, or
  *      (at your option) any later version
  *    OR
- *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/master/LICENSE.MIT
  *  
  *  WindFlow is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -134,7 +134,10 @@ public:
     }
 
     /** 
-     *  \brief Get the timestamp of the current input (in microseconds starting from zero)
+     *  \brief Get the timestamp of the current input (in microseconds starting from zero).
+     *         In case of a non-incremental logic of windowed operators, it is the timestamp
+     *         of the tuple that triggered the window activation
+     *  
      *  \return timestamp value
      */ 
     uint64_t getCurrentTimestamp()

@@ -9,7 +9,7 @@
  *      the Free Software Foundation, either version 3 of the License, or
  *      (at your option) any later version
  *    OR
- *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/master/LICENSE.MIT
  *  
  *  WindFlow is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -186,7 +186,7 @@ public:
                 (this->stats_record).outputs_sent++;
                 (this->stats_record).bytes_sent += sizeof(tuple_t);
 #endif
-                (this->emitter)->emit_inplace(_input, this);
+                this->doEmit_inplace(this->emitter, _input, this);
                 this->dropped_inputs = 0;
             }
             else {
@@ -207,7 +207,7 @@ public:
                 (this->stats_record).outputs_sent++;
                 (this->stats_record).bytes_sent += sizeof(tuple_t);
 #endif
-                (this->emitter)->emit_inplace(_input, this);
+                this->doEmit_inplace(this->emitter, _input, this);
                 this->dropped_inputs = 0;
             }
             else {
@@ -237,7 +237,7 @@ public:
                 (this->stats_record).outputs_sent++;
                 (this->stats_record).bytes_sent += sizeof(tuple_t);
 #endif
-                (this->emitter)->emit(&_tuple, 0, _timestamp, _watermark, this);
+                this->doEmit(this->emitter, &_tuple, 0, _timestamp, _watermark, this);
                 this->dropped_inputs = 0;
             }
             else {
@@ -257,7 +257,7 @@ public:
                 (this->stats_record).outputs_sent++;
                 (this->stats_record).bytes_sent += sizeof(tuple_t);
 #endif
-                (this->emitter)->emit(&_tuple, 0, _timestamp, _watermark, this);
+                this->doEmit(this->emitter, &_tuple, 0, _timestamp, _watermark, this);
                 this->dropped_inputs = 0;
             }
             else {
@@ -301,7 +301,7 @@ private:
     using state_t = decltype(get_state_t_P_Filter(func));
     std::vector<P_Filter_Replica<p_filter_func_t, keyextr_func_t> *> replicas; // vector of pointers to the replicas of the P_Filter
     bool sharedDb; // sharedBD flag
-    static constexpr op_type_t op_type = op_type_t::P_BASIC;
+    static constexpr op_type_t op_type = op_type_t::BASIC;
 
     // Configure the P_Filter to receive batches instead of individual inputs
     void receiveBatches(bool _input_batching) override

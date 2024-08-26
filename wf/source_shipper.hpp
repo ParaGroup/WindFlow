@@ -9,7 +9,7 @@
  *      the Free Software Foundation, either version 3 of the License, or
  *      (at your option) any later version
  *    OR
- *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/vers3.x/LICENSE.MIT
+ *    * MIT License: https://github.com/ParaGroup/WindFlow/blob/master/LICENSE.MIT
  *  
  *  WindFlow is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -69,6 +69,8 @@ private:
     uint64_t max_timestamp; // maximum timestamp emitted by the source so far
     uint64_t watermark; // watermark to be used for sending the next output
     uint64_t initial_time_us = 0; // initial time in usec
+    doEmit_t doEmit = nullptr; // pointer to the doEmit method of the Emitter
+
 #if defined (WF_TRACING_ENABLED)
     Stats_Record *stats_record = nullptr;
     double avg_ts_us = 0;
@@ -87,7 +89,10 @@ private:
                    time_policy(_time_policy),
                    num_delivered(0),
                    max_timestamp(0),
-                   watermark(0) {}
+                   watermark(0)
+    {
+        doEmit = emitter->get_doEmit();
+    }
 
     // Copy Constructor
     Source_Shipper(const Source_Shipper &_other):
@@ -100,6 +105,7 @@ private:
     {
         if (_other.emitter != nullptr) {
             emitter = (_other.emitter)->clone();
+            doEmit = emitter->get_doEmit();
         }
         else {
             emitter = nullptr;
@@ -179,7 +185,7 @@ public:
             watermark = timestamp; // watermarks equal to timestamps in case of DEFAULT mode
         }
         result_t copy_result = _r; // copy the result to be delivered
-        emitter->emit(&copy_result, 0, timestamp, watermark, node);
+        doEmit(this->emitter, &copy_result, 0, timestamp, watermark, node);
         num_delivered++;
 #if defined (WF_TRACING_ENABLED)
         stats_record->outputs_sent++;
@@ -217,7 +223,7 @@ public:
         if (execution_mode == Execution_Mode_t::DEFAULT) {
             watermark = timestamp; // watermarks equal to timestamps in case of DEFAULT mode
         }
-        emitter->emit(&_r, 0, timestamp, watermark, node);
+        doEmit(this->emitter, &_r, 0, timestamp, watermark, node);
         num_delivered++;
 #if defined (WF_TRACING_ENABLED)
         stats_record->outputs_sent++;
@@ -258,7 +264,7 @@ public:
             exit(EXIT_FAILURE);
         }
         result_t copy_result = _r; // copy the result to be delivered
-        emitter->emit(&copy_result, 0, _ts, watermark, node);
+        doEmit(this->emitter, &copy_result, 0, _ts, watermark, node);
         num_delivered++;
 #if defined (WF_TRACING_ENABLED)
         stats_record->outputs_sent++;
@@ -298,7 +304,7 @@ public:
             std::cerr << RED << "WindFlow Error: user-defined timestamps must be monotonically increasing in DETERMINISTIC mode" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        emitter->emit(&_r, 0, _ts, watermark, node);
+        doEmit(this->emitter, &_r, 0, _ts, watermark, node);
         num_delivered++;
 #if defined (WF_TRACING_ENABLED)
         stats_record->outputs_sent++;
