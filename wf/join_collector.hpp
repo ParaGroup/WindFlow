@@ -63,16 +63,16 @@ private:
     size_t id_collector; // identifier of the Join_Collector
     size_t eos_received; // number of received EOS messages
     size_t separator_id; // streams separator meaningful to join operators
-    size_t id; // next channel id to forward the output from
+    size_t id; // selected channel id to forward the output from
 
     std::vector<bool> enabled; // enable[i] is true if channel i is enabled
     std::vector<uint64_t> maxs; // maxs[i] constains the highest watermark received from the i-th input channel
     std::vector<size_t> channel_ids; // vector containing the ids of the input channels
-    size_t next_id; // next channel id to forward the output from
+    size_t next_id; // next index ,for channel_ids vector, that will be used to select the next channel to forward the output from
 
-    std::unordered_map<size_t, std::queue<void *>> channelMap; // hash table mapping keys onto key descriptors
+    std::unordered_map<size_t, std::queue<void *>> channelMap; // hash table mapping channel ids onto tuples queues of that channel
 
-    // Get the minimum watermark among the enabled channels
+    // Get the minimum watermark first among the channel's queue of tuples to be dispatched, then among the enabled channels
     uint64_t getMinimumWM()
     {
         uint64_t min_wm;
@@ -149,6 +149,7 @@ public:
         size_t idxA = 1;
         size_t idxB = separator_id;
         channel_ids.push_back(0);
+        // The for loop will fill the channel_ids vector with the ids of the input channels in Round Robin fashion
         for(size_t i=1; i<this->get_num_inchannels(); i++){
             if (channel_ids[i-1] >= separator_id) {
                 if(idxA != separator_id){

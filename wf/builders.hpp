@@ -1461,7 +1461,6 @@ public:
         Interval_Join_Builder<join_func_t, new_key_t> new_builder(func);
         new_builder.name = this->name;
         new_builder.parallelism = this->parallelism;
-        //new_builder.input_routing_mode = Routing_Mode_t::KEYBY;
         new_builder.key_extr = _key_extr;
         new_builder.outputBatchSize = this->outputBatchSize;
         new_builder.closing_func = this->closing_func;
@@ -1497,7 +1496,7 @@ public:
     }
 
     /** 
-     *  \brief Set Key Partitioning mode for join operator
+     *  \brief Set Key Partitioning mode for join operator. Each replica will hold and join a subset of keys.
      *  
      *  \return a reference to the builder object
      */ 
@@ -1517,7 +1516,9 @@ public:
     }
 
     /** 
-     *  \brief Set Data Partitioning mode for join operator
+     *  \brief Set Data Partitioning mode for join operator. Each replica will hold a exclusive subset of data of each key.
+     *  This mode will permit to spread skewed data evenly across the replicas. By default a hash function will be performed upon the given tuple's timestamp, the data will be partitioned across the replicas.
+     *  Be aware if you want that your tuples are partitioned by a custom hash, you must provide std::hash<tuple_t> specialization, where tuple_t is the type of the tuple.
      *  
      *  \return a reference to the builder object
      */ 

@@ -31,7 +31,7 @@
  *  
  *  This file implements the Interval Join operator able to execute joins over two streams of tuples
  *  producing x output per input, where x is the number of asserted predicates in the given range.
- *  [ ...number of join conditions evalueted to true in the given range ]
+ *  ( number of join conditions evalueted to true in the given range )
  */ 
 
 #ifndef INTERVAL_JOIN_H
@@ -82,21 +82,42 @@ private:
     
     using compare_func_t = std::function< bool(const wrapper_t &, const uint64_t &) >; // function type to compare wrapped tuple to an uint64
 
+    /**
+     * @brief Structure to store statistics about an archive.
+     */
     struct Archive_Stats
     {
+        /**
+         * @brief Total size of the archive.
+         */
         size_t size;
+
+        /**
+         * @brief Number of times the size of the archive has been recorded.
+         */
         uint64_t size_count;
 
+        /**
+         * @brief Default constructor for Archive_Stats.
+         */
         Archive_Stats():
             size(0),
             size_count(0) {}
 
+        /**
+         * @brief Records the size of the archive.
+         * @param _size The size of the archive to be recorded.
+         */
         void recordSize(uint64_t _size)
         {
             size += _size;
             size_count++;
         }
 
+        /**
+         * @brief Calculates the mean size of the archive.
+         * @return The mean size of the archive.
+         */
         double getArchiveMeanSize() const
         {
             double mean = static_cast<double>(size) / size_count;
@@ -133,6 +154,79 @@ private:
 
     size_t id_inner; // id_inner value
     size_t num_inner; // num_inner value
+
+    /**
+     * Calculates the FNV-1a hash value for the given key.
+     *
+     * @param key The pointer to the key data (timestamp).
+     * @param len The length of the key data (default: sizeof(uint64_t)).
+     * @return The calculated hash value.
+     */
+    inline const size_t fnv1a_hash(const void* key, const size_t len = sizeof(uint64_t)) {
+        const char* data = (char*)key;
+        const size_t prime = 0x1000193;
+        size_t hash = 0x811c9dc5;
+        for(int i = 0; i < len; ++i) {
+            uint8_t value = data[i];
+            hash = hash ^ value;
+            hash *= prime;
+        }
+        return hash;
+    }
+
+    /**
+     * @brief Checks if the given Join_Stream_t is Stream A.
+     * 
+     * @param stream The Join_Stream_t to check.
+     * @return true if the stream is Stream A, false otherwise.
+     */
+    inline bool isStreamA(Join_Stream_t stream) const
+    {
+        return stream == Join_Stream_t::A;
+    }
+
+    /**
+     * Inserts a wrapper object into the buffer of a given key descriptor.
+     *
+     * @param _key_d The key descriptor to insert into.
+     * @param _wt The wrapper object to insert.
+     * @param stream The join stream to determine which archive to insert into.
+     */
+    inline void insertIntoBuffer(Key_Descriptor &_key_d, wrapper_t _wt, Join_Stream_t stream)
+    {
+        isStreamA(stream) ? (_key_d.archiveA).insert(_wt) : (_key_d.archiveB).insert(_wt);
+    }
+
+    /**
+     * Purges the archives of the given key descriptor.
+     *
+     * This function removes elements from the archives of the key descriptor based on A/B index.
+     * The indices are calculated based on the last time (watermark) minus the relative lower bound.
+     * Elements older than the resulting indices are removed from the archives.
+     *
+     * @param _key_d The key descriptor whose archives need to be purged.
+     */
+    void purgeArchives(Key_Descriptor &_key_d)
+    {
+        uint64_t idx_a = 0, idx_b = 0;
+        if ((upper_bound) <= static_cast<int64_t>(last_time))  { idx_a = last_time - upper_bound; }
+        if (-(lower_bound) <= static_cast<int64_t>(last_time)) { idx_b = last_time + lower_bound; }
+        (_key_d.archiveA).purge(idx_a);
+        (_key_d.archiveB).purge(idx_b);
+    }
+
+    /**
+     * Purges the keyMap by removing any archived data associated with each key.
+     * This function iterates over each key in the keyMap and calls the purgeArchives function
+     * to remove the archived data for that key.
+     */
+    void purgeWithPunct()
+    {
+        for (auto &k: keyMap) {
+            Key_Descriptor &key_d = (k.second);
+            purgeArchives(key_d);
+        }
+    }
 
 public:
     // Constructor
@@ -270,7 +364,8 @@ public:
                 output = isStreamA(_tag) ? func(_tuple, interval.at(i), this->context) : func(interval.at(i), _tuple, this->context);
             }
             if (output) {
-                uint64_t ts = (_timestamp >= interval.index_at(i)) ? _timestamp : interval.index_at(i); // use the highest timestamp between two joined tuples
+                // use the highest timestamp between two joined tuples
+                uint64_t ts = (_timestamp >= interval.index_at(i)) ? _timestamp : interval.index_at(i);
                 this->doEmit(this->emitter, &(*output), 0, ts, _watermark, this);
 #if defined (WF_TRACING_ENABLED)
                 (this->stats_record).outputs_sent++;
@@ -283,14 +378,16 @@ public:
             insertIntoBuffer(key_d, wrapper_t(_tuple, _timestamp), _tag);
         } else if (joinMode == Join_Mode_t::DP) {
             if constexpr(if_defined_hash<tuple_t>) {
+                // compute the hash index of the tuple given a defined hash function specialization for the tuple_t
                 size_t hash = std::hash<tuple_t>()(_tuple);
-                size_t hash_idx = (hash % num_inner); // compute the hash index of the tuple
+                size_t hash_idx = (hash % num_inner);
                 if (hash_idx == id_inner) {
                     insertIntoBuffer(key_d, wrapper_t(_tuple, _timestamp), _tag);
                 }
             } else {
+                // compute the hash index of the tuple using FNV-1a hash function using the timestamp
                 size_t hash = fnv1a_hash(&_timestamp);
-                size_t hash_idx = (hash % num_inner); // compute the hash index of the tuple
+                size_t hash_idx = (hash % num_inner);
                 if (hash_idx == id_inner) {
                     insertIntoBuffer(key_d, wrapper_t(_tuple, _timestamp), _tag);
                 }
@@ -309,6 +406,7 @@ public:
         }
 
 #if defined (WF_JOIN_MEASUREMENT)
+        // Measure the size of the archives every 200ms
         uint64_t delta = (current_time_nsecs() - last_measured_size_time) / 1e06; //ms
         if ( delta >= 200 ) {
             for (auto &k: keyMap) {
@@ -319,45 +417,6 @@ public:
         }
 #endif
 
-    }
-
-    inline const size_t fnv1a_hash(const void* key, const size_t len = sizeof(uint64_t)) {
-        const char* data = (char*)key;
-        const size_t prime = 0x1000193;
-        size_t hash = 0x811c9dc5;
-        for(int i = 0; i < len; ++i) {
-            uint8_t value = data[i];
-            hash = hash ^ value;
-            hash *= prime;
-        }
-        return hash;
-    }
-
-    inline bool isStreamA(Join_Stream_t stream) const
-    {
-        return stream == Join_Stream_t::A;
-    }
-
-    inline void insertIntoBuffer(Key_Descriptor &_key_d, wrapper_t _wt, Join_Stream_t stream)
-    {
-        isStreamA(stream) ? (_key_d.archiveA).insert(_wt) : (_key_d.archiveB).insert(_wt);
-    }
-
-    void purgeArchives(Key_Descriptor &_key_d)
-    {
-        uint64_t idx_a = 0, idx_b = 0;
-        if ((upper_bound) <= static_cast<int64_t>(last_time))  { idx_a = last_time - upper_bound; }
-        if (-(lower_bound) <= static_cast<int64_t>(last_time)) { idx_b = last_time + lower_bound; }
-        (_key_d.archiveA).purge(idx_a);
-        (_key_d.archiveB).purge(idx_b);
-    }
-
-    void purgeWithPunct()
-    {
-        for (auto &k: keyMap) {
-            Key_Descriptor &key_d = (k.second);
-            purgeArchives(key_d);
-        }
     }
 
     double getArchiveMeanSize()
@@ -390,11 +449,13 @@ public:
 /** 
  *  \class Interval Join
  *  
- *  \brief Interval Join operator
- *  
- *  This class implements the Interval Join operator able to execute joins over two streams of tuples
- *  producing x output per input, where x is the number of asserted predicates in the given range.
- */ 
+ *  \brief Represents an Interval Join operator
+ * 
+ * The Interval Join operator performs a join operation on two streams based on a specified interval condition.
+ * It takes a functional boolean condition logic and a key extractor logic as input.
+ * The operator operates in either Key-Parallelism (KP) or Data-Parallelism (DP) mode.
+ * 
+ */
 template<typename join_func_t, typename keyextr_func_t>
 class Interval_Join: public Basic_Operator
 {
@@ -570,6 +631,20 @@ public:
         }
     }
 
+    /**
+     * @brief Prints statistics about the archive per key.
+     * 
+     * This function calculates and prints various statistics about the archive per key.
+     * It calculates the mean archive size for each replica and checks the distribution of archive sizes and determines if it is balanced or not.
+     * 
+     * @note This function assumes that the `replicas` vector is already populated with valid replica objects.
+     * 
+     * @note The balance check is determined based on the coefficient of variation (cv) value.
+     *       If the cv is less than 20, it is considered balanced and marked with a checkmark,
+     *       otherwise it is considered unbalanced and marked with a cross.
+     * 
+     * @note The function uses the `std::cout` stream to print the statistics.
+     */
     void printArchivePerKeyStats() {
         std::cout << "***" << std::endl;
         std::cout << "Archive Stats: " << std::endl;

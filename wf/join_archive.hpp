@@ -29,7 +29,7 @@
  *  
  *  @section JoinArchive (Description)
  *  
- *  Join archive of tuples received from the input stream ( A or B ) and still useful for the
+ *  Join archive of tuples received from the input stream ( A/B ) useful for the
  *  processing (used by join-based operators).
  */ 
 
