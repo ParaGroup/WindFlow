@@ -94,16 +94,16 @@ int main(int argc, char *argv[])
     std::uniform_int_distribution<std::mt19937::result_type> dist_p(min, max);
     std::uniform_int_distribution<std::mt19937::result_type> dist_b(0, 10);
     int map1_degree, map2_degree, join_degree, filter_degree, sink1_degree, sink2_degree;
-    size_t source1_degree = 1; dist_p(rng);
-    size_t source2_degree = 1; dist_p(rng);
+    size_t source1_degree = dist_p(rng);
+    size_t source2_degree = dist_p(rng);
     long last_result = 0;
     // executes the runs in DEFAULT mode
     for (size_t i=0; i<runs; i++) {
         map1_degree = dist_p(rng);
         map2_degree = dist_p(rng);
-        join_degree = 4; dist_p(rng);
+        join_degree = dist_p(rng);
         filter_degree = dist_p(rng);
-        sink1_degree = 1; dist_p(rng);
+        sink1_degree = dist_p(rng);
         sink2_degree = dist_p(rng);
         cout << "Run " << i << endl;
         cout << "+---------------------+                                   +-----------+" << endl;
@@ -140,76 +140,76 @@ int main(int argc, char *argv[])
         Source source1 = Source_Builder(source_functor_positive)
                             .withName("source1")
                             .withParallelism(source1_degree)
-                            //.withOutputBatchSize(dist_b(rng))
+                            .withOutputBatchSize(dist_b(rng))
                             .build();
         MultiPipe &pipe1 = graph.add_source(source1);
         Map_Functor map_functor1;
         Map map1 = Map_Builder(map_functor1)
                         .withName("map1")
                         .withParallelism(map1_degree)
-                        //.withOutputBatchSize(dist_b(rng))
+                        .withOutputBatchSize(dist_b(rng))
                         .build();
-        //pipe1.chain(map1);
+        pipe1.chain(map1);
         // prepare the second MultiPipe
         Source_Positive_Functor source_functor_negative(stream_len, n_keys, true);
         Source source2 = Source_Builder(source_functor_negative)
                             .withName("source2")
                             .withParallelism(source2_degree)
-                            //.withOutputBatchSize(dist_b(rng))
+                            .withOutputBatchSize(dist_b(rng))
                             .build();
         MultiPipe &pipe2 = graph.add_source(source2);
         Map_Functor map_functor2;
         Map map2 = Map_Builder(map_functor2)
                         .withName("map2")
                         .withParallelism(map2_degree)
-                        //.withOutputBatchSize(dist_b(rng))
+                        .withOutputBatchSize(dist_b(rng))
                         .build();
-        //pipe2.chain(map2);
+        pipe2.chain(map2);
         // prepare the third MultiPipe
         MultiPipe &pipe3 = pipe1.merge(pipe2);
         Join_Functor join_functor;
         Interval_Join join = Interval_Join_Builder(join_functor)
                                     .withName("join")
                                     .withParallelism(join_degree)
-                                    //.withOutputBatchSize(dist_b(rng))
+                                    .withOutputBatchSize(dist_b(rng))
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
                                     .withBoundaries(milliseconds(lower_bound), milliseconds(upper_bound))
-                                    .withDPSMode()
+                                    .withKPMode()
                                     .build();
         pipe3.add(join);
         Filter_Functor filter_functor(2);
         Filter filter = Filter_Builder(filter_functor)
                         .withName("filter1")
                         .withParallelism(filter_degree)
-                        //.withOutputBatchSize(dist_b(rng))
+                        .withOutputBatchSize(dist_b(rng))
                         .build();
-        //pipe3.chain(filter);
+        pipe3.chain(filter);
         // split
-        /* pipe3.split([](const tuple_t &t) {
+        pipe3.split([](const tuple_t &t) {
             if (t.value % 4 == 0) {
                 return 0;
             }
             else {
                 return 1;
             }
-        }, 2); */
+        }, 2);
         // prepare the fourth MultiPipe
-        //MultiPipe &pipe4 = pipe3.select(0);
+        MultiPipe &pipe4 = pipe3.select(0);
         Sink_Functor sink_functor1;
         Sink sink1 = Sink_Builder(sink_functor1)
                         .withName("sink1")
                         .withParallelism(sink1_degree)
                         .build();
-        pipe3.chain_sink(sink1);
+        pipe4.chain_sink(sink1);
         // prepare the fifth MultiPipe
-        //MultiPipe &pipe5 = pipe3.select(1);
-        /* Sink_Functor sink_functor2;
+        MultiPipe &pipe5 = pipe3.select(1);
+        Sink_Functor sink_functor2;
         Sink sink2 = Sink_Builder(sink_functor2)
                         .withName("sink2")
                         .withParallelism(sink2_degree)
                         .build();
-        pipe5.chain_sink(sink2); */
-        //assert(graph.getNumThreads() == check_degree);
+        pipe5.chain_sink(sink2);
+        assert(graph.getNumThreads() == check_degree);
 
         // run the application
         graph.run();
@@ -231,7 +231,7 @@ int main(int argc, char *argv[])
     for (size_t i=0; i<0; i++) {
         map1_degree = dist_p(rng);
         map2_degree = dist_p(rng);
-        join_degree = 5; dist_p(rng);
+        join_degree = dist_p(rng);
         filter_degree = dist_p(rng);
         sink1_degree = dist_p(rng);
         sink2_degree = dist_p(rng);
@@ -277,7 +277,7 @@ int main(int argc, char *argv[])
                         .withName("map1")
                         .withParallelism(map1_degree)
                         .build();
-        //pipe1.chain(map1);
+        pipe1.chain(map1);
         // prepare the second MultiPipe
         Source_Positive_Functor source_functor_negative(stream_len, n_keys, false);
         Source source2 = Source_Builder(source_functor_negative)
@@ -290,7 +290,7 @@ int main(int argc, char *argv[])
                         .withName("map2")
                         .withParallelism(map2_degree)
                         .build();
-        //pipe2.chain(map2);
+        pipe2.chain(map2);
         // prepare the third MultiPipe
         MultiPipe &pipe3 = pipe1.merge(pipe2);
         Join_Functor join_functor;
@@ -299,7 +299,7 @@ int main(int argc, char *argv[])
                                     .withParallelism(join_degree)
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
                                     .withBoundaries(milliseconds(lower_bound), milliseconds(upper_bound))
-                                    .withDPSMode()
+                                    .withKPMode()
                                     .build();
         pipe3.add(join);
         Filter_Functor filter_functor(2);
@@ -307,33 +307,33 @@ int main(int argc, char *argv[])
                         .withName("filter1")
                         .withParallelism(filter_degree)
                         .build();
-        //pipe3.chain(filter);
+        pipe3.chain(filter);
         // split
-        /* pipe3.split([](const tuple_t &t) {
+        pipe3.split([](const tuple_t &t) {
             if (t.value % 4 == 0) {
                 return 0;
             }
             else {
                 return 1;
             }
-        }, 2); */
+        }, 2);
         // prepare the fourth MultiPipe
-        //MultiPipe &pipe4 = pipe3.select(0);
+        MultiPipe &pipe4 = pipe3.select(0);
         Sink_Functor sink_functor1;
         Sink sink1 = Sink_Builder(sink_functor1)
                         .withName("sink1")
                         .withParallelism(sink1_degree)
                         .build();
-        pipe3.chain_sink(sink1);
+        pipe4.chain_sink(sink1);
         // prepare the fifth MultiPipe
-        //MultiPipe &pipe5 = pipe3.select(1);
-        /* Sink_Functor sink_functor2;
+        MultiPipe &pipe5 = pipe3.select(1);
+        Sink_Functor sink_functor2;
         Sink sink2 = Sink_Builder(sink_functor2)
                         .withName("sink2")
                         .withParallelism(sink2_degree)
                         .build();
-        pipe5.chain_sink(sink2); */
-        //assert(graph.getNumThreads() == check_degree);
+        pipe5.chain_sink(sink2);
+        assert(graph.getNumThreads() == check_degree);
         // run the application
         graph.run();
         if (i == 0) {

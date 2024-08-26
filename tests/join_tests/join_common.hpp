@@ -22,20 +22,18 @@
  */
 
 /*  
- *  Data types and operator functors used by the graph tests.
+ *  Data types and operator functors used by the join tests.
  */ 
 
 // includes
 #include<cmath>
 #include<string>
-#include<mutex>
 
 using namespace std;
 using namespace wf;
 
 // Global variable for the result
 atomic<long> global_sum;
-static mutex print_mutex;
 
 // Struct of the input tuple
 struct tuple_t
@@ -170,10 +168,6 @@ public:
         tuple_t out;
         out.value = a.value * b.value;
         out.key = a.key;
-        /* {
-            lock_guard lock {print_mutex};
-            std:cout << rc.getLocalStorage().get<uint64_t>("a_ts") << "\t" << a.value << "\t" << b.value << "\t" << rc.getLocalStorage().get<uint64_t>("b_ts") << "\t" << rc.getReplicaIndex() << "\t" << rc.getLocalStorage().get<string>("from_b") << std::endl;
-        } */
         return out;
     }
 };
@@ -274,16 +268,8 @@ public:
             totalsum += (*out).value;
             size_t key = (*out).key;
             int64_t value = (*out).value;
-            /* {
-                lock_guard lock {print_mutex};
-                printf("%lu | %ld | %lu\n", key, value, rc.getCurrentTimestamp());
-            } */
         }
         else {
-            /* {
-                lock_guard lock {print_mutex};
-                printf("Received: %ld results, total sum: %ld\n", received, totalsum);
-            } */
             global_sum.fetch_add(totalsum);
         }
     }
