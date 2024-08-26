@@ -82,48 +82,44 @@ private:
     
     using compare_func_t = std::function< bool(const wrapper_t &, const uint64_t &) >; // function type to compare wrapped tuple to an uint64
 
-    struct Buffer_Stats
+    struct Archive_Stats
     {
-        uint64_t buff_size;
-        uint64_t buff_count;
+        size_t size;
+        uint64_t size_count;
 
-        Buffer_Stats():
-            buff_size(0),
-            buff_count(0) {}
+        Archive_Stats():
+            size(0),
+            size_count(0) {}
 
         void recordSize(uint64_t _size)
         {
-            buff_size += _size;
-            buff_count++;
+            size += _size;
+            size_count++;
         }
 
-        double getBufferMeanSize() const
+        double getArchiveMeanSize() const
         {
-            double mean = static_cast<double>(buff_size) / buff_count;
+            double mean = static_cast<double>(size) / size_count;
             return std::isnan(mean) ? 0.0 : mean;
         }
     };
-    uint64_t last_measured_size_time; // last time (ns) the buffer size was measured
+    uint64_t last_measured_size_time; // last time (ns) the archives size was measured
 
     struct Key_Descriptor // struct of a key descriptor
     {
         JoinArchive<tuple_t, compare_func_t> archiveA; // archive of stream A tuples of this key
-        Buffer_Stats A_buffer_metrics;
-
         JoinArchive<tuple_t, compare_func_t> archiveB; // archive of stream B tuples of this key
-        Buffer_Stats B_buffer_metrics;
+        Archive_Stats archive_metrics;
 
         // Constructor
         Key_Descriptor(compare_func_t _compare_func):
                         archiveA(_compare_func),
-                        A_buffer_metrics(Buffer_Stats()),
                         archiveB(_compare_func),
-                        B_buffer_metrics(Buffer_Stats()) {}
+                        archive_metrics(Archive_Stats()) {}
         
-        void recordSizes()
+        void recordSize()
         {
-            A_buffer_metrics.recordSize(archiveA.size());
-            B_buffer_metrics.recordSize(archiveB.size());
+            archive_metrics.recordSize((archiveA.size()+archiveB.size()));
         }
     };
 
@@ -240,15 +236,6 @@ public:
             return;
         }
 
-        if (this->execution_mode == Execution_Mode_t::DEFAULT) {
-            assert(last_time <= _watermark); // sanity check
-            last_time = _watermark;
-        } else {
-            if (last_time < _timestamp) {
-                last_time = _timestamp;
-            }
-        }
-
         auto key = key_extr(_tuple); // get the key attribute of the input tuple
         auto it = keyMap.find(key); // find the corresponding key_descriptor (or allocate it if does not exist)
         if (it == keyMap.end()) {
@@ -309,20 +296,29 @@ public:
                 }
             }
         }
+
+        if (this->execution_mode == Execution_Mode_t::DEFAULT) {
+            assert(last_time <= _watermark); // sanity check
+            if ( last_time < _watermark)
+                purgeArchives(key_d); // purge the archives using the new watermark
+            last_time = _watermark;
+        } else {
+            if (last_time < _timestamp) {
+                last_time = _timestamp;
+            }
+        }
+
 #if defined (WF_JOIN_MEASUREMENT)
         uint64_t delta = (current_time_nsecs() - last_measured_size_time) / 1e06; //ms
-        if ( delta >= 250 )
-        {
-            /* for (auto &k: keyMap) {
-                Key_Descriptor &key_d = (k.second);
-                (key_d.A_buffer_metrics).recordSize((key_d.archiveA).size());
-                (key_d.B_buffer_metrics).recordSize((key_d.archiveB).size());
-            } */
-            (key_d.recordSizes());
+        if ( delta >= 200 ) {
+            for (auto &k: keyMap) {
+                Key_Descriptor &key_m_d = (k.second);
+                (key_m_d.recordSize());
+            }
             last_measured_size_time = current_time_nsecs();
         }
 #endif
-        purgeBuffers(key_d);
+
     }
 
     inline const size_t fnv1a_hash(const void* key, const size_t len = sizeof(uint64_t)) {
@@ -347,33 +343,35 @@ public:
         isStreamA(stream) ? (_key_d.archiveA).insert(_wt) : (_key_d.archiveB).insert(_wt);
     }
 
-    void purgeBuffers(Key_Descriptor &_key_d)
+    void purgeArchives(Key_Descriptor &_key_d)
     {
         uint64_t idx_a = 0, idx_b = 0;
         if ((upper_bound) <= static_cast<int64_t>(last_time))  { idx_a = last_time - upper_bound; }
         if (-(lower_bound) <= static_cast<int64_t>(last_time)) { idx_b = last_time + lower_bound; }
-        if(idx_a!=0) (_key_d.archiveA).purge(idx_a);
-        if(idx_b!=0) (_key_d.archiveB).purge(idx_b);
+        (_key_d.archiveA).purge(idx_a);
+        (_key_d.archiveB).purge(idx_b);
     }
 
     void purgeWithPunct()
     {
         for (auto &k: keyMap) {
             Key_Descriptor &key_d = (k.second);
-            purgeBuffers(key_d);
+            purgeArchives(key_d);
         }
     }
 
-    double getBufferMeanSize(Join_Stream_t stream)
+    double getArchiveMeanSize()
     {
         if(keyMap.empty()) return 0.0;
-        uint64_t acc=0, n=0;
+        double acc = 0;
+        uint64_t n_key = 0;
         for (auto &k: keyMap) {
             Key_Descriptor &key_d = (k.second);
-            acc += isStreamA(stream) ? (key_d.archiveA).size() : (key_d.archiveB).size();
-            n++;
+            auto mean_size = (key_d.archive_metrics).getArchiveMeanSize();
+            acc += mean_size;
+            n_key++;
         }
-        return static_cast<double>(acc) / n;
+        return std::isnan(acc / n_key) ? 0.0 : acc / n_key;
     }
 
     // Get the number of ignored tuples
@@ -542,6 +540,7 @@ public:
         for (size_t i=0; i<this->parallelism; i++) { // create the internal replicas of the Interval Join
             replicas.push_back(new IJoin_Replica<join_func_t, keyextr_func_t>(_func, _key_extr, this->name, RuntimeContext(this->parallelism, i), _closing_func, _lower_bound, _upper_bound, _join_mode, i, this->parallelism));
         }
+        std::cout << "Tuple size -> " << sizeof(tuple_t) << std::endl;
     }
 
     /// Copy constructor
@@ -563,7 +562,7 @@ public:
     {
 #if defined(WF_JOIN_MEASUREMENT)
         if (this->isTerminated()) {
-            getJoinStats();
+            printArchivePerKeyStats();
         }
 #endif
         for (auto *r: replicas) { // delete all the replicas
@@ -571,36 +570,33 @@ public:
         }
     }
 
-    void printBufferStats(Join_Stream_t stream) {
-        std::cout << (stream == Join_Stream_t::A ? "A" : "B") << " Buffer Stats: " << std::endl;
+    void printArchivePerKeyStats() {
+        std::cout << "***" << std::endl;
+        std::cout << "Archive Stats: " << std::endl;
         uint64_t num_replicas = replicas.size();
         double acc_mean = 0.0;
         int i = 0;
         for (auto *r: replicas) {
-            auto mean = r->getBufferMeanSize(stream);
+            auto mean = r->getArchiveMeanSize();
             std::cout << (i+1) << " Replica mean -> " << mean << std::endl;
             acc_mean += mean;
             i++;
         }
         double mean_size = acc_mean / num_replicas;
-        std::cout << "Global Mean Buffer Size -> " << mean_size << std::endl;
+        std::cout << "Global Mean Archive Size -> " << mean_size << std::endl;
         
         // Check distribution
         double variance = 0;
         for (auto *r: replicas) {
-            variance += std::pow(r->getBufferMeanSize(stream) - mean_size, 2);
+            variance += std::pow(r->getArchiveMeanSize() - mean_size, 2);
         }
         variance /= num_replicas;
         
         double cv = variance != 0 ? sqrt(variance) / mean_size * 100 : 0.0; //coefficient of variation
-        std::string check_balance = cv < 10 ? " ✔ " : " ✘ ";
+        std::string check_balance = cv < 20 ? " ✔ " : " ✘ ";
         std::cout << std::fixed << std::setprecision(2);
-        std::cout << "Variance -> " << variance << " | Coefficient of variation -> " << cv << check_balance << std::endl;
-    }
-
-    void getJoinStats(){
-        printBufferStats(Join_Stream_t::A);
-        printBufferStats(Join_Stream_t::B);
+        std::cout << "Variance -> " << variance << " | Coefficient of variation -> " << cv << "| Balanced Distribution ->" << check_balance << std::endl;
+        std::cout << "***" << std::endl;
     }
 
     /** 
