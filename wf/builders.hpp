@@ -1486,8 +1486,10 @@ public:
     {
         //The lower and upper bounds are inclusive in the interval join range.
         //The +-1 ensures that the bounds are inclusive when retrieving the join range using lower_bound algorithm.
-        lower_bound = _lower_bound.count()-1;
-        upper_bound = _upper_bound.count()+1;
+        _lower_bound -= std::chrono::microseconds(1);
+        lower_bound = _lower_bound.count();
+        _upper_bound += std::chrono::microseconds(1);
+        upper_bound = _upper_bound.count();
         if (lower_bound > upper_bound) {
             std::cerr << RED << "WindFlow Error: Interval_Join must have lower_bound <= upper_bound" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
@@ -1496,7 +1498,7 @@ public:
     }
 
     /** 
-     *  \brief Set Key Parallelism mode for join operator
+     *  \brief Set Key Partitioning mode for join operator
      *  
      *  \return a reference to the builder object
      */ 
@@ -1516,7 +1518,7 @@ public:
     }
 
     /** 
-     *  \brief Set Key Parallelism mode for join operator
+     *  \brief Set Data Partitioning mode for join operator
      *  
      *  \return a reference to the builder object
      */ 
