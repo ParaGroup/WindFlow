@@ -601,7 +601,6 @@ public:
         for (size_t i=0; i<this->parallelism; i++) { // create the internal replicas of the Interval Join
             replicas.push_back(new IJoin_Replica<join_func_t, keyextr_func_t>(_func, _key_extr, this->name, RuntimeContext(this->parallelism, i), _closing_func, _lower_bound, _upper_bound, _join_mode, i, this->parallelism));
         }
-        std::cout << "Tuple size -> " << sizeof(tuple_t) << std::endl;
     }
 
     /// Copy constructor
@@ -658,7 +657,8 @@ public:
             i++;
         }
         double mean_size = acc_mean / num_replicas;
-        std::cout << "Global Mean Archive Size -> " << mean_size << std::endl;
+        double size_in_mb = mean_size * sizeof(tuple_t) / 1024;
+        std::cout << "Global Mean Archive Size -> " << mean_size << " | " << size_in_mb << " KB" << std::endl;
         
         // Check distribution
         double variance = 0;
