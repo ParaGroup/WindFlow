@@ -401,6 +401,7 @@ public:
             last_time = _watermark;
         } else {
             if (last_time < _timestamp) {
+                purgeArchives(key_d); // purge the archives using the new watermark
                 last_time = _timestamp;
             }
         }
