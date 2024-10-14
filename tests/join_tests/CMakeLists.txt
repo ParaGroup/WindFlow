@@ -5,7 +5,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g -finline-functions")
 
 # Macros to be provided to the compiler
-add_definitions(-DFF_BOUNDED_BUFFER -DWF_JOIN_MEASUREMENT)
+add_definitions(-DFF_BOUNDED_BUFFER)
 # -DWF_JOIN_MEASUREMENT to enable the measurement of how uniformerly the tuples are distributed among the joiners
 # -DWF_TRACING_ENABLED to enable the tracing with Dashboard
 
