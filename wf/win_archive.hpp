@@ -53,7 +53,7 @@ private:
     using iterator_t = typename std::deque<wrapper_t>::iterator; // iterator type
     using Archive<tuple_t, compare_func_t>::archive; // container implementing the ordered archive of wrapped tuples
     using Archive<tuple_t, compare_func_t>::lessThan; // function to compare two wrapped tuples
-    static_assert(std::is_same<compare_func_t, std::function< bool(const wrapper_t &, const uint64_t &) >>::value,
+    static_assert(std::is_same<compare_func_t, std::function< bool(const wrapper_t &, const wrapper_t &) >>::value,
         "WindFlow Compilation Error - unknown compare function passed to the Win Archive:\n"
         "  Candidate : bool(const wrapper_t &, const wrapper_t &)\n");
 
