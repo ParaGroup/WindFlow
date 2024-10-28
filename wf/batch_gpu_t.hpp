@@ -207,6 +207,18 @@ struct Batch_GPU_t: Batch_t<tuple_t>
         }
     }
 
+    // Get the stream tag of the batch
+    Join_Stream_t getStreamTag() const
+    {
+        return stream_tag;
+    }
+
+    // Set the stream tag of the batch
+    void setStreamTag(Join_Stream_t _tag)
+    {
+        stream_tag = _tag;
+    }
+
     // Reset the batch content
     void reset(size_t _delete_counter=1)
     {
