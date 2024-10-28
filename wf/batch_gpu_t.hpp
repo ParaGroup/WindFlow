@@ -63,6 +63,7 @@ struct Batch_GPU_t: Batch_t<tuple_t>
     int *map_idxs_gpu; // GPU array to find tuples with the same key within the batch
     cudaStream_t cudaStream; // CUDA stream associated with the batch
     std::atomic<int> *inTransit_counter; // pointer to the counter of in-transit batches
+    Join_Stream_t stream_tag; // flag to discriminate stream flow between Stream A & B (meaningful to join operators)
 
     // Constructor
     Batch_GPU_t(size_t _size,
