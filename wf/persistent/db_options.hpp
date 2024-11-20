@@ -59,7 +59,7 @@ public:
         _options.env->SetBackgroundThreads(8, rocksdb::Env::Priority::HIGH); // 8 background threads used by RocksDB
         _options.max_background_jobs = 8;
         _options.allow_concurrent_memtable_write = true;
-        _options.unordered_write = true;
+        // _options.unordered_write = true; // <- not supported in new RocksDB versions
         _options.use_direct_reads = true;
         _options.use_direct_io_for_flush_and_compaction = true;
         _options.create_if_missing = true;

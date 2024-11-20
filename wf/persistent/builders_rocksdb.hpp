@@ -1244,7 +1244,7 @@ template<typename win_func_t, typename key_t=empty_key_t>
 class P_Keyed_Windows_Builder: public P_Basic_Builder<P_Keyed_Windows_Builder, win_func_t, key_t>
 {
 private:
-    template<typename T1, typename T3> friend class P_Keyed_Windows_Builder;
+    template<typename T1, typename T2> friend class P_Keyed_Windows_Builder;
     win_func_t func; // functional logic of the P_Keyed_Windows
     using tuple_t = decltype(get_tuple_t_Win(func));   // extracting the tuple_t type and checking the admissible signatures
     using result_t = decltype(get_result_t_Win(func)); // extracting the result_t type and checking the admissible signatures
@@ -1260,6 +1260,10 @@ private:
                   "WindFlow Compilation Error - tuple_t type must be default constructible (P_Keyed_Windows_Builder):\n");
     static_assert(std::is_default_constructible<result_t>::value,
                   "WindFlow Compilation Error - result_t type must be default constructible (P_Keyed_Windows_Builder):\n");
+    static constexpr bool isNonIncNonRiched = std::is_invocable<decltype(func), const Iterable<tuple_t> &, result_t &>::value;
+    static constexpr bool isNonIncRiched = std::is_invocable<decltype(func), const Iterable<tuple_t> &, result_t &, RuntimeContext &>::value;
+    static constexpr bool isIncNonRiched = std::is_invocable<decltype(func), const tuple_t &, result_t &>::value;
+    static constexpr bool isIncRiched = std::is_invocable<decltype(func), const tuple_t &, result_t &, RuntimeContext &>::value;
     using keyextr_func_t = std::function<key_t(const tuple_t &)>; // type of the key extractor
     using p_keyed_wins_t = P_Keyed_Windows<win_func_t, keyextr_func_t>; // type of the P_Keyed_Windows to be created by the builder
     using serialize_tuple_func_t = std::function<std::string(tuple_t &)>; // type of the tuple serialization function
@@ -1270,12 +1274,11 @@ private:
     deserialize_tuple_func_t tuple_deserialize;
     serialize_result_func_t result_serialize;
     deserialize_result_func_t result_deserialize;
-    keyextr_func_t key_extr = [](const tuple_t &t) -> key_t { return key_t(); }; // key extractor
-    bool isKeyBySet = false; // true if a key extractor has been provided
-    size_t frag_bytes = sizeof(tuple_t) * 16; // size in bytes of each archive fragment of the stream
-    bool results_in_memory = true; // flag stating if results must be kepts in memory or on RocksDB
     bool isTupleFunctions = false; // flag stating if the tuple serializer/deserializer have been provided
     bool isResultFunctions = false; // flag stating if the result serializer/deserializer have been provided
+    keyextr_func_t key_extr = [](const tuple_t &t) -> key_t { return key_t(); }; // key extractor
+    bool isKeyBySet = false; // true if a key extractor has been provided
+    size_t frag_size = 16; // size of each archive fragment of the stream (in number of tuples)
     uint64_t win_len=0; // window length in number of tuples or in time units
     uint64_t slide_len=0; // slide length in number of tuples or in time units
     uint64_t lateness=0; // lateness in time units
@@ -1374,12 +1377,11 @@ public:
         new_builder.tuple_deserialize = tuple_deserialize;
         new_builder.result_serialize = result_serialize;
         new_builder.result_deserialize = result_deserialize;
-        new_builder.key_extr = _key_extr;
-        new_builder.isKeyBySet = true;
         new_builder.isTupleFunctions = isTupleFunctions;
         new_builder.isResultFunctions = isResultFunctions;
-        new_builder.frag_bytes = frag_bytes;
-        new_builder.results_in_memory = results_in_memory;
+        new_builder.key_extr = _key_extr;
+        new_builder.isKeyBySet = true;
+        new_builder.frag_size = frag_size;
         new_builder.win_len = win_len;
         new_builder.slide_len = slide_len;
         new_builder.lateness = lateness;
@@ -1388,14 +1390,20 @@ public:
     }
 
     /** 
-     *  \brief Set the size in bytes of each archive fragment of the stream
+     *  \brief Set the size of each archive fragment of the stream
      *  
-     *  \param _frag_bytes size in bytes
+     *  \param _frag_size size in number of tuples
      *  \return a reference to the builder object
      */ 
-    auto &setFragSizeBytes(size_t _frag_bytes)
+    auto &setFragmentSize(size_t _frag_size)
     {
-        frag_bytes = _frag_bytes;
+        if constexpr (isIncNonRiched || isIncRiched) {
+            std::cerr << RED << "WindFlow Error: Fragment size is not needed with P_Keyed_Windows instantiated with an incremental logic" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        else {
+            frag_size = _frag_size;
+        }
         return *this;
     }
 
@@ -1409,9 +1417,15 @@ public:
     auto &withTupleSerializerAndDeserializer(serialize_tuple_func_t _tuple_serialize,
                                              deserialize_tuple_func_t _tuple_deserialize)
     {
-        tuple_serialize = _tuple_serialize;
-        tuple_deserialize = _tuple_deserialize;
-        isTupleFunctions = true;
+        if constexpr (isIncNonRiched || isIncRiched) {
+            std::cerr << RED << "WindFlow Error: Tuple serializer/deserializer are not needed with P_Keyed_Windows instantiated with an incremental logic" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        else {
+            tuple_serialize = _tuple_serialize;
+            tuple_deserialize = _tuple_deserialize;
+            isTupleFunctions = true;
+        }
         return *this;
     }
 
@@ -1425,10 +1439,15 @@ public:
     auto &withResultSerializerAndDeserializer(serialize_result_func_t _result_serialize,
                                               deserialize_result_func_t _result_deserialize)
     {
-        result_serialize = _result_serialize;
-        result_deserialize = _result_deserialize;
-        isResultFunctions = true;
-        results_in_memory = false;
+        if constexpr (isNonIncNonRiched || isNonIncRiched) {
+            std::cerr << RED << "WindFlow Error: Result serializer/deserializer are not needed with P_Keyed_Windows instantiated with a non-incremental logic" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        else {
+            result_serialize = _result_serialize;
+            result_deserialize = _result_deserialize;
+            isResultFunctions = true;
+        }
         return *this;
     }
 
@@ -1454,21 +1473,15 @@ public:
             exit(EXIT_FAILURE);
         }
         // check the presence of the tuple/result serializer/deserializer according to type of the window processing logic
-        if constexpr (std::is_invocable<decltype(func), const Iterable<tuple_t> &, result_t &>::value ||
-                      std::is_invocable<decltype(func), const Iterable<tuple_t> &, result_t &, RuntimeContext &>::value) {
+        if constexpr (isNonIncNonRiched || isNonIncRiched) {
             if (!isTupleFunctions) {
-                std::cerr << RED << "WindFlow Error: P_Keyed_Windows instantiated with a non-incremental logic without tuple serializer/serializer" << DEFAULT_COLOR << std::endl;
+                std::cerr << RED << "WindFlow Error: P_Keyed_Windows instantiated with a non-incremental logic without tuple serializer/deserializer" << DEFAULT_COLOR << std::endl;
                 exit(EXIT_FAILURE);
             }
         }
-        else if constexpr (std::is_invocable<decltype(func), const tuple_t &, result_t &>::value ||
-                           std::is_invocable<decltype(func), const tuple_t &, result_t &, RuntimeContext &>::value) {
-            if (isTupleFunctions) {
-                std::cerr << RED << "WindFlow Error: P_Keyed_Windows receives tuple serializer/deserializer with an incremental logic" << DEFAULT_COLOR << std::endl;
-                exit(EXIT_FAILURE);
-            }
+        else if constexpr (isIncNonRiched || isIncRiched) {
             if (!isResultFunctions) {
-                std::cerr << RED << "WindFlow Error: P_Keyed_Windows instantiated with an incremental logic without result serializer/serializer" << DEFAULT_COLOR << std::endl;
+                std::cerr << RED << "WindFlow Error: P_Keyed_Windows instantiated with an incremental logic without result serializer/deserializer" << DEFAULT_COLOR << std::endl;
                 exit(EXIT_FAILURE);
             }
         }
@@ -1488,8 +1501,7 @@ public:
                               this->options,
                               this->read_options,
                               this->write_options,
-                              results_in_memory,
-                              frag_bytes,
+                              frag_size,
                               win_len,
                               slide_len,
                               lateness,

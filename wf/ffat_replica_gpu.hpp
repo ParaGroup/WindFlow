@@ -209,7 +209,7 @@ struct equalTo_func_gpu_t
 template<typename T>
 struct equalTo2_func_gpu_t
 {
-    __device__ bool operator()(const T &l, const T &r)
+    __host__ __device__ bool operator()(const T &l, const T &r)
     {
         return (l.key == r.key);
     }
