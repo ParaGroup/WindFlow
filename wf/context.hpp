@@ -56,6 +56,7 @@ class RuntimeContext
 private:
     template<typename T> friend class Source_Replica;
     template<typename T1> friend class Filter_Replica;
+    template<typename T1, typename T2> friend class IJoin_Replica;
     template<typename T1, typename T2> friend class P_Filter_Replica;
     template<typename T1> friend class Map_Replica;
     template <typename T1, typename T2> friend class P_Map_Replica;

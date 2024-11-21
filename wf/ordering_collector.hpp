@@ -77,6 +77,7 @@ private:
     std::vector<bool> enabled; // enable[i] is true if channel i is enabled
     std::vector<uint64_t> globalMaxs; // maximum identifiers/timestamps for each input stream (global for all keys)
     size_t eos_received; // number of received EOS messages
+    size_t separator_id; // streams separator meaningful to join operators
 
     // Comparator_t functor (it returns true if A comes after B in the ordering)
     template<typename tuple_t>
@@ -129,12 +130,14 @@ public:
     Ordering_Collector(keyextr_func_t _key_extr,
                        ordering_mode_t _ordering_mode,
                        Execution_Mode_t _execution_mode,
-                       size_t _id_collector):
+                       size_t _id_collector,
+                       size_t _separator_id=0):
                        key_extr(_key_extr),
                        ordering_mode(_ordering_mode),
                        execution_mode(_execution_mode),
                        id_collector(_id_collector),
                        globalQueue(Comparator_t<tuple_t>(_ordering_mode)),
+                       separator_id(_separator_id),
                        eos_received(0)
     {
         assert(execution_mode != Execution_Mode_t::PROBABILISTIC);
@@ -184,6 +187,9 @@ public:
             key_d.maxs[source_id] = id;
             uint64_t min_id = 0;
             min_id = getMinimum(key_d.maxs);
+            if (separator_id != 0) {
+                input->setStreamTag(source_id < separator_id ? Join_Stream_t::A : Join_Stream_t::B);
+            }
             (key_d.queue).push(input); // add the new input in the priority queue of the key
             while (!(key_d.queue).empty()) { // check if buffered inputs of the key can be emitted in order
                 Single_t<tuple_t> *next = (key_d.queue).top(); // read the next input in the queue of the key
@@ -203,6 +209,9 @@ public:
             globalMaxs[source_id] = ts;
             uint64_t min_ts = 0;
             min_ts = getMinimum(globalMaxs);
+            if (separator_id != 0) {
+                input->setStreamTag(source_id < separator_id ? Join_Stream_t::A : Join_Stream_t::B);
+            }
             globalQueue.push(input); // add the new input in the global priority queue
             while (!globalQueue.empty()) { // check if buffered inputs can be emitted in order
                 Single_t<tuple_t> *next = globalQueue.top(); // read the next input in the global queue

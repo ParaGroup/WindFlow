@@ -1387,6 +1387,187 @@ public:
 };
 
 /** 
+ *  \class Interval_Join_Builder
+ *  
+ *  \brief Builder of the Interval Join operator
+ *  
+ *  Builder class to ease the creation of the Interval Join operator.
+ */ 
+template<typename join_func_t, typename key_t=empty_key_t>
+class Interval_Join_Builder: public Basic_Builder<Interval_Join_Builder, join_func_t, key_t>
+{
+private:
+    template<typename T1, typename T2> friend class Interval_Join_Builder;
+    join_func_t func; // functional logic of the Interval Join
+    using tuple_t = decltype(get_tuple_t_Join(func)); // extracting the tuple_t type and checking the admissible signatures
+    using result_t = decltype(get_result_t_Join(func)); // extracting the result_t type and checking the admissible signatures
+    // static assert to check the signature of the Interval Join functional logic
+    static_assert(!std::is_same<tuple_t, std::false_type>::value || std::is_same<result_t, std::false_type>::value,
+        "WindFlow Compilation Error - unknown signature passed to the Interval_Join_Builder:\n"
+        "  Candidate 1 : std::optional<result_t> (const tuple_t &, const tuple_t &)\n"
+        "  Candidate 2 : std::optional<result_t> (const tuple_t &, const tuple_t &, RuntimeContext &)\n");
+    // static assert to check that the tuple_t type must be default constructible
+    static_assert(std::is_default_constructible<tuple_t>::value,
+        "WindFlow Compilation Error - tuple_t type must be default constructible (Interval_Join_Builder):\n");
+    // static assert to check that the result_t type must be default constructible
+    static_assert(std::is_default_constructible<result_t>::value,
+        "WindFlow Compilation Error - result_t type must be default constructible (Interval_Join_Builder):\n");
+    using keyextr_func_t = std::function<key_t(const tuple_t&)>; // type of the key extractor
+    using join_t = Interval_Join<join_func_t, keyextr_func_t>; // type of the Interval Join to be created by the builder
+    Routing_Mode_t input_routing_mode = Routing_Mode_t::FORWARD; // routing mode of inputs to the Interval_Join
+    keyextr_func_t key_extr = [](const tuple_t &t) -> key_t { return key_t(); }; // key extractor
+    bool isKeyBySet = false; // true if a key extractor has been provided
+    int64_t lower_bound=0; // lower bound of the interval
+    int64_t upper_bound=0; // upper bound of the interval
+    Join_Mode_t join_mode = Join_Mode_t::NONE;
+
+
+public:
+    /** 
+     *  \brief Constructor
+     *  
+     *  \param _func functional logic of the Interval Join (a function or any callable type)
+     */ 
+    Interval_Join_Builder(join_func_t _func):
+                func(_func) {}
+
+    /** 
+     *  \brief Set the KEYBY routing mode of inputs to the Interval Join
+     *  
+     *  \param _key_extr key extractor functional logic (a function or any callable type)
+     *  \return a new builder object with the right key type
+     */ 
+    template<typename new_keyextr_func_t>
+    auto withKeyBy(new_keyextr_func_t _key_extr)
+    {
+        // static assert to check the signature
+        static_assert(!std::is_same<decltype(get_tuple_t_KeyExtr(_key_extr)), std::false_type>::value,
+            "WindFlow Compilation Error - unknown signature passed to withKeyBy (Interval_Join_Builder):\n"
+            "  Candidate : key_t(const tuple_t &)\n");
+        // static assert to check that the tuple_t type of the new key extractor is the right one
+        static_assert(std::is_same<decltype(get_tuple_t_KeyExtr(_key_extr)), tuple_t>::value,
+            "WindFlow Compilation Error - key extractor receives a wrong input type (Interval_Join_Builder):\n");
+        using new_key_t = decltype(get_key_t_KeyExtr(_key_extr)); // extract the key type
+        // static assert to check the new_key_t type
+        static_assert(!std::is_same<new_key_t, void>::value,
+            "WindFlow Compilation Error - key type cannot be void (Interval_Join_Builder):\n");
+        // static assert to check that new_key_t is default constructible
+        static_assert(std::is_default_constructible<new_key_t>::value,
+            "WindFlow Compilation Error - key type must be default constructible (Interval_Join_Builder):\n");
+        if (input_routing_mode != Routing_Mode_t::FORWARD) {
+            std::cerr << RED << "WindFlow Error: wrong use of withKeyBy() in the Interval_Join_Builder" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        Interval_Join_Builder<join_func_t, new_key_t> new_builder(func);
+        new_builder.name = this->name;
+        new_builder.parallelism = this->parallelism;
+        new_builder.key_extr = _key_extr;
+        new_builder.outputBatchSize = this->outputBatchSize;
+        new_builder.closing_func = this->closing_func;
+        new_builder.isKeyBySet = true;
+        new_builder.upper_bound = this->upper_bound;
+        new_builder.lower_bound = this->lower_bound;
+        new_builder.join_mode = this->join_mode;
+        return new_builder;
+    }
+
+    /**
+     * @brief Sets the lower and upper bounds for the interval join.
+     * 
+     * @param _lower_bound The lower bound of the interval join range.
+     * @param _upper_bound The upper bound of the interval join range.
+     * @return A reference to the current object.
+     *
+     * If the lower bound is greater than the upper bound, an error message is printed and the program exits.
+     */
+    auto &withBoundaries(std::chrono::microseconds _lower_bound, std::chrono::microseconds _upper_bound)
+    {
+        //The lower and upper bounds are inclusive in the interval join range.
+        //The +-1 ensures that the bounds are inclusive when retrieving the join range using lower_bound algorithm.
+        _lower_bound -= std::chrono::microseconds(1);
+        lower_bound = _lower_bound.count();
+        _upper_bound += std::chrono::microseconds(1);
+        upper_bound = _upper_bound.count();
+        if (lower_bound > upper_bound) {
+            std::cerr << RED << "WindFlow Error: Interval_Join must have lower_bound <= upper_bound" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        return *this;
+    }
+
+    /** 
+     *  \brief Set Key Partitioning mode for join operator. Each replica will hold and join a subset of keys.
+     *  
+     *  \return a reference to the builder object
+     */ 
+    auto &withKPMode()
+    {
+        if (!isKeyBySet) {
+            std::cerr << RED << "WindFlow Error: Interval_Join with key parallelism mode requires a key extractor" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        if (join_mode != Join_Mode_t::NONE) {
+            std::cerr << RED << "WindFlow Error: wrong use of withKPMode() in the Interval_Join_Builder, you can specify only one mode per join operator " << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        input_routing_mode = Routing_Mode_t::KEYBY;
+        join_mode = Join_Mode_t::KP;
+        return *this;
+    }
+
+    /** 
+     *  \brief Set Data Partitioning mode for join operator. Each replica will hold a exclusive subset of data of each key.
+     *  This mode will permit to spread skewed data evenly across the replicas. By default a hash function will be performed upon the given tuple's timestamp, the data will be partitioned across the replicas.
+     *  Be aware if you want that your tuples are partitioned by a custom hash, you must provide std::hash<tuple_t> specialization, where tuple_t is the type of the tuple.
+     *  
+     *  \return a reference to the builder object
+     */ 
+    auto &withDPSMode()
+    {
+        if (!isKeyBySet) {
+            std::cerr << RED << "WindFlow Error: Interval_Join with data parallelism mode requires a key extractor" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        if (join_mode != Join_Mode_t::NONE) {
+            std::cerr << RED << "WindFlow Error: wrong use of withKPMode() in the Interval_Join_Builder, you can specify only one mode per join operator " << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        input_routing_mode = Routing_Mode_t::BROADCAST;
+        join_mode = Join_Mode_t::DP;
+        return *this;
+    }
+
+    /** 
+     *  \brief Create the Interval Join
+     *  
+     *  \return a new Interval Join instance
+     */ 
+    auto build()
+    {
+        // check if the mode is selected
+        if (join_mode == Join_Mode_t::NONE) {
+            std::cerr << RED << "WindFlow Error: at least one mode per join operator is need to be selected in the builder" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the presence of a key extractor
+        if (!isKeyBySet && this->parallelism > 1) {
+            std::cerr << RED << "WindFlow Error: Interval_Join with parallelism > 1 requires a key extractor" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        return join_t(func,
+                     key_extr,
+                     this->parallelism,
+                     this->name,
+                     input_routing_mode,
+                     this->outputBatchSize,
+                     this->closing_func,
+                     lower_bound,
+                     upper_bound,
+                     join_mode);
+    }
+};
+
+/** 
  *  \class Sink_Builder
  *  
  *  \brief Builder of the Sink operator
