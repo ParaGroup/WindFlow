@@ -189,8 +189,7 @@ public:
      *  \param _options options to be provided to RocksDB
      *  \param _read_options read options to be provided to RocksDB
      *  \param _write_options read options to be provided to RocksDB
-     *  \param _results_in_memory flag stating whether results must be kept in memory or on RocksDB
-     *  \param _frag_bytes size in bytes of each archive fragment of the stream
+     *  \param _frag_size size of each archive fragment of the stream (in no. of tuples)
      *  \param _win_len window length (in no. of tuples or in time units)
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _lateness (lateness in time units, meaningful for TB windows in DEFAULT mode)
@@ -212,8 +211,7 @@ public:
                     rocksdb::Options _options,
                     rocksdb::ReadOptions _read_options,
                     rocksdb::WriteOptions _write_options,
-                    bool _results_in_memory,
-                    size_t _frag_bytes,
+                    size_t _frag_size,
                     uint64_t _win_len,
                     uint64_t _slide_len,
                     uint64_t _lateness,
@@ -246,8 +244,7 @@ public:
                                                                                 _deleteDb,
                                                                                 _sharedDb,
                                                                                 i,
-                                                                                _results_in_memory,
-                                                                                _frag_bytes,
+                                                                                _frag_size,
                                                                                 win_len,
                                                                                 slide_len,
                                                                                 lateness,
@@ -255,16 +252,30 @@ public:
         }
         assert(this->parallelism > 0);
         // initialize the internal DB of the replicas
-        (replicas[0]->mydb_wrappers)->initDB(nullptr, _options, _read_options, _write_options);
-        (replicas[0]->mydb_results)->initDB(nullptr, _options, _read_options, _write_options);
+        if ((replicas[0]->mydb_wrappers) != nullptr) {
+            (replicas[0]->mydb_wrappers)->initDB(nullptr, _options, _read_options, _write_options);
+        }
+        if ((replicas[0]->mydb_results) != nullptr) {
+            (replicas[0]->mydb_results)->initDB(nullptr, _options, _read_options, _write_options);
+        }
         for (size_t i = 1; i < this->parallelism; i++) {
             if (_sharedDb) {
-                (replicas[i]->mydb_wrappers)->initDB((replicas[0]->mydb_wrappers)->get_internal_db(), _options, _read_options, _write_options);
-                (replicas[i]->mydb_results)->initDB((replicas[0]->mydb_results)->get_internal_db(), _options, _read_options, _write_options);
+                if ((replicas[0]->mydb_wrappers) != nullptr) {
+                    assert((replicas[i]->mydb_wrappers) != nullptr); // sanity check
+                    (replicas[i]->mydb_wrappers)->initDB((replicas[0]->mydb_wrappers)->get_internal_db(), _options, _read_options, _write_options);
+                }
+                if ((replicas[0]->mydb_results) != nullptr) {
+                    assert((replicas[i]->mydb_results) != nullptr); // sanity check
+                    (replicas[i]->mydb_results)->initDB((replicas[0]->mydb_results)->get_internal_db(), _options, _read_options, _write_options);
+                }
             }
             else {
-                (replicas[i]->mydb_wrappers)->initDB(nullptr, _options, _read_options, _write_options);
-                (replicas[i]->mydb_results)->initDB(nullptr, _options, _read_options, _write_options);
+                if ((replicas[i]->mydb_wrappers) != nullptr) {
+                    (replicas[i]->mydb_wrappers)->initDB(nullptr, _options, _read_options, _write_options);
+                }
+                if ((replicas[i]->mydb_results) != nullptr) {
+                    (replicas[i]->mydb_results)->initDB(nullptr, _options, _read_options, _write_options);
+                }
             }
         }
     }

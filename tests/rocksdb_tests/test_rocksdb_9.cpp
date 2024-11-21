@@ -117,16 +117,6 @@ int main(int argc, char *argv[])
             t.value = atoi(s.substr(s.find(",")+1, s.length()-1).c_str());
             return t;
         };
-        auto result_serializer = [](result_t &r) -> std::string {
-            return std::to_string(r.key) + "," + std::to_string(r.value) + ";" + std::to_string(r.wid);
-        };
-        auto result_deserializer = [](std::string &s) -> result_t {
-            result_t r;
-            r.key = atoi(s.substr(0, s.find(",")).c_str());
-            r.value = atoi(s.substr(s.find(",")+1, s.find(";")).c_str());
-            r.wid = atoi(s.substr(s.find(";")+1, s.length()-1).c_str());
-            return r;
-        };
         // prepare the test
         PipeGraph graph("test_rocksdb_9", Execution_Mode_t::DEFAULT, Time_Policy_t::EVENT_TIME);
         Source_Functor source_functor(stream_len, n_keys, true);
@@ -166,7 +156,6 @@ int main(int argc, char *argv[])
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
                                     .withTBWindows(microseconds(win_len), microseconds(win_slide))
                                     .withTupleSerializerAndDeserializer(tuple_serializer, tuple_deserializer)
-                                    .withResultSerializerAndDeserializer(result_serializer, result_deserializer)
                                     .build();
 #else
         Keyed_Windows kwins = Keyed_Windows_Builder(win_functor)

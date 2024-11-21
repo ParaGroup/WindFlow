@@ -88,7 +88,6 @@ private:
     using index_t = decltype(wrapper_t::index); // type of the index field
     using compare_func_index_t = std::function<bool(const index_t &, const index_t &)>; // function type to compare two indexes
     using meta_frag_t = std::tuple<index_t, index_t, size_t>; // tuple type for fragment metadata (min, max, id)
-    bool results_in_memory = true; // true if the results are in memory, false otherwise
     size_t n_max_elements; // max capacity of volatile buffers representing fragments
     DBHandle<tuple_t> *mydb_wrappers; // pointer to the DBHandle object used to interact with RocksDB
     DBHandle<result_t> *mydb_results; // pointer to the DBHandle object used to interact with RocksDB
@@ -96,7 +95,6 @@ private:
     struct Key_Descriptor // struct of a key descriptor
     {
         std::vector<win_t> wins; // open windows of this key
-        std::deque<result_t> res_wins; // results of open windows of this key
         std::deque<wrapper_t> actual_memory; // in-memoty buffer of tuples used by non-incremental logic only
         std::deque<meta_frag_t> frags; // fragments metadata of this key
         size_t frag_keys = 0; // counter of fragments produced for this key
@@ -250,8 +248,7 @@ public:
                      bool _deleteDb,
                      bool _sharedDb,
                      size_t _whoami,
-                     bool _results_in_memory,
-                     size_t _frag_bytes,
+                     size_t _frag_size,
                      uint64_t _win_len,
                      uint64_t _slide_len,
                      uint64_t _lateness,
@@ -259,8 +256,7 @@ public:
                      Basic_Replica(_opName, _context, _closing_func, true),
                      func(_func),
                      key_extr(_key_extr),
-                     results_in_memory(_results_in_memory),
-                     n_max_elements(size_t(_frag_bytes / sizeof(tuple_t))), // <-- Occhio!
+                     n_max_elements(_frag_size),
                      win_len(_win_len),
                      slide_len(_slide_len),
                      lateness(_lateness),
@@ -269,18 +265,24 @@ public:
                      last_time(0)
     {
         _dbpath = _sharedDb ? _dbpath + "_shared" : _dbpath;
-        mydb_wrappers = new DBHandle<tuple_t>(_tuple_serialize,
-                                              _tuple_deserialize,
-                                              _deleteDb,
-                                              _dbpath + "_frag",
-                                              tuple_t{},
-                                              _whoami);
-        mydb_results = new DBHandle<result_t>(_result_serialize,
-                                             _result_deserialize,
-                                             _deleteDb,
-                                             _dbpath + "_result",
-                                             result_t{},
-                                             _whoami);
+        if constexpr (isNonIncNonRiched || isNonIncRiched) {
+            mydb_wrappers = new DBHandle<tuple_t>(_tuple_serialize,
+                                                  _tuple_deserialize,
+                                                  _deleteDb,
+                                                  _dbpath + "_frag",
+                                                  tuple_t{},
+                                                  _whoami);
+            mydb_results = nullptr;
+        }
+        else {
+            mydb_wrappers = nullptr;
+            mydb_results = new DBHandle<result_t>(_result_serialize,
+                                                  _result_deserialize,
+                                                  _deleteDb,
+                                                  _dbpath + "_result",
+                                                  result_t{},
+                                                  _whoami);
+        }
     }
 
     // Copy Constructor
@@ -288,10 +290,7 @@ public:
                      Basic_Replica(_other),
                      func(_other.func),
                      key_extr(_other.key_extr),
-                     results_in_memory(_other.results_in_memory),
                      n_max_elements(_other.n_max_elements),
-                     mydb_wrappers((_other.mydb_wrappers)->getCopy()),
-                     mydb_results((_other.mydb_results)->getCopy()),
                      keyMap(_other.keyMap),          
                      compare_func(_other.compare_func),
                      geqt(_other.geqt),
@@ -302,13 +301,31 @@ public:
                      lateness(_other.lateness),
                      winType(_other.winType),                     
                      ignored_tuples(_other.ignored_tuples),
-                     last_time(_other.last_time) {}
+                     last_time(_other.last_time)
+    {
+        if (_other.mydb_wrappers != nullptr) {
+            mydb_wrappers = (_other.mydb_wrappers)->getCopy();
+        }
+        else {
+            mydb_wrappers = nullptr;
+        }
+        if (_other.mydb_results != nullptr) {
+            mydb_results = (_other.mydb_results)->getCopy();
+        }
+        else {
+            mydb_results = nullptr;
+        }
+    }
 
     // Destructor
     ~P_Window_Replica()
     {
-        delete mydb_wrappers;
-        delete mydb_results;
+        if (mydb_wrappers != nullptr) {
+            delete mydb_wrappers;
+        }
+        if (mydb_results != nullptr) {
+            delete mydb_results;
+        }
     }
 
     // svc (utilized by the FastFlow runtime)
@@ -399,20 +416,19 @@ public:
             uint64_t n = floor((double)(index - initial_index) / slide_len);
             last_w = n;
         }
-        std::deque<result_t> _win_results; // volatile buffer for in-memory window results
-        bool res_opened = false; // flag stating whether some new windows have been opened upon processing of the current input
+        std::deque<result_t> _win_results; // used only by incremental processing
+        bool res_opened = false; // used only by incremental processing
         auto &wins = key_d.wins;
-        if ((long)key_d.next_lwid <= last_w && !results_in_memory) { // if there are new windows, and results are kept on RocksDB
-            _win_results = mydb_results->get_list_result(key); // deserialize windows results associated with key
-            res_opened = true;
+        if constexpr (isIncNonRiched || isIncRiched) {
+            if ((long) key_d.next_lwid <= last_w) { // if there are new windows, and results are kept on RocksDB
+                _win_results = mydb_results->get_list_result(key); // deserialize windows results associated with key
+                res_opened = true;
+            }
         }
         for (long lwid = key_d.next_lwid; lwid <= last_w; lwid++) { // create all the new opened windows
             uint64_t gwid = first_gwid_key + lwid; // translate lwid -> gwid
-            result_t new_res = create_win_result_t<result_t, key_t>(key, gwid);
-            if (results_in_memory) {
-                key_d.res_wins.push_back(new_res);
-            }
-            else {
+            if constexpr (isIncNonRiched || isIncRiched) {
+                result_t new_res = create_win_result_t<result_t, key_t>(key, gwid);
                 _win_results.push_back(new_res);
             }
             if (winType == Win_Type_t::CB) {
@@ -425,21 +441,24 @@ public:
         }
         size_t cnt_fired = 0;
         if constexpr (isNonIncRiched || isNonIncNonRiched) {
-            insert(wrapper_t(_tuple, index), key_d, key); // insert the wrapped tuple in the archive of the key
+            insert(wrapper_t(_tuple, index), key_d, key); // insert the wrapped tuple in the archive of the key (non-incremental processing only)
         }
-        if (!wins.empty() && !results_in_memory && !res_opened){
-            _win_results = mydb_results->get_list_result(key); // deserialize windows results associated with key
-            res_opened = true;
+        if constexpr (isIncNonRiched || isIncRiched) {
+            if (!wins.empty() && !res_opened) {
+                _win_results = mydb_results->get_list_result(key); // deserialize windows results associated with key
+                res_opened = true;
+            }
         }
-        typename std::deque<result_t>::iterator result_it_list = results_in_memory ? key_d.res_wins.begin() : _win_results.begin();
+        typename std::deque<result_t>::iterator result_it_list = _win_results.begin();
         for (auto &win: wins) { // evaluate all the open windows of the key
-            result_t &res = *result_it_list;
             win_event_t event = win.onTuple(_tuple, index, _timestamp); // get the event
             if (event == win_event_t::IN) { // window is not fired
                 if constexpr (isIncNonRiched) { // incremental and non-riched
+                    result_t &res = *result_it_list;
                     func(_tuple, res);
                 }
                 if constexpr (isIncRiched) { // incremental and riched
+                    result_t &res = *result_it_list;
                     (this->context).setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
                     func(_tuple, res, this->context);
                 }
@@ -461,6 +480,7 @@ public:
                             its.second = std::lower_bound(history_buffer.begin(), history_buffer.end(), *t_e, compare_func);
                         }
                         Iterable<tuple_t> iter(its.first, its.second);
+                        result_t res = create_win_result_t<result_t, key_t>(key, win.getGWID());
                         if constexpr (isNonIncNonRiched) { // non-riched
                             func(iter, res);
                         }
@@ -471,24 +491,31 @@ public:
                         if (t_s) { // purge tuples from the archive
                             purge(*t_s, key_d, key);
                         }
+                        cnt_fired++;
+                        key_d.last_lwid++;
+                        uint64_t used_ts = (this->execution_mode != Execution_Mode_t::DEFAULT) ? _timestamp : _watermark;
+                        uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : _watermark;
+                        this->doEmit(this->emitter, &(res), 0, used_ts, used_wm, this);
                     }
-                    cnt_fired++;
-                    key_d.last_lwid++;
-                    uint64_t used_ts = (this->execution_mode != Execution_Mode_t::DEFAULT) ? _timestamp : _watermark;
-                    uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : _watermark;
-                    this->doEmit(this->emitter, &(res), 0, used_ts, used_wm, this);
+                    else {
+                        result_t &res = *result_it_list;
+                        cnt_fired++;
+                        key_d.last_lwid++;
+                        uint64_t used_ts = (this->execution_mode != Execution_Mode_t::DEFAULT) ? _timestamp : _watermark;
+                        uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : _watermark;
+                        this->doEmit(this->emitter, &(res), 0, used_ts, used_wm, this);
+                    }
 #if defined(WF_TRACING_ENABLED)
                     (this->stats_record).outputs_sent++;
                     (this->stats_record).bytes_sent += sizeof(result_t);
 #endif
                 }
             }
-            result_it_list++;
+            if constexpr (isIncNonRiched || isIncRiched) {
+                result_it_list++;
+            }
         }
-        if (results_in_memory) {
-            key_d.res_wins.erase(key_d.res_wins.begin(), key_d.res_wins.begin() + cnt_fired);
-        }
-        else if (res_opened) {
+        if constexpr (isIncNonRiched || isIncRiched) {
             _win_results.erase(_win_results.begin(), _win_results.begin() + cnt_fired);
             mydb_results->put(_win_results, key);
         }
@@ -501,19 +528,14 @@ public:
         for (auto &k: keyMap) { // iterate over all the keys
             key_t key = (k.first);
             Key_Descriptor &key_d = (k.second);
-            std::deque<result_t> _win_results; // volatile buffer for in-memory window results
+            std::deque<result_t> _win_results; // used only by incremental processing
             typename std::deque<result_t>::iterator result_it_list;
-            if (!results_in_memory) {
+            if constexpr (isIncNonRiched || isIncRiched) {
                 _win_results = mydb_results->get_list_result(key);
                 result_it_list = _win_results.begin();
             }
-            else {
-                result_it_list = key_d.res_wins.begin();
-            }
             auto &wins = key_d.wins;
             for (auto &win: wins) { // iterate over all the windows of the key
-                result_t &res = *result_it_list;
-                // result_t &win_res = _win_results.at(i++);
                 if constexpr (isNonIncNonRiched || isNonIncRiched) { // non-incremental
                     std::optional<wrapper_t> t_s = win.getFirstTuple();
                     std::optional<wrapper_t> t_e = win.getLastTuple();
@@ -536,22 +558,28 @@ public:
                         }
                     }
                     Iterable<tuple_t> iter(its.first, its.second);
+                    result_t res = create_win_result_t<result_t, key_t>(key, win.getGWID());
                     if constexpr (isNonIncNonRiched) { // non-riched
                         func(iter, res);
                     }
                     if constexpr (isNonIncRiched) { // riched
                         func(iter, res, this->context);
                     }
+                    uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : last_time;
+                    this->doEmit(this->emitter, &(res), 0, last_time, used_wm, this);
                 }
-                uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : last_time;
-                this->doEmit(this->emitter, &(res), 0, last_time, used_wm, this);
-                result_it_list++;
+                else {
+                    result_t &res = *result_it_list;
+                    uint64_t used_wm = (this->execution_mode != Execution_Mode_t::DEFAULT) ? 0 : last_time;
+                    this->doEmit(this->emitter, &(res), 0, last_time, used_wm, this);
+                    result_it_list++;
+                }
 #if defined(WF_TRACING_ENABLED)
                 (this->stats_record).outputs_sent++;
                 (this->stats_record).bytes_sent += sizeof(result_t);
 #endif
             }
-            if (!results_in_memory) {
+            if constexpr (isIncNonRiched || isIncRiched) { // I don't think this part is really necessary
                 mydb_results->put(_win_results, key);
             }
         }

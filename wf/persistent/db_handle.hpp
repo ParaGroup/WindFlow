@@ -83,7 +83,7 @@ public:
              initial_state(_initial_state),
              isOwner(false),
              deleteDb(_deleteDb),
-             dbpath(_dbpath),
+             dbpath(_dbpath + "_" + std::to_string(getpid())),
              whoami(_whoami) {}
 
     // Copy Constructor
@@ -251,19 +251,18 @@ public:
     T get(key_t &_key)
     {
         std::string db_val;
-        std::string *memory_db_val = nullptr;
         rocksdb::PinnableSlice pinnable_db_val(&db_val);
-        T real_val(initial_state);
+        T output(initial_state);
         rocksdb::Status key_status;
         db_key = key_serializer(_key);
         key_status = db->Get(read_options, db->DefaultColumnFamily(), db_key, &pinnable_db_val);
         if (key_status.ok()) {
             if (pinnable_db_val.IsPinned()) {
-                memory_db_val = pinnable_db_val.GetSelf();
+                db_val = pinnable_db_val.ToString(); // big copy, it can be avoided
             }
-            real_val = memory_db_val ? deserialize(*memory_db_val) : deserialize(db_val);
+            output = deserialize(db_val);
         }
-        return real_val;
+        return output;
     }
 
     // Method to get a deque of objects of type T for a stream key
@@ -271,19 +270,18 @@ public:
     std::deque<T> get_list_result(key_t &_key)
     {
         std::string db_val;
-        std::string *memory_db_val = nullptr;
         rocksdb::PinnableSlice pinnable_db_val(&db_val);
-        std::deque<T> real_val;
+        std::deque<T> outputs;
         rocksdb::Status key_status;
         db_key = key_serializer(_key);
         key_status = db->Get(read_options, db->DefaultColumnFamily(), db_key, &pinnable_db_val);
         if (key_status.ok()) {
             if (pinnable_db_val.IsPinned()) {
-                memory_db_val = pinnable_db_val.GetSelf();
+                db_val = pinnable_db_val.ToString(); // big copy, it can be avoided
             }
-            real_val = memory_db_val ? T_list_deserializer(*memory_db_val) : T_list_deserializer(db_val);
+            outputs = T_list_deserializer(db_val);
         }
-        return real_val;
+        return outputs;
     }
 
     // Method to get a deque of objects of type wrapper_t for a given fragment key
@@ -291,19 +289,18 @@ public:
     std::deque<wrapper_t> get_list_frag(key_t &_key, size_t _idx)
     {
         std::string db_val;
-        std::string *memory_db_val = nullptr;
         rocksdb::PinnableSlice pinnable_db_val(&db_val);
-        std::deque<wrapper_t> real_val;
+        std::deque<wrapper_t> outputs;
         rocksdb::Status key_status;
         db_key = key_serializer(_key, _idx);
         key_status = db->Get(read_options, db->DefaultColumnFamily(), db_key, &pinnable_db_val);
         if (key_status.ok()) {
             if (pinnable_db_val.IsPinned()) {
-                memory_db_val = pinnable_db_val.GetSelf();
+                db_val = pinnable_db_val.ToString(); // big copy, it can be avoided
             }
-            real_val = memory_db_val ? wrapper_list_deserializer(*memory_db_val) : wrapper_list_deserializer(db_val);
+            outputs = wrapper_list_deserializer(db_val);
         }
-        return real_val;
+        return outputs;
     }
 
     // Method to put a value of type T associated with db_key
