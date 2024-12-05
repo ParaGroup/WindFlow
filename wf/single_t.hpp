@@ -54,6 +54,7 @@ struct Single_t
     std::atomic<size_t> delete_counter; // atomic counter to delete correctly the Single_t
     ff::MPMC_Ptr_Queue *queue = nullptr; // pointer to the recycling queue
     bool isPunctuation = false; // flag true if the message is a punctuation, false otherwise
+    Join_Stream_t stream_tag = Join_Stream_t::NONE; // flag to discriminate stream flow between Stream A & B (meaningful to join operators)
 
     // Constructor I (copy semantics of the tuple)
     Single_t(const tuple_t &_tuple,
@@ -91,7 +92,8 @@ struct Single_t
              fields(_other.fields),
              delete_counter(1),
              queue(_other.queue),
-             isPunctuation(_other.isPunctuation) {}
+             isPunctuation(_other.isPunctuation),
+             stream_tag(_other.stream_tag) {}
 
     // Check whether the Single_t can be deleted or not
     bool isDeletable()
@@ -175,6 +177,18 @@ struct Single_t
         else {
             fields[2] = _wm;
         }
+    }
+
+    // Get the stream tag of the tuple
+    Join_Stream_t getStreamTag() const
+    {
+        return stream_tag;
+    }
+
+    // Set the stream tag of the tuple
+    void setStreamTag(Join_Stream_t _tag)
+    {
+        stream_tag = _tag;
     }
 
     Single_t(Single_t &&) = delete; ///< Move constructor is deleted

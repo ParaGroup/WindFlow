@@ -83,6 +83,12 @@ public:
     // Set the watermark of the batch related to a specific destination _node_id
     virtual void setWatermark(uint64_t _wm, size_t _node_id) = 0;
 
+    // Get the stream tag of the batch
+    virtual Join_Stream_t getStreamTag() const = 0;
+
+    // Set the stream tag of the batch
+    virtual void setStreamTag(Join_Stream_t _tag) = 0;
+
     Batch_t(Batch_t &&) = delete; ///< Move constructor is deleted
     Batch_t &operator=(const Batch_t &) = delete; ///< Copy assignment operator is deleted
     Batch_t &operator=(Batch_t &&) = delete; ///< Move assignment operator is deleted

@@ -68,6 +68,7 @@ struct Batch_CPU_t: Batch_t<tuple_t>
     std::atomic<size_t> delete_counter; // atomic counter to delete correctly the batch
     size_t size; // number of meaningful items within the batch
     bool isPunctuation; // flag true if the message is a punctuation, false otherwise
+    Join_Stream_t stream_tag; // flag to discriminate stream flow between Stream A & B (meaningful to join operators)
 
     // Constructor
     Batch_CPU_t(size_t _reserved_size, size_t _delete_counter=1):
@@ -149,6 +150,18 @@ struct Batch_CPU_t: Batch_t<tuple_t>
         else {
             watermarks[0] = _wm;
         }
+    }
+
+    // Get the stream tag of the batch
+    Join_Stream_t getStreamTag() const
+    {
+        return stream_tag;
+    }
+
+    // Set the stream tag of the batch
+    void setStreamTag(Join_Stream_t _tag)
+    {
+        stream_tag = _tag;
     }
 
     // Append the tuple at the end of the batch (copy semantics of the tuple)

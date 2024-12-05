@@ -59,6 +59,7 @@ private:
     ordering_mode_t ordering_mode; // ordering mode used by the Watermark_Collector
     size_t id_collector; // identifier of the Watermark_Collector
     size_t eos_received; // number of received EOS messages
+    size_t separator_id; // streams separator meaningful to join operators
 
     // Get the minimum watermark among the enabled channels
     uint64_t getMinimumWM()
@@ -83,11 +84,13 @@ public:
     Watermark_Collector(keyextr_func_t _key_extr,
                         ordering_mode_t _ordering_mode,
                         size_t _id_collector,
-                        bool _input_batching=false):
+                        bool _input_batching=false,
+                        size_t _separator_id=0):
                         key_extr(_key_extr),
                         input_batching(_input_batching),
                         ordering_mode(_ordering_mode),
                         id_collector(_id_collector),
+                        separator_id(_separator_id),
                         eos_received(0)
     {
         assert(_ordering_mode == ordering_mode_t::TS);
@@ -115,6 +118,9 @@ public:
             maxs[source_id] = input->getWatermark(id_collector); // watermarks are received ordered on the same input channel
             uint64_t min_wm = getMinimumWM();
             input->setWatermark(min_wm, id_collector); // replace the watermark with the right one to use
+            if (separator_id != 0) {
+                input->setStreamTag(source_id < separator_id ? Join_Stream_t::A : Join_Stream_t::B);
+            }
             return input;
         }
         else { // batching mode
@@ -123,6 +129,9 @@ public:
             maxs[source_id] = batch_input->getWatermark(id_collector); // watermarks are received ordered on the same input channel
             uint64_t min_wm = getMinimumWM();
             batch_input->setWatermark(min_wm, id_collector); // replace the watermark with the right one to use
+            if (separator_id != 0) {
+                batch_input->setStreamTag(source_id < separator_id ? Join_Stream_t::A : Join_Stream_t::B);
+            }
             return batch_input;
         }
     }
