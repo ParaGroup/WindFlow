@@ -68,13 +68,15 @@ struct Batch_CPU_t: Batch_t<tuple_t>
     std::atomic<size_t> delete_counter; // atomic counter to delete correctly the batch
     size_t size; // number of meaningful items within the batch
     bool isPunctuation; // flag true if the message is a punctuation, false otherwise
-    Join_Stream_t stream_tag; // flag to discriminate stream flow between Stream A & B (meaningful to join operators)
+    Join_Stream_t stream_tag; // flag to discriminate the stream between A and B (meaningful to join-based operators)
 
     // Constructor
-    Batch_CPU_t(size_t _reserved_size, size_t _delete_counter=1):
+    Batch_CPU_t(size_t _reserved_size,
+                size_t _delete_counter=1):
                 delete_counter(_delete_counter),
                 size(0),
-                isPunctuation(false)
+                isPunctuation(false),
+                stream_tag(Join_Stream_t::NONE)
     {
         batch_data.reserve(_reserved_size);
         watermarks.push_back(std::numeric_limits<uint64_t>::max());
@@ -87,7 +89,8 @@ struct Batch_CPU_t: Batch_t<tuple_t>
                 watermarks(_other.watermarks),
                 delete_counter(1),
                 size(_other.size),
-                isPunctuation(_other.isPunctuation) {}
+                isPunctuation(_other.isPunctuation),
+                stream_tag(_other.stream_tag) {}
 
     // Destructor
     ~Batch_CPU_t() override = default;
@@ -153,13 +156,13 @@ struct Batch_CPU_t: Batch_t<tuple_t>
     }
 
     // Get the stream tag of the batch
-    Join_Stream_t getStreamTag() const
+    Join_Stream_t getStreamTag() const override
     {
         return stream_tag;
     }
 
     // Set the stream tag of the batch
-    void setStreamTag(Join_Stream_t _tag)
+    void setStreamTag(Join_Stream_t _tag) override
     {
         stream_tag = _tag;
     }

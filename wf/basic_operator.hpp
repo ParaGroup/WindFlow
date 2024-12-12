@@ -122,8 +122,8 @@ protected:
         }
         else {
             emitter = (_other.emitter)->clone(); // clone the emitter if it exists
-	        doEmit = emitter->get_doEmit();
-	        doEmit_inplace = emitter->get_doEmit_inplace();
+            doEmit = emitter->get_doEmit();
+            doEmit_inplace = emitter->get_doEmit_inplace();
         }
 #if defined (WF_TRACING_ENABLED)
         stats_record = _other.stats_record;

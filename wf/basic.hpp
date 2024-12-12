@@ -84,9 +84,9 @@ enum class Time_Policy_t { INGRESS_TIME, EVENT_TIME };
 enum class Win_Type_t { CB, TB }; // CB = count based, TB = time based
 
 /// Supported interval join operating modes
-// KP = Key Parallelism, DP = Data Parallelism with single-key buffers
 enum class Join_Mode_t { NONE, KP, DP };
 
+/// Supported interval join stream tagging
 enum class Join_Stream_t { NONE, A, B };
 
 /// Routing modes to distribute inputs to the replicas of an operator
@@ -316,11 +316,8 @@ inline uint64_t compute_gcd(uint64_t u, uint64_t v)
 template<typename tuple_t>
 struct wrapper_tuple_t
 {
-    //tuple
     tuple_t tuple;
-    // [Win] identifier (CB) or timestamp (TB)
-    // [Join] timestamp or watermark
-    uint64_t index;
+    uint64_t index; // [win] identifier (CB), timestamp (TB); [join] timestamp or watermark
 
     // Constructor I
     wrapper_tuple_t() {}

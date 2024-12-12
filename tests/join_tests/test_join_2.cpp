@@ -22,7 +22,7 @@
  */
 
 /*  
- *  Test 2 of general graphs of operators.
+ *  Test 2 of the Interval Join operator.
  *  
  *                              +---------------------+
  *                              |  +-----+   +-----+  |

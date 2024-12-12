@@ -29,7 +29,7 @@
  *  
  *  @section Archive (Description)
  *  
- *  Buffer of tuples received from the input streams (used in window-based or join-based operators).
+ *  Abstract class implementing the archive used by window-based and join-based operators.
  */ 
 
 #ifndef ARCHIVE_H
@@ -47,17 +47,18 @@ template<typename tuple_t, typename compare_func_t>
 class Archive
 {
 protected:
-    //using compare_func_t = std::function<bool(const wrapper_t &, const wrapper_t &)>; // function type to compare two wrapped tuples
     using wrapper_t = wrapper_tuple_t<tuple_t>; // alias for the wrapped tuple type
     using iterator_t = typename std::deque<wrapper_t>::iterator; // iterator type
     compare_func_t lessThan; // function to compare two wrapped tuples
     std::deque<wrapper_t> archive; // container implementing the ordered archive of wrapped tuples
-    
+
     // Constructor
     Archive(compare_func_t _lessThan):
-                  lessThan(_lessThan) {}
+            lessThan(_lessThan) {}
 
 public:
+    // Destructor
+    virtual ~Archive() = default;
 
     // Add a wrapped tuple to the archive (copy semantics)
     virtual void insert(const wrapper_t &_wt) = 0;
@@ -65,7 +66,7 @@ public:
     // Add a wrapped tuple to the archive (move semantics)
     virtual void insert(wrapper_t &&_wt) = 0;
 
-    // Remove all the tuples prior to _wt in the ordering
+    // Remove all the tuples prior to _wt in the archive
     virtual size_t purge(const wrapper_t &_wt) = 0;
 
     // Get the size of the archive
@@ -85,9 +86,6 @@ public:
     {
         return archive.end();
     }
-
-    virtual ~Archive() = default;
-
 };
 
 } // namespace wf

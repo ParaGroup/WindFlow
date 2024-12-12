@@ -212,7 +212,7 @@ private:
         for (auto *r: _operator.replicas) {
             ff::ff_pipeline *stage = new ff::ff_pipeline();
             stage->add_stage(r, false);
-            // We use Join_Collector if condition for Interval_Join is with DEFAULT execution mode and DP join mode
+            // we use the Join_Collector if DEFAULT execution mode and DP join mode
             if (_operator.getType() == "Interval_Join_DP" && execution_mode == Execution_Mode_t::DEFAULT) {
                 r->receiveBatches(_needBatching);
                 auto *collector = new Join_Collector<decltype(_operator.getKeyExtractor())>(_operator.getKeyExtractor(), _ordering_mode, execution_mode, Join_Mode_t::DP, id++, _needBatching, separator_id);
@@ -444,7 +444,7 @@ private:
             exit(EXIT_FAILURE);
         }
         if (auto lastOps = this->getLastOperators(); (_operator.getType() == "Interval_Join_KP" || _operator.getType() == "Interval_Join_DP") && (!fromMerging || localOpList.size() != 0 || lastOps.size() != 2) ) {
-            std::cerr << RED << "WindFlow Error: Join operators must be added after merge of two MultiPipes" << DEFAULT_COLOR << std::endl;
+            std::cerr << RED << "WindFlow Error: Join operators must be added after a merge of exactly two MultiPipes" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         if (fromSplitting && last == nullptr) { // Case 1: first operator added after splitting
@@ -1061,6 +1061,10 @@ public:
             }
             else if (_op.getType() == "P_Reduce") {
                 std::cerr << RED << "WindFlow Error: P_Reduce operator cannot be chained" << DEFAULT_COLOR << std::endl;
+                exit(EXIT_FAILURE);
+            }
+            else if ((_op.getType() == "Interval_Join_KP") || (_op.getType() == "Interval_Join_DP")) {
+                std::cerr << RED << "WindFlow Error: Interval_Join cannot be chained" << DEFAULT_COLOR << std::endl;
                 exit(EXIT_FAILURE);
             }
             auto *copied_op = new op_t(_op); // create a copy of the operator

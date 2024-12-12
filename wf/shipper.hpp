@@ -85,7 +85,7 @@ private:
             timestamp(0),
             watermark(0)
     {
-    	doEmit = emitter->get_doEmit();
+        doEmit = emitter->get_doEmit();
     }
 
     // Copy Constructor

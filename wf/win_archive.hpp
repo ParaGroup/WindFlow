@@ -58,9 +58,8 @@ private:
         "  Candidate : bool(const wrapper_t &, const wrapper_t &)\n");
 
 public:
-
     // Constructor
-    WinArchive(compare_func_t lessThan) : Archive<tuple_t, compare_func_t>(lessThan) {}
+    WinArchive(compare_func_t lessThan): Archive<tuple_t, compare_func_t>(lessThan) {}
 
     // Add a wrapped tuple to the archive (copy semantics)
     void insert(const wrapper_t &_wt) override

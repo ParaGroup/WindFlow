@@ -63,7 +63,7 @@ struct Batch_GPU_t: Batch_t<tuple_t>
     int *map_idxs_gpu; // GPU array to find tuples with the same key within the batch
     cudaStream_t cudaStream; // CUDA stream associated with the batch
     std::atomic<int> *inTransit_counter; // pointer to the counter of in-transit batches
-    Join_Stream_t stream_tag; // flag to discriminate stream flow between Stream A & B (meaningful to join operators)
+    Join_Stream_t stream_tag; // flag to discriminate the stream between A and B (meaningful to join-based operators)
 
     // Constructor
     Batch_GPU_t(size_t _size,
@@ -76,7 +76,8 @@ struct Batch_GPU_t: Batch_t<tuple_t>
                 pinned_data_cpu(nullptr),
                 num_dist_keys(0),
                 dist_keys_cpu(nullptr),
-                inTransit_counter(_inTransit_counter)
+                inTransit_counter(_inTransit_counter),
+                stream_tag(Join_Stream_t::NONE)
     {
         watermarks.push_back(std::numeric_limits<uint64_t>::max());
         if (cudaMalloc(&data_gpu, sizeof(batch_item_gpu_t<tuple_t>) * size) == cudaErrorMemoryAllocation) {
@@ -209,13 +210,13 @@ struct Batch_GPU_t: Batch_t<tuple_t>
     }
 
     // Get the stream tag of the batch
-    Join_Stream_t getStreamTag() const
+    Join_Stream_t getStreamTag() const override
     {
         return stream_tag;
     }
 
     // Set the stream tag of the batch
-    void setStreamTag(Join_Stream_t _tag)
+    void setStreamTag(Join_Stream_t _tag) override
     {
         stream_tag = _tag;
     }

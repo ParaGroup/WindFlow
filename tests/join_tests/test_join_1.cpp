@@ -22,7 +22,7 @@
  */
 
 /*  
- *  Test 1 of general graphs of operators.
+ *  Test 1 of the Interval Join operator.
  *  
  *  +---------------------+                                   +-----------+
  *  |  +-----+   +-----+  |                                   |  +-----+  |
@@ -264,7 +264,7 @@ int main(int argc, char *argv[])
         }
         check_degree += (sink1_degree + sink2_degree);
         // prepare the test
-        PipeGraph graph("test_graph_1 (DETERMINISTIC)", Execution_Mode_t::DETERMINISTIC, Time_Policy_t::EVENT_TIME);
+        PipeGraph graph("test_join_1 (DETERMINISTIC)", Execution_Mode_t::DETERMINISTIC, Time_Policy_t::EVENT_TIME);
         // prepare the first MultiPipe
         Source_Positive_Functor source_functor_positive(stream_len, n_keys, false);
         Source source1 = Source_Builder(source_functor_positive)

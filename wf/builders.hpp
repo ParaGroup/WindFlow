@@ -1421,7 +1421,6 @@ private:
     int64_t upper_bound=0; // upper bound of the interval
     Join_Mode_t join_mode = Join_Mode_t::NONE;
 
-
 public:
     /** 
      *  \brief Constructor
@@ -1429,7 +1428,7 @@ public:
      *  \param _func functional logic of the Interval Join (a function or any callable type)
      */ 
     Interval_Join_Builder(join_func_t _func):
-                func(_func) {}
+                          func(_func) {}
 
     /** 
      *  \brief Set the KEYBY routing mode of inputs to the Interval Join
@@ -1471,19 +1470,17 @@ public:
         return new_builder;
     }
 
-    /**
-     * @brief Sets the lower and upper bounds for the interval join.
-     * 
-     * @param _lower_bound The lower bound of the interval join range.
-     * @param _upper_bound The upper bound of the interval join range.
-     * @return A reference to the current object.
-     *
-     * If the lower bound is greater than the upper bound, an error message is printed and the program exits.
-     */
+    /** 
+     *  @brief Set the lower and upper bounds of the interval join.
+     *  
+     *  @param _lower_bound lower bound of the interval join range
+     *  @param _upper_bound upper bound of the interval join range
+     *  @return a reference to the current object
+     */ 
     auto &withBoundaries(std::chrono::microseconds _lower_bound, std::chrono::microseconds _upper_bound)
     {
-        //The lower and upper bounds are inclusive in the interval join range.
-        //The +-1 ensures that the bounds are inclusive when retrieving the join range using lower_bound algorithm.
+        // the lower and upper bounds are inclusive in the interval join range
+        // the +-1 ensures that the bounds are inclusive when retrieving the join range using the lower_bound algorithm
         _lower_bound -= std::chrono::microseconds(1);
         lower_bound = _lower_bound.count();
         _upper_bound += std::chrono::microseconds(1);
@@ -1496,7 +1493,7 @@ public:
     }
 
     /** 
-     *  \brief Set Key Partitioning mode for join operator. Each replica will hold and join a subset of keys.
+     *  \brief Set Key Partitioning mode. Each replica will hold and join a subset of keys.
      *  
      *  \return a reference to the builder object
      */ 
@@ -1507,7 +1504,7 @@ public:
             exit(EXIT_FAILURE);
         }
         if (join_mode != Join_Mode_t::NONE) {
-            std::cerr << RED << "WindFlow Error: wrong use of withKPMode() in the Interval_Join_Builder, you can specify only one mode per join operator " << DEFAULT_COLOR << std::endl;
+            std::cerr << RED << "WindFlow Error: wrong use of withKPMode() in the Interval_Join_Builder, you can specify only one mode per join operator" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         input_routing_mode = Routing_Mode_t::KEYBY;
@@ -1516,9 +1513,7 @@ public:
     }
 
     /** 
-     *  \brief Set Data Partitioning mode for join operator. Each replica will hold a exclusive subset of data of each key.
-     *  This mode will permit to spread skewed data evenly across the replicas. By default a hash function will be performed upon the given tuple's timestamp, the data will be partitioned across the replicas.
-     *  Be aware if you want that your tuples are partitioned by a custom hash, you must provide std::hash<tuple_t> specialization, where tuple_t is the type of the tuple.
+     *  \brief Set Data Partitioning mode. Each replica will hold a exclusive subset of data of each key.
      *  
      *  \return a reference to the builder object
      */ 
@@ -1529,7 +1524,7 @@ public:
             exit(EXIT_FAILURE);
         }
         if (join_mode != Join_Mode_t::NONE) {
-            std::cerr << RED << "WindFlow Error: wrong use of withKPMode() in the Interval_Join_Builder, you can specify only one mode per join operator " << DEFAULT_COLOR << std::endl;
+            std::cerr << RED << "WindFlow Error: wrong use of withDPSMode() in the Interval_Join_Builder, you can specify only one mode per join operator " << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         input_routing_mode = Routing_Mode_t::BROADCAST;
@@ -1555,15 +1550,15 @@ public:
             exit(EXIT_FAILURE);
         }
         return join_t(func,
-                     key_extr,
-                     this->parallelism,
-                     this->name,
-                     input_routing_mode,
-                     this->outputBatchSize,
-                     this->closing_func,
-                     lower_bound,
-                     upper_bound,
-                     join_mode);
+                      key_extr,
+                      this->parallelism,
+                      this->name,
+                      input_routing_mode,
+                      this->outputBatchSize,
+                      this->closing_func,
+                      lower_bound,
+                      upper_bound,
+                      join_mode);
     }
 };
 

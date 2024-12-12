@@ -22,7 +22,7 @@
  */
 
 /*  
- *  Test 3 of merge between MultiPipes.
+ *  Test 3 of the Interval Join operator.
  *  
  *  +-----------+
  *  |  +-----+  |

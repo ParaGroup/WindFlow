@@ -1,5 +1,5 @@
 /**************************************************************************************
- *  Copyright (c) 2023- Gabriele Mencagli and Yuriy Rymarchuk
+ *  Copyright (c) 2024- Gabriele Mencagli and Yuriy Rymarchuk
  *  
  *  This file is part of WindFlow.
  *  
@@ -31,27 +31,26 @@
  *  
  *  This file implements the Interval Join operator able to execute joins over two streams of tuples
  *  producing x output per input, where x is the number of asserted predicates in the given range.
- *  ( number of join conditions evalueted to true in the given range )
  */ 
 
 #ifndef INTERVAL_JOIN_H
 #define INTERVAL_JOIN_H
 
 /// includes
-#include<iomanip>
 #include<string>
+#include<cstdint>
+#include<iomanip>
 #include<functional>
-#include <cstdint>
 #include<context.hpp>
 #include<batch_t.hpp>
 #include<single_t.hpp>
 #if defined (WF_TRACING_ENABLED)
     #include<stats_record.hpp>
 #endif
+#include<iterable.hpp>
+#include<join_archive.hpp>
 #include<basic_emitter.hpp>
 #include<basic_operator.hpp>
-#include<join_archive.hpp>
-#include<iterable.hpp>
 
 namespace wf {
 
@@ -68,63 +67,48 @@ private:
     using tuple_t = decltype(get_tuple_t_Join(func)); // extracting the tuple_t type and checking the admissible signatures
     using result_t = decltype(get_result_t_Join(func)); // extracting the result_t type and checking the admissible signatures
     using key_t = decltype(get_key_t_KeyExtr(key_extr)); // extracting the key_t type and checking the admissible singatures
-
     // static predicates to check the type of the functional logic to be invoked
     static constexpr bool isNonRiched = std::is_invocable<decltype(func), const tuple_t &, const tuple_t &>::value;
     static constexpr bool isRiched = std::is_invocable<decltype(func), const tuple_t &, const tuple_t &, RuntimeContext &>::value;
     // check the presence of a valid functional logic
     static_assert(isNonRiched || isRiched,
         "WindFlow Compilation Error - IJoin_Replica does not have a valid functional logic:\n");
-
     using wrapper_t = wrapper_tuple_t<tuple_t>; // alias for the wrapped tuple type
     using container_t = typename std::deque<wrapper_t>; // container type for underlying archive's buffer structure
     using iterator_t = typename container_t::iterator; // iterator type for accessing wrapped tuples in the archive
-    
-    using compare_func_t = std::function< bool(const wrapper_t &, const uint64_t &) >; // function type to compare wrapped tuple to an uint64
+    using compare_func_t = std::function<bool(const wrapper_t &, const uint64_t &)>; // function type to compare wrapped tuple to an uint64
 
-    /**
-     * @brief Structure to store statistics about an archive.
-     */
+    /** 
+     *  @brief Structure to store statistics about an archive.
+     */ 
     struct Archive_Stats
     {
-        /**
-         * @brief Total size of the archive.
-         */
+        // Total size of the archive.
         size_t size;
 
-        /**
-         * @brief Number of times the size of the archive has been recorded.
-         */
+        // Number of times the size of the archive has been recorded
         uint64_t size_count;
 
-        /**
-         * @brief Default constructor for Archive_Stats.
-         */
+        // Default constructor for Archive_Stats
         Archive_Stats():
-            size(0),
-            size_count(0) {}
-
-        /**
-         * @brief Records the size of the archive.
-         * @param _size The size of the archive to be recorded.
-         */
+                      size(0),
+                      size_count(0) {}
+ 
+        // Records the size of the archive
         void recordSize(uint64_t _size)
         {
             size += _size;
             size_count++;
         }
 
-        /**
-         * @brief Calculates the mean size of the archive.
-         * @return The mean size of the archive.
-         */
+        // Calculates the mean size of the archive
         double getArchiveMeanSize() const
         {
             double mean = static_cast<double>(size) / size_count;
             return std::isnan(mean) ? 0.0 : mean;
         }
     };
-    uint64_t last_measured_size_time; // last time (ns) the archives size was measured
+    uint64_t last_measured_size_time; // last time (ns) the archive size was measured
 
     struct Key_Descriptor // struct of a key descriptor
     {
@@ -134,39 +118,35 @@ private:
 
         // Constructor
         Key_Descriptor(compare_func_t _compare_func):
-                        archiveA(_compare_func),
-                        archiveB(_compare_func),
-                        archive_metrics(Archive_Stats()) {}
-        
+                       archiveA(_compare_func),
+                       archiveB(_compare_func),
+                       archive_metrics(Archive_Stats()) {}
+
+        // recordSize method
         void recordSize()
         {
             archive_metrics.recordSize((archiveA.size()+archiveB.size()));
         }
     };
 
-    compare_func_t compare_func; // function to compare wrapped to an uint64 that rapresent an timestamp ( or watermark )
-    int64_t lower_bound; // lower bound of the interval ( ts - lower_bound )
-    int64_t upper_bound; // upper bound of the interval ( ts + upper_bound )
+    compare_func_t compare_func; // function to compare wrapper to an uint64 that rapresents a timestamp or a watermark
+    int64_t lower_bound; // lower bound of the interval (ts - lower_bound)
+    int64_t upper_bound; // upper bound of the interval (ts + upper_bound)
     Join_Mode_t joinMode; // Interval Join operating mode
     std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
     uint64_t last_time; // last received watermark or timestamp
     size_t ignored_tuples; // number of ignored tuples
-
     size_t id_inner; // id_inner value
     size_t num_inner; // num_inner value
 
-    /**
-     * Calculates the FNV-1a hash value for the given key.
-     *
-     * @param key The pointer to the key data (timestamp).
-     * @param len The length of the key data (default: sizeof(uint64_t)).
-     * @return The calculated hash value.
-     */
-    inline const size_t fnv1a_hash(const void* key, const size_t len = sizeof(uint64_t)) {
-        const char* data = (char*)key;
+    // Calculates the FNV-1a hash value for the given key
+    const size_t fnv1a_hash(const void* key,
+                            const size_t len = sizeof(uint64_t))
+    {
+        const char* data = (char *)key;
         const size_t prime = 0x1000193;
         size_t hash = 0x811c9dc5;
-        for(int i = 0; i < len; ++i) {
+        for(int i = 0; i<len; i++) {
             uint8_t value = data[i];
             hash = hash ^ value;
             hash *= prime;
@@ -174,38 +154,21 @@ private:
         return hash;
     }
 
-    /**
-     * @brief Checks if the given Join_Stream_t is Stream A.
-     * 
-     * @param stream The Join_Stream_t to check.
-     * @return true if the stream is Stream A, false otherwise.
-     */
-    inline bool isStreamA(Join_Stream_t stream) const
+    // Checks if the given Join_Stream_t is Stream A
+    bool isStreamA(Join_Stream_t stream) const
     {
         return stream == Join_Stream_t::A;
     }
 
-    /**
-     * Inserts a wrapper object into the buffer of a given key descriptor.
-     *
-     * @param _key_d The key descriptor to insert into.
-     * @param _wt The wrapper object to insert.
-     * @param stream The join stream to determine which archive to insert into.
-     */
-    inline void insertIntoBuffer(Key_Descriptor &_key_d, wrapper_t _wt, Join_Stream_t stream)
+    // Inserts a wrapper object into the buffer of a given key descriptor
+    void insertIntoBuffer(Key_Descriptor &_key_d,
+                          wrapper_t _wt,
+                          Join_Stream_t stream)
     {
         isStreamA(stream) ? (_key_d.archiveA).insert(_wt) : (_key_d.archiveB).insert(_wt);
     }
 
-    /**
-     * Purges the archives of the given key descriptor.
-     *
-     * This function removes elements from the archives of the key descriptor based on A/B index.
-     * The indices are calculated based on the last time (watermark) minus the relative lower bound.
-     * Elements older than the resulting indices are removed from the archives.
-     *
-     * @param _key_d The key descriptor whose archives need to be purged.
-     */
+    // Purges the archives of the given key descriptor
     void purgeArchives(Key_Descriptor &_key_d)
     {
         uint64_t idx_a = 0, idx_b = 0;
@@ -215,11 +178,7 @@ private:
         (_key_d.archiveB).purge(idx_b);
     }
 
-    /**
-     * Purges the keyMap by removing any archived data associated with each key.
-     * This function iterates over each key in the keyMap and calls the purgeArchives function
-     * to remove the archived data for that key.
-     */
+    // Purges the keyMap by removing any archived data associated with each key
     void purgeWithPunct()
     {
         for (auto &k: keyMap) {
@@ -231,26 +190,26 @@ private:
 public:
     // Constructor
     IJoin_Replica(join_func_t _func,
-                keyextr_func_t _key_extr,
-                std::string _opName,
-                RuntimeContext _context,
-                std::function<void(RuntimeContext &)> _closing_func,
-                int64_t _lower_bound,
-                int64_t _upper_bound,
-                Join_Mode_t _join_mode,
-                size_t _id_inner,
-                size_t _num_inner):
-                Basic_Replica(_opName, _context, _closing_func, false),
-                func(_func),
-                key_extr(_key_extr),
-                lower_bound(_lower_bound),
-                upper_bound(_upper_bound),
-                joinMode(_join_mode),
-                ignored_tuples(0),
-                last_time(0),
-                id_inner(_id_inner),
-                num_inner(_num_inner),
-                last_measured_size_time(current_time_nsecs())
+                  keyextr_func_t _key_extr,
+                  std::string _opName,
+                  RuntimeContext _context,
+                  std::function<void(RuntimeContext &)> _closing_func,
+                  int64_t _lower_bound,
+                  int64_t _upper_bound,
+                  Join_Mode_t _join_mode,
+                  size_t _id_inner,
+                  size_t _num_inner):
+                  Basic_Replica(_opName, _context, _closing_func, false),
+                  func(_func),
+                  key_extr(_key_extr),
+                  last_measured_size_time(current_time_nsecs()),
+                  lower_bound(_lower_bound),
+                  upper_bound(_upper_bound),
+                  joinMode(_join_mode),
+                  last_time(0),
+                  ignored_tuples(0),
+                  id_inner(_id_inner),
+                  num_inner(_num_inner)
     {
         compare_func = [](const wrapper_t &w1, const uint64_t &_idx) { // comparator function of wrapped tuples
             return w1.index < _idx;
@@ -259,18 +218,18 @@ public:
 
     // Copy Constructor
     IJoin_Replica(const IJoin_Replica &_other):
-                Basic_Replica(_other),
-                func(_other.func),
-                key_extr(_other.key_extr),
-                lower_bound(_other.lower_bound),
-                upper_bound(_other.upper_bound),
-                joinMode(_other.joinMode),
-                compare_func(_other.compare_func),
-                ignored_tuples(_other.ignored_tuples),
-                last_time(_other.last_time),
-                id_inner(_other.id_inner),
-                num_inner(_other.num_inner),
-                last_measured_size_time(current_time_nsecs()) {} 
+                  Basic_Replica(_other),
+                  func(_other.func),
+                  key_extr(_other.key_extr),
+                  last_measured_size_time(current_time_nsecs()),
+                  compare_func(_other.compare_func),
+                  lower_bound(_other.lower_bound),
+                  upper_bound(_other.upper_bound),
+                  joinMode(_other.joinMode),
+                  last_time(_other.last_time),
+                  ignored_tuples(_other.ignored_tuples),
+                  id_inner(_other.id_inner),
+                  num_inner(_other.num_inner) {}
 
     // svc (utilized by the FastFlow runtime)
     void *svc(void *_in) override
@@ -329,7 +288,6 @@ public:
             ignored_tuples++;
             return;
         }
-
         auto key = key_extr(_tuple); // get the key attribute of the input tuple
         auto it = keyMap.find(key); // find the corresponding key_descriptor (or allocate it if does not exist)
         if (it == keyMap.end()) {
@@ -337,21 +295,20 @@ public:
             it = p.first;
         }
         Key_Descriptor &key_d = (*it).second;
-
         uint64_t l_b = 0;
         if (isStreamA(_tag)) {
             if (-lower_bound <= static_cast<int64_t>(_timestamp))  { l_b = _timestamp + lower_bound; }
-        } else {
+        }
+        else {
             if (upper_bound <= static_cast<int64_t>(_timestamp))   { l_b = _timestamp - upper_bound; }
         }
-        
         uint64_t u_b = 0;
-        if (isStreamA(_tag)) {      
+        if (isStreamA(_tag)) {    
             if (-upper_bound <= static_cast<int64_t>(_timestamp))  { u_b = _timestamp + upper_bound; }
-        } else {
+        }
+        else {
             if (lower_bound <= static_cast<int64_t>(_timestamp))   { u_b = _timestamp - lower_bound; }
         }
-
         std::optional<result_t> output;
         std::pair<iterator_t, iterator_t> its = isStreamA(_tag) ? (key_d.archiveB).getJoinRange(l_b, u_b) : (key_d.archiveA).getJoinRange(l_b, u_b);
         Iterable<tuple_t> interval(its.first, its.second);
@@ -373,10 +330,10 @@ public:
 #endif
             }
         }
-
         if (joinMode == Join_Mode_t::KP) {
             insertIntoBuffer(key_d, wrapper_t(_tuple, _timestamp), _tag);
-        } else if (joinMode == Join_Mode_t::DP) {
+        }
+        else if (joinMode == Join_Mode_t::DP) {
             if constexpr(if_defined_hash<tuple_t>) {
                 // compute the hash index of the tuple given a defined hash function specialization for the tuple_t
                 size_t hash = std::hash<tuple_t>()(_tuple);
@@ -384,7 +341,8 @@ public:
                 if (hash_idx == id_inner) {
                     insertIntoBuffer(key_d, wrapper_t(_tuple, _timestamp), _tag);
                 }
-            } else {
+            }
+            else {
                 // compute the hash index of the tuple using FNV-1a hash function using the timestamp
                 size_t hash = fnv1a_hash(&_timestamp);
                 size_t hash_idx = (hash % num_inner);
@@ -393,23 +351,22 @@ public:
                 }
             }
         }
-
         if (this->execution_mode == Execution_Mode_t::DEFAULT) {
             assert(last_time <= _watermark); // sanity check
-            if ( last_time < _watermark)
+            if (last_time < _watermark)
                 purgeArchives(key_d); // purge the archives using the new watermark
             last_time = _watermark;
-        } else {
+        }
+        else {
             if (last_time < _timestamp) {
                 purgeArchives(key_d); // purge the archives using the new watermark
                 last_time = _timestamp;
             }
         }
-
 #if defined (WF_JOIN_MEASUREMENT)
         // Measure the size of the archives every 200ms
         uint64_t delta = (current_time_nsecs() - last_measured_size_time) / 1e06; //ms
-        if ( delta >= 200 ) {
+        if (delta >= 200) {
             for (auto &k: keyMap) {
                 Key_Descriptor &key_m_d = (k.second);
                 (key_m_d.recordSize());
@@ -417,12 +374,12 @@ public:
             last_measured_size_time = current_time_nsecs();
         }
 #endif
-
     }
 
-    double getArchiveMeanSize()
+    double getArchiveMeanSize() const
     {
-        if(keyMap.empty()) return 0.0;
+        if (keyMap.empty())
+            return 0.0;
         double acc = 0;
         uint64_t n_key = 0;
         for (auto &k: keyMap) {
@@ -450,13 +407,12 @@ public:
 /** 
  *  \class Interval Join
  *  
- *  \brief Represents an Interval Join operator
- * 
- * The Interval Join operator performs a join operation on two streams based on a specified interval condition.
- * It takes a functional boolean condition logic and a key extractor logic as input.
- * The operator operates in either Key-Parallelism (KP) or Data-Parallelism (DP) mode.
- * 
- */
+ *  \brief Interval Join operator
+ *  
+ *  The Interval Join operator performs a join operation over two streams based on a specified interval condition.
+ *  It takes a functional Boolean condition logic and a key extractor logic as input. The operator operates in
+ *  either Key-Parallelism (KP) or Data-Parallelism (DP) mode.
+ */ 
 template<typename join_func_t, typename keyextr_func_t>
 class Interval_Join: public Basic_Operator
 {
@@ -466,10 +422,9 @@ private:
     join_func_t func; // functional boolean condition logic used by the Interval Join
     keyextr_func_t key_extr; // logic to extract the key attribute from the tuple_t
     std::vector<IJoin_Replica<join_func_t, keyextr_func_t>*> replicas; // vector of pointers to the replicas of the Interval Join
-    int64_t lower_bound; // lower bound of the interval, can be negative ( ts + lower_bound )
-    int64_t upper_bound; // upper bound of the interval, can be negative ( ts + upper_bound )
+    int64_t lower_bound; // lower bound of the interval, can be negative (ts + lower_bound)
+    int64_t upper_bound; // upper bound of the interval, can be negative (ts + upper_bound)
     Join_Mode_t joinMode; // Interval Join operating mode
-
     using tuple_t = decltype(get_tuple_t_Join(func)); // extracting the tuple_t type and checking the admissible signatures
     using result_t = decltype(get_result_t_Join(func)); // extracting the result_t type and checking the admissible signatures
     static constexpr op_type_t op_type = op_type_t::BASIC;
@@ -571,15 +526,15 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _func functional boolean condition logic of the Interval Join (a function or any callable type)
+     *  \param _func functional Boolean condition logic of the Interval Join (a function or any callable type)
      *  \param _key_extr key extractor (a function or any callable type)
      *  \param _parallelism internal parallelism of the Interval Join
      *  \param _name name of the Interval Join
      *  \param _input_routing_mode input routing mode of the Interval Join
      *  \param _outputBatchSize size (in num of tuples) of the batches produced by this operator (0 for no batching)
      *  \param _closing_func closing functional logic of the Interval Join (a function or any callable type)
-     *  \param _lower_bound lower bound of the interval ( ts - lower_bound )
-     *  \param _upper_bound upper bound of the interval ( ts - upper_bound )
+     *  \param _lower_bound lower bound of the interval (ts - lower_bound)
+     *  \param _upper_bound upper bound of the interval (ts - upper_bound)
      *  \param _join_mode Interval Join operating mode
      */ 
     Interval_Join(join_func_t _func,
@@ -606,12 +561,12 @@ public:
 
     /// Copy constructor
     Interval_Join(const Interval_Join &_other):
-        Basic_Operator(_other),
-        func(_other.func),
-        key_extr(_other.key_extr),
-        lower_bound(_other.lower_bound),
-        upper_bound(_other.upper_bound),
-        joinMode(_other.joinMode)
+                  Basic_Operator(_other),
+                  func(_other.func),
+                  key_extr(_other.key_extr),
+                  lower_bound(_other.lower_bound),
+                  upper_bound(_other.upper_bound),
+                  joinMode(_other.joinMode)
     {
         for (size_t i=0; i<this->parallelism; i++) { // deep copy of the pointers to the Interval Join replicas
             replicas.push_back(new IJoin_Replica<join_func_t, keyextr_func_t>(*(_other.replicas[i])));
@@ -631,21 +586,24 @@ public:
         }
     }
 
-    /**
-     * @brief Prints statistics about the archive per key.
-     * 
-     * This function calculates and prints various statistics about the archive per key.
-     * It calculates the mean archive size for each replica and checks the distribution of archive sizes and determines if it is balanced or not.
-     * 
-     * @note This function assumes that the `replicas` vector is already populated with valid replica objects.
-     * 
-     * @note The balance check is determined based on the coefficient of variation (cv) value.
-     *       If the cv is less than 20, it is considered balanced and marked with a checkmark,
-     *       otherwise it is considered unbalanced and marked with a cross.
-     * 
-     * @note The function uses the `std::cout` stream to print the statistics.
-     */
-    void printArchivePerKeyStats() {
+    /** 
+     *  @brief Print statistics of the archive per key.
+     *  
+     *  This function calculates and prints various statistics about the archive per key.
+     *  It calculates the mean archive size for each replica and checks the distribution
+     *  of the archive sizes and determines if it is balanced or not.
+     *  
+     *  @note This function assumes that the `replicas` vector is already populated with
+     *  valid replica objects.
+     *  
+     *  @note The balance check is determined based on the coefficient of variation (cv) value.
+     *        If the cv is less than 20, it is considered balanced and marked with a checkmark,
+     *        otherwise it is considered unbalanced and marked with a cross.
+     *  
+     *  @note The function uses the `std::cout` stream to print the statistics.
+     */ 
+    void printArchivePerKeyStats()
+    {
         std::cout << "***" << std::endl;
         std::cout << "Archive Stats: " << std::endl;
         uint64_t num_replicas = replicas.size();
@@ -660,14 +618,12 @@ public:
         double mean_size = acc_mean / num_replicas;
         double size_in_mb = mean_size * sizeof(tuple_t) / 1024;
         std::cout << "Global Mean Archive Size -> " << mean_size << " | " << size_in_mb << " KB" << std::endl;
-        
         // Check distribution
         double variance = 0;
         for (auto *r: replicas) {
             variance += std::pow(r->getArchiveMeanSize() - mean_size, 2);
         }
         variance /= num_replicas;
-        
         double cv = variance != 0 ? sqrt(variance) / mean_size * 100 : 0.0; //coefficient of variation
         std::string check_balance = cv < 20 ? " ✔ " : " ✘ ";
         std::cout << std::fixed << std::setprecision(2);

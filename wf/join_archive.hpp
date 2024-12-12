@@ -1,5 +1,5 @@
 /**************************************************************************************
- *  Copyright (c) 2023- Gabriele Mencagli and Yuriy Rymarchuk
+ *  Copyright (c) 2024- Gabriele Mencagli and Yuriy Rymarchuk
  *  
  *  This file is part of WindFlow.
  *  
@@ -29,7 +29,7 @@
  *  
  *  @section JoinArchive (Description)
  *  
- *  Join archive of tuples received from the input stream ( A/B ) useful for the
+ *  Join archive of tuples received from the input streams (A/B) useful for the
  *  processing (used by join-based operators).
  */ 
 
@@ -53,14 +53,14 @@ private:
     using iterator_t = typename std::deque<wrapper_t>::iterator; // iterator type
     using Archive<tuple_t, compare_func_t>::archive; // container implementing the ordered archive of wrapped tuples
     using Archive<tuple_t, compare_func_t>::lessThan; // function to compare two wrapped tuples
-    static_assert(std::is_same<compare_func_t, std::function< bool(const wrapper_t &, const uint64_t &) >>::value,
-        "WindFlow Compilation Error - unknown compare function passed to the Join Archive:\n"
-        "  Candidate : bool(const wrapper_t &, const uint64_t &)\n");
+    static_assert(std::is_same<compare_func_t, std::function<bool(const wrapper_t &, const uint64_t &)>>::value,
+                  "WindFlow Compilation Error - unknown compare function passed to the Join Archive:\n"
+                  "  Candidate: bool(const wrapper_t &, const uint64_t &)\n");
 
 public:
-
     // Constructor
-    JoinArchive(compare_func_t lessThan) : Archive<tuple_t, compare_func_t>(lessThan) {}
+    JoinArchive(compare_func_t lessThan):
+                Archive<tuple_t, compare_func_t>(lessThan) {}
 
     // Add a wrapped tuple to the archive (copy semantics)
     void insert(const wrapper_t &_wt) override
@@ -86,7 +86,7 @@ public:
         }
     }
 
-    // Remove all the tuples with timestamp prior to wrapped tuple _wt in the ordering
+    // Remove all the tuples with timestamp prior to the one of the wrapped tuple _wt in the ordering
     size_t purge(const wrapper_t &_wt) override
     {
         auto it = std::lower_bound(archive.begin(), archive.end(), _wt.index, lessThan);
@@ -106,9 +106,10 @@ public:
     
     /*  
      *  Method to get a pair of iterators that represent the join range [first, last] given
-     *  an input lower bound and upper bound for timestamps as unsigned integers. The method returns the iterator (first) to the
-     *  wrapped tuple in the archive that has index (ts) >= lower bound, and the iterator
-     *  (end) to the wrapped tuple in the archive that has index (ts) <= upper bound.
+     *  an input lower bound and upper bound for timestamps as unsigned integers. The method
+     *  returns the iterator (first) to the wrapped tuple in the archive that has index
+     *  (ts) >= lower bound, and the iterator (end) to the wrapped tuple in the archive that
+     *  has index (ts) <= upper bound.
      */ 
     std::pair<iterator_t, iterator_t> getJoinRange(const uint64_t &_l_b, const uint64_t &_u_b)
     {

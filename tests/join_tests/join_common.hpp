@@ -1,5 +1,5 @@
 /**************************************************************************************
- *  Copyright (c) 2023- Gabriele Mencagli and Yuriy Rymarchuk
+ *  Copyright (c) 2024- Gabriele Mencagli and Yuriy Rymarchuk
  *  
  *  This file is part of WindFlow.
  *  
@@ -42,7 +42,6 @@ struct tuple_t
     int64_t value;
 };
 
-#if 1
 template<>
 struct std::hash<tuple_t>
 {
@@ -53,7 +52,6 @@ struct std::hash<tuple_t>
         return h1 ^ h2;
     }
 };
-#endif
 
 struct res_t
 {
@@ -97,7 +95,7 @@ public:
                     shipper.setNextWatermark(next_ts);
                 }
                 auto offset = (distribution(generator)+1);
-                next_ts += offset*1000; // in ms
+                next_ts += offset * 1000; // in ms
             }
         }
     }
@@ -141,7 +139,7 @@ public:
                     shipper.setNextWatermark(next_ts);
                 }
                 auto offset = (distribution(generator)+1);
-                next_ts += offset*1000; // in ms
+                next_ts += offset * 1000; // in ms
             }
         }
     }
