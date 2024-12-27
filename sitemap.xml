@@ -1,50 +1,187 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url>
-<loc>https://paragroup.github.io/WindFlow/</loc>
-<lastmod>2024-02-27</lastmod>
-<changefreq>Weekly</changefreq>
-<priority>1.0</priority>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1" xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
+<url>
+	<loc>https://paragroup.github.io/WindFlow/</loc>
+	<lastmod>2024-12-27</lastmod>
+	<changefreq>Weekly</changefreq>
+	<priority>1.0</priority>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/fastflow.jpg</image:loc>
+	<image:title>FastFlow&quot;s Ecosystem</image:title>
+	</image:image>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/fastflow.webp</image:loc>
+	<image:title>FastFlow&quot;s Ecosystem</image:title>
+	</image:image>
 </url>
 <url>
-<loc>https://paragroup.github.io/windflow/operators.html</loc>
-<lastmod>2024-02-27</lastmod>
-<changefreq>Weekly</changefreq>
-<priority>0.5</priority>
+	<loc>https://paragroup.github.io/windflow/operators.html</loc>
+	<lastmod>2024-12-27</lastmod>
+	<changefreq>Weekly</changefreq>
+	<priority>0.5</priority>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/operators_list.jpg</image:loc>
+	<image:title>operators_list</image:title>
+	</image:image>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/operators_list.webp</image:loc>
+	<image:title>operators_list</image:title>
+	</image:image>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/windows.jpg</image:loc>
+	<image:title>Parallelism exploitation patterns on sliding windows</image:title>
+	</image:image>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/windows.webp</image:loc>
+	<image:title>Parallelism exploitation patterns on sliding windows</image:title>
+	</image:image>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/windows-2.jpg</image:loc>
+	<image:title>Intra-window parallelism</image:title>
+	</image:image>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/windows-2.webp</image:loc>
+	<image:title>Intra-window parallelism</image:title>
+	</image:image>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/gpu_stateless.jpg</image:loc>
+	<image:title>GPU stateless processing</image:title>
+	</image:image>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/gpu_stateless.webp</image:loc>
+	<image:title>GPU stateless processing</image:title>
+	</image:image>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/gpu_stateful.jpg</image:loc>
+	<image:title>GPU stateful processing</image:title>
+	</image:image>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/gpu_stateful.webp</image:loc>
+	<image:title>GPU stateful processing</image:title>
+	</image:image>
 </url>
 <url>
-<loc>https://paragroup.github.io/windflow/usage.html</loc>
-<lastmod>2024-02-27</lastmod>
-<changefreq>Weekly</changefreq>
-<priority>0.5</priority>
+	<loc>https://paragroup.github.io/windflow/usage.html</loc>
+	<lastmod>2024-12-27</lastmod>
+	<changefreq>Weekly</changefreq>
+	<priority>0.5</priority>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/application.jpg</image:loc>
+	<image:title>WordCount logical data-flow graph</image:title>
+	</image:image>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/application.webp</image:loc>
+	<image:title>WordCount logical data-flow graph</image:title>
+	</image:image>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/application_physical.jpg</image:loc>
+	<image:title>WordCount physical data-flow graphs</image:title>
+	</image:image>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/application_physical.webp</image:loc>
+	<image:title>WordCount physical data-flow graphs</image:title>
+	</image:image>
 </url>
 <url>
-<loc>https://paragroup.github.io/windflow/usage_gpu.html</loc>
-<lastmod>2024-02-27</lastmod>
-<changefreq>Weekly</changefreq>
-<priority>0.5</priority>
+	<loc>https://paragroup.github.io/windflow/usage_gpu.html</loc>
+	<lastmod>2024-12-27</lastmod>
+	<changefreq>Weekly</changefreq>
+	<priority>0.5</priority>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/application_gpu.jpg</image:loc>
+	<image:title>application_gpu</image:title>
+	</image:image>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/application_gpu.webp</image:loc>
+	<image:title>application_gpu</image:title>
+	</image:image>
 </url>
 <url>
-<loc>https://paragroup.github.io/windflow/about.html</loc>
-<lastmod>2024-02-27</lastmod>
-<changefreq>Weekly</changefreq>
-<priority>0.5</priority>
+	<loc>https://paragroup.github.io/windflow/about.html</loc>
+	<lastmod>2024-12-27</lastmod>
+	<changefreq>Weekly</changefreq>
+	<priority>0.5</priority>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/talk-icdbr.jpg</image:loc>
+	<image:title>Talk at ICBDR 2019</image:title>
+	</image:image>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/talk-icdbr.webp</image:loc>
+	<image:title>Talk at ICBDR 2019</image:title>
+	</image:image>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/pucrs-talk.png</image:loc>
+	<image:title>Talk at PUCRS 2019</image:title>
+	</image:image>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/pucrs-talk.webp</image:loc>
+	<image:title>Talk at PUCRS 2019</image:title>
+	</image:image>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/talk-wcloud-hpc.png</image:loc>
+	<image:title>talk WCloud-HPC</image:title>
+	</image:image>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/talk-wcloud-hpc.webp</image:loc>
+	<image:title>talk WCloud-HPC</image:title>
+	</image:image>
 </url>
 <url>
-<loc>https://paragroup.github.io/windflow/dashboard.html</loc>
-<lastmod>2024-02-27</lastmod>
-<changefreq>Weekly</changefreq>
-<priority>0.5</priority>
+	<loc>https://paragroup.github.io/windflow/dashboard.html</loc>
+	<lastmod>2024-12-27</lastmod>
+	<changefreq>Weekly</changefreq>
+	<priority>0.5</priority>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/Screenshot-1.png</image:loc>
+	<image:title>Web dashboard screenshot 1</image:title>
+	</image:image>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/Screenshot-1.webp</image:loc>
+	<image:title>Web dashboard screenshot 1</image:title>
+	</image:image>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/screenshot-3.png</image:loc>
+	<image:title>Web dashboard screenshot 2</image:title>
+	</image:image>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/screenshot-3.webp</image:loc>
+	<image:title>Web dashboard screenshot 2</image:title>
+	</image:image>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/screenshot-4.png</image:loc>
+	<image:title>Web dashboard screenshot 3</image:title>
+	</image:image>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/screenshot-4.webp</image:loc>
+	<image:title>Web dashboard screenshot 3</image:title>
+	</image:image>
 </url>
 <url>
-<loc>https://paragroup.github.io/windflow/kafka.html</loc>
-<lastmod>2024-02-27</lastmod>
-<changefreq>Weekly</changefreq>
-<priority>0.5</priority>
+	<loc>https://paragroup.github.io/windflow/kafka.html</loc>
+	<lastmod>2024-12-27</lastmod>
+	<changefreq>Weekly</changefreq>
+	<priority>0.5</priority>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/kafka_operators.jpg</image:loc>
+	<image:title>kafka_operators</image:title>
+	</image:image>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/kafka_operators.webp</image:loc>
+	<image:title>kafka_operators</image:title>
+	</image:image>
 </url>
 <url>
-<loc>https://paragroup.github.io/windflow/rocksdb.html</loc>
-<lastmod>2024-02-27</lastmod>
-<changefreq>Weekly</changefreq>
-<priority>0.5</priority>
+	<loc>https://paragroup.github.io/windflow/rocksdb.html</loc>
+	<lastmod>2024-12-27</lastmod>
+	<changefreq>Weekly</changefreq>
+	<priority>0.5</priority>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/p_operators.jpg</image:loc>
+	<image:title>kafka_operators</image:title>
+	</image:image>
+	<image:image>
+	<image:loc>https://paragroup.github.io/WindFlow/img/p_operators.webp</image:loc>
+	<image:title>kafka_operators</image:title>
+	</image:image>
 </url>
 </urlset>
