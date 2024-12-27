@@ -20,12 +20,12 @@
 	<changefreq>Weekly</changefreq>
 	<priority>0.5</priority>
 	<image:image>
-	<image:loc>https://paragroup.github.io/WindFlow/img/operators_list.jpg</image:loc>
-	<image:title>operators_list</image:title>
+	<image:loc>https://paragroup.github.io/WindFlow/img/placeholder-image.png</image:loc>
+	<image:title>placeholder image</image:title>
 	</image:image>
 	<image:image>
-	<image:loc>https://paragroup.github.io/WindFlow/img/operators_list.webp</image:loc>
-	<image:title>operators_list</image:title>
+	<image:loc>https://paragroup.github.io/WindFlow/img/placeholder-image.webp</image:loc>
+	<image:title>placeholder image</image:title>
 	</image:image>
 	<image:image>
 	<image:loc>https://paragroup.github.io/WindFlow/img/windows.jpg</image:loc>
@@ -176,12 +176,12 @@
 	<changefreq>Weekly</changefreq>
 	<priority>0.5</priority>
 	<image:image>
-	<image:loc>https://paragroup.github.io/WindFlow/img/p_operators.jpg</image:loc>
-	<image:title>kafka_operators</image:title>
+	<image:loc>https://paragroup.github.io/WindFlow/img/poperators.jpg</image:loc>
+	<image:title>poperators</image:title>
 	</image:image>
 	<image:image>
-	<image:loc>https://paragroup.github.io/WindFlow/img/p_operators.webp</image:loc>
-	<image:title>kafka_operators</image:title>
+	<image:loc>https://paragroup.github.io/WindFlow/img/poperators.webp</image:loc>
+	<image:title>poperators</image:title>
 	</image:image>
 </url>
 </urlset>
