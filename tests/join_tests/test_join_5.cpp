@@ -369,7 +369,7 @@ int main(int argc, char *argv[])
                                     .withOutputBatchSize(dist_b(rng))
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
                                     .withBoundaries(milliseconds(lower_bound), milliseconds(upper_bound))
-                                    .withDPSMode()
+                                    .withDPMode()
                                     .build();
         pipe9.add(join2);
         Sink_Functor sink_functor;
@@ -631,7 +631,7 @@ int main(int argc, char *argv[])
                                     .withParallelism(join2_degree)
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
                                     .withBoundaries(milliseconds(lower_bound), milliseconds(upper_bound))
-                                    .withDPSMode()
+                                    .withDPMode()
                                     .build();
         pipe9.add(join2);
         Sink_Functor sink_functor;

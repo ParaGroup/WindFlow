@@ -1517,14 +1517,14 @@ public:
      *  
      *  \return a reference to the builder object
      */ 
-    auto &withDPSMode()
+    auto &withDPMode()
     {
         if (!isKeyBySet) {
             std::cerr << RED << "WindFlow Error: Interval_Join with data parallelism mode requires a key extractor" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         if (join_mode != Join_Mode_t::NONE) {
-            std::cerr << RED << "WindFlow Error: wrong use of withDPSMode() in the Interval_Join_Builder, you can specify only one mode per join operator " << DEFAULT_COLOR << std::endl;
+            std::cerr << RED << "WindFlow Error: wrong use of withDPMode() in the Interval_Join_Builder, you can specify only one mode per join operator " << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         input_routing_mode = Routing_Mode_t::BROADCAST;

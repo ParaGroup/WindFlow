@@ -183,7 +183,7 @@ int main(int argc, char *argv[])
                                     .withOutputBatchSize(dist_b(rng))
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
                                     .withBoundaries(milliseconds(lower_bound), milliseconds(upper_bound))
-                                    .withDPSMode()
+                                    .withDPMode()
                                     .build();
         pipe3.add(join);
         // prepare the fourth MultiPipe
@@ -309,7 +309,7 @@ int main(int argc, char *argv[])
                                     .withParallelism(join_degree)
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
                                     .withBoundaries(milliseconds(lower_bound), milliseconds(upper_bound))
-                                    .withDPSMode()
+                                    .withDPMode()
                                     .build();
         pipe3.add(join);
         // prepare the fourth MultiPipe

@@ -296,17 +296,17 @@ public:
         }
         Key_Descriptor &key_d = (*it).second;
         uint64_t l_b = 0;
-        if (isStreamA(_tag)) {
+        if (isStreamA(_tag)) { // base
             if (-lower_bound <= static_cast<int64_t>(_timestamp))  { l_b = _timestamp + lower_bound; }
         }
-        else {
+        else { // probe
             if (upper_bound <= static_cast<int64_t>(_timestamp))   { l_b = _timestamp - upper_bound; }
         }
         uint64_t u_b = 0;
-        if (isStreamA(_tag)) {    
+        if (isStreamA(_tag)) { // base   
             if (-upper_bound <= static_cast<int64_t>(_timestamp))  { u_b = _timestamp + upper_bound; }
         }
-        else {
+        else { // probe
             if (lower_bound <= static_cast<int64_t>(_timestamp))   { u_b = _timestamp - lower_bound; }
         }
         std::optional<result_t> output;
