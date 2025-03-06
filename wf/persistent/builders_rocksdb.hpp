@@ -1,5 +1,5 @@
 /**************************************************************************************
- *  Copyright (c) 2024- Gabriele Mencagli and Simone Frassinelli
+ *  Copyright (c) 2019- Gabriele Mencagli and Simone Frassinelli
  *  
  *  This file is part of WindFlow.
  *  
@@ -1283,6 +1283,7 @@ private:
     uint64_t slide_len=0; // slide length in number of tuples or in time units
     uint64_t lateness=0; // lateness in time units
     Win_Type_t winType=Win_Type_t::CB; // window type (CB or TB)
+    size_t cacheCapacity = 0; // capacity of the internal cache
 
 public:
     /** 
@@ -1386,6 +1387,7 @@ public:
         new_builder.slide_len = slide_len;
         new_builder.lateness = lateness;
         new_builder.winType = winType;
+        new_builder.cacheCapacity = cacheCapacity;
         return new_builder;
     }
 
@@ -1452,6 +1454,18 @@ public:
     }
 
     /** 
+     *  \brief Set the cache capacity
+     *  
+     *  \param _cacheCapacity number of keys to be cached  by each replica of this operator
+     *  \return a reference to the builder object
+     */ 
+    auto &withCacheCapacity(size_t _cacheCapacity)
+    {
+        cacheCapacity = _cacheCapacity;
+        return *this;
+    }
+
+    /** 
      *  \brief Create the P_Keyed_Windows
      *  
      *  \return a new P_Keyed_Windows instance
@@ -1505,7 +1519,8 @@ public:
                               win_len,
                               slide_len,
                               lateness,
-                              winType);
+                              winType,
+                              cacheCapacity);
     }
 };
 

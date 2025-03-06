@@ -78,22 +78,16 @@ private:
     using iterator_t = typename container_t::iterator; // iterator type for accessing wrapped tuples in the archive
     using compare_func_t = std::function<bool(const wrapper_t &, const uint64_t &)>; // function type to compare wrapped tuple to an uint64
 
-    /** 
-     *  @brief Structure to store statistics about an archive.
-     */ 
-    struct Archive_Stats
+    struct Archive_Stats // structure to store statistics about an archive
     {
-        // Total size of the archive.
-        size_t size;
+        size_t size; // total size of the archive
+        uint64_t size_count; // number of times the size of the archive has been recorded
 
-        // Number of times the size of the archive has been recorded
-        uint64_t size_count;
-
-        // Default constructor for Archive_Stats
+        // Constructor
         Archive_Stats():
                       size(0),
                       size_count(0) {}
- 
+
         // Records the size of the archive
         void recordSize(uint64_t _size)
         {
@@ -114,13 +108,15 @@ private:
     {
         JoinArchive<tuple_t, compare_func_t> archiveA; // archive of stream A tuples of this key
         JoinArchive<tuple_t, compare_func_t> archiveB; // archive of stream B tuples of this key
-        Archive_Stats archive_metrics;
+        Archive_Stats archive_metrics; // archive of statistics for this key
+        uint64_t partitioning_counter; // counter used in DP mode to establish which replica will save the given tuple
 
         // Constructor
         Key_Descriptor(compare_func_t _compare_func):
                        archiveA(_compare_func),
                        archiveB(_compare_func),
-                       archive_metrics(Archive_Stats()) {}
+                       archive_metrics(Archive_Stats()),
+                       partitioning_counter(0) {}
 
         // recordSize method
         void recordSize()
@@ -138,21 +134,6 @@ private:
     size_t ignored_tuples; // number of ignored tuples
     size_t id_inner; // id_inner value
     size_t num_inner; // num_inner value
-
-    // Calculates the FNV-1a hash value for the given key
-    const size_t fnv1a_hash(const void* key,
-                            const size_t len = sizeof(uint64_t))
-    {
-        const char* data = (char *)key;
-        const size_t prime = 0x1000193;
-        size_t hash = 0x811c9dc5;
-        for(int i = 0; i<len; i++) {
-            uint8_t value = data[i];
-            hash = hash ^ value;
-            hash *= prime;
-        }
-        return hash;
-    }
 
     // Checks if the given Join_Stream_t is Stream A
     bool isStreamA(Join_Stream_t stream) const
@@ -334,21 +315,9 @@ public:
             insertIntoBuffer(key_d, wrapper_t(_tuple, _timestamp), _tag);
         }
         else if (joinMode == Join_Mode_t::DP) {
-            if constexpr(if_defined_hash<tuple_t>) {
-                // compute the hash index of the tuple given a defined hash function specialization for the tuple_t
-                size_t hash = std::hash<tuple_t>()(_tuple);
-                size_t hash_idx = (hash % num_inner);
-                if (hash_idx == id_inner) {
-                    insertIntoBuffer(key_d, wrapper_t(_tuple, _timestamp), _tag);
-                }
-            }
-            else {
-                // compute the hash index of the tuple using FNV-1a hash function using the timestamp
-                size_t hash = fnv1a_hash(&_timestamp);
-                size_t hash_idx = (hash % num_inner);
-                if (hash_idx == id_inner) {
-                    insertIntoBuffer(key_d, wrapper_t(_tuple, _timestamp), _tag);
-                }
+            key_d.partitioning_counter++;
+            if (key_d.partitioning_counter % num_inner == id_inner) {
+                insertIntoBuffer(key_d, wrapper_t(_tuple, _timestamp), _tag);
             }
         }
         if (this->execution_mode == Execution_Mode_t::DEFAULT) {
@@ -363,17 +332,6 @@ public:
                 last_time = _timestamp;
             }
         }
-#if defined (WF_JOIN_MEASUREMENT)
-        // Measure the size of the archives every 200ms
-        uint64_t delta = (current_time_nsecs() - last_measured_size_time) / 1e06; //ms
-        if (delta >= 200) {
-            for (auto &k: keyMap) {
-                Key_Descriptor &key_m_d = (k.second);
-                (key_m_d.recordSize());
-            }
-            last_measured_size_time = current_time_nsecs();
-        }
-#endif
     }
 
     double getArchiveMeanSize() const
@@ -576,59 +534,9 @@ public:
     // Destructor
     ~Interval_Join() override
     {
-#if defined(WF_JOIN_MEASUREMENT)
-        if (this->isTerminated()) {
-            printArchivePerKeyStats();
-        }
-#endif
         for (auto *r: replicas) { // delete all the replicas
             delete r;
         }
-    }
-
-    /** 
-     *  @brief Print statistics of the archive per key.
-     *  
-     *  This function calculates and prints various statistics about the archive per key.
-     *  It calculates the mean archive size for each replica and checks the distribution
-     *  of the archive sizes and determines if it is balanced or not.
-     *  
-     *  @note This function assumes that the `replicas` vector is already populated with
-     *  valid replica objects.
-     *  
-     *  @note The balance check is determined based on the coefficient of variation (cv) value.
-     *        If the cv is less than 20, it is considered balanced and marked with a checkmark,
-     *        otherwise it is considered unbalanced and marked with a cross.
-     *  
-     *  @note The function uses the `std::cout` stream to print the statistics.
-     */ 
-    void printArchivePerKeyStats()
-    {
-        std::cout << "***" << std::endl;
-        std::cout << "Archive Stats: " << std::endl;
-        uint64_t num_replicas = replicas.size();
-        double acc_mean = 0.0;
-        int i = 0;
-        for (auto *r: replicas) {
-            auto mean = r->getArchiveMeanSize();
-            std::cout << (i+1) << " Replica mean -> " << mean << std::endl;
-            acc_mean += mean;
-            i++;
-        }
-        double mean_size = acc_mean / num_replicas;
-        double size_in_mb = mean_size * sizeof(tuple_t) / 1024;
-        std::cout << "Global Mean Archive Size -> " << mean_size << " | " << size_in_mb << " KB" << std::endl;
-        // Check distribution
-        double variance = 0;
-        for (auto *r: replicas) {
-            variance += std::pow(r->getArchiveMeanSize() - mean_size, 2);
-        }
-        variance /= num_replicas;
-        double cv = variance != 0 ? sqrt(variance) / mean_size * 100 : 0.0; //coefficient of variation
-        std::string check_balance = cv < 20 ? " ✔ " : " ✘ ";
-        std::cout << std::fixed << std::setprecision(2);
-        std::cout << "Variance -> " << variance << " | Coefficient of variation -> " << cv << "| Balanced Distribution ->" << check_balance << std::endl;
-        std::cout << "***" << std::endl;
     }
 
     /** 

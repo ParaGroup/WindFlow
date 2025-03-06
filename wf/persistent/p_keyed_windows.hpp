@@ -1,5 +1,5 @@
 /**************************************************************************************
- *  Copyright (c) 2024- Gabriele Mencagli and Simone Frassinelli
+ *  Copyright (c) 2019- Gabriele Mencagli, Simone Frassinelli, and Andrea Filippi
  *  
  *  This file is part of WindFlow.
  *  
@@ -23,7 +23,7 @@
 
 /** 
  *  @file    p_keyed_windows.hpp
- *  @author  Gabriele Mencagli and Simone Frassinelli
+ *  @author  Gabriele Mencagli, Simone Frassinelli and Andrea Filippi
  *  
  *  @brief P_Keyed_Windows operator
  *  
@@ -194,6 +194,7 @@ public:
      *  \param _slide_len slide length (in no. of tuples or in time units)
      *  \param _lateness (lateness in time units, meaningful for TB windows in DEFAULT mode)
      *  \param _winType window type (count-based CB or time-based TB)
+     *  \param _cacheCapacity capacity of the internal cache (0 means cache is not used)
      */ 
     P_Keyed_Windows(win_func_t _func,
                     keyextr_func_t _key_extr,
@@ -215,7 +216,8 @@ public:
                     uint64_t _win_len,
                     uint64_t _slide_len,
                     uint64_t _lateness,
-                    Win_Type_t _winType):
+                    Win_Type_t _winType,
+                    size_t _cacheCapacity):
                     Basic_Operator(_parallelism, _name, Routing_Mode_t::KEYBY, _outputBatchSize),
                     func(_func),
                     key_extr(_key_extr),
@@ -248,7 +250,8 @@ public:
                                                                                 win_len,
                                                                                 slide_len,
                                                                                 lateness,
-                                                                                winType));
+                                                                                winType,
+                                                                                _cacheCapacity));
         }
         assert(this->parallelism > 0);
         // initialize the internal DB of the replicas

@@ -46,7 +46,8 @@
 
 namespace wf {
 
-#define WRAP_TOKEN "_$$_"
+#define DELIM_TOKEN "_$$_"
+#define DELIM_TIMESTAMP "-ts:-"
 
 // class DBHandle
 template<typename T>
@@ -192,7 +193,7 @@ public:
     {
         std::string out;
         for (T &val: _in) {
-            out = out + serialize(val) + WRAP_TOKEN;
+            out = out + serialize(val) + DELIM_TOKEN;
         }
         return out;
     }
@@ -203,12 +204,12 @@ public:
         std::deque<T> out;
         size_t pos = 0;
         std::string token;
-        size_t wrap_len = std::string(WRAP_TOKEN).length();
-        while ((pos = _state.find(WRAP_TOKEN)) != std::string::npos) {
+        size_t delim_len = std::string(DELIM_TOKEN).length();
+        while ((pos = _state.find(DELIM_TOKEN)) != std::string::npos) {
             token = _state.substr(0, pos);
             T new_wrap = deserialize(token);
             out.push_back(new_wrap);
-            _state.erase(0, pos + wrap_len);
+            _state.erase(0, pos + delim_len);
         }
         return out;
     }
@@ -218,7 +219,7 @@ public:
     {
         std::string out;
         for (wrapper_t &wrap: _list) {
-            out = out + serialize(wrap.tuple) + " " + std::to_string(wrap.index) + "\n";
+            out = out + serialize(wrap.tuple) + DELIM_TIMESTAMP + std::to_string(wrap.index) + DELIM_TOKEN;
         }
         return out;
     }
@@ -229,17 +230,18 @@ public:
         std::deque<wrapper_t> out;
         size_t pos = 0, innerpos = 0;
         std::string token, innertoken;
-        size_t wrap_len = std::string("\n").length();
-        size_t inner_wrap_len = std::string(" ").length();
-        while ((pos = _state.find("\n")) != std::string::npos) {
+        size_t delim_len = std::string(DELIM_TOKEN).length();
+        size_t delim_ts_len = std::string(DELIM_TIMESTAMP).length();
+        while ((pos = _state.find(DELIM_TOKEN)) != std::string::npos) {
             wrapper_t new_wrap;
             token = _state.substr(0, pos);
-            innerpos = token.find(" ");
+            innerpos = token.find(DELIM_TIMESTAMP);
+            assert(innerpos != std::string::npos); // sanity check
             innertoken = token.substr(0, innerpos);
             new_wrap.tuple = deserialize(innertoken);
-            token.erase(0, innerpos + inner_wrap_len);
+            token.erase(0, innerpos + delim_ts_len);
             new_wrap.index = std::stoull(token, NULL, 10);
-            _state.erase(0, pos + wrap_len);
+            _state.erase(0, pos + delim_len);
             out.push_back(new_wrap);
         }
         out.shrink_to_fit();

@@ -1,5 +1,5 @@
 /**************************************************************************************
- *  Copyright (c) 2024- Gabriele Mencagli and Simone Frassinelli
+ *  Copyright (c) 2019- Gabriele Mencagli and Simone Frassinelli
  *  
  *  This file is part of WindFlow.
  *  
@@ -64,6 +64,7 @@ public:
         _options.use_direct_io_for_flush_and_compaction = true;
         _options.create_if_missing = true;
         _options.compression_opts.enabled = true;
+        // options.block_cache = rocksdb::NewLRUCache(cache_size); <-- if not specified (or nullptr), default is LRU of size 32 MiB
     }
 };
 

@@ -1,5 +1,5 @@
 /**************************************************************************************
- *  Copyright (c) 2024- Gabriele Mencagli and Simone Frassinelli
+ *  Copyright (c) 2019- Gabriele Mencagli, Simone Frassinelli and Andrea Filippi
  *  
  *  This file is part of WindFlow.
  *  
@@ -23,7 +23,7 @@
 
 /** 
  *  @file    p_window_replica.hpp
- *  @author  Gabriele Mencagli and Simone Frassinelli
+ *  @author  Gabriele Mencagli, Simone Frassinelli and Andrea Filippi
  *  
  *  @brief P_Window_Replica is the replica of the P_Keyed_Windows operator
  *  
@@ -59,6 +59,8 @@
 #include<basic_operator.hpp>
 #include<persistent/db_handle.hpp>
 #include<persistent/p_window_structure.hpp>
+#include<persistent/cache/cache_lru.hpp>
+#include<persistent/cache/cache_lfu.hpp>
 
 namespace wf {
 
@@ -88,6 +90,7 @@ private:
     using index_t = decltype(wrapper_t::index); // type of the index field
     using compare_func_index_t = std::function<bool(const index_t &, const index_t &)>; // function type to compare two indexes
     using meta_frag_t = std::tuple<index_t, index_t, size_t>; // tuple type for fragment metadata (min, max, id)
+    using window_buffer_t = std::deque<wrapper_t>; // buffer partially containing tuples useful for the next window
     size_t n_max_elements; // max capacity of volatile buffers representing fragments
     DBHandle<tuple_t> *mydb_wrappers; // pointer to the DBHandle object used to interact with RocksDB
     DBHandle<result_t> *mydb_results; // pointer to the DBHandle object used to interact with RocksDB
@@ -115,6 +118,7 @@ private:
     Win_Type_t winType; // window type (CB or TB)
     size_t ignored_tuples; // number of ignored tuples
     uint64_t last_time; // last received timestamp or watermark
+    Cache<key_t, window_buffer_t> *cache; // cache to avoid accessing too many fragments from the kVS
 
 public:
     // check_range_mm method to check that a fragment is useful for a window computation
@@ -201,22 +205,40 @@ public:
     }
 
     // method to get the history of tuples useful for computing a windows
-    std::deque<wrapper_t> get_history_buffer(const wrapper_t &_w1,
-                                             const wrapper_t &_w2,
-                                             bool _from_w1_to_end,
-                                             Key_Descriptor &_kd,
-                                             key_t &_my_key)
+    window_buffer_t get_history_buffer(const size_t &_lwid,
+                                       const wrapper_t &_w1,
+                                       const wrapper_t &_w2,
+                                       bool _from_w1_to_end,
+                                       Key_Descriptor &_kd,
+                                       key_t &_my_key)
     {
-        std::deque<wrapper_t> final_range;
+        window_buffer_t final_range;
         meta_frag_t mem_infos(_kd.min, _kd.max, 0);
-        if (check_range_mm(_w1, _w2, mem_infos, _from_w1_to_end)) {
+        auto min = _w1;
+        bool usable_cache = false;
+        window_buffer_t cached_window;
+        if (cache != nullptr) { // if cache is enabled
+            std::optional<window_buffer_t> cached_window_res = cache->get(_my_key);
+            if (cached_window_res) {
+                // check if the cached window buffer contains some tuples useful for the next window lwid
+                auto min_win = slide_len * _lwid;
+                auto temp = cached_window_res.value().back();
+                if (temp.index >= min_win) {
+                    // cached window buffer partially overlaps with the next window lwid
+                    min = temp;
+                    usable_cache = true;
+                    cached_window = *cached_window_res;
+                }
+            }
+        }
+        if (check_range_mm(min, _w2, mem_infos, _from_w1_to_end)) {
             // for (wrapper_t &wrap: _kd.actual_memory) {
             //    final_range.push_back(wrap);
             // }
             final_range.insert(final_range.end(), _kd.actual_memory.begin(), _kd.actual_memory.end());
         }
         for (auto &info: _kd.frags) {
-            if (check_range_mm(_w1, _w2, info, _from_w1_to_end)) {
+            if (check_range_mm(min, _w2, info, _from_w1_to_end)) {
                 std::deque<wrapper_t> to_push = mydb_wrappers->get_list_frag(_my_key, std::get<2>(info));
                 // for (wrapper_t &wrap: to_push) {
                 //    final_range.push_back(std::move(wrap));
@@ -225,6 +247,13 @@ public:
             }
         }
         std::sort(final_range.begin(), final_range.end(), compare_func); // sorting the archive before passing to the user function (NIC)
+        if (usable_cache) { // delete tuples from fragments and reatach last cached window, to resolve duplicates
+            final_range.erase(final_range.begin(),
+                              std::find_if(final_range.begin(), final_range.end(), [&min](const wrapper_t& w) { return w.index > min.index; }));
+            final_range.insert(final_range.begin(),
+                               std::make_move_iterator(cached_window.begin()),
+                               std::make_move_iterator(cached_window.end()));
+        }
         return final_range;
     }
 
@@ -252,7 +281,8 @@ public:
                      uint64_t _win_len,
                      uint64_t _slide_len,
                      uint64_t _lateness,
-                     Win_Type_t _winType):
+                     Win_Type_t _winType,
+                     size_t _cacheCapacity):
                      Basic_Replica(_opName, _context, _closing_func, true),
                      func(_func),
                      key_extr(_key_extr),
@@ -282,6 +312,13 @@ public:
                                                   _dbpath + "_result",
                                                   result_t{},
                                                   _whoami);
+        }
+        if ((_cacheCapacity != 0) && (slide_len < win_len)) { // cache creation
+            cache = new LRUCache<key_t, window_buffer_t>(_cacheCapacity);
+            // cache = new LFUCache<key_t, window_buffer_t>(_cacheCapacity);
+        }
+        else {
+            cache = nullptr;
         }
     }
 
@@ -315,6 +352,14 @@ public:
         else {
             mydb_results = nullptr;
         }
+        auto other_cache = _other.cache; // cache creation
+        if (other_cache != nullptr) {
+            cache = new LRUCache<key_t, window_buffer_t>(other_cache->capacity());
+            // cache = new LFUCache<key_t, window_buffer_t>(other_cache->capacity());
+        }
+        else {
+            cache = nullptr;
+        }
     }
 
     // Destructor
@@ -325,6 +370,9 @@ public:
         }
         if (mydb_results != nullptr) {
             delete mydb_results;
+        }
+        if (cache != nullptr) {
+            delete cache;
         }
     }
 
@@ -475,9 +523,18 @@ public:
                             its.second = getEnd(key_d);
                         }
                         else { // non-empty window
-                            history_buffer = get_history_buffer(*t_s, *t_e, false, key_d, key);
+                            history_buffer = get_history_buffer(win.getLWID(), *t_s, *t_e, false, key_d, key);
                             its.first = std::lower_bound(history_buffer.begin(), history_buffer.end(), *t_s, compare_func);
                             its.second = std::lower_bound(history_buffer.begin(), history_buffer.end(), *t_e, compare_func);
+                            if (cache != nullptr) { // select only the portion really useful to the next window
+                                auto min_idx = win.getLWID() * slide_len;
+                                auto start = std::find_if(history_buffer.begin(),
+                                                          history_buffer.end(),
+                                                          [&min_idx](const wrapper_t& w) { return w.index >= min_idx; });
+                                if (start != history_buffer.end() && start != its.second) {
+                                    cache->put(key, window_buffer_t(start, its.second));
+                                }
+                            }
                         }
                         Iterable<tuple_t> iter(its.first, its.second);
                         result_t res = create_win_result_t<result_t, key_t>(key, win.getGWID());
@@ -547,12 +604,12 @@ public:
                     }
                     else { // non-empty window
                         if (!t_e) {
-                            history_buffer = get_history_buffer(*t_s, *t_s, true, key_d, key);
+                            history_buffer = get_history_buffer(win.getLWID(), *t_s, *t_s, true, key_d, key);
                             its.first = std::lower_bound(history_buffer.begin(), history_buffer.end(), *t_s, compare_func);
                             its.second = history_buffer.end();
                         }
                         else {
-                            history_buffer = get_history_buffer(*t_s, *t_e, false, key_d, key);
+                            history_buffer = get_history_buffer(win.getLWID(), *t_s, *t_e, false, key_d, key);
                             its.first = std::lower_bound(history_buffer.begin(), history_buffer.end(), *t_s, compare_func);
                             its.second = std::lower_bound(history_buffer.begin(), history_buffer.end(), *t_e, compare_func);
                         }

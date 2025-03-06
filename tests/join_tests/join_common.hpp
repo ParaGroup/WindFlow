@@ -42,17 +42,6 @@ struct tuple_t
     int64_t value;
 };
 
-template<>
-struct std::hash<tuple_t>
-{
-    size_t operator()(const tuple_t &t) const
-    {
-        size_t h1 = std::hash<int64_t>()(t.value);
-        size_t h2 = std::hash<size_t>()(t.key);
-        return h1 ^ h2;
-    }
-};
-
 struct res_t
 {
     size_t key;
