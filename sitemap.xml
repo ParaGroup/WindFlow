@@ -2,7 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1" xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
 <url>
 	<loc>https://paragroup.github.io/WindFlow/</loc>
-	<lastmod>2024-12-27</lastmod>
+	<lastmod>2025-03-06</lastmod>
 	<changefreq>Weekly</changefreq>
 	<priority>1.0</priority>
 	<image:image>
@@ -16,7 +16,7 @@
 </url>
 <url>
 	<loc>https://paragroup.github.io/windflow/operators.html</loc>
-	<lastmod>2024-12-27</lastmod>
+	<lastmod>2025-03-06</lastmod>
 	<changefreq>Weekly</changefreq>
 	<priority>0.5</priority>
 	<image:image>
@@ -62,7 +62,7 @@
 </url>
 <url>
 	<loc>https://paragroup.github.io/windflow/usage.html</loc>
-	<lastmod>2024-12-27</lastmod>
+	<lastmod>2025-03-06</lastmod>
 	<changefreq>Weekly</changefreq>
 	<priority>0.5</priority>
 	<image:image>
@@ -84,7 +84,7 @@
 </url>
 <url>
 	<loc>https://paragroup.github.io/windflow/usage_gpu.html</loc>
-	<lastmod>2024-12-27</lastmod>
+	<lastmod>2025-03-06</lastmod>
 	<changefreq>Weekly</changefreq>
 	<priority>0.5</priority>
 	<image:image>
@@ -98,7 +98,7 @@
 </url>
 <url>
 	<loc>https://paragroup.github.io/windflow/about.html</loc>
-	<lastmod>2024-12-27</lastmod>
+	<lastmod>2025-03-06</lastmod>
 	<changefreq>Weekly</changefreq>
 	<priority>0.5</priority>
 	<image:image>
@@ -128,7 +128,7 @@
 </url>
 <url>
 	<loc>https://paragroup.github.io/windflow/dashboard.html</loc>
-	<lastmod>2024-12-27</lastmod>
+	<lastmod>2025-03-06</lastmod>
 	<changefreq>Weekly</changefreq>
 	<priority>0.5</priority>
 	<image:image>
@@ -158,7 +158,7 @@
 </url>
 <url>
 	<loc>https://paragroup.github.io/windflow/kafka.html</loc>
-	<lastmod>2024-12-27</lastmod>
+	<lastmod>2025-03-06</lastmod>
 	<changefreq>Weekly</changefreq>
 	<priority>0.5</priority>
 	<image:image>
@@ -172,7 +172,7 @@
 </url>
 <url>
 	<loc>https://paragroup.github.io/windflow/rocksdb.html</loc>
-	<lastmod>2024-12-27</lastmod>
+	<lastmod>2025-03-06</lastmod>
 	<changefreq>Weekly</changefreq>
 	<priority>0.5</priority>
 	<image:image>
