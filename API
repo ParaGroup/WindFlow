@@ -163,6 +163,11 @@ Interval_Join
 std::optional<result_t> (const tuple_t &, const tuple_t &)
 std::optional<result_t> (const tuple_t &, const tuple_t &, RuntimeContext &)
 
+Win_Join
+--------
+std::optional<result_t> (const tuple_t &, const tuple_t &)
+std::optional<result_t> (const tuple_t &, const tuple_t &, RuntimeContext &)
+
 SINK
 ----
 void(std::optional<tuple_t> &);

@@ -183,7 +183,7 @@ int main(int argc, char *argv[])
                                     .withOutputBatchSize(dist_b(rng))
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
                                     .withBoundaries(milliseconds(lower_bound), milliseconds(upper_bound))
-                                    .withDPMode()
+                                    .withKPMode()
                                     .build();
         pipe3.add(join);
         // prepare the fourth MultiPipe
@@ -198,7 +198,7 @@ int main(int argc, char *argv[])
         Map map2 = Map_Builder(map_functor2)
                         .withName("map2")
                         .withParallelism(map2_degree)
-                        //.withOutputBatchSize(dist_b(rng))
+                        .withOutputBatchSize(dist_b(rng))
                         .build();
         pipe4.chain(map2);
         // prepare the fifth MultiPipe
@@ -309,7 +309,7 @@ int main(int argc, char *argv[])
                                     .withParallelism(join_degree)
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
                                     .withBoundaries(milliseconds(lower_bound), milliseconds(upper_bound))
-                                    .withDPMode()
+                                    .withKPMode()
                                     .build();
         pipe3.add(join);
         // prepare the fourth MultiPipe

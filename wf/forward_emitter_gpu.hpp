@@ -221,9 +221,9 @@ public:
     }
 
     // Static doEmit_inplace to call the right emit_inplace method
-    static void emit_inplace(Basic_Emitter *_emitter,
-                             void * _tuple,
-                             ff::ff_monode *_node)
+    static void doEmit_inplace(Basic_Emitter *_emitter,
+                               void * _tuple,
+                               ff::ff_monode *_node)
     {
         auto *_casted_emitter = static_cast<Forward_Emitter_GPU<keyextr_func_gpu_t, inputGPU, outputGPU> *>(_emitter);
         _casted_emitter->emit_inplace(_tuple, _node);
@@ -232,7 +232,7 @@ public:
     // Get the pointer to the doEmit_inplace method
     doEmit_inplace_t get_doEmit_inplace() const override
     {
-        return Forward_Emitter_GPU<keyextr_func_gpu_t, inputGPU, outputGPU>::emit_inplace;
+        return Forward_Emitter_GPU<keyextr_func_gpu_t, inputGPU, outputGPU>::doEmit_inplace;
     }
 
     // Emit method (in-place version)

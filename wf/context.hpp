@@ -68,6 +68,7 @@ private:
     template<typename T1, typename T2> friend class Window_Replica;
     template<typename T1, typename T2, typename T3> friend class FFAT_Replica;
     template<typename T1, typename T2> friend class IJoin_Replica;
+    template<typename T1, typename T2> friend class WJoin_Replica;
     size_t parallelism; // parallelism of the operator
     size_t index; // index of the replica
     LocalStorage storage; // local storage object

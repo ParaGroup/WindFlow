@@ -89,6 +89,9 @@ enum class Join_Mode_t { NONE, KP, DP };
 /// Supported interval join stream tagging
 enum class Join_Stream_t { NONE, A, B };
 
+/// Supported window join types
+enum class Join_Window_t { NONE, TUMB, SLIDE };
+
 /// Routing modes to distribute inputs to the replicas of an operator
 enum class Routing_Mode_t { NONE, FORWARD, KEYBY, BROADCAST, REBALANCING };
 
@@ -171,6 +174,10 @@ class Ffat_Windows;
 /// Forward declaration of the Interval Join operator
 template<typename join_func_t, typename keyextr_func_t>
 class Interval_Join;
+
+/// Forward declaration of the Window Join operator
+template<typename join_func_t, typename keyextr_func_t>
+class Window_Join;
 
 /// Forward declaration of the MultiPipe construct
 class MultiPipe;

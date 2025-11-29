@@ -71,7 +71,7 @@ int main(int argc, char *argv[])
         cout << argv[0] << " -r [runs] -l [stream_length] -k [n_keys] -L [lower bound in msec] -U [upper bound in msec]" << endl;
         exit(EXIT_SUCCESS);
     }
-    while ((option = getopt(argc, argv, "r:l:k:L:U:")) != -1) {
+    while ((option = getopt(argc, argv, "r:l:k:l:u:")) != -1) {
         switch (option) {
             case 'r': runs = atoi(optarg);
                      break;
@@ -200,7 +200,7 @@ int main(int argc, char *argv[])
                                     .withOutputBatchSize(dist_b(rng))
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
                                     .withBoundaries(milliseconds(lower_bound), milliseconds(upper_bound))
-                                    .withKPMode()
+                                    .withDPMode()
                                     .build();
         pipe4.add(join);
         Sink_Functor sink_functor;
@@ -322,7 +322,7 @@ int main(int argc, char *argv[])
                                     .withParallelism(join_degree)
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
                                     .withBoundaries(milliseconds(lower_bound), milliseconds(upper_bound))
-                                    .withKPMode()
+                                    .withDPMode()
                                     .build();
         pipe4.add(join);
         Sink_Functor sink_functor;

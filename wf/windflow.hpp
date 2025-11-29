@@ -49,6 +49,7 @@
 #include<mapreduce_windows.hpp>
 #include<ffat_windows.hpp>
 #include<interval_join.hpp>
+#include<window_join.hpp>
 #if defined (WF_TRACING_ENABLED)
     #include<monitoring.hpp>
 #endif

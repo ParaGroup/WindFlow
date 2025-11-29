@@ -8,11 +8,11 @@
 <p align="center"><img src="https://paragroup.github.io/WindFlow/img/logo_white.png" width="400" title="WindFlow Logo"></p>
 
 # Introduction
-WindFlow is a C++17 header-only library for parallel data stream processing targeting heterogeneous shared-memory architectures equipped with multi-core CPUs and NVIDIA GPUs. The library provides traditional stream processing operators like map, flatmap, filter, reduce as well as window-based operators. The API allows building streaming applications through the <b>MultiPipe</b> and the <b>PipeGraph</b> programming constructs. The first is used to create parallel pipelines (with shuffle connections), while the second allows several <b>MultiPipe</b> instances to be interconnected through <b>merge</b> and <b>split</b> operations, in order to create complex directed acyclic graphs of interconnected operators.
+WindFlow is a C++17 header-only library designed for parallel data stream processing on heterogeneous shared-memory architectures that combine multi-core CPUs and NVIDIA GPUs. The library offers traditional stream processing operators such as <b>map</b>, <b>flatmap</b>, <b>filter</b>, and <b>reduce</b>, as well as window-based operators. Its API enables developers to build streaming applications using the <b>MultiPipe</b> and <b>PipeGraph</b> programming constructs. The former facilitates the creation of parallel pipelines with shuffle connections, while the latter allows multiple <b>MultiPipe</b> instances to be interconnected through <b>merge</b> and <b>split</b> operations, enabling the construction of complex directed acyclic graphs of interconnected operators.
 
-Analogously to existing popular stream processing engines like Apache Storm and FLink, WindFlow supports general-purpose streaming applications by enabling operators to run user-defined code. The WindFlow runtime system has been designed to be suitable for embedded architectures equipped with low-power multi-core CPUs and integrated NVIDIA GPUs (like the Jetson family of NVIDIA boards). However, it works well also on traditional multi-core servers equipped with discrete NVIDIA GPUs.
+Analogous to popular stream processing engines such as Apache Storm and Apache Flink, WindFlow supports general-purpose streaming applications by allowing operators to execute user-defined code. The WindFlow runtime system is designed to efficiently operate on embedded architectures featuring low-power multi-core CPUs and integrated NVIDIA GPUs (such as the Jetson family of NVIDIA boards). Nevertheless, it also performs effectively on conventional multi-core servers equipped with discrete NVIDIA GPUs.
 
-At the moment WindFlow is for single-node execution. We are working to a distributed implementation.
+At the moment, WindFlow supports single-node execution. We are currently working on a distributed implementation.
 
 The web site of the library is available at: https://paragroup.github.io/WindFlow/.
 
@@ -27,7 +27,7 @@ The library requires the following dependencies:
 * <strong>librocksdb-dev</strong> for using the suite of persistent operators keeping their internal state in RocksDB KVS
 * <strong>doxygen</strong> (to generate the documentation)
 
-<b>Important about the FastFlow dependency</b> -> after downloading FastFlow, the user needs to configure the library for the underlying multi-core environment. By default, FastFlow pins its threads onto the cores of the machine. To make FastFlow aware of the ordering of cores, and their correspondence in CPUs and NUMA regions, it is important to run (just one time) the script <strong>"mapping_string.sh"</strong> in the folder <tt>fastflow/ff</tt> before compiling your WindFlow programs.
+<b>Important about the FastFlow dependency</b> — After downloading FastFlow, the user must configure the library for the target multi-core environment. By default, FastFlow pins its threads to the machine’s cores. To ensure FastFlow correctly recognizes the core ordering and their correspondence to CPUs and NUMA regions, it is essential to run the script <strong>"mapping_string.sh"</strong> (located in the <tt>fastflow/ff</tt> directory) once before compiling your WindFlow programs.
 
 # Macros
 WindFlow, and its underlying level FastFlow, come with some important macros that can be used during compilation to enable specific behaviors. Some of them are reported below:
@@ -38,10 +38,10 @@ WindFlow, and its underlying level FastFlow, come with some important macros tha
 * <strong>-DNO_DEFAULT_MAPPING</strong> -> if this macro is enabled, FastFlow threads are not pinned onto CPU cores, but they are scheduled by the Operating System
 * <strong>-DBLOCKING_MODE</strong> -> if this macro is enabled, FastFlow queues use the blocking concurrency mode (pushing to a full queue or polling from an empty queue might suspend the underlying thread). If not set, waiting conditions are implemented by busy-waiting spin loops.
 
-Some macros are useful to configure the runtime system when GPU operators are utilized in your application. The default version of the GPU support is based on explicit CUDA memory management and overlapped data transfers, which is a version suitable for a wide range of NVIDIA GPU models. However, the developer might want to switch to a different implementation that makes use of the CUDA unified memory support. This can be done by compiling with the macro <strong>-DWF_GPU_UNIFIED_MEMORY</strong>. Alternatively, the user can configure the runtime system to use pinned memory on NVIDIA System-on-Chip devices (e.g., Jetson Nano and Jetson Xavier), where pinned memory is directly accessed by CPU and GPU without extra copies. This can be done by compiling with the macro <strong>-DWF_GPU_PINNED_MEMORY</strong>.
+Some macros are available to configure the runtime system when GPU operators are used in your application. By default, GPU support relies on explicit CUDA memory management and overlapped data transfers, a configuration suitable for a wide range of NVIDIA GPU models. However, developers may choose to enable an alternative implementation based on CUDA unified memory by compiling with the macro <strong>-DWF_GPU_UNIFIED_MEMORY</strong>. Alternatively, the runtime system can be configured to use pinned memory on NVIDIA System-on-Chip devices (e.g., Jetson Nano and Jetson Xavier, Jeson Orin), where pinned memory is directly accessible by both the CPU and GPU without additional data copies. This mode can be enabled by compiling with the macro <strong>-DWF_GPU_PINNED_MEMORY</strong>.
 
 # Build the Examples
-WindFlow is a header-only template library. To build your applications you have to include the main header of the library (<tt>windflow.hpp</tt>). For using the operators targeting GPUs, you further have to include the <tt>windflow_gpu.hpp</tt> header file and compile using the <code>nvcc</code> CUDA compiler (or through <code>clang</code> with CUDA support). The source code in this repository includes several examples that can be used to understand the use of the API and the advanced features of the library. The examples can be found in the <tt>tests</tt> folder. To compile them:
+WindFlow is a header-only template library. To build your applications, you need to include the main library header file, <tt>windflow.hpp</tt>. When using operators that target GPUs, you must also include the <tt>windflow_gpu.hpp</tt> header file and compile your code with the <code>nvcc</code> CUDA compiler (or with <code>clang</code> configured for CUDA support). The source code in this repository provides several examples demonstrating how to use the API and explore the library’s advanced features. These examples are located in the <tt>tests</tt> folder. To compile them:
 ```
     $ cd <WINDFLOW_ROOT>
     $ mkdir ./build
@@ -53,17 +53,17 @@ WindFlow is a header-only template library. To build your applications you have 
     $ make docs # generate the doxygen documentation (if doxygen has been installed)
 ```
 
-In order to use the Kafka integration, consisting of special Source and Sink operators, the developer has to include the additional header <tt>kafka/windflow_kafka.hpp</tt> and properly link the library <tt>librdkafka-dev</tt>. Analogously, to use persistent operators, you need to include the header <tt>persistent/windflow_rocksdb.hpp</tt> and link the library <tt>librocksdb-dev</tt>.
+To use the Kafka integration, which provides specialized Source and Sink operators, the developer must include the additional header <tt>kafka/windflow_kafka.hpp</tt> and link against the <tt>librdkafka-dev</tt> library. Similarly, to enable persistent operators, you need to include the header <tt>persistent/windflow_rocksdb.hpp</tt> and link the <tt>librocksdb-dev</tt> library.
 
 # Docker Images
-Two Docker images are available in the WindFlow GitHub repository. The images contain all the synthetic tests compiled and ready to be executed. To build the first image (the one without tests using GPU operators) execute the following commands:
+Two Docker images are available in the WindFlow GitHub repository. These images include all synthetic tests, precompiled and ready to run. To build the first image (which excludes tests involving GPU operators), execute the following commands:
 ```
     $ cd <WINDFLOW_ROOT>
     $ cd dockerimages
     $ docker build -t windflow_nogpu -f Dockerfile_nogpu .
     $ docker run windflow_nogpu ./bin/graph_tests/test_graph_1 -r 1 -l 10000 -k 10
 ```
-The last command executes one of the synthetic experiments (test_graph_1). You can execute any of the compiled tests in the same mannner.
+The last command runs one of the synthetic experiments (<tt>test_graph_1</tt>). You can execute any of the compiled tests in the same manner.
 
 The second image contains all synthetic tests with GPU operators. To use your GPU device with Docker, please follow the guidelines in the following page (https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). Then, you can build the image and run the container as follows:
 ```
@@ -72,20 +72,20 @@ The second image contains all synthetic tests with GPU operators. To use your GP
     $ docker build -t windflow_gpu -f Dockerfile_gpu .
     $ docker run --gpus all windflow_gpu ./bin/graph_tests_gpu/test_graph_gpu_1 -r 1 -l 10000 -k 10
 ```
-Again, the last command executes one of the synthetic experiments (test_graph_gpu_1). You can execute any of the compiled tests in the same mannner.
+Again, the last command runs one of the synthetic experiments (<tt>test_graph_gpu_1</tt>). You can execute any of the compiled tests in the same manner.
 
 # Web Dashboard
-WindFlow has its own Web Dashboard that can be used to profile and monitor the execution of running WindFlow applications. The dashboard code is in the sub-folder <tt>WINDFLOW_ROOT/dashboard</tt>. It is a Java package based on Spring (for the Web Server) and developed using React for the front-end part. To start the Web Dashboard run the following commands:
+WindFlow provides its own Web Dashboard for profiling and monitoring the execution of running applications. The dashboard code is located in the <tt>WINDFLOW_ROOT/dashboard</tt> subfolder. It is implemented as a Java package using Spring for the web server and React for the front-end. To start the Web Dashboard, run the following commands:
 ```
     cd <WINDFLOW_ROOT>/dashboard/Server
     mvn spring-boot:run
 ```
-The web server listens on the default port <tt>8080</tt> of the machine. To change the port, and other configuration parameters, users can modify the configuration file <tt>WINDFLOW_ROOT/dashboard/Server/src/main/resources/application.properties</tt> for the Spring server (e.g., to change the HTTP port), and the file <tt>WINDFLOW_ROOT/dashboard/Server/src/main/java/com/server/CustomServer/Configuration/config.json</tt> for the internal server receiving reports of statistics from the WindFlow applications (e.g., to change the port used by applications to report statistics to the dashboard).
+The web server listens on the machine’s default port <tt>8080</tt>. To change the port or other configuration parameters, you can modify the file <tt>WINDFLOW_ROOT/dashboard/Server/src/main/resources/application.properties</tt> for the Spring server (e.g., to change the HTTP port), and the file <tt>WINDFLOW_ROOT/dashboard/Server/src/main/java/com/server/CustomServer/Configuration/config.json</tt> for the internal server that receives statistical reports from WindFlow applications (e.g., to change the port used by applications to send statistics to the dashboard).
 
-WindFlow applications compiled with the macro <strong>-DWF_TRACING_ENABLED</strong> try to connect to the Web Dashboard and report statistics to it every second. By default, the applications assume that the dashboard is running on the local machine. To change the hostname and the port number, developers can use the macros <strong>WF_DASHBOARD_MACHINE=hostname/ip_addr</strong> and <strong>WF_DASHBOARD_PORT=port_number</strong>.
+WindFlow applications compiled with the macro <strong>-DWF_TRACING_ENABLED</strong> automatically attempt to connect to the Web Dashboard and report statistics every second. By default, the applications assume that the dashboard is running on the local machine. To change the hostname or port number, developers can define the macros <strong>WF_DASHBOARD_MACHINE=hostname/ip_addr</strong> and <strong>WF_DASHBOARD_PORT=port_number</strong>.
 
 # About the License
-From version 3.1.0, WindFlow is released with a double license: <strong>LGPL-3</strong> and <strong>MIT</strong>. Programmers should check the licenses of the other libraries used as dependencies.
+Starting from version 3.1.0, WindFlow is released under a dual license: <strong>LGPL-3</strong> and <strong>MIT</strong>. Developers should verify the licenses of any third-party libraries used as dependencies.
 
 # Cite our Work
 In order to cite our work, we kindly ask interested people to use the following references:

@@ -22,19 +22,20 @@
  */
 
 /** 
- *  @file    interval_join.hpp
+ *  @file    window_join.hpp
  *  @author  Gabriele Mencagli and Yuriy Rymarchuk
  *  
- *  @brief Interval Join operator
+ *  @brief Window Join operator
  *  
- *  @section Interval Join (Description)
+ *  @section Window Join (Description)
  *  
- *  This file implements the Interval Join operator able to execute joins over two streams of tuples
- *  producing x output per input, where x is the number of asserted predicates in the given range.
+ *  This file implements the Window Join operator able to execute joins over two streams of tuples
+ *  producing x output per input, where x is the number of asserted predicates that lay in the same
+ *  temporal window.
  */ 
 
-#ifndef INTERVAL_JOIN_H
-#define INTERVAL_JOIN_H
+#ifndef WINDOW_JOIN_H
+#define WINDOW_JOIN_H
 
 /// includes
 #include<string>
@@ -49,6 +50,7 @@
 #endif
 #include<iterable.hpp>
 #include<join_archive.hpp>
+#include<window_structure.hpp>
 #include<basic_emitter.hpp>
 #include<basic_operator.hpp>
 
@@ -56,13 +58,13 @@ namespace wf {
 
 //@cond DOXY_IGNORE
 
-// class IJoin_Replica
+// class WJoin_Replica
 template<typename join_func_t, typename keyextr_func_t>
-class IJoin_Replica: public Basic_Replica
+class WJoin_Replica: public Basic_Replica
 {
 private:
-    template<typename T1, typename T2> friend class Interval_Join;
-    join_func_t func; // functional logic used by the Interval Join replica
+    template<typename T1, typename T2> friend class Window_Join;
+    join_func_t func; // functional logic used by the Window Join replica
     keyextr_func_t key_extr; // logic to extract the key attribute from the tuple_t
     using tuple_t = decltype(get_tuple_t_Join(func)); // extracting the tuple_t type and checking the admissible signatures
     using result_t = decltype(get_result_t_Join(func)); // extracting the result_t type and checking the admissible signatures
@@ -72,66 +74,39 @@ private:
     static constexpr bool isRiched = std::is_invocable<decltype(func), const tuple_t &, const tuple_t &, RuntimeContext &>::value;
     // check the presence of a valid functional logic
     static_assert(isNonRiched || isRiched,
-        "WindFlow Compilation Error - IJoin_Replica does not have a valid functional logic:\n");
+        "WindFlow Compilation Error - WJoin_Replica does not have a valid functional logic:\n");
     using wrapper_t = wrapper_tuple_t<tuple_t>; // alias for the wrapped tuple type
     using container_t = typename std::deque<wrapper_t>; // container type for underlying archive's buffer structure
     using iterator_t = typename container_t::iterator; // iterator type for accessing wrapped tuples in the archive
+    using win_t = JoinWindow<key_t>; // window type used by the Window_Replica
     using compare_func_t = std::function<bool(const wrapper_t &, const uint64_t &)>; // function type to compare wrapped tuple to an uint64
 
-    struct Archive_Stats // structure to store statistics about an archive
-    {
-        size_t size; // total size of the archive
-        uint64_t size_count; // number of times the size of the archive has been recorded
-
-        // Constructor
-        Archive_Stats():
-                      size(0),
-                      size_count(0) {}
-
-        // Records the size of the archive
-        void recordSize(uint64_t _size)
-        {
-            size += _size;
-            size_count++;
-        }
-
-        // Calculates the mean size of the archive
-        double getArchiveMeanSize() const
-        {
-            double mean = static_cast<double>(size) / size_count;
-            return std::isnan(mean) ? 0.0 : mean;
-        }
-    };
-
+    template<typename tuple_t, typename compare_func_t>
     struct Key_Descriptor // struct of a key descriptor
     {
         JoinArchive<tuple_t, compare_func_t> archiveA; // archive of stream A tuples of this key
         JoinArchive<tuple_t, compare_func_t> archiveB; // archive of stream B tuples of this key
-        Archive_Stats archive_metrics; // archive of statistics for this key
         uint64_t partitioning_counter; // counter used in DP mode to establish which replica will save the given tuple
+        int64_t last_purged_wm; // last purged wm
 
         // Constructor
         Key_Descriptor(compare_func_t _compare_func):
                        archiveA(_compare_func),
                        archiveB(_compare_func),
-                       archive_metrics(Archive_Stats()),
+                       last_purged_wm(0),
                        partitioning_counter(0) {}
-
-        // recordSize method
-        void recordSize()
-        {
-            archive_metrics.recordSize((archiveA.size()+archiveB.size()));
-        }
     };
+    using key_d_t = Key_Descriptor<tuple_t, compare_func_t>; // key descriptor type
 
     compare_func_t compare_func; // function to compare wrapper to an uint64 that rapresents a timestamp or a watermark
     size_t ignored_tuples; // number of ignored tuples
-    int64_t lower_bound; // lower bound of the interval (ts - lower_bound)
-    int64_t upper_bound; // upper bound of the interval (ts + upper_bound)
-    Join_Mode_t joinMode; // Interval Join operating mode
-    std::unordered_map<key_t, Key_Descriptor> keyMap; // hash table that maps a descriptor for each key
+    uint64_t win_len; // window size expressed in time unit
+    uint64_t slide_len; // sliding length expressed in time unit
+    uint64_t growing_lwid_num; // number of slides to reach full window size
+    Join_Window_t join_win_type; // type of the window join
+    Join_Mode_t join_mode; // Interval Join operating mode
+    std::unordered_map<key_t, key_d_t> keyMap; // hash table that maps a descriptor for each key
     uint64_t last_wm; // last received watermark or timestamp
-    uint64_t last_sent_wm = 0; // last sent watermark
     size_t id_inner; // id_inner value
     size_t num_inner; // num_inner value
 
@@ -142,48 +117,63 @@ private:
     }
 
     // Inserts a wrapper object into the buffer of a given key descriptor
-    void insertIntoBuffer(Key_Descriptor &_key_d,
+    void insertIntoBuffer(key_d_t &_key_d,
                           wrapper_t _wt,
                           Join_Stream_t stream)
     {
         isStreamA(stream) ? (_key_d.archiveA).insert(_wt) : (_key_d.archiveB).insert(_wt);
     }
 
-    // Purges the archives of the given key descriptor
-    void purgeArchives(Key_Descriptor &_key_d, uint64_t check_point)
-    {
-        uint64_t idx_a = 0, idx_b = 0;
-        if ((upper_bound) <= static_cast<int64_t>(check_point))  { idx_a = check_point - upper_bound; }
-        if (-(lower_bound) <= static_cast<int64_t>(check_point)) { idx_b = check_point + lower_bound; }
-        (_key_d.archiveA).purge(idx_a);
-        (_key_d.archiveB).purge(idx_b);
-    }
-
     // Purges the keyMap by removing any archived data associated with each key
     void purgeWithPunct()
     {
         for (auto &k: keyMap) {
-            Key_Descriptor &key_d = (k.second);
+            key_d_t &key_d = (k.second);
             purgeArchives(key_d, last_wm);
         }
     }
 
+    // Purges the archives of the given key descriptor
+    void purgeArchives(key_d_t &_key_d, uint64_t _check_point)
+    {
+        if (_key_d.last_purged_wm < _check_point) {
+            (_key_d.archiveA).purge(_check_point);
+            (_key_d.archiveB).purge(_check_point);
+            _key_d.last_purged_wm = _check_point;
+        }
+    }
+
+    // Purges the archives of the given key descriptor based on the last watermark and the first window id
+    void purgeFiredWinTuples(key_d_t &_key_d, uint64_t _last_wm, long _first_w) {
+        long startWID = 0;
+        if (win_len > slide_len) {
+            startWID = ceil(((int64_t) _last_wm - (int64_t) win_len + 1) / (double) slide_len);
+        }
+        else {
+            startWID = floor((double)(_last_wm) / slide_len);
+        }
+        uint64_t purge_wm = startWID < 0 ? 0 : startWID * slide_len;
+        purgeArchives(_key_d, purge_wm);
+    }
+
 public:
     // Constructor
-    IJoin_Replica(join_func_t _func,
+    WJoin_Replica(join_func_t _func,
                   keyextr_func_t _key_extr,
                   std::string _opName,
                   RuntimeContext _context,
                   std::function<void(RuntimeContext &)> _closing_func,
-                  int64_t _lower_bound,
-                  int64_t _upper_bound,
+                  uint64_t _win_len,
+                  uint64_t _slide_len,
+                  Join_Window_t _join_win_type,
                   Join_Mode_t _join_mode):
                   Basic_Replica(_opName, _context, _closing_func, false),
                   func(_func),
                   key_extr(_key_extr),
-                  lower_bound(_lower_bound),
-                  upper_bound(_upper_bound),
-                  joinMode(_join_mode),
+                  win_len(_win_len),
+                  slide_len(_slide_len),
+                  join_win_type(_join_win_type),
+                  join_mode(_join_mode),
                   last_wm(0),
                   ignored_tuples(0)
     {
@@ -192,17 +182,23 @@ public:
         };
         num_inner = _context.getParallelism();
         id_inner = _context.getReplicaIndex();
+        growing_lwid_num = 0;
+        if (join_win_type == Join_Window_t::SLIDE && win_len >= slide_len) {
+            growing_lwid_num = ceil((double) win_len / slide_len) - 1; // Number of slides to reach full window size
+        }
     }
 
     // Copy Constructor
-    IJoin_Replica(const IJoin_Replica &_other):
+    WJoin_Replica(const WJoin_Replica &_other):
                   Basic_Replica(_other),
                   func(_other.func),
                   key_extr(_other.key_extr),
                   compare_func(_other.compare_func),
-                  lower_bound(_other.lower_bound),
-                  upper_bound(_other.upper_bound),
-                  joinMode(_other.joinMode),
+                  win_len(_other.win_len),
+                  slide_len(_other.slide_len),
+                  growing_lwid_num(_other.growing_lwid_num),
+                  join_win_type(_other.join_win_type),
+                  join_mode(_other.join_mode),
                   last_wm(_other.last_wm),
                   ignored_tuples(_other.ignored_tuples),
                   id_inner(_other.id_inner),
@@ -258,7 +254,7 @@ public:
                        uint64_t _watermark,
                        Join_Stream_t _tag)
     {
-        if (this->execution_mode == Execution_Mode_t::DEFAULT && _timestamp < last_wm) { // if the input is out-of-order
+        if (this->execution_mode == Execution_Mode_t::DEFAULT && _timestamp < last_wm) {
 #if defined (WF_TRACING_ENABLED)
             stats_record.inputs_ignored++;
 #endif
@@ -266,69 +262,88 @@ public:
             return;
         }
         auto key = key_extr(_tuple); // get the key attribute of the input tuple
-        auto it = keyMap.find(key); // find the corresponding key_descriptor (or allocate it if does not exist)
+        auto it = keyMap.find(key);
         if (it == keyMap.end()) {
-            auto p = keyMap.insert(std::make_pair(key, Key_Descriptor(compare_func))); // create the state of the key
+            auto p = keyMap.insert(std::make_pair(key, key_d_t(compare_func)));
             it = p.first;
         }
-        Key_Descriptor &key_d = (*it).second;
-        uint64_t l_b = 0;
-        if (isStreamA(_tag)) { // base
-            if (-lower_bound <= static_cast<int64_t>(_timestamp))  { l_b = _timestamp + lower_bound; }
-        }
-        else { // probe
-            if (upper_bound <= static_cast<int64_t>(_timestamp))   { l_b = _timestamp - upper_bound; }
-        }
-        uint64_t u_b = 0;
-        if (isStreamA(_tag)) { // base   
-            if (-upper_bound <= static_cast<int64_t>(_timestamp))  { u_b = _timestamp + upper_bound; }
-        }
-        else { // probe
-            if (lower_bound <= static_cast<int64_t>(_timestamp))   { u_b = _timestamp - lower_bound; }
-        }
-        std::optional<result_t> output;
-        std::pair<iterator_t, iterator_t> its = isStreamA(_tag) ? (key_d.archiveB).getJoinRange(l_b, u_b) : (key_d.archiveA).getJoinRange(l_b, u_b);
-        Iterable<tuple_t> interval(its.first, its.second);
-        for (size_t i=0; i<interval.size(); i++) {
-            if constexpr (isNonRiched) { // inplace non-riched version
-                output = isStreamA(_tag) ? func(_tuple, interval.at(i)) : func(interval.at(i), _tuple);
-            }
-            if constexpr (isRiched)  { // inplace riched version
-                (this->context).setContextParameters(_timestamp, _watermark); // set the parameter of the RuntimeContext
-                output = isStreamA(_tag) ? func(_tuple, interval.at(i), this->context) : func(interval.at(i), _tuple, this->context);
-            }
-            if (output) {
-                // use the highest timestamp between two joined tuples
-                uint64_t ts = (_timestamp >= interval.index_at(i)) ? _timestamp : interval.index_at(i);
-                this->doEmit(this->emitter, &(*output), 0, ts, _watermark, this);
+        key_d_t &key_d = (*it).second;
+        bool should_store_tuple = false;
+        uint64_t ts = _timestamp; // the timestamp of the current tuple
+        if (ts < key_d.last_purged_wm) { // if the tuple is related to a closed window of the current key -> IGNORED
 #if defined (WF_TRACING_ENABLED)
-                (this->stats_record).outputs_sent++;
-                (this->stats_record).bytes_sent += sizeof(result_t);
+            stats_record.inputs_ignored++;
 #endif
-            }
+            ignored_tuples++;
+            return;
         }
-        if (joinMode == Join_Mode_t::KP) {
-            insertIntoBuffer(key_d, wrapper_t(_tuple, _timestamp), _tag);
-        }
-        else if (joinMode == Join_Mode_t::DP) {
-            key_d.partitioning_counter++;
-            if (key_d.partitioning_counter % num_inner == id_inner) {
-                insertIntoBuffer(key_d, wrapper_t(_tuple, _timestamp), _tag);
-            }
+        long first_w = 0; // determine the wid of the first window containing t
+        long last_w = -1; // determine the wid of the last window containing t
+        if (win_len > slide_len) {
+            first_w = ceil(((int64_t) ts - (int64_t) win_len + 1) / (double) slide_len);
+            last_w = floor((double) (ts)/slide_len);
         }
         else {
-            abort();
+            first_w = floor((double)(ts)/slide_len);
+            last_w = first_w;
+        }
+        uint64_t emit_ts, emit_wm;
+        uint64_t win_start, win_end;
+        std::optional<result_t> output;
+        std::pair<iterator_t, iterator_t> its;
+        for (long wid = first_w; wid <= last_w; wid++) {
+            win_start = wid < 0 ? 0 : wid * slide_len;
+            win_end = wid < 0 ? (wid + (long) growing_lwid_num + 1) * slide_len : win_len;
+            win_end += (win_start - 1);
+            its = isStreamA(_tag) ? (key_d.archiveB).getJoinRange(win_start, win_end) : (key_d.archiveA).getJoinRange(win_start, win_end);
+                Iterable<tuple_t> interval(its.first, its.second);
+                for (size_t i=0; i<interval.size(); i++) {
+                    if constexpr (isNonRiched) {
+                        output = isStreamA(_tag) ? func(_tuple, interval.at(i)) : func(interval.at(i), _tuple);
+                    }
+                    if constexpr (isRiched)  { // inplace riched version
+                        (this->context).setContextParameters(ts, _watermark);
+                        output = isStreamA(_tag) ? func(_tuple, interval.at(i), this->context) : func(interval.at(i), _tuple, this->context);
+                    }
+                    if (output) {
+                        if (this->execution_mode == Execution_Mode_t::DETERMINISTIC) {
+                            emit_ts = (ts >= interval.index_at(i)) ? ts : interval.index_at(i);
+                        }
+                        else {
+                            emit_ts = win_end;
+                        }
+                        emit_wm = _watermark;
+                        this->doEmit(this->emitter, &(*output), 0, emit_ts, emit_wm, this); // emit the pair
+#if defined (WF_TRACING_ENABLED)
+                        (this->stats_record).outputs_sent++;
+                        (this->stats_record).bytes_sent += sizeof(result_t);
+#endif
+                    }
+                }
+        }
+        if (join_mode == Join_Mode_t::KP) { // KP
+            should_store_tuple = true;
+        }
+        else { // DP
+            key_d.partitioning_counter++;
+            if (key_d.partitioning_counter % num_inner == id_inner) {
+                should_store_tuple = true;
+            }
+        }
+        if (should_store_tuple) {
+            insertIntoBuffer(key_d, wrapper_t(_tuple, _timestamp), _tag);
         }
         if (this->execution_mode == Execution_Mode_t::DEFAULT) {
             assert(last_wm <= _watermark); // sanity check
-            if (last_wm < _watermark)
-                purgeArchives(key_d, _watermark); // purge the archives using the new watermark
-            last_wm = _watermark;
+            if (last_wm < _watermark) {
+                last_wm = _watermark;
+                purgeFiredWinTuples(key_d, last_wm, first_w); // purge the archives using the new watermark
+            }
         }
         else {
             if (last_wm < _timestamp) {
-                purgeArchives(key_d, _timestamp); // purge the archives using the new watermark
                 last_wm = _timestamp;
+                purgeFiredWinTuples(key_d, last_wm, first_w); // purge the archives using the new timestamp
             }
         }
     }
@@ -339,39 +354,41 @@ public:
         return ignored_tuples;
     }
 
-    IJoin_Replica(IJoin_Replica &&) = delete; ///< Move constructor is deleted
-    IJoin_Replica &operator=(const IJoin_Replica &) = delete; ///< Copy assignment operator is deleted
-    IJoin_Replica &operator=(IJoin_Replica &&) = delete; ///< Move assignment operator is deleted
+    WJoin_Replica(WJoin_Replica &&) = delete; ///< Move constructor is deleted
+    WJoin_Replica &operator=(const WJoin_Replica &) = delete; ///< Copy assignment operator is deleted
+    WJoin_Replica &operator=(WJoin_Replica &&) = delete; ///< Move assignment operator is deleted
 };
 
 //@endcond
 
 /** 
- *  \class Interval Join
+ *  \class Window Join
  *  
- *  \brief Interval Join operator
+ *  \brief Window Join operator
  *  
- *  The Interval Join operator performs a join operation over two streams based on a specified interval condition.
+ *  The Window Join operator performs a join operation over two streams based on a specified window size and sliding length.
  *  It takes a functional Boolean condition logic and a key extractor logic as input. The operator operates in
  *  either Key-Parallelism (KP) or Data-Parallelism (DP) mode.
  */ 
 template<typename join_func_t, typename keyextr_func_t>
-class Interval_Join: public Basic_Operator
+class Window_Join: public Basic_Operator
 {
 private:
     friend class MultiPipe;
     friend class PipeGraph;
-    join_func_t func; // functional boolean condition logic used by the Interval Join
+    join_func_t func; // functional boolean condition logic used by the Window Join
     keyextr_func_t key_extr; // logic to extract the key attribute from the tuple_t
-    std::vector<IJoin_Replica<join_func_t, keyextr_func_t>*> replicas; // vector of pointers to the replicas of the Interval Join
-    int64_t lower_bound; // lower bound of the interval, can be negative (ts + lower_bound)
-    int64_t upper_bound; // upper bound of the interval, can be negative (ts + upper_bound)
-    Join_Mode_t joinMode; // Interval Join operating mode
+    std::vector<WJoin_Replica<join_func_t, keyextr_func_t>*> replicas; // vector of pointers to the replicas of the Window Join
+    uint64_t win_size; // window size expressed in usec
+    uint64_t slide_len; // sliding length expressed in usec
+    Join_Window_t join_win_type; // type of the join windows
+    Join_Mode_t join_mode; // Window Join operating mode
     using tuple_t = decltype(get_tuple_t_Join(func)); // extracting the tuple_t type and checking the admissible signatures
     using result_t = decltype(get_result_t_Join(func)); // extracting the result_t type and checking the admissible signatures
+    using key_t = decltype(get_key_t_KeyExtr(key_extr)); // extracting the key_t type and checking the admissible singatures
     static constexpr op_type_t op_type = op_type_t::BASIC;
 
-    // Configure the Interval Join to receive batches instead of individual inputs
+    // Configure the Window Join to receive batches instead of individual inputs
     void receiveBatches(bool _input_batching) override
     {
         for (auto *r: replicas) {
@@ -379,7 +396,7 @@ private:
         }
     }
 
-    // Set the emitter used to route outputs from the Interval Join
+    // Set the emitter used to route outputs from the Window Join
     void setEmitter(Basic_Emitter *_emitter) override
     {
         replicas[0]->setEmitter(_emitter);
@@ -388,7 +405,7 @@ private:
         }
     }
 
-    // Check whether the Interval Join has terminated
+    // Check whether the Window Join has terminated
     bool isTerminated() const override
     {
         bool terminated = true;
@@ -398,11 +415,11 @@ private:
         return terminated;
     }
 
-    // Set the execution mode of the Interval Join
+    // Set the execution mode of the Window Join
     void setExecutionMode(Execution_Mode_t _execution_mode)
     {
         if (this->getOutputBatchSize() > 0 && _execution_mode != Execution_Mode_t::DEFAULT) {
-            std::cerr << RED << "WindFlow Error: Interval Join is trying to produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
+            std::cerr << RED << "WindFlow Error: Window Join is trying to produce a batch in non DEFAULT mode" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         for (auto *r: replicas) {
@@ -417,19 +434,19 @@ private:
     }
 
 #if defined (WF_TRACING_ENABLED)
-    // Append the statistics (JSON format) of the Map to a PrettyWriter
+    // Append the statistics (JSON format) of the Window Join to a PrettyWriter
     void appendStats(rapidjson::PrettyWriter<rapidjson::StringBuffer> &writer) const override
     {
         writer.StartObject(); // create the header of the JSON file
         writer.Key("Operator_name");
         writer.String((this->name).c_str());
         writer.Key("Operator_type");
-        writer.String("Interval_Join");
+        writer.String("Window_Join");
         writer.Key("Distribution");
         if (this->getInputRoutingMode() == Routing_Mode_t::KEYBY) {
             writer.String("KEYBY");
         }
-        else if (this->getInputRoutingMode() == Routing_Mode_t::BROADCAST) {
+        else {
             writer.String("BROADCAST");
         }
         writer.Key("isTerminated");
@@ -442,15 +459,15 @@ private:
         writer.Uint(this->parallelism);
         writer.Key("OutputBatchSize");
         writer.Uint(this->outputBatchSize);
-        writer.Key("Lower_Bound");
-        writer.Int64(lower_bound);
-        writer.Key("Uper_Bound");
-        writer.Int64(upper_bound);
+        writer.Key("Window_Size");
+        writer.Uint(this->win_size);
+        writer.Key("Sliding_Length");
+        writer.Uint(this->slide_len);
         writer.Key("Join_Mode");
-        if (this->joinMode == Join_Mode_t::KP) {
+        if (this->join_mode == Join_Mode_t::KP) {
             writer.String("Key-Parallelism");
         }
-        else if (this->joinMode == Join_Mode_t::DP) {
+        else {
             writer.String("Data-Parallelism");
         }
         writer.Key("Replicas");
@@ -468,62 +485,66 @@ public:
     /** 
      *  \brief Constructor
      *  
-     *  \param _func functional Boolean condition logic of the Interval Join (a function or any callable type)
+     *  \param _func functional Boolean condition logic of the Window Join (a function or any callable type)
      *  \param _key_extr key extractor (a function or any callable type)
-     *  \param _parallelism internal parallelism of the Interval Join
-     *  \param _name name of the Interval Join
-     *  \param _input_routing_mode input routing mode of the Interval Join
+     *  \param _parallelism internal parallelism of the Window Join
+     *  \param _name name of the Window Join
+     *  \param _input_routing_mode input routing mode of the Window Join
      *  \param _outputBatchSize size (in num of tuples) of the batches produced by this operator (0 for no batching)
-     *  \param _closing_func closing functional logic of the Interval Join (a function or any callable type)
-     *  \param _lower_bound lower bound of the interval (ts - lower_bound)
-     *  \param _upper_bound upper bound of the interval (ts - upper_bound)
-     *  \param _join_mode Interval Join operating mode
+     *  \param _closing_func closing functional logic of the Window Join (a function or any callable type)
+     *  \param _win_size window size expressed in time unit
+     *  \param _slide sliding length expressed in time unit
+     *  \param _join_mode Window Join operating mode
      */ 
-    Interval_Join(join_func_t _func,
+    Window_Join(join_func_t _func,
                   keyextr_func_t _key_extr,
                   size_t _parallelism,
                   std::string _name,
                   Routing_Mode_t _input_routing_mode,
                   size_t _outputBatchSize,
                   std::function<void(RuntimeContext &)> _closing_func,
-                  int64_t _lower_bound,
-                  int64_t _upper_bound,
+                  uint64_t _win_size,
+                  uint64_t _slide_len,
+                  Join_Window_t _join_win_type,
                   Join_Mode_t _join_mode):
                   Basic_Operator(_parallelism, _name, _input_routing_mode, _outputBatchSize),
                   func(_func),
                   key_extr(_key_extr),
-                  lower_bound(_lower_bound),
-                  upper_bound(_upper_bound),
-                  joinMode(_join_mode)
+                  win_size(_win_size),
+                  slide_len(_slide_len),
+                  join_win_type(_join_win_type),
+                  join_mode(_join_mode)
     {
         for (size_t i=0; i<this->parallelism; i++) { // create the internal replicas of the Interval Join
-            replicas.push_back(new IJoin_Replica<join_func_t, keyextr_func_t>(_func, 
-                                                                              _key_extr,
+            replicas.push_back(new WJoin_Replica<join_func_t, keyextr_func_t>(this->func,
+                                                                              this->key_extr,
                                                                               this->name,
                                                                               RuntimeContext(this->parallelism, i),
                                                                               _closing_func,
-                                                                              _lower_bound,
-                                                                              _upper_bound,
-                                                                              _join_mode));
+                                                                              this->win_size,
+                                                                              this->slide_len,
+                                                                              this->join_win_type,
+                                                                              this->join_mode));
         }
     }
 
     /// Copy constructor
-    Interval_Join(const Interval_Join &_other):
+    Window_Join(const Window_Join &_other):
                   Basic_Operator(_other),
                   func(_other.func),
                   key_extr(_other.key_extr),
-                  lower_bound(_other.lower_bound),
-                  upper_bound(_other.upper_bound),
-                  joinMode(_other.joinMode)
+                  win_size(_other.win_size),
+                  slide_len(_other.slide_len),
+                  join_win_type(_other.join_win_type),
+                  join_mode(_other.join_mode)
     {
         for (size_t i=0; i<this->parallelism; i++) { // deep copy of the pointers to the Interval Join replicas
-            replicas.push_back(new IJoin_Replica<join_func_t, keyextr_func_t>(*(_other.replicas[i])));
+            replicas.push_back(new WJoin_Replica<join_func_t, keyextr_func_t>(*(_other.replicas[i])));
         }
     }
 
     // Destructor
-    ~Interval_Join() override
+    ~Window_Join() override
     {
         for (auto *r: replicas) { // delete all the replicas
             delete r;
@@ -531,17 +552,26 @@ public:
     }
 
     /** 
-     *  \brief Get the type of the Interval Join as a string
-     *  \return type of the Interval Join
+     *  \brief Get the type of the Window Join as a string
+     *  \return type of the Window Join
      */ 
     std::string getType() const override
     {
-        return joinMode == Join_Mode_t::KP ? std::string("Interval_Join_KP") : std::string("Interval_Join_DP");
+        std::string join_mode_str = "Window_Join_";
+        switch (join_mode) {
+            case Join_Mode_t::KP:
+                join_mode_str += "KP";
+                break;
+            case Join_Mode_t::DP:
+                join_mode_str += "DP";
+                break;
+        }
+        return join_mode_str;
     }
 
-    Interval_Join(Interval_Join &&) = delete; ///< Move constructor is deleted
-    Interval_Join &operator=(const Interval_Join &) = delete; ///< Copy assignment operator is deleted
-    Interval_Join &operator=(Interval_Join &&) = delete; ///< Move assignment operator is deleted
+    Window_Join(Window_Join &&) = delete; ///< Move constructor is deleted
+    Window_Join &operator=(const Window_Join &) = delete; ///< Copy assignment operator is deleted
+    Window_Join &operator=(Window_Join &&) = delete; ///< Move assignment operator is deleted
 };
 
 } // namespace wf

@@ -32,8 +32,8 @@
  *  
  *  This class implements a FastFlow multi-input node able to receive inputs with
  *  watermarks, and to send them in output by adjusting watermarks and stream tags
- *  for join operators in a correct manner. The collector is used in data partitioning
- *  mode only.
+ *  for join operators in a correct manner. This collector is used only in case of
+ *  join operators working in data partitioning mode.
  */ 
 
 #ifndef JOIN_COLLECTOR_H
@@ -258,8 +258,9 @@ public:
         for(size_t i=0; i<this->get_num_inchannels(); i++) {
             total_size += channelMap[i].size();
         }
-        if (total_size == 0)
+        if (total_size == 0) {
             return;
+        }
         while (total_size > 0) {
             id = channel_ids[next_id];
             if (!channelMap[id].empty()) {

@@ -205,7 +205,7 @@ private:
         size_t id=0;
         size_t separator_id=0;
         std::vector<ff::ff_node *> result;
-        if ((_operator.getType() == "Interval_Join_KP" || _operator.getType() == "Interval_Join_DP")) {
+        if (checkJoinOperatorType<operator_t>(_operator)) {
             auto lastOps = this->getLastOperators();
             separator_id = lastOps.front()->getParallelism();
         }
@@ -213,7 +213,7 @@ private:
             ff::ff_pipeline *stage = new ff::ff_pipeline();
             stage->add_stage(r, false);
             // we use the Join_Collector if DEFAULT execution mode and DP join mode
-            if (_operator.getType() == "Interval_Join_DP" && execution_mode == Execution_Mode_t::DEFAULT) {
+            if (checkJoinOperatorType<operator_t>(_operator, Join_Mode_t::DP) && execution_mode == Execution_Mode_t::DEFAULT) {
                 r->receiveBatches(_needBatching);
                 auto *collector = new Join_Collector<decltype(_operator.getKeyExtractor())>(_operator.getKeyExtractor(), _ordering_mode, execution_mode, Join_Mode_t::DP, id++, _needBatching, separator_id);
                 combine_with_firststage(*stage, collector, true); // combine with the Join_Collector
@@ -443,8 +443,8 @@ private:
             std::cerr << RED << "WindFlow Error: MultiPipe has been split, operator cannot be added" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
-        if (auto lastOps = this->getLastOperators(); (_operator.getType() == "Interval_Join_KP" || _operator.getType() == "Interval_Join_DP") && (!fromMerging || localOpList.size() != 0 || lastOps.size() != 2) ) {
-            std::cerr << RED << "WindFlow Error: Join operators must be added after a merge of exactly two MultiPipes" << DEFAULT_COLOR << std::endl;
+        if (auto lastOps = this->getLastOperators(); (checkJoinOperatorType<operator_t>(_operator)) && (!fromMerging || localOpList.size() != 0 || lastOps.size() != 2) ) {
+            std::cerr << RED << "WindFlow Error: Join operators must be added immediately after a merge of exactly two MultiPipes" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
         }
         if (fromSplitting && last == nullptr) { // Case 1: first operator added after splitting
@@ -915,6 +915,38 @@ private:
         outputType = TypeName<typename op_t::result_t>::getName(); // save the new output type from this MultiPipe
     }
 
+    // Check if the new operator is a Join operator of any or a specific mode (runtime check based on string comparison)
+    template<typename op_t>
+    bool checkJoinOperatorType(const op_t &_op, Join_Mode_t _join_mode = Join_Mode_t::NONE) const
+    {
+        auto type = static_cast<const Basic_Operator &>(_op).getType();
+        size_t pos = type.find("Join_");
+        if (pos == std::string::npos) {
+            return false;
+        }
+        std::string sub_join_type = type.substr(pos);
+        if (_join_mode == Join_Mode_t::NONE) {
+            if (sub_join_type != "Join_KP" && sub_join_type != "Join_DP") {
+                return false;
+            }
+        }
+        else {
+            switch (_join_mode) {
+                case Join_Mode_t::KP:
+                    return sub_join_type == "Join_KP";
+                    break;
+                case Join_Mode_t::DP:
+                    return sub_join_type == "Join_DP";
+                    break;
+                default:
+                    std::cerr << RED << "WindFlow Error: error during Join operator type mode checking" << DEFAULT_COLOR << std::endl;
+                    exit(EXIT_FAILURE);
+                    break;
+            }
+        }
+        return true;
+    }
+
 #if defined (WF_TRACING_ENABLED)
     // Update the graphviz representation with a new CPU operator
     template<typename op_t>
@@ -1063,8 +1095,8 @@ public:
                 std::cerr << RED << "WindFlow Error: P_Reduce operator cannot be chained" << DEFAULT_COLOR << std::endl;
                 exit(EXIT_FAILURE);
             }
-            else if ((_op.getType() == "Interval_Join_KP") || (_op.getType() == "Interval_Join_DP")) {
-                std::cerr << RED << "WindFlow Error: Interval_Join cannot be chained" << DEFAULT_COLOR << std::endl;
+            else if (checkJoinOperatorType<op_t>(_op)) {
+                std::cerr << RED << "WindFlow Error: Join operator cannot be chained" << DEFAULT_COLOR << std::endl;
                 exit(EXIT_FAILURE);
             }
             auto *copied_op = new op_t(_op); // create a copy of the operator

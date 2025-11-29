@@ -22,7 +22,7 @@
  */
 
 /*  
- *  Test 1 of the Interval Join operator.
+ *  Test 7 of the Window Join operator.
  *  
  *  +---------------------+                                   +-----------+
  *  |  +-----+   +-----+  |                                   |  +-----+  |
@@ -59,16 +59,16 @@ int main(int argc, char *argv[])
     size_t runs = 1;
     size_t stream_len = 0;
     size_t n_keys = 1;
-    int64_t lower_bound = 0;
-    int64_t upper_bound = 0;
+    uint64_t win_len = 0;
+    uint64_t slide_len = 0;
     // initalize global variable
     global_sum = 0;
     // arguments from command line
     if (argc != 11) {
-        cout << argv[0] << " -r [runs] -l [stream_length] -k [n_keys] -L [lower bound in msec] -U [upper bound in msec]" << endl;
+        cout << argv[0] << " -r [runs] -l [stream_length] -k [n_keys] -w [window length in usec] -s [window slide in usec]" << endl;
         exit(EXIT_SUCCESS);
     }
-    while ((option = getopt(argc, argv, "r:l:k:L:U:")) != -1) {
+    while ((option = getopt(argc, argv, "r:l:k:w:s:")) != -1) {
         switch (option) {
             case 'r': runs = atoi(optarg);
                      break;
@@ -76,12 +76,12 @@ int main(int argc, char *argv[])
                      break;
             case 'k': n_keys = atoi(optarg);
                      break;
-            case 'L': lower_bound = atoi(optarg);
+            case 'w': win_len = atoi(optarg);
                     break;
-            case 'U': upper_bound = atoi(optarg);
+            case 's': slide_len = atoi(optarg);
                     break;
             default: {
-                cout << argv[0] << " -r [runs] -l [stream_length] -k [n_keys] -L [lower bound in msec] -U [upper bound in msec]" << endl;
+                cout << argv[0] << " -r [runs] -l [stream_length] -k [n_keys] -w [window length in usec] -s [window slide in usec]" << endl;
                 exit(EXIT_SUCCESS);
             }
         }
@@ -134,7 +134,7 @@ int main(int argc, char *argv[])
         }
         check_degree += (sink1_degree + sink2_degree);
         // prepare the test
-        PipeGraph graph("test_join_1 (DEFAULT)", Execution_Mode_t::DEFAULT, Time_Policy_t::EVENT_TIME);
+        PipeGraph graph("test_join_6 (DEFAULT)", Execution_Mode_t::DEFAULT, Time_Policy_t::EVENT_TIME);
         // prepare the first MultiPipe
         Source_Positive_Functor source_functor_positive(stream_len, n_keys, true);
         Source source1 = Source_Builder(source_functor_positive)
@@ -168,13 +168,13 @@ int main(int argc, char *argv[])
         // prepare the third MultiPipe
         MultiPipe &pipe3 = pipe1.merge(pipe2);
         Join_Functor join_functor;
-        Interval_Join join = Interval_Join_Builder(join_functor)
+        Window_Join join = Window_Join_Builder(join_functor)
                                     .withName("join")
                                     .withParallelism(join_degree)
                                     .withOutputBatchSize(dist_b(rng))
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
-                                    .withBoundaries(milliseconds(lower_bound), milliseconds(upper_bound))
-                                    .withKPMode()
+                                    .withSlidingWindows(microseconds(win_len), microseconds(slide_len))
+                                    .withDPMode()
                                     .build();
         pipe3.add(join);
         Filter_Functor filter_functor(2);
@@ -222,6 +222,7 @@ int main(int argc, char *argv[])
             }
             else {
                 cout << "Result is --> " << RED << "FAILED" << DEFAULT_COLOR << " value " << global_sum.load() << endl;
+                abort();
             }
         }
         global_sum = 0;
@@ -263,7 +264,7 @@ int main(int argc, char *argv[])
         }
         check_degree += (sink1_degree + sink2_degree);
         // prepare the test
-        PipeGraph graph("test_join_1 (DETERMINISTIC)", Execution_Mode_t::DETERMINISTIC, Time_Policy_t::EVENT_TIME);
+        PipeGraph graph("test_join_tw_1 (DETERMINISTIC)", Execution_Mode_t::DETERMINISTIC, Time_Policy_t::EVENT_TIME);
         // prepare the first MultiPipe
         Source_Positive_Functor source_functor_positive(stream_len, n_keys, false);
         Source source1 = Source_Builder(source_functor_positive)
@@ -293,12 +294,12 @@ int main(int argc, char *argv[])
         // prepare the third MultiPipe
         MultiPipe &pipe3 = pipe1.merge(pipe2);
         Join_Functor join_functor;
-        Interval_Join join = Interval_Join_Builder(join_functor)
+        Window_Join join = Window_Join_Builder(join_functor)
                                     .withName("join")
                                     .withParallelism(join_degree)
                                     .withKeyBy([](const tuple_t &t) -> size_t { return t.key; })
-                                    .withBoundaries(milliseconds(lower_bound), milliseconds(upper_bound))
-                                    .withKPMode()
+                                    .withSlidingWindows(microseconds(win_len), microseconds(slide_len))
+                                    .withDPMode()
                                     .build();
         pipe3.add(join);
         Filter_Functor filter_functor(2);

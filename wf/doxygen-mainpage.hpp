@@ -3,19 +3,21 @@
  * \section intro_sec Introduction
  * 
  * WindFlow is a C++17 library for parallel data stream processing targeting heterogeneous shared-memory architectures
- * equipped with multi-core CPUs and NVIDIA GPUs. The library provides traditional stream processing operators like map,
- * flatmap, filter, reduce as well as window-based operators. The API allows building streaming applications through
- * the MultiPipe and the PipeGraph programming constructs. The first is used to create parallel pipelines, while the second
- * one allows several MultiPipe instances to be interconnected through merge and split operations, in order to create complex
- * directed acyclic graphs of interconnected operators.
+ * equipped with multi-core CPUs and NVIDIA GPUs. The library provides traditional stream processing operators such as
+ * map, flatmap, filter, and reduce, as well as window-based operators. The API enables developers to build streaming
+ * applications through the MultiPipe and PipeGraph programming constructs. The former is used to create parallel pipelines,
+ * while the latter allows multiple MultiPipe instances to be interconnected through merge and split operations, enabling the
+ * construction of complex directed acyclic graphs (DAGs) of interconnected operators.
  * 
- * WindFlow does not support streaming analytics applications only (e.g., the ones written with relational algebra query languages,
- * as in traditional old-style DSMSs), but rather all general-purpose streaming applications can easily be supported through operators
- * with user-defined custom logics. In terms of runtime system, WindFlow is particularly suitable for embedded architectures equipped
- * with low-power multi-core CPUs and integrated NVIDIA GPUs (i.e., Jetson boards). However, it works well also on traditional multi-core
- * servers equipped with discrete NVIDIA GPUs. Differently from existing research libraries for stream processing on multicores, WindFlow
- * is designed to support real live-streaming applications, where inputs are continuously received from real-world sources, and not only
- * offline streaming applications reading historical data already prepared in memory.
+ * WindFlow supports not only streaming analytics applications (e.g., those written with relational algebra query languages,
+ * as in traditional DSMSs) but also general-purpose streaming applications that can be implemented through operators with
+ * user-defined custom logic. From a runtime perspective, WindFlow is particularly suitable for embedded architectures
+ * equipped with low-power multi-core CPUs and integrated NVIDIA GPUs (e.g., Jetson boards). Nevertheless, it also performs
+ * effectively on conventional multi-core servers equipped with discrete NVIDIA GPUs.
  * 
- * The web site of the library is available at: https://paragroup.github.io/WindFlow/.
+ * Unlike existing research-oriented libraries for stream processing on multicores, WindFlow is designed to support real
+ * live-streaming applications, where inputs are continuously received from real-world sources, rather than offline streaming
+ * workloads processing preloaded historical data.
+ * 
+ * The official website of the library is available at: https://paragroup.github.io/WindFlow/
  */

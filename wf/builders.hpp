@@ -38,6 +38,7 @@
 /// includes
 #include<chrono>
 #include<functional>
+#include<unordered_set>
 #include<meta.hpp>
 #if defined (__CUDACC__)
     #include<meta_gpu.hpp>
@@ -1417,8 +1418,8 @@ private:
     Routing_Mode_t input_routing_mode = Routing_Mode_t::FORWARD; // routing mode of inputs to the Interval_Join
     keyextr_func_t key_extr = [](const tuple_t &t) -> key_t { return key_t(); }; // key extractor
     bool isKeyBySet = false; // true if a key extractor has been provided
-    int64_t lower_bound=0; // lower bound of the interval
-    int64_t upper_bound=0; // upper bound of the interval
+    int64_t lower_bound = 0; // lower bound of the interval in usec
+    int64_t upper_bound = 0; // upper bound of the interval in usec
     Join_Mode_t join_mode = Join_Mode_t::NONE;
 
 public:
@@ -1473,7 +1474,7 @@ public:
     /** 
      *  @brief Set the lower and upper bounds of the interval join.
      *  
-     *  @param _lower_bound lower bound of the interval join range
+     *  @param _lower_bound lower bound in usec of the interval join range
      *  @param _upper_bound upper bound of the interval join range
      *  @return a reference to the current object
      */ 
@@ -1499,10 +1500,6 @@ public:
      */ 
     auto &withKPMode()
     {
-        if (!isKeyBySet) {
-            std::cerr << RED << "WindFlow Error: Interval_Join with key parallelism mode requires a key extractor" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
         if (join_mode != Join_Mode_t::NONE) {
             std::cerr << RED << "WindFlow Error: wrong use of withKPMode() in the Interval_Join_Builder, you can specify only one mode per join operator" << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
@@ -1519,10 +1516,6 @@ public:
      */ 
     auto &withDPMode()
     {
-        if (!isKeyBySet) {
-            std::cerr << RED << "WindFlow Error: Interval_Join with data parallelism mode requires a key extractor" << DEFAULT_COLOR << std::endl;
-            exit(EXIT_FAILURE);
-        }
         if (join_mode != Join_Mode_t::NONE) {
             std::cerr << RED << "WindFlow Error: wrong use of withDPMode() in the Interval_Join_Builder, you can specify only one mode per join operator " << DEFAULT_COLOR << std::endl;
             exit(EXIT_FAILURE);
@@ -1558,6 +1551,197 @@ public:
                       this->closing_func,
                       lower_bound,
                       upper_bound,
+                      join_mode);
+    }
+};
+
+/** 
+ *  \class Window_Join_Builder
+ *  
+ *  \brief Builder of the Window Join operator
+ *  
+ *  Builder class to ease the creation of the Window Join operator.
+ */ 
+template<typename join_func_t, typename key_t=empty_key_t>
+class Window_Join_Builder: public Basic_Builder<Window_Join_Builder, join_func_t, key_t>
+{
+private:
+    template<typename T1, typename T2> friend class Window_Join_Builder;
+    join_func_t func; // functional logic of the Window Join
+    using tuple_t = decltype(get_tuple_t_Join(func)); // extracting the tuple_t type and checking the admissible signatures
+    using result_t = decltype(get_result_t_Join(func)); // extracting the result_t type and checking the admissible signatures
+    // static assert to check the signature of the Window Join functional logic
+    static_assert(!std::is_same<tuple_t, std::false_type>::value || std::is_same<result_t, std::false_type>::value,
+        "WindFlow Compilation Error - unknown signature passed to the Window_Join_Builder:\n"
+        "  Candidate 1 : std::optional<result_t> (const tuple_t &, const tuple_t &)\n"
+        "  Candidate 2 : std::optional<result_t> (const tuple_t &, const tuple_t &, RuntimeContext &)\n");
+    // static assert to check that the tuple_t type must be default constructible
+    static_assert(std::is_default_constructible<tuple_t>::value,
+        "WindFlow Compilation Error - tuple_t type must be default constructible (Window_Join_Builder):\n");
+    // static assert to check that the result_t type must be default constructible
+    static_assert(std::is_default_constructible<result_t>::value,
+        "WindFlow Compilation Error - result_t type must be default constructible (Window_Join_Builder):\n");
+    using keyextr_func_t = std::function<key_t(const tuple_t&)>; // type of the key extractor
+    using w_join_t = Window_Join<join_func_t, keyextr_func_t>; // type of the Window Join to be created by the builder
+    Routing_Mode_t input_routing_mode = Routing_Mode_t::FORWARD; // routing mode of inputs to the Window_Join
+    keyextr_func_t key_extr = [](const tuple_t &t) -> key_t { return key_t(); }; // key extractor
+    bool isKeyBySet = false; // true if a key extractor has been provided
+    uint64_t win_size = 0; // window size expressed in usec
+    uint64_t sliding_len = 0; // sliding length expressed in usec
+    Join_Mode_t join_mode = Join_Mode_t::NONE;
+    Join_Window_t join_win_type = Join_Window_t::NONE;
+
+public:
+    /** 
+     *  \brief Constructor
+     *  
+     *  \param _func functional logic of the Window Join (a function or any callable type)
+     */ 
+    Window_Join_Builder(join_func_t _func):
+                        func(_func) {}
+
+    /** 
+     *  \brief Set the KEYBY routing mode of inputs to the Window Join
+     *  
+     *  \param _key_extr key extractor functional logic (a function or any callable type)
+     *  \return a new builder object with the right key type
+     */ 
+    template<typename new_keyextr_func_t>
+    auto withKeyBy(new_keyextr_func_t _key_extr)
+    {
+        // static assert to check the signature
+        static_assert(!std::is_same<decltype(get_tuple_t_KeyExtr(_key_extr)), std::false_type>::value,
+            "WindFlow Compilation Error - unknown signature passed to withKeyBy (Window_Join_Builder):\n"
+            "  Candidate : key_t(const tuple_t &)\n");
+        // static assert to check that the tuple_t type of the new key extractor is the right one
+        static_assert(std::is_same<decltype(get_tuple_t_KeyExtr(_key_extr)), tuple_t>::value,
+            "WindFlow Compilation Error - key extractor receives a wrong input type (Window_Join_Builder):\n");
+        using new_key_t = decltype(get_key_t_KeyExtr(_key_extr)); // extract the key type
+        // static assert to check the new_key_t type
+        static_assert(!std::is_same<new_key_t, void>::value,
+            "WindFlow Compilation Error - key type cannot be void (Window_Join_Builder):\n");
+        // static assert to check that new_key_t is default constructible
+        static_assert(std::is_default_constructible<new_key_t>::value,
+            "WindFlow Compilation Error - key type must be default constructible (Window_Join_Builder):\n");
+        if (input_routing_mode != Routing_Mode_t::FORWARD) {
+            std::cerr << RED << "WindFlow Error: wrong use of withKeyBy() in the Window_Join_Builder" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        Window_Join_Builder<join_func_t, new_key_t> new_builder(func);
+        new_builder.name = this->name;
+        new_builder.parallelism = this->parallelism;
+        new_builder.key_extr = _key_extr;
+        new_builder.outputBatchSize = this->outputBatchSize;
+        new_builder.closing_func = this->closing_func;
+        new_builder.isKeyBySet = true;
+        new_builder.win_size = this->win_size;
+        new_builder.sliding_len = this->sliding_len;
+        new_builder.join_win_type = this->join_win_type;
+        new_builder.join_mode = this->join_mode;
+        return new_builder;
+    }
+
+    /** 
+     *  @brief Set the configuration for time-based sliding windows
+     *  
+     *  @param _win_size window size expressed in usec
+     *  @param _sliding_length sliding length expressed in usec
+     *  @return a reference to the current object
+     */ 
+    auto &withSlidingWindows(std::chrono::microseconds _win_size, std::chrono::microseconds _sliding_length)
+    {
+        if (join_win_type != Join_Window_t::NONE) {
+            std::cerr << RED << "WindFlow Error: wrong use of withSlidingWindows() in the Window_Join_Builder, you can specify only one window join type" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        win_size = _win_size.count();
+        sliding_len = _sliding_length.count();
+        join_win_type = Join_Window_t::SLIDE;
+        return *this;
+    }
+
+    /** 
+     *  @brief Set the configuration for time-based tumbling windows
+     *  
+     *  @param _win_size window size expressed in usec
+     *  @return a reference to the current object
+     */ 
+    auto &withTumblingWindows(std::chrono::microseconds _win_size)
+    {
+        if (join_win_type != Join_Window_t::NONE) {
+            std::cerr << RED << "WindFlow Error: wrong use of withSlidingWindows() in the Window_Join_Builder, you can specify only one window join type" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        win_size = _win_size.count();
+        sliding_len = win_size;
+        join_win_type = Join_Window_t::TUMB;
+        return *this;
+    }
+
+    /** 
+     *  \brief Set Key Partitioning mode. Each replica will hold and join a subset of keys.
+     *  
+     *  \return a reference to the builder object
+     */ 
+    auto &withKPMode()
+    {
+        if (join_mode != Join_Mode_t::NONE) {
+            std::cerr << RED << "WindFlow Error: wrong use of withKPMode() in the Window_Join_Builder, you can specify only one mode per join operator" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        input_routing_mode = Routing_Mode_t::KEYBY;
+        join_mode = Join_Mode_t::KP;
+        return *this;
+    }
+
+    /** 
+     *  \brief Set Data Partitioning mode. Each replica will hold a exclusive subset of data of each key.
+     *  
+     *  \return a reference to the builder object
+     */ 
+    auto &withDPMode()
+    {
+        if (join_mode != Join_Mode_t::NONE) {
+            std::cerr << RED << "WindFlow Error: wrong use of withDPMode() in the Window_Join_Builder, you can specify only one mode per join operator " << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        input_routing_mode = Routing_Mode_t::BROADCAST;
+        join_mode = Join_Mode_t::DP;
+        return *this;
+    }
+
+    /** 
+     *  \brief Create the Window Join
+     *  
+     *  \return a new Window Join instance
+     */ 
+    auto build()
+    {
+        // check if the mode is selected
+        if (join_mode == Join_Mode_t::NONE) {
+            std::cerr << RED << "WindFlow Error: at least one mode per join operator is need to be selected in the builder" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        // check if the join window type is selected
+        if (join_win_type == Join_Window_t::NONE) {
+            std::cerr << RED << "WindFlow Error: at least one window type per window join operator is need to be selected in the builder" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        // check the presence of a key extractor
+        if (!isKeyBySet && this->parallelism > 1) {
+            std::cerr << RED << "WindFlow Error: Window_Join with parallelism > 1 requires a key extractor" << DEFAULT_COLOR << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        return w_join_t(func,
+                      key_extr,
+                      this->parallelism,
+                      this->name,
+                      input_routing_mode,
+                      this->outputBatchSize,
+                      this->closing_func,
+                      win_size,
+                      sliding_len,
+                      join_win_type,
                       join_mode);
     }
 };
