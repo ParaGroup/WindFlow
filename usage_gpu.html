@@ -8,9 +8,9 @@
 	<link rel="canonical" href="https://paragroup.github.io/WindFlow/usage_gpu.html">
     <link rel="shortcut icon" type="image/png" href="favicon.png">
     
-	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?1633">
-	<link rel="stylesheet" type="text/css" href="style.css?1246">
-	<link rel="stylesheet" type="text/css" href="./css/prism.css?4490">
+	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?797">
+	<link rel="stylesheet" type="text/css" href="style.css?9010">
+	<link rel="stylesheet" type="text/css" href="./css/prism.css?1185">
 	
 	
     <title>Usage_GPU</title>
@@ -66,7 +66,7 @@
 									<a href="dashboard.html" class="btn btn-lg btn-glossy btn-c-4866">Dashboard</a>
 								</li>
 								<li>
-									<a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/v4.2.2.zip" class="btn btn-lg btn-glossy btn-c-4866">Download</a>
+									<a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/v4.2.4.zip" class="btn btn-lg btn-glossy btn-c-4866 ">Download</a>
 								</li>
 								<li>
 									<a href="about.html" class="btn btn-lg btn-glossy btn-c-4866">About</a>
@@ -89,7 +89,7 @@
 			</div>
 			<div class="align-self-center offset-md-1 col-md-10 col-lg-4 col-sm-10 offset-sm-1 col-10 offset-1">
 				<h4 class="mg-md tc-6038 btn-resize-mode h2-style float-lg-right">
-					A C++17 Data Stream Processing Parallel Library for Multicores and GPUs&nbsp;<br>
+					A C++ Data Stream Processing Parallel Library for Multicores and GPUs&nbsp;<br>
 				</h4>
 			</div>
 		</div>
@@ -110,10 +110,10 @@
 					
 				</div>
 				<p class="text-justify">
-						WindFlow, starting from version 3.0, supports some operators targeting NVIDIA GPUs.&nbsp;Two of them are Maps and Filters. In this page, we show how to use them in a simple example representing the skeleton of a <strong>FraudDetection</strong> application processing credit card transactions (see the&nbsp;<a class="ltc-4866" href="https://github.com/GMAP/DSPBench">DSPBench</a>&nbsp;benchmark suite [1] for further information). The application is composed of four operators, two of them offloaded on GPU. The Source is in charge of producing a stream of transactions from an input dataset (already parsed for simplicity). The Filter is in charge of dropping all the empty transactions present in the input stream. The Map operator processes all the transactions belonging to the same customer in order to add a boolean flag stating whether the transaction is classified as a potential fraud or not. Finally, the Sink receives results with their classification flag.<br><br>The logical data-flow graph of the application is reported below. WindFlow allows the use of GPU devices for <strong>general-purpose stateful stream processing</strong>. This is a shift with respect to the state of the art. Indeed, GPUs are traditionally used to accelerate specific data analytics tasks which apply associative functions on input batches (e.g., reduceByKey of Apache Spark). But, let’s address this point step by step.
+						Starting from version 3.0, WindFlow supports a set of operators that can target <strong>NVIDIA GPUs</strong>. Among these operators are Map and Filter. In this page, we demonstrate how to use them through a simple example that represents the skeleton of a FraudDetection application processing credit card transactions (see the DSPBench benchmark suite [1] for more details).<br>The application consists of four operators, two of which are offloaded to the GPU. The Source produces a stream of transactions from an input dataset (already parsed for simplicity). The Filter discards all empty transactions present in the stream. The Map operator processes all transactions belonging to the same customer and adds a boolean flag indicating whether each transaction is classified as potentially fraudulent. Finally, the Sink receives the results together with their classification flags.<br>The logical data-flow graph of the application is shown below. WindFlow enables the use of GPU devices for general-purpose, stateful stream processing, marking a significant shift from the state of the art. Traditionally, GPUs are used to accelerate specific data analytics tasks that apply associative functions on input batches (e.g., reduceByKey in Apache Spark).<br>
 					</p><picture><source type="image/webp" srcset="img/lazyload-ph.png" data-srcset="img/application_gpu.webp"><img src="img/lazyload-ph.png" data-src="img/application_gpu.jpg" class="img-fluid mx-auto d-block mg-md img-application-g-style lazyload" alt="application_gpu" width="600" height="106"></picture>
 				<p class="text-justify">
-						GPU operators come with some additional constraints to be used. In particular, the input and output types, as well as the key attribute type (if any), must be <strong>trivially copyable</strong> from host-accessible memory to GPU-accessible memory. Below, we define the data type used by the operators.
+						GPU operators come with additional constraints. In particular, the input and output types—as well as the key attribute type, if present—must be trivially copyable from host-accessible memory to GPU-accessible memory. The data type used by the operators is defined below.<br>
 					</p>
 				<div>
 						<pre><code class="language-cpp">
@@ -157,7 +157,7 @@ public:
 							
 						</div>
 				<p>
-								The first operator is a <strong>Filter_GPU</strong> instance using the functional logic defined by the functor object below. The operator applies the functor logic on each input and retains all the inputs for which the predicate is <i>true</i>.
+								The first operator is a <strong>Filter_GPU</strong> instance that uses the functional logic defined by the functor object shown below. This operator applies the predicate to each input and retains only those inputs for which the predicate evaluates to true.<br>
 							</p>
 				<div>
 								<pre><code class="language-cpp">
@@ -177,7 +177,7 @@ public:
 								
 							</div>
 				<p class="text-justify">
-									The <strong>Map_GPU</strong> operator is configured to work on a keyby manner. This means that all inputs having the same key (in this case the <i>customer_id</i> field) will be processed sequentially, while parallelism is exploited between records belonging to different customers. The API allows GPU operators created with a key extractor to use a state object maintained on GPU memory for each key (and always accessed sequentially by the active CUDA threads). The fragment below shows the definition of the functional logic of the Map_GPU, where the classification code is abstracted from brevity.
+									The <strong>Map_GPU</strong> operator is configured to operate in a key-by manner. This means that all inputs sharing the same key—in this case, the customer_id field—are processed sequentially, while parallelism is exploited across records belonging to different customers. The API allows GPU operators that are created with a key extractor to maintain a per-key state object in GPU memory, which is always accessed sequentially by the active CUDA threads.&nbsp;The fragment below shows the definition of the functional logic for Map_GPU, where the classification code has been omitted for brevity.<br>
 								</p>
 				<div>
 									<pre><code class="language-cpp">
@@ -214,7 +214,7 @@ private:
 									
 								</div>
 				<p class="text-justify">
-										The run-time system guarantees that the update to the prediction model for each customer will be done sequentially, one by one. Therefore, WindFlow allows &nbsp;GPUs to be used for stateful stream processing using the common keyby paradigm. This approach is quite general and useful for a broad set of real-world applications. Of course, in case of associative functions, other operators on GPU can be used (e.g., Reduce_GPU and FFAT_Windows_GPU not shown in this example).<br><br>To conclude to showcase the API, operators are created with a very high-level user-friendly interface.
+										The run-time system guarantees that updates to the prediction model for each customer are performed sequentially, one at a time. As a result, WindFlow enables GPUs to be used for stateful stream processing following the common key-by paradigm. This approach is general and applies to a wide range of real-world applications. Naturally, when dealing with associative functions, other GPU operators can be employed (e.g., Reduce_GPU and FFAT_Windows_GPU, which are not shown in this example).<br>To conclude, the API showcases a set of operators that can be created through a high-level, user-friendly interface.
 									</p>
 				<div>
 										<pre><code class="language-cpp">
@@ -254,7 +254,7 @@ topology.run(); // synchronous execution of the dataflow
 											<strong>Important Aspects</strong>
 										</h2>
 				<p class="text-justify">
-											The use of GPU operators requires special care. In the code above, the batch size is set during the creation of the first operator preceding a sequence of GPU operators. In this case, the Source defines a batch size of 1000 tuples composing each batch. Batches of 1000 inputs are processed by the Filter_GPU, and each one is delivered to the following Map_GPU operator (now the batch can contain less than 1000 inputs depending on the filtering predicate). Choosing the right batch size, as well the parallelism level of the operators, requires manual tuning by the user to achieve the highest performance as possible.<br>
+											The use of GPU operators requires special care. In the code above, the batch size is configured during the creation of the first operator in the GPU-executed portion of the pipeline. In this example, the Source defines a batch size of 1,000 tuples per batch. These batches are processed by Filter_GPU, and each resulting batch—potentially containing fewer than 1,000 inputs, depending on the filtering predicate—is then passed to Map_GPU.<br><br>Selecting an appropriate batch size, along with the parallelism level of the operators, requires manual tuning by the user in order to achieve the best possible performance.<br>
 										</p>
 				<h2 class="mg-md tc-5711">
 											<strong>References</strong>
@@ -298,7 +298,7 @@ topology.run(); // synchronous execution of the dataflow
 			<div class="col-md-3 col-sm-6">
 				<h4 class="mg-md text-sm-left text-center">
 					Get the library
-				</h4><a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/v4.2.0.zip" class="a-btn a-block footer-link ltc-4866">Download</a><a href="https://github.com/ParaGroup/WindFlow" class="a-btn a-block footer-link ltc-4866">GitHub</a>
+				</h4><a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/v4.2.4.zip" class="a-btn a-block footer-link ltc-4866">Download</a><a href="https://github.com/ParaGroup/WindFlow" class="a-btn a-block footer-link ltc-4866">GitHub</a>
 			</div>
 		</div>
 	</div>
@@ -311,11 +311,11 @@ topology.run(); // synchronous execution of the dataflow
 
 
 <!-- Additional JS -->
-<script src="./js/jquery.min.js?8326"></script>
-<script src="./js/bootstrap.bundle.min.js?7171"></script>
-<script src="./js/blocs.min.js?8508"></script>
+<script src="./js/jquery.min.js?1483"></script>
+<script src="./js/bootstrap.bundle.min.js?2191"></script>
+<script src="./js/blocs.min.js?5742"></script>
 <script src="./js/lazysizes.min.js" defer></script>
-<script src="./js/prism.js?1386"></script><!-- Additional JS END -->
+<script src="./js/prism.js?1500"></script><!-- Additional JS END -->
 
 
 </body>

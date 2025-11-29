@@ -8,9 +8,9 @@
 	<link rel="canonical" href="https://paragroup.github.io/WindFlow/dashboard.html">
     <link rel="shortcut icon" type="image/png" href="favicon.png">
     
-	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?1633">
-	<link rel="stylesheet" type="text/css" href="style.css?1246">
-	<link rel="stylesheet" type="text/css" href="./css/prism.css?756">
+	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?797">
+	<link rel="stylesheet" type="text/css" href="style.css?9010">
+	<link rel="stylesheet" type="text/css" href="./css/prism.css?2631">
 	
 	
     <title>Dashboard</title>
@@ -66,7 +66,7 @@
 									<a href="dashboard.html" class="btn btn-lg btn-glossy btn-c-4866">Dashboard</a>
 								</li>
 								<li>
-									<a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/v4.2.2.zip" class="btn btn-lg btn-glossy btn-c-4866">Download</a>
+									<a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/v4.2.4.zip" class="btn btn-lg btn-glossy btn-c-4866 ">Download</a>
 								</li>
 								<li>
 									<a href="about.html" class="btn btn-lg btn-glossy btn-c-4866">About</a>
@@ -89,7 +89,7 @@
 			</div>
 			<div class="align-self-center offset-md-1 col-md-10 col-lg-4 col-sm-10 offset-sm-1 col-10 offset-1">
 				<h4 class="mg-md tc-6038 btn-resize-mode h2-style float-lg-right">
-					A C++17 Data Stream Processing Parallel Library for Multicores and GPUs&nbsp;<br>
+					A C++ Data Stream Processing Parallel Library for Multicores and GPUs&nbsp;<br>
 				</h4>
 			</div>
 		</div>
@@ -106,12 +106,12 @@
 					<strong>Web Dashboard<br></strong>
 				</h2>
 				<p class="text-justify">
-					Starting from the release <strong>2.8.8</strong>, WindFlow has its own web dashboard that can be used to monitor and profile the performance of running WindFlow applications.&nbsp;Once running, the dashboard opens a <strong>REST</strong> server on a port (<strong>8080</strong> by default) of the machine. To avoid performance conflicts between the dashboard threads and the ones of the running WindFlow applications, the dashboard can be executed on a different machine with respect to the ones used to run the WindFlow applications to be monitored.<br>
+					Starting from release <strong>2.8.8</strong>, WindFlow includes its own web dashboard that can be used to monitor and profile the performance of running WindFlow applications. Once launched, the dashboard starts a <strong>REST</strong> server on a specific port (<strong>8080</strong> by default) of the machine. To avoid performance interference between the dashboard threads and those of the running WindFlow applications, the dashboard can be executed on a separate machine from the ones hosting the applications being monitored.<br>
 				</p>
 				<div class="row">
 					<div class="col">
 						<p class="text-justify">
-							To use the dashboard, WindFlow applications must be compiled with the <strong>WF_TRACING_ENABLED</strong> macro. Other macros are available and can be used to specify the hostname and the port of the dashboard (by default the applications assume that the dashboard is executed on the localhost).<br><br>The main web page of the dashboard, with the summary of the monitored applications (running, terminated or interrupted for any reason) is shown aside. In the figure, the dashboard reports one running application while no terminated or interrupted applications are listed.<br><br>When the user runs a WindFlow application, it automatically tries to connect to the dashboard on a specific port. An additional monitoring thread is spawned by the WindFlow runtime to report statistics to the dashboard every second. The monitored application is added to the summary table of the dashboard.<br>
+							To use the dashboard, WindFlow applications must be compiled with the <strong>WF_TRACING_ENABLED</strong> macro. Additional macros are available to specify the hostname and port of the dashboard, since applications assume by default that the dashboard is running on localhost.<br>The main web page of the dashboard, which provides a summary of the monitored applications (running, terminated, or interrupted for any reason), is shown alongside. In the figure, the dashboard reports one running application, while no terminated or interrupted applications are listed.<br>When a WindFlow application is launched, it automatically attempts to connect to the dashboard on the configured port. The WindFlow runtime then spawns an additional monitoring thread that reports statistics to the dashboard every second. Once connected, the monitored application is added to the dashboard’s summary table.<br>
 						</p>
 					</div>
 					<div class="col">
@@ -126,12 +126,12 @@
 							</div>
 							<div class="col">
 								<p>
-									By clicking on the application name, the user is directed to a separate web page where the statistics of the application can be inspected.<br><br>The user can check the monitoring information of each running operator and of each of its internal replicas. Statistics are updated every second, and report the number of received/transmitted inputs/outputs, processing time, and so forth. The figure on the left shows the report page of an application.<br><br>The last screenshot below shows the report of statistics opened for one operator and the historical statistics (input and output rate per second over the whole execution) for a different operator opened in the same web page. This can be useful to continuously track the application execution in order to discover bottlenecks in the dataflow and to undetstand how to optimize it as a further refinement of the development and configuration process applied by the developer.<br>
+									By clicking on the application name, the user is taken to a dedicated web page where the application's statistics can be inspected.<br>The user can inspect monitoring information for each running operator and for each of its internal replicas. The statistics are updated every second and include metrics such as the number of received and transmitted inputs/outputs, processing time, and more. The figure on the left shows the report page of an application.<br>The last screenshot below shows the statistics panel opened for one operator, along with the historical statistics (input and output rate per second over the entire execution) for another operator displayed on the same web page. This feature is useful for continuously tracking application behavior, identifying bottlenecks in the dataflow, and understanding how to further optimize the application as part of the development and configuration process.<br>
 								</p>
 							</div>
 						</div><picture><source type="image/webp" srcset="img/lazyload-ph.png" data-srcset="img/screenshot-4.webp"><img src="img/lazyload-ph.png" data-src="img/screenshot-4.png" class="img-fluid mx-auto d-block mg-md lazyload" alt="Web dashboard screenshot 3" width="1140" height="658"></picture>
 						<p class="text-justify">
-							The web dashboard aims at being a useful tool for developers of WindFlow applications. However, statistics are often intrusive and might slow down application performance (we measured a drop between <strong>5</strong> and <strong>20%</strong> in our benchmarks). So, it must be used carefully.
+							The web dashboard is designed to be a helpful tool for developers of WindFlow applications. However, collecting statistics is inherently intrusive and may slow down application performance (we measured a reduction between <strong>5%</strong> and <strong>20%</strong> in our benchmarks). For this reason, the dashboard should be used with care.<br>
 						</p>
 					</div>
 				</div>
@@ -168,7 +168,7 @@
 			<div class="col-md-3 col-sm-6">
 				<h4 class="mg-md text-sm-left text-center">
 					Get the library
-				</h4><a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/v4.2.0.zip" class="a-btn a-block footer-link ltc-4866">Download</a><a href="https://github.com/ParaGroup/WindFlow" class="a-btn a-block footer-link ltc-4866">GitHub</a>
+				</h4><a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/v4.2.4.zip" class="a-btn a-block footer-link ltc-4866">Download</a><a href="https://github.com/ParaGroup/WindFlow" class="a-btn a-block footer-link ltc-4866">GitHub</a>
 			</div>
 		</div>
 	</div>
@@ -181,11 +181,11 @@
 
 
 <!-- Additional JS -->
-<script src="./js/jquery.min.js?8326"></script>
-<script src="./js/bootstrap.bundle.min.js?7171"></script>
-<script src="./js/blocs.min.js?8508"></script>
+<script src="./js/jquery.min.js?1483"></script>
+<script src="./js/bootstrap.bundle.min.js?2191"></script>
+<script src="./js/blocs.min.js?5742"></script>
 <script src="./js/lazysizes.min.js" defer></script>
-<script src="./js/prism.js?1342"></script><!-- Additional JS END -->
+<script src="./js/prism.js?7753"></script><!-- Additional JS END -->
 
 
 </body>

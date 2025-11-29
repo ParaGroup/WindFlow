@@ -8,9 +8,9 @@
 	<link rel="canonical" href="https://paragroup.github.io/WindFlow/usage.html">
     <link rel="shortcut icon" type="image/png" href="favicon.png">
     
-	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?1633">
-	<link rel="stylesheet" type="text/css" href="style.css?1246">
-	<link rel="stylesheet" type="text/css" href="./css/prism.css?7517">
+	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?797">
+	<link rel="stylesheet" type="text/css" href="style.css?9010">
+	<link rel="stylesheet" type="text/css" href="./css/prism.css?1670">
 	
 	
     <title>Usage</title>
@@ -68,7 +68,7 @@
 									<a href="dashboard.html" class="btn btn-lg btn-glossy btn-c-4866">Dashboard</a>
 								</li>
 								<li>
-									<a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/v4.2.2.zip" class="btn btn-lg btn-glossy btn-c-4866">Download</a>
+									<a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/v4.2.4.zip" class="btn btn-lg btn-glossy btn-c-4866 ">Download</a>
 								</li>
 								<li>
 									<a href="about.html" class="btn btn-lg btn-glossy btn-c-4866">About</a>
@@ -91,7 +91,7 @@
 			</div>
 			<div class="align-self-center offset-md-1 col-md-10 col-lg-4 col-sm-10 offset-sm-1 col-10 offset-1">
 				<h4 class="mg-md tc-6038 btn-resize-mode h2-style float-lg-right">
-					A C++17 Data Stream Processing Parallel Library for Multicores and GPUs&nbsp;<br>
+					A C++ Data Stream Processing Parallel Library for Multicores and GPUs&nbsp;<br>
 				</h4>
 			</div>
 		</div>
@@ -114,10 +114,10 @@
 						
 					</div>
 				<p class="text-justify">
-							In this page, we show a simple example of streaming application in WindFlow. The example is a well-known streaming benchmark:&nbsp;<strong>WordCount</strong>. The Source operator is in charge of generating a stream of text lines. The second operator (Splitter) receives the text lines and splits them into words transmitted to the next operator (Counter). The Counter updates the count of each distinct received word, and sends a pair (word, count) to the Sink with the current value of the counter. While Splitter and Sink are stateless, the Counter is a stateful operator working on a keyby manner. The figure below shows a schematic view of the logical data-flow graph of the application.<br>
+							In this page, we present a simple example of a streaming application in WindFlow. The example showcases a well-known streaming benchmark: WordCount.<br>The Source operator generates a stream of text lines. The second operator, Splitter, receives these lines and splits them into individual words, which are then passed to the next operator, Counter.&nbsp;The Counter maintains and updates the count of each distinct word it receives, sending a (word, count) pair to the Sink with the current counter value. While the Splitter and Sink are stateless operators, the Counter is stateful and operates in a keyed (key-by) manner.&nbsp;The figure below shows a schematic view of the application’s logical data-flow graph.<br>
 						</p><picture><source type="image/webp" srcset="img/lazyload-ph.png" data-srcset="img/application.webp"><img src="img/lazyload-ph.png" data-src="img/application.jpg" class="img-fluid mx-auto d-block img-applicati-style mg-md lazyload" alt="WordCount logical data-flow graph" width="600" height="102"></picture>
 				<p class="text-justify">
-							We report below some code snippets to understand the API. The Source can be defined by developing its functional logic through a functor, a lambda, or using a C++ function. In all cases, the logic must respect specific admissible signatures to be used to instantiate a Source operator. In the snippet below the source logic is developed as a C++ functor.
+							Below we report some code snippets to illustrate the API. The Source can be defined by implementing its functional logic as a functor, a lambda, or a C++ function. In all cases, the logic must conform to specific admissible signatures in order to be used to instantiate a Source operator. In the snippet below, the source logic is implemented as a C++ functor.
 						</p>
 				<div>
 							<pre><code class="language-cpp">
@@ -144,7 +144,7 @@ public:
 							
 						</div>
 				<p class="text-justify">
-								The Splitter is implemented as a FlatMap operator producing more outputs per input. Again, the functional logic can be provided as a function, lambda or a functor object (as in the snippet below) respecting a specific signature.<br>
+								The Splitter is implemented as a FlatMap operator that can produce multiple outputs for each input. As with the Source, its functional logic can be provided as a function, a lambda, or a functor object (as in the snippet below), as long as it adheres to the required signature.<br>
 							</p>
 				<div>
 								<pre><code class="language-cpp">
@@ -165,7 +165,7 @@ public:
 								
 							</div>
 				<p>
-									The Counter can be implemented by a Map operator encapsulating an internal state partitioned by key (a hash table).
+									The Counter can be implemented as a Map operator that encapsulates an internal state partitioned by key (typically maintained in a hash table).
 								</p>
 				<div>
 									<pre><code class="language-cpp">
@@ -192,7 +192,7 @@ public:
 									
 								</div>
 				<p>
-										Finally, we define the Sink functional logic as below.
+										Finally, we define the functional logic of the Sink as shown below.
 									</p>
 				<div>
 										<pre><code class="language-cpp">
@@ -214,7 +214,7 @@ public:
 										
 									</div>
 				<p class="text-justify">
-											Once defined the functional logic of each operator, they must be created by using the corresponding <strong>builder</strong> classes. During the creation, the user can specify several configuration parameters per operator, like its name (for logging purposes), its parallelism level and others.
+											Once the functional logic of each operator has been defined, the operators must be created using their corresponding builder classes. During creation, the user can specify various configuration parameters for each operator, such as its name (for logging purposes), its level of parallelism, and other options.<br>
 										</p>
 				<div>
 											<pre><code class="language-cpp">
@@ -247,18 +247,18 @@ wf::Sink sink = wf::Sink_Builder(sink_functor)
 											
 										</div>
 				<p class="text-justify">
-												All the operators (except Sinks) can be declared with a custom&nbsp;<strong>output batch size</strong>. In the example above, the Splitter operator adopts a batching of 10 outputs, which means that it sends output results in batches of 10 individual outputs. This approach can be used to increase throughput at the expense of latency. If not specified, the batch size is zero (means that batching is disabled) and the operators send outputs individually. Furthermore, we observe that the Counter operator is declared with a <strong>key extractor</strong> to enable the keyby distribution between the Splitter and the Counter replicas.<br><br>Finally, the whole application can be executed by creating the streaming environment and by adding the operators in the proper order. This can be done by leveraging two programming constructs of WindFlow: the <strong>PipeGraph</strong> and the <strong>MultiPipe</strong> classes. The PipeGraph can be instantiated by specifying two configuration options: the <strong>execution mode</strong> and the <strong>time policy</strong>.<br><br>The execution mode states how the processing is done in the data-flow graph with respect to the ordering of inputs. There are three alternative modes:<br>
+												All operators (except Sinks) can be configured with a custom <strong>output batch size</strong>. In the example above, the Splitter operator uses a batch size of 10, meaning it emits its results in groups of 10 outputs at a time. This strategy can improve throughput at the cost of increased latency. If no batch size is specified, the default is zero—which disables batching—and operators emit outputs individually. Additionally, note that the Counter operator is declared with a key extractor, which enables key-by distribution between the Splitter and the Counter replicas.<br>Finally, the entire application can be executed by creating the streaming environment and adding the operators in the appropriate order. This is accomplished by leveraging two WindFlow programming constructs: the <strong>PipeGraph</strong> and <strong>MultiPipe</strong> classes. A PipeGraph can be instantiated by specifying two configuration options: the execution mode and the time policy.<br>The execution mode specifies how processing is performed in the data-flow graph with respect to input ordering. WindFlow provides three alternative modes:<br>
 											</p>
 				<div>
 												<ol>
-<li><b>DETERMINISTIC</b>: in this mode the user is requested to generate inputs in the Sources ordered by timestamps. The run-time environment guarantees that the replicas of all operators will process inputs ordered by timestamp. This execution modes prevents batching to be used and allows a deterministic execution often at the expense of performance.</li>
-<li><b>PROBABILISTIC</b>: in this mode Source replicas can generate outputs in any order, but the run-time system still sorts items before processing the functional logics of the operators. In this case, to respect the ordering, items might be dropped. This execution mode still prevents batching to be used, but can be a reasonable compromise between ordering requirements and performance if some (few) dropped inputs are allowed by the application semantics.</li>
-<li><b>DEFAULT</b>: this is the default mode without ordering guarantees. In this mode, inputs are processed in a non-deterministic ordering and temporal window-based computations are evaluated based on <b>watermarks</b> propagation. This execution mode allows batching to be used in the operators as in the previous code snippets.</li>
+<li><b>DETERMINISTIC</b>: in this mode, the user must generate inputs in the Sources ordered by timestamp. The run-time environment guarantees that all operator replicas will process inputs in timestamp order. This execution mode prevents batching from being used and ensures deterministic execution, often at the expense of performance.</li>
+<li><b>PROBABILISTIC</b>: in this mode, Source replicas may generate outputs in any order, but the run-time system still sorts items before applying the operators’ functional logic. To maintain ordering, some items may be dropped. This execution mode also prevents batching, but can offer a reasonable compromise between ordering requirements and performance when the application semantics tolerate the loss of a small number of inputs.</li>
+<li><b>DEFAULT</b>: this is the default mode, which provides no ordering guarantees. Inputs are processed in a non-deterministic order, and temporal window-based computations rely on <b>watermarks</b> for progress. This execution mode allows batching in operators, as shown in the previous code snippets.</li>
 </ol>
 												
 											</div>
 				<p class="text-justify">
-													For what regards the time policy, WindFlow supports two policies. With "<strong>Ingress Time</strong>", timestamps are automatically generated by the Sources (as in this WordCount example in the Source functor object) and watermarks are also automatically generated incase of DEFAULT execution mode. With “<strong>Event Time</strong>”, the user is instead in charge of emitting inputs in the sources with a user-defined timestamp. With this policy, watermarks must explicitly be emitted by the user in the sources in case of DEFAULT execution mode.<br><br>The code fragment below shows the creation of the PipeGraph and of the data-flow graph which is then run on a multi-core environment.
+													For what concerns the time policy, WindFlow supports two alternatives. With Ingress Time, timestamps are automatically generated by the Sources (as in this WordCount example, inside the Source functor), and watermarks are also automatically generated when using the DEFAULT execution mode. With Event Time, the user is responsible for emitting inputs in the Sources with a user-defined timestamp. Under this policy, watermarks must also be explicitly emitted by the user when operating in the DEFAULT execution mode.<br><br>The code fragment below shows the creation of the PipeGraph and the construction of the data-flow graph, which is then executed on a multi-core environment.
 												</p>
 				<div>
 													<pre><code class="language-cpp">
@@ -274,10 +274,10 @@ topology.run(); // synchronous execution of the dataflow
 													
 												</div>
 				<p class="text-justify">
-														In the code above, based on the value of a boolean flag (<strong>chaining</strong>), we create the data-flow graph by chaining stateless operators (to reduce thread oversubscription) or not. This results in two different physical data-flow graphs running respectively with five (left-hand side figure below) and ten (right-hand side) underlying threads (based on the chosen parallelism levels in the builders).
+														In the code above, depending on the value of a boolean flag (chaining), the data-flow graph is created either by chaining stateless operators (to reduce thread oversubscription) or by keeping them separate. These two configurations result in different physical data-flow graphs, executed with five underlying threads in the former case (left-hand side figure below) and ten in the latter (right-hand side figure), based on the parallelism levels specified in the builders.<br>
 													</p><picture><source type="image/webp" srcset="img/lazyload-ph.png" data-srcset="img/application_physical.webp"><img src="img/lazyload-ph.png" data-src="img/application_physical.jpg" class="img-fluid mx-auto d-block mg-md lazyload" alt="WordCount physical data-flow graphs" width="1140" height="375"></picture>
 				<p class="text-justify">
-														This example shows only a fraction of the expressive power of WindFlow, which is actually able to generate complex data-flow graphs using <strong>split</strong> and <strong>merge</strong> operations&nbsp;on MultiPipes. Interested users can refer to the doxygen documentation for the API and can look at the synthetic examples and tests distributed with the source code.
+														This example illustrates only a small portion of WindFlow’s expressive capabilities. WindFlow can generate complex data-flow graphs using <strong>split</strong> and <strong>merge</strong> operations on MultiPipes, enabling significantly richer streaming topologies. Interested readers can refer to the Doxygen documentation for a complete description of the API, and may also consult the synthetic examples and tests distributed with the source code.<br>
 													</p>
 			</div>
 		</div>
@@ -312,7 +312,7 @@ topology.run(); // synchronous execution of the dataflow
 			<div class="col-md-3 col-sm-6">
 				<h4 class="mg-md text-sm-left text-center">
 					Get the library
-				</h4><a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/v4.2.0.zip" class="a-btn a-block footer-link ltc-4866">Download</a><a href="https://github.com/ParaGroup/WindFlow" class="a-btn a-block footer-link ltc-4866">GitHub</a>
+				</h4><a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/v4.2.4.zip" class="a-btn a-block footer-link ltc-4866">Download</a><a href="https://github.com/ParaGroup/WindFlow" class="a-btn a-block footer-link ltc-4866">GitHub</a>
 			</div>
 		</div>
 	</div>
@@ -325,11 +325,11 @@ topology.run(); // synchronous execution of the dataflow
 
 
 <!-- Additional JS -->
-<script src="./js/jquery.min.js?8326"></script>
-<script src="./js/bootstrap.bundle.min.js?7171"></script>
-<script src="./js/blocs.min.js?8508"></script>
+<script src="./js/jquery.min.js?1483"></script>
+<script src="./js/bootstrap.bundle.min.js?2191"></script>
+<script src="./js/blocs.min.js?5742"></script>
 <script src="./js/lazysizes.min.js" defer></script>
-<script src="./js/prism.js?9169"></script><!-- Additional JS END -->
+<script src="./js/prism.js?6605"></script><!-- Additional JS END -->
 
 
 </body>

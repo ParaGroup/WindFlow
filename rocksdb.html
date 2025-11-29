@@ -8,9 +8,9 @@
 	<link rel="canonical" href="https://paragroup.github.io/WindFlow/rocksdb.html">
     <link rel="shortcut icon" type="image/png" href="favicon.png">
     
-	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?1633">
-	<link rel="stylesheet" type="text/css" href="style.css?1246">
-	<link rel="stylesheet" type="text/css" href="./css/prism.css?5409">
+	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?797">
+	<link rel="stylesheet" type="text/css" href="style.css?9010">
+	<link rel="stylesheet" type="text/css" href="./css/prism.css?5475">
 	
 	
     <title>RocksDB</title>
@@ -66,7 +66,7 @@
 									<a href="dashboard.html" class="btn btn-lg btn-glossy btn-c-4866">Dashboard</a>
 								</li>
 								<li>
-									<a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/v4.2.2.zip" class="btn btn-lg btn-glossy btn-c-4866">Download</a>
+									<a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/v4.2.4.zip" class="btn btn-lg btn-glossy btn-c-4866 ">Download</a>
 								</li>
 								<li>
 									<a href="about.html" class="btn btn-lg btn-glossy btn-c-4866">About</a>
@@ -89,7 +89,7 @@
 			</div>
 			<div class="align-self-center offset-md-1 col-md-10 col-lg-4 col-sm-10 offset-sm-1 col-10 offset-1">
 				<h4 class="mg-md tc-6038 btn-resize-mode h2-style float-lg-right">
-					A C++17 Data Stream Processing Parallel Library for Multicores and GPUs&nbsp;<br>
+					A C++ Data Stream Processing Parallel Library for Multicores and GPUs&nbsp;<br>
 				</h4>
 			</div>
 		</div>
@@ -98,7 +98,7 @@
 <!-- bloc-1 END -->
 
 <!-- bloc-8 -->
-<div class="bloc l-bloc " id="bloc-8">
+<div class="bloc l-bloc" id="bloc-8">
 	<div class="container bloc-lg">
 		<div class="row">
 			<div class="col">
@@ -106,16 +106,16 @@
 					<strong>RocksDB Integration</strong>
 				</h2>
 				<p class="text-justify">
-					WindFlow, starting from version 4.0, provides an integration with the&nbsp;<a href="https://rocksdb.org/">RocksDB</a>&nbsp;Key-Value Store (KVS). This allows a suite of new operators to maintain a state object per key on RocksDB. The general scenario for using such operators is in the case of “<strong>larger-than-memory state</strong>” applications, where the state of the operators is larger than the available memory of the machine. The supported persistent operators are the basic ones (P_Map, P_Filter, P_FlatMap, P_Reduce, and P_Sink) and a window-based operator (P_Keyed_Windows).
+					Starting from version 4.0, WindFlow provides integration with the <strong>RocksDB</strong> key–value store (KVS). This enables a suite of new operators that can maintain per-key state directly on RocksDB. Such operators are particularly useful in <strong>larger-than-memory state scenarios</strong>, where the state maintained by the application exceeds the available memory of the machine.<br><br>The supported persistent operators include the basic ones: P_Map, P_Filter, P_FlatMap, P_Reduce, and P_Sink, as well as a window-based operator (P_Keyed_Windows).<br>
 				</p>
 				<p class="text-justify">
-					The set of persistent operators are described in the figure below.
-				</p><picture><img src="img/lazyload-ph.png" data-src="img/poperators.jpg" class="img-fluid mx-auto d-block img-p-operato-style lazyload" alt="poperators" width="600" height="591"></picture>
+					The set of persistent operators is described in the figure below.
+				</p><picture><source type="image/webp" srcset="img/lazyload-ph.png" data-srcset="img/poperators.jpg"><img src="img/lazyload-ph.png" data-src="img/poperators.jpg" class="img-fluid mx-auto d-block img-p-operato-style lazyload" alt="poperators" width="600" height="591"></picture>
 				<h2 class="mg-md tc-3327">
 					<strong>API Example</strong>
 				</h2>
 				<p class="text-justify">
-					We show a very short example to integrate in a WindFlow application a <strong>P_FlatMap</strong> operator. The idea can be easily replicated with the other persistent operators. We define the type of the input tuple and of the state object:
+					We present a short example showing how to integrate a <strong>P_FlatMap</strong> operator into a WindFlow application. The same approach can be easily applied to the other persistent operators. We begin by defining the types of the input tuple and the associated state object:<br>
 				</p>
 				<div>
 					<pre><code class="language-cpp">
@@ -152,10 +152,10 @@ public:
 						
 					</div>
 				<p class="text-justify">
-							Before calling this function for each input tuple, the WindFlow’s runtime system will deserialize the state object associated with the key attribute of the current tuple and passes it to the user function. After the execution, since the state object might be modified, it will be serialized and written again to the KVS.
+							Before invoking this function for each input tuple, WindFlow’s runtime system deserializes the state object associated with the key of the current tuple and passes it to the user-defined function. After execution, if the state object has been modified, it is serialized again and written back to the KVS.
 						</p>
 				<p>
-							The user creates the operators and the PipeGraph environment as usual. Furthermore, it creates the P_FlatMap operator using its builder. Before doing that, serialization and deserialization functions of the state objects should be provided (in the example below as two lambda functions):
+							The user creates the operators and the PipeGraph environment as usual. In addition, the P_FlatMap operator is instantiated using its builder. Before doing so, the serialization and deserialization functions for the state objects must be provided (in the example below, they are implemented as two lambda functions):
 						</p>
 				<div>
 							<pre><code class="language-cpp">
@@ -221,7 +221,7 @@ int main()
 			<div class="col-md-3 col-sm-6">
 				<h4 class="mg-md text-sm-left text-center">
 					Get the library
-				</h4><a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/v4.2.0.zip" class="a-btn a-block footer-link ltc-4866">Download</a><a href="https://github.com/ParaGroup/WindFlow" class="a-btn a-block footer-link ltc-4866">GitHub</a>
+				</h4><a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/v4.2.4.zip" class="a-btn a-block footer-link ltc-4866">Download</a><a href="https://github.com/ParaGroup/WindFlow" class="a-btn a-block footer-link ltc-4866">GitHub</a>
 			</div>
 		</div>
 	</div>
@@ -234,11 +234,11 @@ int main()
 
 
 <!-- Additional JS -->
-<script src="./js/jquery.min.js?8326"></script>
-<script src="./js/bootstrap.bundle.min.js?7171"></script>
-<script src="./js/blocs.min.js?8508"></script>
+<script src="./js/jquery.min.js?1483"></script>
+<script src="./js/bootstrap.bundle.min.js?2191"></script>
+<script src="./js/blocs.min.js?5742"></script>
 <script src="./js/lazysizes.min.js" defer></script>
-<script src="./js/prism.js?5776"></script><!-- Additional JS END -->
+<script src="./js/prism.js?6475"></script><!-- Additional JS END -->
 
 
 </body>

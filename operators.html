@@ -1,4 +1,4 @@
- <!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
@@ -8,9 +8,9 @@
 	<link rel="canonical" href="https://paragroup.github.io/WindFlow/operators.html">
     <link rel="shortcut icon" type="image/png" href="favicon.png">
     
-	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?1633">
-	<link rel="stylesheet" type="text/css" href="style.css?1246">
-	<link rel="stylesheet" type="text/css" href="./css/prism.css?9918">
+	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?797">
+	<link rel="stylesheet" type="text/css" href="style.css?9010">
+	<link rel="stylesheet" type="text/css" href="./css/prism.css?2129">
 	
 	
     <title>Operators</title>
@@ -66,7 +66,7 @@
 									<a href="dashboard.html" class="btn btn-lg btn-glossy btn-c-4866">Dashboard</a>
 								</li>
 								<li>
-									<a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/v4.2.2.zip" class="btn btn-lg btn-glossy btn-c-4866">Download</a>
+									<a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/v4.2.4.zip" class="btn btn-lg btn-glossy btn-c-4866 ">Download</a>
 								</li>
 								<li>
 									<a href="about.html" class="btn btn-lg btn-glossy btn-c-4866">About</a>
@@ -89,7 +89,7 @@
 			</div>
 			<div class="align-self-center offset-md-1 col-md-10 col-lg-4 col-sm-10 offset-sm-1 col-10 offset-1">
 				<h4 class="mg-md tc-6038 btn-resize-mode h2-style float-lg-right">
-					A C++17 Data Stream Processing Parallel Library for Multicores and GPUs&nbsp;<br>
+					A C++ Data Stream Processing Parallel Library for Multicores and GPUs&nbsp;<br>
 				</h4>
 			</div>
 		</div>
@@ -106,48 +106,50 @@
 					<strong>Operators</strong>
 				</h2>
 				<p class="text-justify">
-					WindFlow provides a quite rich set of operators like popular streaming frameworks (e.g, Apache Flink). The figure below shows the list of operators and a brief description of each of them.
-				</p><picture><img src="img/lazyload-ph.png" data-src="img/operators_list.jpg" class="img-fluid mx-auto d-block img-operators-li-style lazyload" alt="placeholder image" width="500" height="350"></picture>
+					WindFlow provides a rich set of operators similar to those found in popular streaming frameworks (e.g., Apache Flink). The figure below shows the list of operators along with a brief description of eac
+				</p><picture><source type="image/webp" srcset="img/lazyload-ph.png" data-srcset="img/operators_list.webp"><img src="img/lazyload-ph.png" data-src="img/operators_list.jpg" class="img-fluid mx-auto d-block img-operators-li-style lazyload" alt="operators_list" width="1000" height="654"></picture>
 				<h2 class="mg-md tc-3327 tc-5711">
 					<strong>Operator Parallelism</strong>
 				</h2>
 				<p class="text-justify">
-					Sources, the other <strong>basic operators</strong>, and sinks have an immediately clear semantics for programmers a bit expert with open-source stream processing frameworks. During their instantiation, the programmer can specify a <strong>parallelism level</strong> (number of replicas). Each replica receives a fraction of the input stream in order to process inputs in parallel to improve throughput. The Map, Filter, FlatMap and Sink operators can be configured to work on a <strong>keyby basis</strong>, i.e., all the inputs with the same key attribute are delivered to the same destination replica by the preceding operator. The Reduce operator always works on a keyby basis.<br><br>In addition, the library provides a set of <strong>window-based operators</strong> that offer a useful set of programming abstractions [1,2] to express different kinds of parallelism approaches solving window-based streaming analytics tasks:<br>
+					Sources, the other basic operators, and sinks have straightforward semantics for programmers who are familiar with open-source stream processing frameworks. When instantiating these components, the programmer can specify a parallelism level (i.e., the number of replicas). Each replica receives a portion of the input stream, allowing inputs to be processed in parallel and improving throughput. The Map, Filter, FlatMap, and Sink operators can be configured to work on a key-by basis, meaning that all inputs with the same key attribute are delivered to the same destination replica by the preceding operator. The Reduce operator always operates on a key-by basis.<br>In addition, the library provides a set of <strong><i>window-based operators</i></strong> that offer useful programming abstractions [1,2] for expressing different kinds of parallelism strategies aimed at solving window-based streaming analytics tasks:<br>
 				</p>
 				<div>
 					<ul>
-<li><b>Key-based parallelism</b>: it is the default parallelism exploitation pattern in stream processing systems dealing with stateful computations. The assumption is that the stream conveys input items belonging to multiple logical substreams, each composed of items all having the same value of a <i>key attribute</i> (a.k.a. keyed streams). The idea is to execute in parallel the processing of sliding windows belonging to different substreams. The default operator enabling this behavior is the <b>Keyed_Windows</b> (KW).</li>
-<li><b>Inter-window parallelism</b>: in case of high-speed streams, sliding windows can become ready to be computed very frequently. The idea is to split the set of windows to compute among different parallel entities in charge of doing the processing in parallel on distinct windows (regardless the fact that they belong to different or to the same keyed substream). The operators enabling this behavior are the <b>Parallel_Windows</b> (PW) and the <b>Paned_Windows</b> (PaW).</li>
-<li><b>Intra-window parallelism</b>: the idea is to go in parallel within the computation of each window, by splitting its content in partitions that are processed in parallel while the results of the partitions are computed and merged to obtain window-wise results. The operators enabling this behavior are the <b>Paned_Windows</b> (PaW) and the <b>MapReduce_Windows</b> (MRW).</li>
+<li><b>Key-based parallelism</b>: this is the default parallelism pattern exploited in stream processing systems that handle stateful computations. The assumption is that the stream contains input items belonging to multiple logical substreams, each composed of items that share the same value of a <i>key attribute</i> (a.k.a. keyed streams). The idea is to process sliding windows belonging to different substreams in parallel. The default operator enabling this behavior is <b>Keyed_Windows</b> (KW).</li>
+
+<li><b>Inter-window parallelism</b>: in the case of high-speed streams, sliding windows may become ready for computation very frequently. The idea is to divide the set of windows to be computed among multiple parallel entities, allowing them to process distinct windows in parallel (regardless of whether they belong to different or the same keyed substream). The operators enabling this behavior are <b>Parallel_Windows</b> (PW) and <b>Paned_Windows</b> (PaW).</li>
+
+<li><b>Intra-window parallelism</b>: the idea is to parallelize the computation within each window by splitting its content into partitions that are processed concurrently. The results of these partitions are then combined to produce the final window-level result. The operators enabling this behavior are <b>Paned_Windows</b> (PaW) and <b>MapReduce_Windows</b> (MRW).</li>
 </ul>
 					
 				</div>
 				<p class="text-justify">
-						The idea of these approaches&nbsp;is sketched in the figure below. For simplicity, we show an example with <strong>count-based windows</strong> of length of six items sliding every two items. However, the library also provides support to <strong>time-based windows</strong> (with event time semantics only at the moment) instantiated with both non-incremental and incremental queries.
+						The idea behind these approaches is illustrated in the figure below. For simplicity, we present an example using <strong>count-based windows</strong> of length six items, sliding every two items. However, the library also supports <strong>time-based windows</strong> (currently with event-time semantics only), which can be instantiated with both non-incremental and incremental queries.<br>
 					</p><picture><source type="image/webp" srcset="img/lazyload-ph.png" data-srcset="img/windows.webp"><img src="img/lazyload-ph.png" data-src="img/windows.jpg" class="img-fluid mx-auto d-block img-windo-style mg-md lazyload" alt="Parallelism exploitation patterns on sliding windows" width="900" height="176"></picture>
 				<p class="text-justify">
-						Intra-window parallelism needs additional explanations. The library supports operators enabling the parallel processing within each window. The first is based on the <strong>paned approach</strong> [3], where each window is split into tumbling windows called <i>panes</i> with length equal to the greatest common divisor<i>&nbsp;</i>between the window length and its slide (in the example, each pane is two items long). The operator computes a partial result per pane (by processing them in parallel if possible), and the pane results are eventually aggregated to produce window-wise results (in the example three pane results are needed per window). A good point in favor of this approach is that pane results shared by consecutive windows do not need to be recomputed by improving the computation performance.<br><br>The second approach to intra-window parallelism is based on the <strong>map-reduce pattern</strong>: each window is split into partitions, and a partial result is computed per partition. Then, partition results are aggregated into window-wise results. Although similar to the paned approach, here the size of the partitions depends on the number of parallel replicas involved in the processing of the operator (two in the figure below, right-hand side), leading to the possibility to decrease the processing latency proportionally to the parallelism level used by the operator. However, differently from the paned approach, windows are recomputed from scratch although in parallel.<br>
+						Intra-window parallelism requires additional explanation. The library supports operators that enable parallel processing within each window. The first approach is based on the <strong>paned technique</strong> [3], in which each window is divided into tumbling subwindows, called panes, whose length is equal to the greatest common divisor between the window length and its slide (in the example, each pane is two items long). The operator computes a partial result for each pane—processing them in parallel when possible—and then aggregates these pane results to produce the final window-level output (in the example, three pane results are needed per window). A notable advantage of this approach is that pane results shared across consecutive windows do not need to be recomputed, thereby improving computational performance.<br>The second approach to intra-window parallelism is based on the <strong>map-reduce pattern</strong>: each window is divided into partitions, and a partial result is computed for each partition. The partition results are then aggregated to produce the final window-level output. Although similar to the paned approach, in this case the size of the partitions depends on the number of parallel replicas involved in processing the operator (two in the figure below, right-hand side), making it possible to reduce processing latency proportionally to the operator’s parallelism level. However, unlike the paned approach, windows must be recomputed from scratch—albeit in parallel.<br>
 					</p><picture><source type="image/webp" srcset="img/lazyload-ph.png" data-srcset="img/windows-2.webp"><img src="img/lazyload-ph.png" data-src="img/windows-2.jpg" class="img-fluid mx-auto d-block img-windows-style mg-md lazyload" alt="Intra-window parallelism" width="900" height="247"></picture>
 				<p class="text-justify">
-						We point out that the existing frameworks do not provide all these parallel operators in an integrated and easy-to-use manner. As an example, Apache Storm and Apache Flink provide key-based parallelism natively, while intra-window parallelism is naturally provided in Spark Streaming as a derivation from the Spark engine for batch processing and map-reduce computations.<br><br>Starting from version 2.8 of the library, WindFlow provides a further window-based operator called <strong>FFAT_Windows</strong>. As for the Keyed_Windows operator, this operator processes windows of different keyed substreams in parallel on different cores of the CPU. However, windows of the same substream are processed using the Flat Fixed-size Aggregator approach (Flat-FAT) based on balanced binary trees. The approach avoids recomputing windows from scratch. Further details can be found in the paper presenting this approach for the first time [4].<br>
+						It is worth noting that existing frameworks do not provide all these parallel operators in an integrated and easy-to-use manner. For example, Apache Storm and Apache Flink offer native support for key-based parallelism, while intra-window parallelism is naturally supported in Spark Streaming as an extension of the Spark engine’s batch-processing and map-reduce capabilities.<br>Starting from version 2.8 of the library, WindFlow provides an additional window-based operator called <strong>FFAT_Windows</strong>. Similar to the Keyed_Windows operator, it processes windows from different keyed substreams in parallel on different CPU cores. However, windows belonging to the same substream are processed using the Flat Fixed-size Aggregator (Flat-FAT) approach, which is based on balanced binary trees. This method avoids recomputing windows from scratch. Further details can be found in the paper that first introduced this approach [4].<br>
 					</p>
 				<h2 class="mg-md tc-3327 tc-5711">
 						<strong>GPU Operators</strong>
 					</h2>
 				<p class="text-justify">
-						WindFlow version 3.x supports operators targeting NVIDIA GPU devices. The idea is that the processing of hotspot computationally intensive operators can be accelerated leveraging GPU devices and small <strong>batching approaches</strong>. A GPU operator receives a batch of inputs from the preceding operators in the dataflow graph and processes each batch in parallel on GPU.<br><br>For <strong>stateless operators</strong>, i.e., the one created without a keyby modifier, all inputs within the batch are processed in parallel on GPU by a CUDA thread each. This idea is shown in the figure below.<br>
+						WindFlow version 3.x supports operators designed for <strong>NVIDIA GPUs</strong>. The idea is to accelerate the execution of computationally intensive operators by leveraging GPUs together with small batching techniques. A GPU operator receives batches of inputs from the preceding operators in the dataflow graph and processes each batch in parallel on the GPU.<br>For <strong>stateless operators</strong>—that is, those created without a key-by modifier—all inputs within a batch are processed in parallel on the GPU, with each input handled by a separate CUDA thread. This idea is illustrated in the figure below.<br>
 					</p><picture><source type="image/webp" srcset="img/lazyload-ph.png" data-srcset="img/gpu_stateless.webp"><img src="img/lazyload-ph.png" data-src="img/gpu_stateless.jpg" class="img-fluid mx-auto d-block img-gpu-statele-style mg-md lazyload" alt="GPU stateless processing" width="600" height="325"></picture>
 				<p class="text-justify">
-						<strong>Stateful operators</strong> require a keyby distribution and maintain a state partition per key. The general requirement is that all inputs belonging to the same substream are processed sequentially by reading and modifying the associated state. WindFlow provides a clever approach to do that on GPU, by keeping a device object per key representing the state partition, and enforcing the stateful constraints in the design of the internal CUDA kernels.<br>
+						<strong>Stateful operators</strong> require a key-by distribution and maintain a state partition for each key. The general requirement is that all inputs belonging to the same substream must be processed sequentially, since they read and modify the associated state. WindFlow provides an effective approach to achieve this on GPUs by keeping a device-side object per key to represent the state partition, and by enforcing stateful constraints directly within the design of its internal CUDA kernels.<br>
 					</p><picture><source type="image/webp" srcset="img/lazyload-ph.png" data-srcset="img/gpu_stateful.webp"><img src="img/lazyload-ph.png" data-src="img/gpu_stateful.jpg" class="img-fluid mx-auto d-block img-gpu-statef-style mg-md lazyload" alt="GPU stateful processing" width="600" height="325"></picture>
 				<p>
-						From the release 3.0.0, WindFlow supports both&nbsp;<strong>Map</strong> and&nbsp;<strong>Filter</strong> operators on GPU. Furthermore, a GPU variant of the FFAT_Windows has also been provided (<strong>FFAT_Windows_GPU</strong>), which uses a modified version of the FlatFAT structure that can efficiently be computed on GPU.
+						Starting from release 3.0.0, WindFlow supports both <strong>Map</strong> and <strong>Filter</strong> operators on GPUs. Additionally, a GPU variant of FFAT_Windows (called <strong>FFAT_Windows_GPU</strong>) is provided, which uses a modified version of the FlatFAT structure designed for efficient computation on GPUs.<br>
 					</p>
 				<h2 class="mg-md h3-color tc-5711">
 						<strong>References</strong>
 					</h2>
 				<p>
-						Useful references for this page:
+						Useful references:
 					</p>
 				<div>
 						<ol>
@@ -192,7 +194,7 @@
 			<div class="col-md-3 col-sm-6">
 				<h4 class="mg-md text-sm-left text-center">
 					Get the library
-				</h4><a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/v4.2.0.zip" class="a-btn a-block footer-link ltc-4866">Download</a><a href="https://github.com/ParaGroup/WindFlow" class="a-btn a-block footer-link ltc-4866">GitHub</a>
+				</h4><a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/v4.2.4.zip" class="a-btn a-block footer-link ltc-4866">Download</a><a href="https://github.com/ParaGroup/WindFlow" class="a-btn a-block footer-link ltc-4866">GitHub</a>
 			</div>
 		</div>
 	</div>
@@ -205,11 +207,11 @@
 
 
 <!-- Additional JS -->
-<script src="./js/jquery.min.js?8326"></script>
-<script src="./js/bootstrap.bundle.min.js?7171"></script>
-<script src="./js/blocs.min.js?8508"></script>
+<script src="./js/jquery.min.js?1483"></script>
+<script src="./js/bootstrap.bundle.min.js?2191"></script>
+<script src="./js/blocs.min.js?5742"></script>
 <script src="./js/lazysizes.min.js" defer></script>
-<script src="./js/prism.js?5686"></script><!-- Additional JS END -->
+<script src="./js/prism.js?9595"></script><!-- Additional JS END -->
 
 
 </body>

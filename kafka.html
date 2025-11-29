@@ -8,9 +8,9 @@
 	<link rel="canonical" href="https://paragroup.github.io/WindFlow/kafka.html">
     <link rel="shortcut icon" type="image/png" href="favicon.png">
     
-	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?1633">
-	<link rel="stylesheet" type="text/css" href="style.css?1246">
-	<link rel="stylesheet" type="text/css" href="./css/prism.css?8067">
+	<link rel="stylesheet" type="text/css" href="./css/bootstrap.min.css?797">
+	<link rel="stylesheet" type="text/css" href="style.css?9010">
+	<link rel="stylesheet" type="text/css" href="./css/prism.css?8001">
 	
 	
     <title>Kafka</title>
@@ -66,7 +66,7 @@
 									<a href="dashboard.html" class="btn btn-lg btn-glossy btn-c-4866">Dashboard</a>
 								</li>
 								<li>
-									<a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/v4.2.2.zip" class="btn btn-lg btn-glossy btn-c-4866">Download</a>
+									<a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/v4.2.4.zip" class="btn btn-lg btn-glossy btn-c-4866 ">Download</a>
 								</li>
 								<li>
 									<a href="about.html" class="btn btn-lg btn-glossy btn-c-4866">About</a>
@@ -89,7 +89,7 @@
 			</div>
 			<div class="align-self-center offset-md-1 col-md-10 col-lg-4 col-sm-10 offset-sm-1 col-10 offset-1">
 				<h4 class="mg-md tc-6038 btn-resize-mode h2-style float-lg-right">
-					A C++17 Data Stream Processing Parallel Library for Multicores and GPUs&nbsp;<br>
+					A C++ Data Stream Processing Parallel Library for Multicores and GPUs&nbsp;<br>
 				</h4>
 			</div>
 		</div>
@@ -106,16 +106,16 @@
 					<strong>Apache Kafka Integration</strong>
 				</h2>
 				<p class="text-justify">
-					WindFlow (from version <strong>3.2.0</strong>) incorporates an extension to interface with <strong>Apache Kafka</strong>, a popular publish-subscribe messaging system. This allows WindFlow applications to subscribe to Apache Kafka (and so receiving messages from it), transforming them based on the application semantics of the dataflow graph, and then to report results to Kafka by publishing output messages.<br>
+					Starting from version <strong>3.2.0</strong>, WindFlow includes an extension that interfaces with <strong>Apache Kafka</strong>, a widely used publish–subscribe messaging system. This integration allows WindFlow applications to subscribe to Kafka topics (and thus receive messages), transform them according to the application semantics defined in the dataflow graph, and then publish the resulting output messages back to Kafka.<br>
 				</p>
 				<p class="text-justify">
-					To do that, WindFlow provides the following two operators described in the figure below.
+					To support this integration, WindFlow provides the two operators illustrated in the figure below.
 				</p><picture><source type="image/webp" srcset="img/lazyload-ph.png" data-srcset="img/kafka_operators.webp"><img src="img/lazyload-ph.png" data-src="img/kafka_operators.jpg" class="img-fluid mx-auto d-block img-kafka-operato-style lazyload" alt="kafka_operators" width="635" height="211"></picture>
 				<h2 class="mg-md tc-3327">
 					<strong>Kafka_Source</strong>
 				</h2>
 				<p class="text-justify">
-					<strong>Kafka_Source</strong> is an alternative source that can be used to create a WindFlow application. It provides a user-friendly builder class that can be used to configure the operator and its interaction with Apache Kafka in order to properly subscribe to topics.
+					<strong>Kafka_Source</strong> is an alternative source operator that can be used to build a WindFlow application. It provides a user-friendly builder class that allows the developer to configure the operator and its interaction with Apache Kafka, ensuring correct subscription to the desired topics.<br>
 				</p>
 				<div>
 					<pre><code class="language-cpp">
@@ -134,10 +134,10 @@ Kafka_Source source = KafkaSource_Builder(source_functor)
 					
 				</div>
 				<p class="text-justify">
-						The builder allows the developer to specify several configuration parameters, such as a set of&nbsp;<i>address:port</i> strings of the Kafka brokers to connect with, the names of the topics to subscribe (and to all their partitions), the name of the <i>group_id</i> (all the replicas of the Kafka_Source will belong to the same consumer group and they receive messages of the subscribed topics). Other configuration parameters are more advanced (e.g., the assignment policy). Interested readers can refer to the API of&nbsp;<a href="https://github.com/edenhill/librdkafka">librdkafka-dev</a>. The <i>withIdleness()</i> method allows the configuration of a timeout control, in order to execute a callback once a replica of the Kafka_Source does not receive any message for a given time period.<br>
+						The builder allows the developer to specify several configuration parameters, such as a set of <i>address:port</i> strings identifying the Kafka brokers to connect to, the names of the topics to subscribe to (including all their partitions), and the <i>group_id</i> (all replicas of Kafka_Source belong to the same consumer group and receive messages from the subscribed topics). Additional parameters cover more advanced settings (e.g., the assignment policy). Interested readers can refer to the librdkafka-dev API for further details.&nbsp;The <i>withIdleness(</i>) method enables the configuration of a timeout mechanism, allowing a callback to be triggered when a replica of Kafka_Source does not receive any message for a specified time interval.<br>
 					</p>
 				<p class="text-justify">
-						The builder is instantiated by passing to its constructor the <strong>deserialization logic</strong>, which determines how to deserialize a raw Kafka message into a data structure exchanged internally by WindFlow operators. The deserialization logic can be expressed as a lambda, functor object or using a plain function respecting a given signature. Below, there is an example using a functor object exposing an operator() method.
+						The builder is instantiated by passing the deserialization logic to its constructor. This logic determines how a raw Kafka message is transformed into a data structure that can be exchanged internally by WindFlow operators. The deserialization logic can be provided as a lambda, a functor object, or a plain function, as long as it adheres to the required signature.&nbsp;Below is an example that uses a functor object exposing an operator() method.<br>
 					</p>
 				<div>
 						<pre><code class="language-cpp">
@@ -161,13 +161,13 @@ public:
 						
 					</div>
 				<p class="text-justify">
-							The Boolean return value states whether the replica of the Kafka_Source should wait for another message from Apache Kafka or not (in order to start the application termination).
+							The boolean return value indicates whether the Kafka_Source replica should continue waiting for additional messages from Apache Kafka or stop (thereby initiating the application’s termination).
 						</p>
 				<h2 class="mg-md">
 							<strong>Kafka_Sink</strong>
 						</h2>
 				<p>
-							The <strong>Kafka_Sink</strong> operator allows a WindFlow application to publish its results as messages of specific topics to Apache Kafka. Also in this case, the operator can be configured with its builder class as in the code snippet below.
+							The <strong>Kafka_Sink</strong> operator allows a WindFlow application to publish its results as messages to specific Apache Kafka topics. As with the source operator, the sink can be configured using its builder class, as shown in the code snippet below.<br>
 						</p>
 				<div>
 							<pre><code class="language-cpp">
@@ -181,7 +181,7 @@ Kafka_Sink sink = KafkaSink_Builder(sink_functor)
 							
 						</div>
 				<p>
-								We can configure the Kafka brokers, and as for all operators in the library, the parallelism level, name and so forth. The builder is constructed by providing the <strong>serialization logic</strong> as done in the code snippet below.
+								We can configure the Kafka brokers as well as the usual operator parameters provided by the library, such as parallelism level, name, and more. The builder is instantiated by supplying the <strong>serialization</strong> <strong>logic</strong>, as shown in the code snippet below.<br>
 							</p>
 				<div>
 								<pre><code class="language-cpp">
@@ -202,7 +202,7 @@ public:
 								
 							</div>
 				<p>
-									The return value &nbsp;of the serialization logic is a message of type&nbsp;<i>wf_kafka_sink_msg</i>, which contains the serialized message (as a string), the name of the topic and the index of the partition to be used to publish that message to Apache Kafka.
+									The return value of the serialization logic is a message of type <i>wf_kafka_sink_msg</i>, which contains the serialized payload (as a string), the name of the topic, and the index of the partition to which the message should be published in Apache Kafka.<br>
 								</p>
 			</div>
 		</div>
@@ -237,7 +237,7 @@ public:
 			<div class="col-md-3 col-sm-6">
 				<h4 class="mg-md text-sm-left text-center">
 					Get the library
-				</h4><a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/v4.2.0.zip" class="a-btn a-block footer-link ltc-4866">Download</a><a href="https://github.com/ParaGroup/WindFlow" class="a-btn a-block footer-link ltc-4866">GitHub</a>
+				</h4><a href="https://github.com/ParaGroup/WindFlow/archive/refs/tags/v4.2.4.zip" class="a-btn a-block footer-link ltc-4866">Download</a><a href="https://github.com/ParaGroup/WindFlow" class="a-btn a-block footer-link ltc-4866">GitHub</a>
 			</div>
 		</div>
 	</div>
@@ -250,11 +250,11 @@ public:
 
 
 <!-- Additional JS -->
-<script src="./js/jquery.min.js?8326"></script>
-<script src="./js/bootstrap.bundle.min.js?7171"></script>
-<script src="./js/blocs.min.js?8508"></script>
+<script src="./js/jquery.min.js?1483"></script>
+<script src="./js/bootstrap.bundle.min.js?2191"></script>
+<script src="./js/blocs.min.js?5742"></script>
 <script src="./js/lazysizes.min.js" defer></script>
-<script src="./js/prism.js?3934"></script><!-- Additional JS END -->
+<script src="./js/prism.js?5458"></script><!-- Additional JS END -->
 
 
 </body>
